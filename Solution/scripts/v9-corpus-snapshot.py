@@ -53,6 +53,8 @@ def verify(target, config):
 def publish(store, config, source):
     key = identity(config)
     destination = store / key
+    if store.is_symlink():
+        raise ValueError("Symlink store is forbidden")
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink():
         raise ValueError("Symlink store is forbidden")
@@ -64,14 +66,20 @@ def publish(store, config, source):
     tmp = Path(tempfile.mkdtemp(prefix=".staging-", dir=store))
     try:
         for name in REQUIRED:
-            shutil.copyfile(source / name, tmp / name)
+            original = source / name
+            if original.is_symlink() or not original.is_file():
+                raise ValueError("Unsafe source file: " + name)
+            shutil.copyfile(original, tmp / name)
         manifest = snapshot(config, tmp)
         (tmp / "snapshot.json").write_text(
             json.dumps(manifest, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8")
         # flock serializes competing publishers on the same durable POSIX volume.
         # Do not use this primitive on object stores without equivalent leases.
-        with open(store / ".publish.lock", "a+b") as lock:
+        lock_path = store / ".publish.lock"
+        if lock_path.is_symlink():
+            raise ValueError("Unsafe publish lock")
+        with open(lock_path, "a+b") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if destination.exists():
                 return verify(destination, config)
