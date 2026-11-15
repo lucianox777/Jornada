@@ -30,7 +30,6 @@ def make(args):
         raise ValueError("Birth daily reference missing or unsafe: " + str(args.birth_daily))
     return {
         "schema": "v9-corpus-inputs-v2",
-        "partition_contract": "TRAIN_VALIDATION_TEST_SEALED_V9",
         "generator_command": "Jornada.Linkage.SyntheticCorpus generate",
         "generator_source_sha256": tree(args.generator_source),
         "ibge_names_sha256": tree(args.ibge_names),
