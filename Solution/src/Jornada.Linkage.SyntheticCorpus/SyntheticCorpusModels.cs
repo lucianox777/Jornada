@@ -15,18 +15,8 @@ public sealed record SyntheticCorpusOptions(
     double CnsDobConflictRate = .01,
     int Gestores = 4,
     SyntheticBrazilianNameErrorConfig? BrazilianNameErrors = null,
-    SyntheticStratifiedErrorConfig? StratifiedErrors = null,
-    double? MotherCorruptionProbabilityOverride = null)
+    SyntheticStratifiedErrorConfig? StratifiedErrors = null)
 {
-    // Nullable opt-in. Without this value all historical profiles, including
-    // the clean 10% maternal attempt rate, remain byte-for-byte reproducible.
-    // This is a synthetic experimental input, not an official IBGE rate.
-    public SyntheticErrorProfile EffectiveErrorProfile =>
-        MotherCorruptionProbabilityOverride is double rate
-            ? SyntheticCorpusV2Rules.Profiles[ErrorProfile] with
-                { MotherCorruptionProbability = rate }
-            : SyntheticCorpusV2Rules.Profiles[ErrorProfile];
-
     public void Validate()
     {
         if (People <= 0)
@@ -44,8 +34,6 @@ public sealed record SyntheticCorpusOptions(
         ValidateProbability(CnsInvalidRate, nameof(CnsInvalidRate));
         ValidateProbability(CnsReuseRate, nameof(CnsReuseRate));
         ValidateProbability(CnsDobConflictRate, nameof(CnsDobConflictRate));
-        if (MotherCorruptionProbabilityOverride is double maternalRate)
-            ValidateProbability(maternalRate, nameof(MotherCorruptionProbabilityOverride));
         if (Gestores <= 0)
             throw new ArgumentOutOfRangeException(nameof(Gestores));
         BrazilianNameErrors?.Validate(Gestores);
