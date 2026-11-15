@@ -113,3 +113,48 @@ jobs:
             Solution/.local/v9-persistent/prepare-receipt.json
           if-no-files-found: error
           retention-days: 7
+
+  # Separate GitHub-hosted runner to prove artifacts cross job boundaries,
+  # without starting the 324-hypothesis TRAIN or independent sealed TEST.
+  train-handoff-probe:
+    name: "V9 PREPARE -> consumer verification (NONSCIENTIFIC, no TRAIN)"
+    needs: [prepare-corpus]
+    if: ${{ needs.prepare-corpus.result == 'success' && github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4.2.2
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit verified branch/SHA before consuming any artifact
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_REF" = "refs/heads/feature/v9-persistent-synthetic-corpus-20261115"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "${{ needs.prepare-corpus.result }}" = "success"
+      - name: Fetch only same-run PREPARE artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned v4
+        with:
+          name: v9-prepared-corpus-${{ github.run_id }}
+          path: Solution/.local/v9-handoff-received
+      - name: Verify exact config/manifest SHA and complete file hashes
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-corpus-handoff-verify.py \
+            --corpus .local/v9-handoff-received/train-handoff \
+            --config .local/v9-handoff-received/config.json \
+            --prepare-receipt .local/v9-handoff-received/prepare-receipt.json
+          echo "V9_CORPUS_TRANSFER_PROBE_ONLY: no calibration, no independent TEST"
