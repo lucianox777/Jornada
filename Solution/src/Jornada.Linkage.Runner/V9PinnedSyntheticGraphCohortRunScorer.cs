@@ -45,6 +45,7 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     private readonly (long A, long B)[] syntheticEdges;
     private readonly bool readPhysicalSqlGraph;
     public V9FrozenCohortSqlCandidateGraph.Receipt? SqlGraphEvidence { get; private set; }
+    public V9OperationalBlockingChaveCohortParity.Receipt? BlockingChaveParityEvidence { get; private set; }
     private readonly int failAfter;
     private readonly ConcurrentDictionary<long, byte> consumed = new();
     private IReadOnlyDictionary<long, (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>? prepared;
@@ -185,8 +186,19 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             if (physical.Edges.Count == 0)
                 throw new InvalidDataException(
                     "Smoke SQL positivo V9 exige pelo menos uma aresta física real.");
+            // Before any SQL linkage_resultado batch is persisted, require
+            // exact, bidirectional, complete equality with the UNMODIFIED
+            // production blocking_chave INTERSECT/UNION candidate query.
+            var operational = await V9OperationalBlockingChaveCohortParity.VerifyAsync(
+                connection, winner, frozenRows, managers, physical.Edges, ct);
+            if (operational.UndirectedSqlEdges != physical.Edges.Count
+                || !string.Equals(operational.CanonicalEdgesSha256,
+                    physical.CanonicalEdgesSha256, StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    "Digest do grafo operacional V9 divergiu da assinatura física.");
             edges = physical.Edges.ToList();
             SqlGraphEvidence = physical;
+            BlockingChaveParityEvidence = operational;
         }
         // EXACTLY one global grouping over all edges, including cross-batch links.
         var global = pinned.ReplayTest(cohort, edges);

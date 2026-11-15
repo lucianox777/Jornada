@@ -114,6 +114,40 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text()
         self.assertIn("V9FrozenCohortSqlCandidateGraph.cs", caller)
 
+    def test_exact_production_blocking_chave_query_is_read_only_and_fail_closed(self):
+        src = (ROOT / "src/Jornada.Linkage.Runner/V9OperationalBlockingChaveCohortParity.cs").read_text()
+        scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        runner = (ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text()
+        fixture = TEST.read_text()
+        prod_query = (ROOT / "src/Jornada.Linkage.Runner/BlockingProjectionCandidateQueryBuilder.cs").read_text()
+        self.assertIn("planner.BuildCandidateUuidQuery(cmd,", src)
+        self.assertIn("BlockingProjectionCandidateQueryBuilder.BuildVerifiedSnapshotCandidateUuidQuery(", (
+            ROOT / "src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs").read_text())
+        self.assertIn("FROM identidade.blocking_chave", prod_query)
+        self.assertIn("INTERSECT", prod_query)
+        self.assertIn(" UNION ", prod_query)
+        self.assertIn("expectedManifest.SetEquals(seen)", src)
+        self.assertIn("directions.Values.Any(value => value != 3)", src)
+        self.assertIn("expected.SetEquals(directions.Keys)", src)
+        self.assertIn("JornadaHarness", src)
+        self.assertIn("ProductionGoldCertified = false", src)
+        self.assertNotIn("INSERT ", src)
+        self.assertNotIn("UPDATE ", src)
+        self.assertIn("V9OperationalBlockingChaveCohortParity.VerifyAsync(", scorer)
+        self.assertIn("BlockingChaveParityEvidence = operational", scorer)
+        self.assertLess(scorer.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("),
+                        scorer.index("pinned.ReplayTest(cohort, edges)"))
+        self.assertIn("await v9Grouped.PrepareAsync(runId, model, frozen, workCt)", runner)
+        self.assertIn('DestinationTableName = "identidade.blocking_chave"', fixture)
+        self.assertIn("SqlBulkCopyOptions.CheckConstraints", fixture)
+        self.assertIn("projection_fingerprint_sha256=REPLICATE('a',64)", fixture)
+        self.assertIn("BlockingChaveParityEvidence?.DirectedSqlEdges", fixture)
+        self.assertIn("ReadPublicationFingerprintAsync(connection)", fixture)
+        caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text()
+        self.assertIn("V9OperationalBlockingChaveCohortParity.cs", caller)
+        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED",
+            (REPO / ".github/workflows/v9-v3-four-name-100k.yml").read_text())
+
     def test_scientific_test_stays_blocked(self):
         wf = TF4.read_text(encoding="utf-8")
         prep = wf.split("\n  prepare-test-100k:\n", 1)[1].split("\n  physical-100k:\n", 1)[0]
