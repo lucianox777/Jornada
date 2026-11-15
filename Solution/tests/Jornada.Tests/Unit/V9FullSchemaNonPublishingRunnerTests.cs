@@ -221,6 +221,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             // to disposable JornadaHarness to satisfy the real FK on
             // linkage_resultado, not to represent operational Gold publication.
             await SeedDisposableDiagnosticIdentitiesAsync(connection);
+            await SeedDisposableOperationalBlockingProjectionAsync(connection, winner);
             var positiveBefore = await ReadPublicationFingerprintAsync(connection);
             var sqlScorer = new V9PinnedSyntheticGraphCohortRunScorer(
                 sql, stored.ModelId, winner.ContentSha256);
@@ -244,6 +245,15 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             }));
             Assert.That(physical.CanonicalEdgesSha256, Has.Length.EqualTo(64));
             Assert.That(physical.SignatureRows, Is.GreaterThan(0));
+            var operational = sqlScorer.BlockingChaveParityEvidence;
+            Assert.That(operational, Is.Not.Null);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(operational!.DirectedSqlEdges, Is.EqualTo(4));
+                Assert.That(operational.UndirectedSqlEdges, Is.EqualTo(2));
+                Assert.That(operational.CanonicalEdgesSha256, Is.EqualTo(physical.CanonicalEdgesSha256));
+                Assert.That(operational.ProductionGoldCertified, Is.False);
+            }));
 
             var cohort = Enumerable.Range(1, 200).Select(i =>
                 new V9PhysicalCalibrationObservation(
@@ -275,6 +285,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await BuildRunner(failingSqlScorer).RunAsync(Request(), CancellationToken.None)));
             Assert.That(failingSqlScorer.SqlGraphEvidence?.Edges,
                 Is.EqualTo(new (int A, int B)[] { (1, 101), (2, 102) }));
+            Assert.That(failingSqlScorer.BlockingChaveParityEvidence?.DirectedSqlEdges, Is.EqualTo(4));
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
             await using (var sqlFailed = new SqlCommand("""
                 SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
@@ -288,7 +299,27 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await AssertRunRowsAsync(connection, (Guid)failedId!, "FALHOU", 100);
             }
 
-            TestContext.WriteLine("V9_FULL_SCHEMA_POSITIVE_SQL_CROSSBATCH_PASS: physical-signature graph=2; TF-first+last; batches=100+100; worker parity; Gold/Serving unchanged; scientific TEST 100k blocked");
+            // Corrupt one physically persisted projection fingerprint. The next
+            // grouped RunAsync must refuse the stale/tampered manifest BEFORE
+            // persisting its first SQL result. Never silently fall back to
+            // an empty graph or accept a partial materialization.
+            await using (var corrupt = new SqlCommand("""
+                UPDATE TOP (1) identidade.blocking_chave
+                   SET projection_fingerprint_sha256=REPLICATE('a',64)
+                 WHERE pessoa_uuid=@id;
+                """, connection))
+            {
+                corrupt.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
+                    V9OperationalBlockingChaveCohortParity.DiagnosticUuid(1);
+                Assert.That(await corrupt.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            var tamperedScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BuildRunner(tamperedScorer).RunAsync(Request(), CancellationToken.None)));
+            Assert.That(tamperedScorer.BlockingChaveParityEvidence, Is.Null);
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
+            TestContext.WriteLine("V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full manifests; tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked");
         }
         finally
         {
@@ -467,6 +498,64 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(await seed.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
         await tx.CommitAsync();
+    }
+
+    private static async Task SeedDisposableOperationalBlockingProjectionAsync(
+        SqlConnection connection, V9FittedSnapshot winner)
+    {
+        // Diagnostic-only materialization of the EXACT V9 projection into the
+        // real operational blocking_chave table, not production pipeline DI.
+        await using var guard = new SqlCommand("SELECT DB_NAME();", connection);
+        if (!string.Equals((string?)await guard.ExecuteScalarAsync(), "JornadaHarness",
+                StringComparison.Ordinal))
+            throw new InvalidOperationException("Blocking V9 sintético fora do JornadaHarness.");
+
+        var planner = V9FittedSnapshotExecutionRuntime.Load(
+            winner.SerializeUtf8(), winner.ContentSha256);
+        var table = new DataTable();
+        table.Columns.Add("pessoa_uuid", typeof(Guid));
+        table.Columns.Add("normalizacao_versao", typeof(string));
+        table.Columns.Add("atributo", typeof(string));
+        table.Columns.Add("valor_normalizado", typeof(string));
+        table.Columns.Add("semantica_temporal", typeof(string));
+        table.Columns.Add("vigencia_inicio", typeof(DateTimeOffset));
+        table.Columns.Add("vigencia_fim", typeof(DateTimeOffset));
+        table.Columns.Add("projection_schema_version", typeof(string));
+        table.Columns.Add("projection_fingerprint_sha256", typeof(string));
+        var asOf = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        for (var i = 1; i <= 200; i++)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF",
+                SyntheticPersonName(i), new DateOnly(1980, 5, 6), SyntheticMotherName(i));
+            foreach (var key in planner.Project(observation).Distinct())
+            {
+                var stable = planner.TemporalSemantics(key.Feature) ==
+                    BlockingFeatureTemporalSemantics.StableIdentityDatum;
+                table.Rows.Add(
+                    V9OperationalBlockingChaveCohortParity.DiagnosticUuid(i),
+                    IdentityComparison.NormalizationVersion,
+                    key.Feature, key.Value,
+                    stable ? "STABLE_IDENTITY_DATUM" : "VERSIONED_ALIAS",
+                    asOf, DBNull.Value, planner.ProjectionSchemaVersion,
+                    planner.ProjectionFingerprintSha256);
+            }
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
+        using (var bulk = new SqlBulkCopy(
+            connection, SqlBulkCopyOptions.CheckConstraints, tx)
+        {
+            DestinationTableName = "identidade.blocking_chave",
+            BatchSize = 1000,
+            BulkCopyTimeout = 120
+        })
+        {
+            foreach (DataColumn col in table.Columns)
+                bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+            await bulk.WriteToServerAsync(table);
+        }
+        await tx.CommitAsync();
+        TestContext.WriteLine("V9_OPERATIONAL_BLOCKING_CHAVE_DIAGNOSTIC_MANIFEST: complete V9 fingerprint, 200 source UUIDs; no production lineage claim");
     }
 
     private static async Task AssertFrozenRunDecisionsAsync(
