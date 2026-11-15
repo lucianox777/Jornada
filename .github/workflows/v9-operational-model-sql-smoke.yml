@@ -36,6 +36,8 @@ on:
       - 'Solution/src/Jornada.Operational.Sql/V9DisposableGoldBlockingProjectionMaterializer.cs'
       - 'Solution/src/Jornada.Operational.Sql/BlockingProjectionPersistence.V9.cs'
       - 'Solution/src/Jornada.Operational.Sql/BlockingProjectionPersistence.cs'
+      - 'Solution/src/Jornada.Processor.Worker/SqlProcessorRepository.V9GovernedRehearsal.cs'
+      - 'Solution/src/Jornada.Processor.Worker/SqlProcessorRepository.Materialization.cs'
       - 'Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py'
   workflow_dispatch:
 
