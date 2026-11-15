@@ -253,23 +253,50 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 N'PROCESSADA',SYSUTCDATETIME(),SYSUTCDATETIME());
             INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,status)
                 VALUES(@batch,@delivery,1,1,N'PROCESSADO');
-            SELECT @g,@s,@b;
+            INSERT ref.gestor(codigo,nome) VALUES(N'V9TEST2',N'Disposable V9 TEST partner');
+            DECLARE @g2 bigint=SCOPE_IDENTITY();
+            INSERT ref.sistema_origem(gestor_id,codigo,nome)
+                VALUES(@g2,N'V9TEST2',N'Disposable V9 TEST partner');
+            DECLARE @s2 bigint=SCOPE_IDENTITY();
+            INSERT ref.base_pessoa_origem(
+                codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+                VALUES(N'V9TEST2',N'Disposable V9 TEST partner',@g2,N'PRIVADA',N'NAO_HOMOLOGADA');
+            DECLARE @b2 bigint=SCOPE_IDENTITY();
+            INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao)
+                VALUES(@s2,@b2,1);
+            INSERT ref.gestor_pessoa_versao(
+                gestor_id,versao,vigencia_inicio,pessoa_schema_ref,status)
+                VALUES(@g2,1,'20260101',N'isolated-v9-synthetic',N'RASCUNHO');
+            DECLARE @v2 bigint=SCOPE_IDENTITY();
+            INSERT ingestao.entrega(
+                entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
+                idempotency_key,payload_sha256,bytes_recebidos,status,data_referencia,recebido_em)
+                VALUES(@delivery2,@g2,@s2,@v2,N'v9-test-partner-fresh',REPLICATE('0',64),0,
+                N'PROCESSADA',SYSUTCDATETIME(),SYSUTCDATETIME());
+            INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,status)
+                VALUES(@batch2,@delivery2,1,1,N'PROCESSADO');
+            SELECT @g,@s,@b,@g2,@s2,@b2;
             """, connection, transaction))
         {
             setup.Parameters.Add("@delivery", SqlDbType.UniqueIdentifier).Value = Guid.NewGuid();
             setup.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            setup.Parameters.Add("@delivery2", SqlDbType.UniqueIdentifier).Value = Guid.NewGuid();
+            setup.Parameters.Add("@batch2", SqlDbType.UniqueIdentifier).Value = BatchId2;
             await using var reader = await setup.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
             GestorId = reader.GetInt64(0);
             SistemaId = reader.GetInt64(1);
             BaseId = reader.GetInt64(2);
+            GestorId2 = reader.GetInt64(3);
+            SistemaId2 = reader.GetInt64(4);
+            BaseId2 = reader.GetInt64(5);
         }
 
         for (var i = 1; i <= count; i++)
         {
             var code = "V9TEST_" + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
-            var person = "PESSOA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " SILVA";
-            var mother = "MARIA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA";
+            var person = SyntheticPersonName(i);
+            var mother = SyntheticMotherName(i);
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code))).ToLowerInvariant();
             await using var add = new SqlCommand("""
                 INSERT silver.pessoa_origem(sistema_origem_id,base_pessoa_origem_id,codigo_pessoa_origem)
@@ -284,10 +311,11 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;
                 SELECT @observation;
                 """, connection, transaction);
-            add.Parameters.Add("@system", SqlDbType.BigInt).Value = SistemaId;
-            add.Parameters.Add("@base", SqlDbType.BigInt).Value = BaseId;
-            add.Parameters.Add("@gestor", SqlDbType.BigInt).Value = GestorId;
-            add.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            var partner = i > count / 2;
+            add.Parameters.Add("@system", SqlDbType.BigInt).Value = partner ? SistemaId2 : SistemaId;
+            add.Parameters.Add("@base", SqlDbType.BigInt).Value = partner ? BaseId2 : BaseId;
+            add.Parameters.Add("@gestor", SqlDbType.BigInt).Value = partner ? GestorId2 : GestorId;
+            add.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = partner ? BatchId2 : BatchId;
             add.Parameters.Add("@code", SqlDbType.NVarChar, 120).Value = code;
             add.Parameters.Add("@hash", SqlDbType.Char, 64).Value = hash;
             add.Parameters.Add("@name", SqlDbType.NVarChar, 400).Value = person;
@@ -305,9 +333,33 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
     }
 
     private static readonly Guid BatchId = Guid.NewGuid();
+    private static readonly Guid BatchId2 = Guid.NewGuid();
     private static long GestorId;
     private static long SistemaId;
     private static long BaseId;
+    private static long GestorId2;
+    private static long SistemaId2;
+    private static long BaseId2;
+
+    // Two positive, cross-manager, CROSS-BATCH links. Pair (1,101) chooses
+    // person/mother FirstName TF; pair (2,102) chooses surname TF.
+    // Every other name has disjoint leading prefixes across managers.
+    private static string SyntheticPersonName(int id) => id switch
+    {
+        1 or 101 => "MARIA SILVA",
+        2 => "SILVANA SILVA",
+        102 => "SILVIA SILVA",
+        _ => (id <= 100 ? "ALFA" : "BETA") +
+            id.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " SILVA"
+    };
+    private static string SyntheticMotherName(int id) => id switch
+    {
+        1 or 101 => "ANA COSTA",
+        2 => "COSTELA COSTA",
+        102 => "COSTURA COSTA",
+        _ => (id <= 100 ? "CARLA" : "DORA") +
+            id.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA"
+    };
 
     private static async Task<string> ReadPublicationFingerprintAsync(SqlConnection connection)
     {
