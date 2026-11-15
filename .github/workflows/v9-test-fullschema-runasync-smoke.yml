@@ -85,7 +85,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
           name: v9-fullschema-real-runasync-nonpublishing
-          path: ${{ runner.temp }/v9-fullschema-runasync-receipt.txt
+          path: ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
           retention-days: 30
           if-no-files-found: error
       - name: Dispose private SQL container on success and failure
