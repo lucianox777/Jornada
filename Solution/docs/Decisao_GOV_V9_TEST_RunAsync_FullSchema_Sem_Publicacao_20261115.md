@@ -28,3 +28,13 @@ O fixture inicial de 200 observações não possui referências Gold nem pares p
 - Workflow físico: .github/workflows/v9-test-fullschema-runasync-smoke.yml.
 - Complementa GOV-V9-TEST-REAL-SCHEMA-RUNASYNC-GOLD-SERVING-20261114 (Decisao_GOV_V9_TEST_Esquema_Operacional_RunAsync_Gold_Serving_20261114.md), GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114 (Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md) e GOV-V9-TEST-PARIDADE-FORMATO-OPERACIONAL-20261113 (Decisao_GOV_V9_TEST_Paridade_Formato_Operacional_20261113.md), sem revogação de qualquer gate final.
 - Critérios de aceite: CI obrigatória security-guards/unit-runtime/deterministic-build 3/3 no HEAD, SQL smoke full-schema físico PASS e PR por squash, sem publicar nem consumir TEST. Atualizar recibo documental com resultados reais; não presumir sucesso de execução.
+
+## Diagnóstico físico de incompatibilidade real — 15/11/2026
+
+A primeira execução de CI no [run #43736607286](https://github.com/lucianox777/Jornada/actions/runs/43736607286), job full-schema-runasync-nonpublish, provou **BUILD Release PASS, schema SQL canônico PASS e preflight PASS**, mas o ensaio `RunAsync` original falhou como previsto pela salvaguarda do V9: `System.IO.InvalidDataException: Snapshot agrupado exige replay da coorte e das arestas; Resolve isolado não pode ignorar agrupamento.` A falha ocorre porque `ScoreBatchAsync` chama `ResolveWithoutCpfAsync` para uma observação isolada, enquanto o vencedor V9 TF4 mantém `BLIND_FS_COMPLETE_LINK_CANDIDATES`, com score e agrupamento calculados sobre a coorte inteira. **Este erro é evidência material de que o RunAsync legado NÃO executa o agrupamento V9 de forma nativa. Não retirar o guard nem reduzir o snapshot para induzir PASS.**
+
+A revisão do teste separa duas provas:
+- **Negativa obrigatória:** tentativa do RunAsync com scorer V9 por registro deve falhar fechada, ficar em FALHOU com zero decisões persistidas e não publicar nada.
+- **Prova limitada de persistência:** o runtime compartilhado V9 calcula previamente uma única vez as 200 decisões do grafo completo sintético (arestas explicitamente vazias). Só então a interface de fixture oferece as decisões imutáveis ao método REAL RunAsync para testar `linkage_run`, duas transações de 100, fechamento sem publicação e falha na avaliação 101. Reatribui apenas `ModeloId` para o identificador vinculado à FK do fixture; não reavalia scores nem altera status, agrupamento, candidatos ou métricas. Este adaptador não existe no serviço operacional e **não certifica a implementação produtiva**.
+
+Essas provas novas são distintas do TEST científico 100K. CI da revisão precisa apresentar resultados reais antes de aceitar o incremento.
