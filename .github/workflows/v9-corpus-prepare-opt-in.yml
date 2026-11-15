@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       mother_corruption_rate:
-        description: "Optional synthetic mother-name corruption attempt in [0,1]. Omit to preserve clean 10%. 13.4% is exploratory, NOT an IBGE fact."
+        description: "RESERVED, FAIL-CLOSED: maternal override not executable while frozen generator SHA is protected. Leave blank (clean 10%)."
         required: false
         default: ""
         type: string
@@ -48,15 +48,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .local/v9-persistent
-          maternal_args=()
+          # The historical C# generator source is pinned by scientific
+          # seed42/43/44 transfers. Do not silently accept an override that
+          # this pinned executable cannot apply. The recipe supports a future
+          # separated experiment; until then only the clean 10% path runs.
           if [[ -n "$MOTHER_CORRUPTION_RATE" ]]; then
-            maternal_args=(--mother-corruption-rate "$MOTHER_CORRUPTION_RATE")
+            echo "::error::V9_MATERNAL_RATE_EXPERIMENTAL_NOT_IMPLEMENTED: frozen generator cannot accept a maternal override"
+            exit 1
           fi
           python3 scripts/v9-corpus-input-receipt.py \
             --generator-source src/Jornada.Linkage.SyntheticCorpus \
             --ibge-names data/reference/ibge-nomes-2022 \
             --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
-            "${maternal_args[@]}" \
             --output .local/v9-persistent/config.json
           python3 - <<'PY' >> "$GITHUB_ENV"
           import importlib.util,json
@@ -82,10 +85,6 @@ jobs:
         run: |
           set -euo pipefail
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
-          maternal_args=()
-          if [[ -n "$MOTHER_CORRUPTION_RATE" ]]; then
-            maternal_args=(--mother-corruption-rate "$MOTHER_CORRUPTION_RATE")
-          fi
           python3 scripts/v9-corpus-prepare.py \
             --store .local/v9-persistent/store \
             --config .local/v9-persistent/config.json \
@@ -97,7 +96,6 @@ jobs:
               --population-profile demographic-primary \
               --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
               --error-profile clean --people 100000 --seed 42 \
-              "${maternal_args[@]}" \
               --out .local/v9-persistent/generated
       - if: ${{ steps.corpus-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
