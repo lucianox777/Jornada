@@ -65,7 +65,7 @@ jobs:
       - name: Verify corpus preparation contract before expensive generation
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s tests/scripts -p 'test_v9_corpus_*.py' -v
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_*.py' -v
       - name: Build generator and prepare corpus
         run: |
           set -euo pipefail
