@@ -587,10 +587,12 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             }
 
             var rowsFound = new HashSet<(string Feature, string Value)>();
+            var closedHistoricalAliases = 0;
+            var currentAliases = 0;
             await using (var check = new SqlCommand("""
                 SELECT atributo,valor_normalizado,semantica_temporal,
                        projection_schema_version,projection_fingerprint_sha256,
-                       vigencia_fim
+                       vigencia_inicio,vigencia_fim
                   FROM identidade.blocking_chave WHERE pessoa_uuid=@uuid;
                 """, connection, tx))
             {
@@ -602,8 +604,20 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                     Assert.That(rowsFound.Add((feat, rd.GetString(1))), Is.True);
                     Assert.That(rd.GetString(3), Is.EqualTo(model.ProjectionSchemaVersion));
                     Assert.That(rd.GetString(4), Is.EqualTo(model.ProjectionFingerprintSha256));
-                    Assert.That(rd.IsDBNull(5), Is.True,
-                        "Historical aliases remain current while the Silver link is active.");
+                    // Historical aliases are RETAINED even when a newer Gold
+                    // name has superseded their temporal validity. The
+                    // operational query deliberately accepts old name aliases
+                    // while stable features must remain current.
+                    if (!rd.IsDBNull(6))
+                    {
+                        Assert.That(rd.GetDateTimeOffset(6),
+                            Is.GreaterThanOrEqualTo(rd.GetDateTimeOffset(5)));
+                        Assert.That(rd.GetString(2), Is.EqualTo("VERSIONED_ALIAS"));
+                        closedHistoricalAliases++;
+                    }
+                    else if (rd.GetString(2) == "VERSIONED_ALIAS")
+                        currentAliases++;
+
                     if (feat.StartsWith("name_prefix_", StringComparison.Ordinal)
                         || feat.StartsWith("mother_name_prefix_", StringComparison.Ordinal))
                         Assert.That(rd.GetString(2), Is.EqualTo("VERSIONED_ALIAS"));
@@ -618,6 +632,10 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 .Select(key => (key.Feature, key.Value)).ToHashSet();
             Assert.That(rowsFound, Is.EquivalentTo(expected));
             Assert.That(rowsWritten, Is.EqualTo(expected.Count));
+            Assert.That(closedHistoricalAliases, Is.GreaterThan(0),
+                "Nomes antigos devem sobreviver com vigência encerrada.");
+            Assert.That(currentAliases, Is.GreaterThan(0),
+                "Nomes da referência Gold corrente devem permanecer vigentes.");
 
             // Only an explicit first use is allowed; a second invocation
             // cannot overwrite Gold history or previously written keys.
