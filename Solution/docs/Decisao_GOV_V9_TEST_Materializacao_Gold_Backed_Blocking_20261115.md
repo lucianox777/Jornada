@@ -1,6 +1,6 @@
 # GOV-V9-TEST-MATERIALIZACAO-GOLD-BACKED-BLOCKING-20261115
 
-**Governança:** GOV-DOC-01, continuidade expressa pelo Product Owner em 15/11/2026. **Estado:** implementação em PR, CI ainda a verificar. **TEST científico independente de 100k permanece BLOQUEADO**; não abrir/destravar nem consumir.
+**Governança:** GOV-DOC-01, continuidade expressa pelo Product Owner em 15/11/2026. **Estado:** IMPLEMENTADO E INTEGRADO PR #1565, squash `eb1c268f66ef6efa708f56739699e5d0f9f59c10`; CI obrigatória #43748071043 3/3 e SQL físico #43748071032 2/2 SUCCESS. **TEST científico independente de 100k permanece BLOQUEADO**; não abrir/destravar nem consumir.
 
 ## Situação que motivou a decisão
 
@@ -28,3 +28,11 @@ Precedência: [GOV-V9-TEST-PARIDADE-BLOCKING-CHAVE-OPERACIONAL-20261115](Decisao
 - Contrato preventivo: `Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py`.
 - CI SQL: `.github/workflows/v9-operational-model-sql-smoke.yml`.
 - Aceite de integração: required-fast 3/3 e SQL físico 2/2 no HEAD, testes negativos atômicos e materiais do Gold, merge squash na master, recibo e dois índices oficiais GOV-DOC-01 sincronizados. Não declarar TEST 100k liberado.
+
+## Recibo de integração e prova física — 15/11/2026
+
+- [PR #1565](https://github.com/lucianox777/Jornada/pull/1565) — HEAD físico aprovado `075b43d7b5b70d0468be01a1e2ac12773c646369`, merge squash `eb1c268f66ef6efa708f56739699e5d0f9f59c10` na master.
+- [CI obrigatória #43748071043](https://github.com/lucianox777/Jornada/actions/runs/43748071043): `security-guards`, `deterministic-build`, `unit-runtime` **3/3 SUCCESS**.
+- [SQL físico #43748071032](https://github.com/lucianox777/Jornada/actions/runs/43748071032): `full-schema-runasync-nonpublish`, `one-winner-sql-smoke` **2/2 SUCCESS**. Log: `V9_TEST_GOLD_BACKED_PROJECTION_PASS: 200 physical Gold references; V9 prefix keys; invalid-Gold rollback; exact fingerprint; re-entry rejected; scientific TEST 100k blocked`. Também `V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS`: dois pares positivos e quatro direções SQL entre lotes, manifesto exaustivo e recusa a SHA adulterado. **NUnit 1/1**, **Python 7/7**.
+- A primeira execução CI #43747825550 **falhou corretamente** porque o guard inicial exigia equivocadamente que `identidade.pessoa` contivesse apenas 200 linhas, ignorando identidades adicionais do fluxo progressivo. A revisão restringiu o censo global a `gold.pessoa` e validou individualmente as 200 referências de `identidade.pessoa` em estado ATIVO. A correção foi reexecutada integralmente no HEAD acima.
+- **Escopo da decisão:** prova do caminho **Gold sintético persistido → V9CalibrationBlockingProjection → identidade.blocking_chave → consulta operacional → RunAsync global**, sem acionar Processor/DI de produção e sem publicar Gold/Serving. **TEST científico 100k continua BLOQUEADO; amostra independente não utilizada.** Falta cadeia produtiva V9, binding nativo, escala, one-use/LOCK e recibos científicos.
