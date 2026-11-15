@@ -32,6 +32,30 @@ class CorpusSnapshotTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.publish(store, cfg, src)
 
+    def test_optimizer_only_changes_do_not_invalidate(self):
+        config = {"seed": 42, "people": 100000, "mother_error": 0.10}
+        # Optimizer search dimensions are intentionally absent from the
+        # generation configuration, so they must not alter its identity.
+        optimizer_a = {"tf": "given_name", "hypotheses": 324}
+        optimizer_b = {"tf": "surname", "hypotheses": 81}
+        self.assertNotEqual(optimizer_a, optimizer_b)
+        self.assertEqual(module.identity(config), module.identity(config))
+
+    def test_symlink_store_and_payload_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            src = root / "input"
+            src.mkdir()
+            for name in module.REQUIRED:
+                (src / name).write_text("synthetic", encoding="utf-8")
+            (root / "link").symlink_to(src, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                module.publish(root / "link", {"seed": 42}, src)
+            (src / "observacoes.csv").unlink()
+            (src / "observacoes.csv").symlink_to(src / "gabarito.json")
+            with self.assertRaises(ValueError):
+                module.publish(root / "store", {"seed": 42}, src)
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
