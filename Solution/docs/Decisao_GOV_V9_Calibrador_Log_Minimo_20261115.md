@@ -1,6 +1,6 @@
 # GOV-V9-CALIBRADOR-LOG-MINIMO-20261115 — V9 sem instrumentação de desempenho no caminho crítico
 
-**Autoridade e data:** Product Owner, 15/11/2026 (America/Sao_Paulo), aprovação explícita «Pode implementar» após avaliação de redução radical da instrumentação. **Estado:** DECIDIDO; implementação em PR isolada, ainda sem comprovação de merge, CI, ganho físico ou nova campanha 100k. **Política:** GOV-DOC-01.
+**Autoridade e data:** Product Owner, 15/11/2026 (America/Sao_Paulo), aprovação explícita «Pode implementar» após avaliação de redução radical da instrumentação. **Estado:** DECIDIDO e IMPLEMENTADO/INTEGRADO pela PR #1551 (squash `ca64a697da096cac61dd2d83bd197f049ad43465`), CI rápida e cross-job sintético aprovados; ganho físico e campanha 100k com novo SHA NÃO MEDIDOS. **Política:** GOV-DOC-01.
 
 ## Contexto e justificativa
 O TRAIN TF4/324 emitia por hipótese contador, percentual, timestamps, previsão de término, ETA e margem, além de cronômetros de replay/índice/grupo, linhas `[V9 SQL GROUP]`, `[V9 PERF GROUP]` e `[V9 PERF DIAG]`, recibos JSONL em stderr e varredura de arquivos de saída a cada 500 ms. O PO quer apenas o número da conclusão sobre o total e o código da hipótese, separado por hífen, com menos operações de observabilidade na avaliação.
@@ -26,4 +26,12 @@ O console de outras etapas do workflow, do GitHub Actions, dos scripts de prefli
 
 **Permanecem vigentes:** GOV-V9-OBSERVABILIDADE-TIMEOUT-PARCIAL-20261115, controles AUTO CPU/RAM, segurança SQL, ciência, auditoria, validação/TEST, gates manuais e GOV-DOC-01.
 
-**Rastreio de implementação:** branch `perf/v9-calibrator-minimal-hypothesis-console-20261115`; `V9NestedCalibrationCoordinator.cs`, `V9NestedCalibrationCli.cs`, workflow `v9-v3-four-name-100k.yml`, testes estáticos de progresso/timeout/ciência e índices. Exigir gates `security-guards`, `unit-runtime` e `deterministic-build`, PR por squash e validação futura em execução manual. **Não declarar integrado até merge; desempenho V9/100k ainda NÃO MEDIDO.**
+**Rastreio de implementação:** branch `perf/v9-calibrator-minimal-hypothesis-console-20261115`; `V9NestedCalibrationCoordinator.cs`, `V9NestedCalibrationCli.cs`, workflow `v9-v3-four-name-100k.yml`, testes estáticos de progresso/timeout/ciência e índices. Exigir gates `security-guards`, `unit-runtime` e `deterministic-build`, PR por squash e validação futura em execução manual. **Integração por squash confirmada; desempenho V9/100k ainda NÃO MEDIDO.**
+
+## Recibo verificável de implementação — 15/11/2026
+
+- **PR e branch:** [#1551](https://github.com/lucianox777/Jornada/pull/1551), `perf/v9-calibrator-minimal-hypothesis-console-20261115`, head validado `b5df6c0c5f8fdf793e6ef314d995f23b40254ff8`, squash merge confirmado na `master` `ca64a697da096cac61dd2d83bd197f049ad43465`.
+- **CI obrigatória no HEAD da PR:** [run #43732650675](https://github.com/lucianox777/Jornada/actions/runs/43732650675): `security-guards`, `unit-runtime`, `deterministic-build` **3/3 SUCCESS**.
+- **Integração sintética, não 100k físico:** [run #43732650703](https://github.com/lucianox777/Jornada/actions/runs/43732650703) **SUCCESS** em cadeia TRAIN→AUDIT→VALIDATION e closeout de fixture, TEST opcional SKIPPED; [preflight de plano #43732650740](https://github.com/lucianox777/Jornada/actions/runs/43732650740) **SUCCESS**.
+- **Alcance restrito:** implementação e compilação/contratos aprovados, não equivalência bit a bit validada em campanha física de 324, não prova de tempo mais rápido, nem autorização de TEST/ativação. O código não altera o replay científico congelado ou os gates. Uma execução 100k futura exige disparo manual owner-only na `master` com preflight e SHA exatos.
+- **Pendências:** prova física em master e eventuais gates pós-merge de instalador/30k, conforme protocolo operacional vigente. Não declarar essas provas como realizadas apenas pelo merge. GOV-DOC-01.
