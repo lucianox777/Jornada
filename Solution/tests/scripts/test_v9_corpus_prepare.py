@@ -1,0 +1,38 @@
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2] / "scripts"
+spec = importlib.util.spec_from_file_location("v9_prepare", ROOT / "v9-corpus-prepare.py")
+prepare = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(prepare)
+
+class CorpusPrepareTests(unittest.TestCase):
+    def test_generate_once_then_reuse(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "generated"
+            store = root / "store"
+            config = {"seed": 42, "people": 100000}
+            script = ("from pathlib import Path; import sys; "
+                      "p=Path(sys.argv[1]); p.mkdir(exist_ok=True); "
+                      "[(p/n).write_text('synthetic') for n in "
+                      "('pessoas_verdade.csv','observacoes.csv','gabarito.json','generation-manifest.json')]")
+            import sys
+            first = prepare.prepare(store, config, [sys.executable, "-c", script, str(out)], out)
+            self.assertEqual(first["status"], "GENERATED")
+            second = prepare.prepare(store, config, [], out)
+            self.assertEqual(second["status"], "REUSED")
+            self.assertEqual(first["fingerprint"], second["fingerprint"])
+            (Path(second["corpus"]) / "observacoes.csv").write_text("tampered")
+            with self.assertRaises(ValueError):
+                prepare.prepare(store, config, [], out)
+
+    def test_cache_miss_without_generator_fails(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):
+                prepare.prepare(Path(d)/"store", {"seed": 42}, [], Path(d)/"out")
+
+if __name__ == "__main__":
+    unittest.main()
