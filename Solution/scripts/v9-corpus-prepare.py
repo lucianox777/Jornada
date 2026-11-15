@@ -10,6 +10,9 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import shutil
+import tempfile
+import os
 import sys
 
 spec = importlib.util.spec_from_file_location("v9_corpus_snapshot", Path(__file__).with_name("v9-corpus-snapshot.py"))
@@ -42,9 +45,32 @@ def prepare(store, config, generator, output):
     return {"status": status, "corpus": str(target),
             "fingerprint": receipt["fingerprint"], "files": receipt["files"]}
 
+def handoff(store, config, destination):
+    """Materialize validated corpus on another runner; never trust a bare cache hit."""
+    source = store / snapshot.identity(config)
+    snapshot.verify(source, config)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("Handoff destination must not exist")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.parent.is_symlink():
+        raise ValueError("Unsafe handoff parent")
+    temporary = Path(tempfile.mkdtemp(prefix=".handoff-", dir=destination.parent))
+    try:
+        for name in snapshot.REQUIRED:
+            shutil.copyfile(source / name, temporary / name)
+        shutil.copyfile(source / "snapshot.json", temporary / "snapshot.json")
+        snapshot.verify(temporary, config)
+        os.rename(temporary, destination)
+        return {"status": "HANDOFF_VERIFIED", "corpus": str(destination),
+                "fingerprint": snapshot.identity(config)}
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--store", type=Path, required=True)
+    parser.add_argument("--handoff-to", type=Path)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--generation-output", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
@@ -55,6 +81,8 @@ def main():
         command = command[1:]
     config = json.loads(args.config.read_text(encoding="utf-8"))
     result = prepare(args.store, config, command, args.generation_output)
+    if args.handoff_to is not None:
+        result["handoff"] = handoff(args.store, config, args.handoff_to)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     print("V9_CORPUS_PREPARE_" + result["status"] + " " + result["fingerprint"])
