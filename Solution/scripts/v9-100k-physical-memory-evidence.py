@@ -432,12 +432,14 @@ def main():
         if finish_events[k] is not None and start_events[k] is not None else None
         for k in ("oom", "oom_kill")
     }
-    final_kernel_deltas = numeric_counter_deltas(
-        kernel_baseline, read_kernel_counters(runner_cgroup))
+    # Sample once for BOTH final receipts, so repeated host counters cannot
+    # create a false discrepancy between the normal and partial files.
+    final_kernel = read_kernel_counters(runner_cgroup)
+    final_kernel_deltas = numeric_counter_deltas(kernel_baseline, final_kernel)
     save_atomic_partial(checkpoint_path, partial_receipt(
         samples, time.monotonic() - started_monotonic,
         sql_max, worker_max, host_min, kernel_baseline,
-        read_kernel_counters(runner_cgroup), start_events,
+        final_kernel, start_events,
         finish_events, worker_exit=exit_code))
     receipt = {
         "schema": SCHEMA,
