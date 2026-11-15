@@ -312,9 +312,6 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
             : null,
         StratifiedErrors: Get(values, "stratified-errors-config") is { } strataPath
             ? SyntheticStratifiedErrorConfig.ReadFile(strataPath)
-            : null,
-        MotherCorruptionProbabilityOverride: Get(values, "mother-corruption-rate") is { } motherRate
-            ? double.Parse(motherRate, NumberStyles.Float, CultureInfo.InvariantCulture)
             : null);
     options.Validate();
     return options;
@@ -330,8 +327,7 @@ static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalS
     if (string.Equals(profile, "legacy", StringComparison.Ordinal))
     {
         var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
-            options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors,
-            MaternalOverrideFingerprintInputs(options));
+            options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors);
         var nominal = await SyntheticCorpusSourceLoader.LoadBrasilTotalAsync(referenceRoot, options);
         var generation = new SyntheticCorpusGenerator(nominal.FirstNames, nominal.Surnames).Generate(options);
         return (generation, nominal, inputFingerprint);
@@ -360,7 +356,7 @@ static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalS
             $"birth_geography={birth.Provenance.Geography}",
             $"birth_sha256={birth.Provenance.Sha256}",
             $"birth_rows={birth.Provenance.RowCount}"
-        }.Concat(MaternalOverrideFingerprintInputs(options)));
+        });
     var materializationSource = demographic.ToMaterializationSource(birth.Provenance);
     var demographicGeneration = new SyntheticCorpusGenerator(
         demographic.PersonFirstNames,
@@ -370,14 +366,6 @@ static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalS
         birth).Generate(options);
     return (demographicGeneration, materializationSource, demographicFingerprint);
 }
-
-// Only explicit overrides add fingerprint entropy. All legacy omitted-option
-// corpus input fingerprints continue to use the original code path.
-static IEnumerable<string> MaternalOverrideFingerprintInputs(SyntheticCorpusOptions options)
-    => options.MotherCorruptionProbabilityOverride is double rate
-        ? new[] { "mother_corruption_rate_override=" +
-            rate.ToString("R", CultureInfo.InvariantCulture) }
-        : Array.Empty<string>();
 
 static int GetInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
     => values.TryGetValue(key, out var value)
@@ -414,7 +402,6 @@ static void PrintUsage()
             [--people <N> (default 30000; corpus demografico primario)]
             [--seed <N>]
             [--error-profile clean|independent|correlated|field]
-            [--mother-corruption-rate <0..1> (opcional; padrão clean .10; .134 exploratório, NÃO taxa IBGE)]
             [--min-freq <N>]
             [--tail-oversample <N>]
             [--cpf-base-prevalence <0..1>]
