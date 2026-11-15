@@ -100,8 +100,11 @@ jobs:
     # TRAIN -> AUDIT -> VALIDATION -> optional TEST -> E2E closeout and all
     # read-only/one-use boundaries. Do not copy or fork its 324-fit logic.
     uses: ./.github/workflows/v9-v3-four-name-100k.yml
+    # The called workflow requires this as an upper bound for its existing
+    # one-use scientific TEST tag job; it narrows all other jobs to read-only.
+    # This launcher never enables that still-blocked scientific TEST path.
     permissions:
-      contents: read
+      contents: write
       actions: read
     with:
       expected_sha: ${{ inputs.expected_sha }}
