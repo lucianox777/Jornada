@@ -1,6 +1,6 @@
 # GOV-V9-TEST-GRAFO-POSITIVO-SQL-TF4-CROSSBATCH-20261115
 
-**Autoridade:** continuação do mandato do Product Owner, 15/11/2026, de implementar a camada TEST do Calibrador V9. **Estado:** em desenvolvimento/PR, CI e SQL físico a confirmar. **Política:** GOV-DOC-01. **TEST científico independente de 100k: BLOQUEADO.**
+**Autoridade:** continuação do mandato do Product Owner, 15/11/2026, de implementar a camada TEST do Calibrador V9. **Estado:** IMPLEMENTADO E INTEGRADO pela PR #1560, squash `a2bff10087f16fb867a15c592ce3b7c97514ab73`; required-fast #43743066359 3/3 e SQL físico #43743066358 2/2 SUCCESS. **Política:** GOV-DOC-01. **TEST científico independente de 100k: BLOQUEADO.**
 
 ## Contexto e problema
 
@@ -30,3 +30,12 @@ Este censo é SQL **físico**, mas opera em tabelas temporárias com assinaturas
 - Pipeline: .github/workflows/v9-operational-model-sql-smoke.yml, job full-schema-runasync-nonpublish.
 - Decisões precedentes: [Preparo global no RunAsync](Decisao_GOV_V9_TEST_Preparo_Global_Coorte_RunAsync_20261115.md), [RunAsync full-schema sem publicação](Decisao_GOV_V9_TEST_RunAsync_FullSchema_Sem_Publicacao_20261115.md). Não revoga limites científicos anteriores.
 - Aceite: required-fast 3/3, SQL smoke físico completo 2/2, CI/SQL do HEAD da PR aprovados sem falso PASS; squash merge e atualização dos índices. Até comprovação, **não declarar IMPLEMENTADO NA MASTER**.
+
+## Recibo físico e integração — 15/11/2026
+
+- [PR #1560](https://github.com/lucianox777/Jornada/pull/1560), HEAD físico aprovado `19f60366171886ebc1cb1d3c6522c8fba6231aff`; merge squash `a2bff10087f16fb867a15c592ce3b7c97514ab73` na master.
+- [CI obrigatória #43743066359](https://github.com/lucianox777/Jornada/actions/runs/43743066359) **SUCCESS**, três jobs `unit-runtime`, `security-guards` e `deterministic-build` **3/3**.
+- [SQL físico #43743066358](https://github.com/lucianox777/Jornada/actions/runs/43743066358) **SUCCESS**, `one-winner-sql-smoke` e `full-schema-runasync-nonpublish` **2/2**. Log NUnit: `V9_FULL_SCHEMA_POSITIVE_SQL_CROSSBATCH_PASS: physical-signature graph=2; TF-first+last; batches=100+100; worker parity; Gold/Serving unchanged; scientific TEST 100k blocked`, teste real **1/1 PASS**. Suite Python de contrato **5/5 PASS**; banco em SQL Server descartável.
+- Préflight Gold [#43743066438](https://github.com/lucianox777/Jornada/actions/runs/43743066438) **SUCCESS**; não corresponde a publicação Gold nem a TEST independente.
+- A verificação de não publicação no teste utiliza impressão digital por contagens de Gold/Serving/vínculo, com Gold sintético sem CPF previamente semeado. **Ainda não comprova igualdade byte-a-byte de todas as linhas**; o ensaio não afirma Serving com conteúdo não vazio.
+- **Limite científico permanece:** censo SQL em tabela temporária, não retrieval completo `identidade.blocking_chave` de produção; persistência do RunAsync com modelo V9 ligado apenas por anchor do fixture, limite 512, LOCK/one-use e TEST científico 100k não validados. Os guards de bloqueio não foram retirados. GOV-DOC-01.
