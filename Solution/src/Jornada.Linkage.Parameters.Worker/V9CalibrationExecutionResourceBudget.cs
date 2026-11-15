@@ -22,15 +22,20 @@ public static class V9CalibrationResourceGovernor
 {
     public const string Schema = "V9_CALIBRATOR_RUNTIME_RESOURCE_BUDGET_V1";
     public const long GiB = 1024L * 1024 * 1024;
-    public const long HostReserveBytes = 2 * GiB;
-    public const long PerWorkerReserveBytes = 2 * GiB;
+    // Legacy receipt fields remain for audit compatibility, but there is no
+    // fixed RAM reservation per worker. The OS/cgroup owns physical memory.
+    public const long HostReserveBytes = 0;
+    public const long PerWorkerReserveBytes = 0;
+    public const long CriticalAvailableMemoryBytes = 1 * GiB;
+    public const long PreventiveAvailableMemoryBytes = 2 * GiB;
     public const long MinimumFreeDiskBytes = 3 * GiB;
 
     /// <summary>
-    /// Deterministic pure decision. "0" in the plan means automatic CPU and
-    /// memory-aware scheduling, explicit positive values remain authoritative.
-    /// Unmeasurable host memory never masquerades as measured free RAM; use
-    /// just one worker in automatic mode and record the fallback explicitly.
+    /// Automatic mode uses max(1, visible CPUs - 1) as its concurrency ceiling.
+    /// Workers do not pin or reserve an OS CPU. No per-worker RAM allocation is
+    /// reserved: live OS/cgroup availability gates each additional admission.
+    /// Explicit positive plans remain authoritative; unmeasured memory remains
+    /// an auditable conservative one-worker fallback.
     /// </summary>
     public static V9CalibrationExecutionResourceBudget Decide(
         int configuredParallelism, int visibleProcessors,
@@ -47,8 +52,8 @@ public static class V9CalibrationResourceGovernor
         long? available = hostAvailableMemoryBytes.HasValue && cgroupRemainingMemoryBytes.HasValue
             ? Math.Min(hostAvailableMemoryBytes.Value, cgroupRemainingMemoryBytes.Value)
             : hostAvailableMemoryBytes ?? cgroupRemainingMemoryBytes;
-        if (available.HasValue && available.Value < HostReserveBytes + PerWorkerReserveBytes)
-            throw new InvalidDataException("V9_RESOURCE_ADMISSION_RAM_BELOW_ONE_WORKER_RESERVE");
+        if (available.HasValue && available.Value < PreventiveAvailableMemoryBytes)
+            throw new InvalidDataException("V9_RESOURCE_ADMISSION_RAM_BELOW_PREVENTIVE_FLOOR");
 
         int workers;
         string scheduling;
@@ -61,9 +66,8 @@ public static class V9CalibrationResourceGovernor
         }
         else if (available.HasValue)
         {
-            var affordable = (available.Value - HostReserveBytes) / PerWorkerReserveBytes;
-            workers = (int)Math.Min(visibleProcessors, Math.Max(1L, affordable));
-            scheduling = "AUTO_CPU_AND_LIVE_RAM_BOUNDED";
+            workers = Math.Max(1, visibleProcessors - 1);
+            scheduling = "AUTO_CPU_MINUS_ONE_LIVE_RAM_ADMISSION";
         }
         else
         {
@@ -91,7 +95,7 @@ public static class V9CalibrationResourceGovernor
     }
 
     /// <summary>
-    /// Sample live resources without repeating the initial 4 GiB admission gate.
+    /// Sample live resources without repeating the initial 2 GiB admission gate.
     /// Once a calibration is running, SQL and the first worker legitimately
     /// consume the memory admitted at startup. Reapplying the startup reserve
     /// to every runtime sample incorrectly rejects healthy in-flight work.

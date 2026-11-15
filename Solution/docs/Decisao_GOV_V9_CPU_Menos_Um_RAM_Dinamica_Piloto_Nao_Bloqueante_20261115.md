@@ -1,0 +1,39 @@
+# GOV-V9-CPU-MENOS-UM-RAM-DINAMICA-SEM-PILOTO-BLOQUEANTE-20261115 — política operacional de recursos do Calibrador V9
+
+**Autoridade:** Product Owner, aprovação expressa em 15/11/2026 (“Concordo, pode implementar”), após análise do escalonador C#, dos relatórios de memória e da regra proposta CPU − 1, sem reserva fixa de RAM por worker, 2 GiB preventivos/1 GiB críticos, observação dinâmica e revisão do piloto inicial. **Política:** GOV-DOC-01. **Estado:** aprovada e implementada em branch/PR; **integração condicionada à CI**, validação 100k física posterior não realizada neste ato.
+
+## Contexto e justificativa
+
+Na campanha V9 100k seed42 TF4/V3 de 324 hipóteses, os quatro grupos físicos compartilham os mesmos três passes de blocking e contêm 128, 128, 64 e 4 hipóteses. O escalonador anterior executava **todo o primeiro grupo** (SQL, fitting e replays individuais) como piloto sequencial, e só depois admitia outros workers. Essa barreira pode atrasar o início dos grupos de 128 por dezenas de minutos mesmo quando CPU/RAM estão disponíveis. O `MaximumParallelRuleSets=0` usava reserva **estimada** de 2 GiB de host + 2 GiB por worker para obter o teto inicial, sem reservar CPU física. Essa estimativa poderia reduzir a concorrência; por outro lado, o histórico registrou RAM livre mínima de ~1–2 GiB, então liberar todos os processos sem proteção pode gerar OOM.
+
+As campanhas históricas com três workers apresentaram durações distintas (~234 e ~307 minutos); a reserva, sozinha, **não é causa comprovada** da regressão. A melhoria proposta é operacional e **não promete** throughput, economia de memória ou conclusão antes do timeout.
+
+## Decisão implementável
+
+1. **CPU AUTO:** `EffectiveParallelism = max(1, Environment.ProcessorCount - 1)` para RAM mensurável e admitida; o valor é **teto de grupos simultâneos**, não afinidade ou reserva exclusiva de núcleo. Em 4 CPUs → 3 workers, 2 CPUs → 1, 1 CPU → 1. O SQL Server pode continuar usando os mesmos núcleos. Configurações explícitas positivas continuam declaradas; o pool SQL impõe limite independente.
+2. **Sem reserva fixa de RAM por trabalhador:** remover a fórmula de 2 GiB/worker, não deduzir ocupação dos workers duas vezes e manter campos legados `HostReserveBytes` e `PerWorkerReserveBytes` no recibo, agora ambos `0`. A capacidade provém de `MemAvailable` e do menor limite cgroup conhecido, e é verificada na admissão de cada grupo. O sistema operacional conserva a gestão efetiva da memória.
+3. **Pisos de proteção:** abaixo de **2 GiB efetivamente disponíveis** não admitir novo trabalho físico; abaixo de **1 GiB**, declarar estado crítico se não houver trabalho em curso capaz de liberar memória. Nenhuma das duas marcas é um limite Docker/cgroup novo; não interromper deliberadamente avaliação já admitida, mas não esconder OOM nem marcar progresso fictício. Se a memória for incognoscível, preservar fallback AUTO de um worker, com proteção especial para modo explícito >1. Manter guarda de disco, reserva derivada do corpus, pool SQL e testes fail-closed.
+4. **Estimativa incremental dinâmica:** não imputar gasto mínimo por worker sem observação. Após cada admissão, reamostrar a memória e RSS/peak; estimar crescimento positivo com margem operacional 1,5× e considerar esse valor ao admitir o próximo grupo, sem subtrair novamente recursos dos workers já ativos. Entre admissões, espera curta de **1 segundo** para a amostra refletir o começo da alocação. Se a RAM ficar momentaneamente baixa enquanto há trabalho ativo, aguardar a recuperação; se não houver qualquer trabalho capaz de liberar capacidade, falhar com marcador seguro.
+5. **Eliminar piloto de grupo inteiro:** não aguardar `operation(inputs[0])` terminar para liberar outros grupos. Agendar grupos via `Parallel.ForEachAsync` limitado pela CPU e pool SQL, com porta de admissão dinâmica antes de cada grupo. O recibo passa a `V9_CALIBRATION_COUPLED_RESOURCE_SCHEDULER_V2` e `PilotConfigurations=0`. Campos de pico legados continuam presentes apenas por compatibilidade, sem representar medição de um piloto concluído.
+6. **Mais custosos primeiro:** para a campanha TF4 de três passes idênticos, aplicar desempate operacional por quantidade de requests por grupo (128,128,64,4), preservando ordenação `BroadestLikelyFirst` como critério estrutural anterior. Maior quantidade de requests **não é prova de custo real**; não altera a ordenação dentro do grupo, os hashes ou os resultados.
+
+## Preservações e riscos
+
+- **Nenhuma alteração científica:** manter 324 requests, 81 células TF4, opções V3 λ, duas margens, snapshot por hipótese, SQL, TF positivo isolado de TF0, métricas M/U, FDR, CP=324, bootstrap seed42, P95/frozen replay, TEST lacrado, Gold, sem ativação e as decisões de auditoria/VALIDATION obrigatórias.
+- **Corridas e pressão:** a concorrência antecipada pode aumentar a competição por CPU, SQL, RAM e I/O, e a coleta após um segundo não garante observar o pico futuro. Limite de trabalhadores não garante um núcleo livre. Margens de 2/1 GiB são barreiras de admissão, não garantia contra OOM.
+- **Paralelismo explícito:** números positivos seguem explícitos e rastreáveis, sujeitos à segurança de RAM/disco/pool; não substituir planos assinados em silêncio. Memória não mensurável não é tratada como infinita.
+- **Campanha em andamento:** [run #43724484222](https://github.com/lucianox777/Jornada/actions/runs/43724484222) foi lançado em `master` SHA `7db49c30b6722d17480dd1c92097ff150f3e252e`. A mudança **não altera** esse run nem implica cancelamento/restart. Próxima campanha requer dispatch manual após gates, com `expected_sha` da nova master e mesma segurança.
+- **Medição antes de afirmar benefício:** comparar `[V9 SQL GROUP]` e `[V9 PERF GROUP]` por SHA, 29/44/64/324 no relógio físico, recursos RSS/SQL/CPU, admissões simultâneas e integridade por Request SHA. Sem 100k reexecutado, redução de tempo é **hipótese**, não evidência.
+
+## Testes e aceitação
+
+- NUnit `V9CalibrationExecutionResourceBudgetTests`: CPU 1/2/4/8, fallback de RAM desconhecida, pisos, cgroup mais restritivo, valores explícitos e ausência de reserva fixa.
+- NUnit `V9CalibrationRuntimeSchedulerTests`: piso de 2 GiB, incremento medido, ausência de piloto bloqueante (segundo grupo inicia enquanto primeiro está pendente), integridade da lista, disco, pool SQL, RAM desconhecida.
+- Exigir build, `security-guards`, `unit-runtime`, `deterministic-build` no SHA exato; demais checks aplicáveis. Sem TEST 100k e sem lançamento automático de calibração.
+- Prova física posterior distinta para avaliar vantagem e risco de OOM.
+
+## Precedência e rastreabilidade
+
+Esta decisão **especializa/substitui apenas a política operacional AUTO de reserva por worker e piloto integral** de [Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md), mantendo intactos limites de disco, isolamento e recibos de segurança. A priorização por número de hipóteses especializa o desempate do [custo SQL estrutural de 09/11](Decisao_V9_SQL_Bootstrap_Unificado_Consultas_Pesadas_Primeiro_20261109.md) apenas para grupos já declarados. Complementa [reuso SQL/margens de 11/11](Decisao_GOV_V9_Reuso_SQL_Fit_Margens_20261111.md) e o [diagnóstico de performance de 15/11](Investigacao_V9_TF4_324_Desempenho_Rollback_20261115.md), sem modificar as decisões de TEST/Gold, timeout nativo, cadeia de auditoria ou **GOV-DOC-01**.
+
+**Rastreabilidade:** repositório `lucianox777/Jornada`, branch `feat/v9-cpu-minus-one-dynamic-memory-no-pilot-20261115`, [índice de decisões vigentes](Indice_Decisoes_Vigentes.md), [índice do acervo](Indice_Acervo_Documental.md). A PR e o SHA de merge serão adicionados após integração comprovada.
