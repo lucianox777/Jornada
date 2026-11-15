@@ -1,6 +1,6 @@
 # GOV-V9-TEST-PREPARO-GLOBAL-COORTE-RUNASYNC-20261115
 
-**Autoridade:** Product Owner, 15/11/2026: “Continuem a implementação da camada teste.” **Política:** GOV-DOC-01. **Estado:** implementação em branch/PR, aguardando evidências físicas de CI. **Não é liberação do TEST científico 100k.**
+**Autoridade:** Product Owner, 15/11/2026: “Continuem a implementação da camada teste.” **Política:** GOV-DOC-01. **Estado:** IMPLEMENTADO E INTEGRADO pela PR #1558, squash `43668f8eaa2465ae9c8fc4d0752cb6958e7a41d2`; CI required-fast #43740778621 3/3 e SQL físico #43740778486 2/2 SUCCESS. **Não é liberação do TEST científico 100k.**
 
 ## Decisão e contexto
 
@@ -22,3 +22,10 @@ A próxima decisão incremental é **instalar um ponto de preparação de coorte
 **Aceite deste incremento:** build Release com warnings-as-errors; testes estáticos de entrada fail-closed, bloqueios de TEST/one-use/produção, smoke SQL real 2/2 e CI rápida obrigatória 3/3 no HEAD da PR; integração por squash em master e recibo GOV-DOC-01 sincronizado. Resultados não são presumidos antes da execução real.
 
 **Precedência:** complementa a decisão [GOV-V9-TEST-RUNASYNC-FULL-SCHEMA-SEM-PUBLICACAO-20261115](Decisao_GOV_V9_TEST_RunAsync_FullSchema_Sem_Publicacao_20261115.md) e a [governança de schema/Gold/Serving](Decisao_GOV_V9_TEST_Esquema_Operacional_RunAsync_Gold_Serving_20261114.md). Não revoga o guard V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED, nem as exigências de LOCK científico, uso único do TEST, full SQL candidate parity, análise por observação, clusters e proteção Gold/Serving, issues #1488/#1478. **TEST científico 100k permanece BLOQUEADO.**
+
+## Recibo de integração — 15/11/2026
+
+- **PR e commits:** [#1558](https://github.com/lucianox777/Jornada/pull/1558), HEAD testado `272256c514407df723f75437a099c229cb482e9a`; squash integrado na `master` `43668f8eaa2465ae9c8fc4d0752cb6958e7a41d2`.
+- **CI rápida obrigatória:** [#43740778621](https://github.com/lucianox777/Jornada/actions/runs/43740778621), `unit-runtime`, `security-guards`, `deterministic-build`: **3/3 SUCCESS**.
+- **SQL físico:** [#43740778486](https://github.com/lucianox777/Jornada/actions/runs/43740778486), `one-winner-sql-smoke` e `full-schema-runasync-nonpublish`: **2/2 SUCCESS**. O smoke full-schema usou SQL Server efêmero, DDL real canônico, migração V9 TEST_ONLY, preflight, build Release warnings-as-errors, 200 observações sintéticas e RunAsync em dois lotes 100+100 com preparo global antes da primeira transação. Foi verificada a negativa do Resolve individual, Publish=true e aresta intragestor inválida, além de falha controlada na avaliação 101, sem efeitos Gold/Serving no fixture.
+- **Limitação material comprovada:** as arestas no scorer novo ainda são de fixture (grafo principal vazio); o método `RunAsync` agora governa o ciclo de preparação global da coorte, mas não se deve afirmar paridade nativa de candidatos SQL de produção nem do agrupamento em casos positivos. TEST 100k continua bloqueado; sem tocar TEST one-use/selado ou ativar o vencedor. As issues #1488/#1478 permanecem pendentes de aceite final. GOV-DOC-01.
