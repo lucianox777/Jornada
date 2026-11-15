@@ -27,4 +27,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile scripts/v9-corpus-snapshot.py scripts/v9-corpus-input-receipt.py scripts/v9-corpus-prepare.py scripts/v9-corpus-handoff-verify.py
-          python3 -m unittest discover -s tests/scripts -p 'test_v9_*.py' -v
+          # Focused contract: frozen seed42/43/44 and unrelated V9 CI
+          # have independent mandated workflows. This gate must never
+          # rewrite their hash pins to accommodate a WIP experiment.
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_corpus_*.py' -v
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_workflow_safety.py' -v
