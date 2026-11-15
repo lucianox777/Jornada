@@ -88,12 +88,12 @@ class V9Tf4PerformanceComparisonTests(unittest.TestCase):
         def sql(sha, seconds):
             return ("2026-11-14T03:01:00.000Z [V9 SQL GROUP] batch=1 | "
                     "requests=64 | options=32 | margins=2 | "
-                    f"run_async_seconds={seconds:.1f} | group_sha={sha}\\n")
+                    f"run_async_seconds={seconds:.1f} | group_sha={sha}\n")
         def phase(sha, sql_seconds, post_seconds):
             return ("2026-11-14T03:03:00.000Z [V9 PERF GROUP] batch=1 | "
                     f"group_sha={sha} | requests=64 | replay_calls=64 | "
                     f"sql_seconds={sql_seconds:.1f} | post_sql_seconds={post_seconds:.1f} | "
-                    f"total_seconds={sql_seconds+post_seconds:.1f}\\n")
+                    f"total_seconds={sql_seconds+post_seconds:.1f}\n")
         progress = log_lines(shas, add_group=False)
         old = mod.read_log(self.save(
             "phase-a.log", sql(g1, 100) + sql(g2, 200) + progress
