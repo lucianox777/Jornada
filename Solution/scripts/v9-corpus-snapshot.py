@@ -43,6 +43,8 @@ def verify(target, config):
         raise ValueError("Corpus configuration mismatch")
     if recorded.get("configuration") != config:
         raise ValueError("Corpus configuration payload mismatch")
+    if set(recorded.get("files", {})) != set(REQUIRED):
+        raise ValueError("Corpus file allowlist mismatch")
     actual = snapshot(config, target)
     if recorded != actual:
         raise ValueError("Corpus content hash or manifest mismatch")
