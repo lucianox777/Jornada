@@ -152,7 +152,7 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
-    public void Runtime_disk_drop_fails_closed_between_pilot_and_concurrent_fits()
+    public void Runtime_disk_drop_rejects_new_admission_before_any_fit()
     {
         var budget = V9CalibrationResourceGovernor.Decide(0, 4, 15 * GiB, null, 9 * GiB);
         var reads = 0;
@@ -166,6 +166,6 @@ public sealed class V9CalibrationRuntimeSchedulerTests
                 CancellationToken.None);
         }));
         Assert.That(failure!.Message, Does.Contain("DISK_BELOW_RESERVE"));
-        Assert.That(called, Is.EqualTo(1));
+        Assert.That(called, Is.Zero); // new live gate runs before the first fit
     }
 }
