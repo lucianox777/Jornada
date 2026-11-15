@@ -2,7 +2,6 @@ name: V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)
 
 # Independent disposable harness, not invoked by the calibration workflow.
 on:
-  workflow_call:
   workflow_dispatch:
 
 permissions:
