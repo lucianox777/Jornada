@@ -23,8 +23,8 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
     def test_native_github_timeouts_only(self):
         self.assertNotIn("timeout-minutes:", self.source)
         self.assertIn("Run physical V9 CSharp on 324", self.train)
-        self.assertIn("V9_JOB_TIMEOUT_MINUTES: '360'", self.train)
-        self.assertIn('echo "V9_JOB_START_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"', self.train)
+        self.assertIn("V9_PHYSICAL_PROGRESS_LOG: '1'", self.train)
+        self.assertNotIn("V9_JOB_START_UTC", self.train)
         self.assertNotIn('V9_PHYSICAL_STEP_START_UTC', self.train)
         self.assertIn("Independently audit all 324", self.audit)
         self.assertIn("Mandatory fresh independent VALIDATION", self.validation)
