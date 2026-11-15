@@ -28,6 +28,25 @@ class InputReceiptTests(unittest.TestCase):
             (root/"family"/"x").write_text("v2")
             self.assertNotEqual(initial, receipt.make(args))
 
+    def test_birth_reference_missing_or_symlink_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "src").mkdir()
+            (root / "ibge").mkdir()
+            (root / "src" / "x").write_text("source")
+            (root / "ibge" / "x").write_text("reference")
+            args = types.SimpleNamespace(generator_source=root / "src",
+                ibge_names=root / "ibge", birth_daily=root / "missing.json",
+                family_ref=None, people=100000, seed=42,
+                population_profile="demographic-primary", error_profile="clean")
+            with self.assertRaises(ValueError):
+                receipt.make(args)
+            (root / "actual.json").write_text("{}")
+            (root / "linked.json").symlink_to(root / "actual.json")
+            args.birth_daily = root / "linked.json"
+            with self.assertRaises(ValueError):
+                receipt.make(args)
+
     def test_symlink_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
