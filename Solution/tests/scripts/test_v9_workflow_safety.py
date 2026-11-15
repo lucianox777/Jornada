@@ -18,6 +18,25 @@ class V9WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("physical-100k:", text)
         self.assertIn("prepare-test-100k", text)
 
+    def test_crossrunner_pr_probe_uses_only_two_rows_and_never_dispatches_train(self):
+        flow = (WORKFLOWS / "v9-corpus-crossrunner-pr-smoke.yml").read_text()
+        self.assertIn("probe-prepare:", flow)
+        self.assertIn("probe-consumer:", flow)
+        self.assertIn("needs: [probe-prepare]", flow)
+        self.assertIn("GITHUB_RUN_ATTEMPT", flow)
+        self.assertIn('test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"', flow)
+        self.assertIn("github.event.pull_request.head.sha", flow)
+        self.assertIn("github.actor == github.repository_owner", flow)
+        self.assertIn("v9_corpus_crossrunner_fixture.py", flow)
+        self.assertIn("V9_CROSSRUNNER_2_ROWS_PROBE_ONLY", flow)
+        self.assertIn("v9-corpus-handoff-verify.py", flow)
+        self.assertIn("v9-corpus-crossrunner-probe-${{ github.run_id }}", flow)
+        self.assertNotIn("physical-100k:", flow)
+        self.assertNotIn("dotnet run", flow)
+        self.assertNotIn("100000 --seed", flow)
+        self.assertNotIn("secrets.", flow)
+        self.assertNotIn("workflow_dispatch:", flow)
+
     def test_corpus_prepare_cannot_dispatch_scientific_train(self):
         text = (WORKFLOWS / "v9-corpus-prepare-opt-in.yml").read_text()
         self.assertIn("github.actor == github.repository_owner", text)
