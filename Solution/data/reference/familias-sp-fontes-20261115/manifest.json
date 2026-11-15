@@ -1,0 +1,53 @@
+{
+  "schema_version": "JORNADA_FAMILIAS_SP_SOURCE_CATALOG_V1",
+  "snapshot_date": "2026-11-15",
+  "status": "CATALOGO_CONGELADO_SEM_TAXAS_EXTRAIDAS",
+  "scope": "Municipio de Sao Paulo 3550308",
+  "source_priority": "IBGE quando indicador, periodo e abrangencia forem equivalentes; SINASC complementar",
+  "sources": [
+    {
+      "id": "IBGE_CENSO_2022_FECUNDIDADE",
+      "url": "https://biblioteca.ibge.gov.br/visualizacao/livros/liv102187.pdf",
+      "measure": "filhos nascidos vivos por idade da mulher; tabelas municipais SIDRA",
+      "values_extracted": false
+    },
+    {
+      "id": "IBGE_REGISTRO_CIVIL_2024",
+      "url": "https://www.ibge.gov.br/estatisticas/sociais/populacao/9110-estatisticas-do-registro-civil.html",
+      "measure": "nascimentos por ano e resultados municipais",
+      "values_extracted": false
+    },
+    {
+      "id": "IBGE_CENSO_2022_QUESTIONARIO",
+      "url": "https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-populacao-e-domicilios.html",
+      "measure": "filhos nascidos vivos e sobreviventes",
+      "values_extracted": false
+    },
+    {
+      "id": "SINASC_SERIES",
+      "url": "https://dadosabertos.saude.gov.br/dataset/sistema-de-informacao-sobre-nascidos-vivos-sinasc",
+      "measure": "idade materna, gravidez multipla, historico reprodutivo",
+      "values_extracted": false
+    },
+    {
+      "id": "SINASC_DICIONARIO_SP",
+      "url": "https://prefeitura.sp.gov.br/documents/d/saude/dicionario_de_dados_sinasc",
+      "measure": "IDADEMAE QTDFILVIVO GRAVIDEZ QTDGESTANT",
+      "values_extracted": false
+    }
+  ],
+  "gaps": [
+    "extrair tabelas municipais e validar denominadores",
+    "calcular taxas de gestacoes multiplas por periodo",
+    "intervalo entre nascimentos de irmaos nao diretamente identificado",
+    "coocorrencia de irmaos em cadastro de saude desconhecida",
+    "verificar comparabilidade temporal"
+  ],
+  "restrictions": {
+    "not_calibrated": true,
+    "no_invented_rates": true,
+    "no_optimizer_change": true,
+    "no_runtime_external_download": true,
+    "require_sha256_of_raw_data_before_statistical_freeze": true
+  }
+}
