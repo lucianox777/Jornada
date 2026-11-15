@@ -26,6 +26,17 @@ class V9WorkflowSafetyTests(unittest.TestCase):
         self.assertNotIn("workflow_call:", text)
         self.assertNotIn("physical-100k:", text)
         self.assertIn("v9-corpus-prepare.py", text)
+        self.assertIn("mother_corruption_rate:", text)
+        self.assertIn('"MOTHER_CORRUPTION_RATE"', text)
+        self.assertIn('maternal_args=(--mother-corruption-rate "$MOTHER_CORRUPTION_RATE")', text)
+        self.assertIn("train-handoff-probe:", text)
+        self.assertIn("needs: [prepare-corpus]", text)
+        self.assertIn("v9-corpus-handoff-verify.py", text)
+        self.assertIn("download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093", text)
+        self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', text)
+        self.assertIn('test "$GITHUB_REF" = "refs/heads/feature/v9-persistent-synthetic-corpus-20261115"', text)
+        self.assertIn("TRANSFER_PROBE_ONLY", text)
+        self.assertNotIn("v9-v3-four-name-100k.yml@", text)
 
 if __name__ == "__main__":
     unittest.main()
