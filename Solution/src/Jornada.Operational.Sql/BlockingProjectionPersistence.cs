@@ -10,7 +10,7 @@ namespace Jornada.Operational.Sql;
 /// atributos transversais elegíveis usam a Gold versionada mais o vencedor COMPROVADO da Silver
 /// ainda não promovido. A operação é idempotente e nunca infere elegibilidade pelo nome do atributo.
 /// </summary>
-public static class BlockingProjectionPersistence
+public static partial class BlockingProjectionPersistence
 {
     public static async Task RefreshSqlServerAsync(
         SqlConnection connection,
@@ -275,7 +275,8 @@ public static class BlockingProjectionPersistence
         SqlConnection connection,
         SqlTransaction tx,
         Guid pessoaUuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        int? v9MaximumPrefixLength = null)
     {
         string? currentName;
         string? currentMother;
@@ -397,7 +398,8 @@ public static class BlockingProjectionPersistence
             }
         }
 
-        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf, observations, dynamic);
+        return BuildSnapshot(currentName, currentMother, currentBirth, currentAsOf,
+            observations, dynamic, v9MaximumPrefixLength);
     }
 
     private static BlockingProjectionSnapshot BuildSnapshot(
@@ -406,15 +408,28 @@ public static class BlockingProjectionPersistence
         DateOnly? currentBirth,
         DateTimeOffset currentAsOf,
         IReadOnlyList<BlockingNameObservation> observations,
-        IReadOnlyList<BlockingDynamicAttributeObservation> dynamicObservations)
+        IReadOnlyList<BlockingDynamicAttributeObservation> dynamicObservations,
+        int? v9MaximumPrefixLength = null)
     {
-        var currentKeys = BlockingProjectionKeyProjector.Project(currentName, currentMother, currentBirth);
+        IReadOnlyList<BlockingProjectionKey> ProjectNames(string? name, string? mother, DateOnly? birth) =>
+            v9MaximumPrefixLength is { } prefix
+                ? V9CalibrationBlockingProjection.Project(name, mother, birth, prefix)
+                : BlockingProjectionKeyProjector.Project(name, mother, birth);
+
+        BlockingFeatureTemporalSemantics Temporal(string feature) =>
+            v9MaximumPrefixLength is not null
+            && (feature.StartsWith("name_prefix_", StringComparison.Ordinal)
+                || feature.StartsWith("mother_name_prefix_", StringComparison.Ordinal))
+                ? BlockingFeatureTemporalSemantics.VersionedAlias
+                : BlockingFeatureTemporalCatalog.Get(feature);
+
+        var currentKeys = ProjectNames(currentName, currentMother, currentBirth);
         var currentAliases = currentKeys
-            .Where(static key => BlockingFeatureTemporalCatalog.Get(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias)
+            .Where(key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias)
             .ToHashSet();
 
         var stable = currentKeys
-            .Where(static key => BlockingFeatureTemporalCatalog.Get(key.Feature) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
+            .Where(key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
             .Select(key => new BlockingProjectionRow(
                 key.Feature,
                 key.Value,
@@ -426,9 +441,9 @@ public static class BlockingProjectionPersistence
         var aliases = new Dictionary<BlockingProjectionKey, (DateTimeOffset First, DateTimeOffset Last, bool Current)>();
         foreach (var observation in observations)
         {
-            var keys = BlockingProjectionKeyProjector.Project(observation.Name, observation.MotherName, currentBirth);
-            foreach (var key in keys.Where(static key =>
-                         BlockingFeatureTemporalCatalog.Get(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias))
+            var keys = ProjectNames(observation.Name, observation.MotherName, currentBirth);
+            foreach (var key in keys.Where(key =>
+                         Temporal(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias))
             {
                 MergeAlias(aliases, key, observation.SourceAsOf, observation.SourceAsOf, Current: false);
             }
@@ -437,7 +452,11 @@ public static class BlockingProjectionPersistence
         foreach (var key in currentAliases)
             MergeAlias(aliases, key, currentAsOf, currentAsOf, Current: true);
 
-        foreach (var observation in dynamicObservations)
+        // Frozen V9 schema declares only names, mother names, birth fields and
+        // optional prefixes. Transversal features belong to the legacy schema
+        // and must not be smuggled into the V9 materialization manifest.
+        foreach (var observation in v9MaximumPrefixLength is null
+            ? dynamicObservations : Array.Empty<BlockingDynamicAttributeObservation>())
         {
             var keys = PersonResolutionBlockingProjector.Project(
                 new[] { new IdentityResolutionAttributeValue(observation.AttributeCode, observation.Value) });
