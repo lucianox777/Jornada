@@ -1,0 +1,24 @@
+# GOV-V9-TEST-PREPARO-GLOBAL-COORTE-RUNASYNC-20261115
+
+**Autoridade:** Product Owner, 15/11/2026: “Continuem a implementação da camada teste.” **Política:** GOV-DOC-01. **Estado:** implementação em branch/PR, aguardando evidências físicas de CI. **Não é liberação do TEST científico 100k.**
+
+## Decisão e contexto
+
+A PR #1556 (squash 33ceedfc) demonstrou sobre o esquema operacional real que o modelo V9 TF4/81 com agrupamento BLIND FS complete-link **não pode** executar via Resolve por observação do RunAsync legado; a tentativa corretamente falhou sem pontuar. O mesmo teste passou com decisões V9 calculadas previamente pelo **fixture externo**, mas isso não comprova integração do processamento global ao ciclo de vida da execução real.
+
+A próxima decisão incremental é **instalar um ponto de preparação de coorte integral no próprio RunAsync**, restrito a TEST sintético em SQL Server descartável, sem alterar os caminhos legados ou a ciência de TRAIN/VALIDATION. O Runner deve congelar e ler **todas** as observações do universo SQL antes da primeira persistência, deixar o scorer executar uma só vez o agrupamento global e vincular decisões ao ID físico de cada observação ao longo de batches subsequentes. Preservar o blocking V9 e o scorer congelado por SHA sem nenhum ajuste de parâmetros.
+
+## Implementação e limites técnicos
+
+1. Introduzir a interface opt-in IV9NonPublishingFrozenCohortScorer com Preparação (runId, modelo, linhas Silver congeladas) e ResolvePrepared (runId, observação SQL, dados, modelo). O RunAsync mantém IProbabilisticIdentityLinkage convencional intacto quando a interface não está presente. Nunca presumir que agrupamento por lote de 100 seja equivalente a agrupamento global.
+2. Antes de adquirir o lock do pipeline, o RunAsync recusa a variante V9 em qualquer database diferente de JornadaHarness, em Publish=true, modo diferente de MODEL_VALIDATION, modelo diferente de v1, filtro MaxRecords e replay. O escopo é um ensaio TEST-only, com no máximo 512 fontes sintéticas, não uma via produtiva; nenhum consumidor automático/DI ou workflow de TEST científico é modificado.
+3. Após CreateRunAndMaterializeUniverseAsync, ler o universo congelado em páginas, validando a cobertura exata, ordenação, multiplicidade e ausência de CPF. Realizar PrepareAsync uma única vez **antes do primeiro PersistBatchAsync**; no ScoreBatchAsync, passar o ID SQL para ResolvePreparedAsync sem substituição por heurística de nome ou perda de identidade.
+4. V9PinnedSyntheticGraphCohortRunScorer valida o SHA e ID no loader SQL V9 TEST_ONLY e o metadata anchor RASCUNHO exclusivo do fixture, busca os gestores efetivos associados às observações do run, converte IDs SQL em índices para ReplayTest da **coorte inteira** e conserva as decisões por ID SQL. Impede duplo preparo, reuso entre runs, score repetido e diferença entre os valores Silver congelados e relidos. Não usa gabarito científico nem rótulos de verdade para agrupar. Rejeita um grafo sintético com arestas duplicadas, intragestor, fora da coorte ou assimétricas; sem correção silenciosa.
+5. **Limite deliberado do incremento:** as arestas são fornecidas explicitamente pelo fixture sintético. A leitura SQL produtiva do grafo de blocking, a prova de paridade com arestas positivas e o binding sem anchor RASCUNHO continuam pendentes. Não declarar que este executor prova a equivalência entre TEST e todo o pipeline de produção. Não publicar, ativar, selecionar outro modelo, mudar TF4/81 ou acessar coorte TEST selada.
+6. Regressão SQL física: usar schema operacional canônico, 200 observações sintéticas, lotes 100+100, falha na 101ª avaliação, rollback somente do lote em falha e Gold/Serving/vínculo inalterados. Acrescentar negativas antes de qualquer publicação e para grafo inválido. Um próximo avanço terá de verificar arestas positivas que atravessam lotes e diferenças de TF, além do verdadeiro grafo SQL.
+
+## Critérios de aceite e precedência
+
+**Aceite deste incremento:** build Release com warnings-as-errors; testes estáticos de entrada fail-closed, bloqueios de TEST/one-use/produção, smoke SQL real 2/2 e CI rápida obrigatória 3/3 no HEAD da PR; integração por squash em master e recibo GOV-DOC-01 sincronizado. Resultados não são presumidos antes da execução real.
+
+**Precedência:** complementa a decisão [GOV-V9-TEST-RUNASYNC-FULL-SCHEMA-SEM-PUBLICACAO-20261115](Decisao_GOV_V9_TEST_RunAsync_FullSchema_Sem_Publicacao_20261115.md) e a [governança de schema/Gold/Serving](Decisao_GOV_V9_TEST_Esquema_Operacional_RunAsync_Gold_Serving_20261114.md). Não revoga o guard V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED, nem as exigências de LOCK científico, uso único do TEST, full SQL candidate parity, análise por observação, clusters e proteção Gold/Serving, issues #1488/#1478. **TEST científico 100k permanece BLOQUEADO.**
