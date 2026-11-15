@@ -82,6 +82,65 @@ class V9Tf4PerformanceComparisonTests(unittest.TestCase):
         self.assertEqual(r["commonStatusMismatches"], 1)
         self.assertFalse(r["productionParityCertified"])
 
+    def test_same_group_sha_matched_even_when_sql_completion_order_swaps(self):
+        shas = ["a" * 12, "b" * 12, "c" * 12]
+        g1, g2 = "1" * 12, "2" * 12
+        def sql(sha, seconds):
+            return ("2026-11-14T03:01:00.000Z [V9 SQL GROUP] batch=1 | "
+                    "requests=64 | options=32 | margins=2 | "
+                    f"run_async_seconds={seconds:.1f} | group_sha={sha}\n")
+        def phase(sha, sql_seconds, post_seconds):
+            return ("2026-11-14T03:03:00.000Z [V9 PERF GROUP] batch=1 | "
+                    f"group_sha={sha} | requests=64 | replay_calls=64 | "
+                    f"sql_seconds={sql_seconds:.1f} | post_sql_seconds={post_seconds:.1f} | "
+                    f"total_seconds={sql_seconds+post_seconds:.1f}\n")
+        progress = log_lines(shas, add_group=False)
+        old = mod.read_log(self.save(
+            "phase-a.log", sql(g1, 100) + sql(g2, 200) + progress
+            + phase(g1, 100, 300) + phase(g2, 200, 400)))
+        new = mod.read_log(self.save(
+            "phase-b.log", sql(g2, 260) + sql(g1, 120) + progress
+            + phase(g2, 260, 600) + phase(g1, 120, 450)))
+        report = mod.compare(old, new)
+        self.assertEqual([g["matchedBy"] for g in report["sqlGroups"]],
+                         ["sha", "sha"])
+        self.assertEqual([g["groupSha"] for g in report["sqlGroups"]], [g1, g2])
+        self.assertEqual([g["candidateOverBaseline"] for g in report["sqlGroups"]],
+                         [1.2, 1.3])
+        self.assertEqual(report["phaseGroupCountBaseline"], 2)
+        self.assertEqual(report["phaseGroupCountCandidate"], 2)
+        self.assertEqual(report["pairedPostSqlGroups"][0]["postSqlRatio"], 1.5)
+        self.assertEqual(report["pairedPostSqlGroups"][1]["postSqlRatio"], 1.5)
+        invalid = (sql(g1, 100) + progress + phase(g1, 100, 300)
+                   .replace("total_seconds=400.0", "total_seconds=900.0"))
+        with self.assertRaisesRegex(ValueError, "V9_TIMING_PHASE_GROUP_INCONSISTENT"):
+            mod.read_log(self.save("bad-phase.log", invalid))
+
+    def test_phase_instrumentation_preserves_scientific_call_and_progress_frequency(self):
+        source = (ROOT / "src/Jornada.Linkage.Parameters.Worker/"
+                  "V9NestedCalibrationCoordinator.cs").read_text(encoding="utf-8")
+        self.assertIn("[V9 PERF GROUP] batch=", source)
+        self.assertIn("group_sha={groupSha}", source)
+        self.assertIn("post_sql_seconds={postSqlSeconds:F1}", source)
+        self.assertIn("replay_calls={replayCalls}", source)
+        self.assertIn("var sqlSeconds = physicalGroupClock.Elapsed.TotalSeconds;", source)
+        self.assertIn("physicalGroupClock.Start();", source)
+        self.assertEqual(source.count("[V9 PERF GROUP]"), 1)
+        self.assertEqual(source.count(
+            "await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync("), 1)
+        self.assertIn("reportPhysicalCompletion?.Invoke(individualClock.Elapsed,"
+                      " result[^1], replayElapsedMilliseconds);", source)
+        workflow = (ROOT.parent / ".github/workflows/"
+                    "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
+        self.assertIn("V9_TRAIN_RUNNER_CAPACITY", workflow)
+        self.assertIn("affinity_cpu_count=", workflow)
+        self.assertIn("cgroup_cpu_max=", workflow)
+        self.assertIn("cgroup_memory_current=", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  schedule:", workflow)
+        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS: "
+                      "${{ inputs.replay_timing_diagnostics && '1' || '0' }}", workflow)
+
     def test_cli_emits_aggregate_json_and_refuses_overwrite(self):
         shas = ["a" * 12, "b" * 12, "c" * 12]
         a = self.save("a.log", log_lines(shas))

@@ -715,11 +715,16 @@ public static class V9NestedCalibrationCoordinator
                 throw;
             }
             physicalGroupClock.Stop();
-            // Operational wall-clock only: includes the entire group RunAsync,
-            // not per-snapshot frozen replay or certified physical P95.
+            // Preserve the original SQL probe wall time exactly. Restarting
+            // the SAME stopwatch measures the post-SQL section independently
+            // without a timer or per-hypothesis log added to the hot path.
+            var sqlSeconds = physicalGroupClock.Elapsed.TotalSeconds;
+            var groupSha = first.Sha[..Math.Min(12, first.Sha.Length)];
+            // Operational wall-clock only: probe RunAsync, not certified P95.
             lock (Console.Out)
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Count} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={physicalGroupClock.Elapsed.TotalSeconds:F1}"));
+                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Count} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={sqlSeconds:F1} | group_sha={groupSha}"));
+            physicalGroupClock.Start();
             // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
             var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
@@ -740,6 +745,7 @@ public static class V9NestedCalibrationCoordinator
                         $"[V9 PERF DIAG] phase=index_build | batch={batch} | requests={requests.Count} | elapsed_ms={indexClock.Elapsed.TotalMilliseconds:F3} | metric_entries={run.SourceResolveValidation!.Count} | frozen_entries={run.FrozenConfigurations!.Count} | option_entries={run.CalibrationReport.Options.Count}"));
             }
             var result = new List<V9NestedCandidateEvaluation>();
+            var replayCalls = 0; // count actual calls, not inferred P95/successes
             foreach (var request in requests)
             {
                 var individualClock = Stopwatch.StartNew();
@@ -765,6 +771,7 @@ public static class V9NestedCalibrationCoordinator
                     try
                     {
                         var replayClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;
+                        replayCalls++;
                         var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
                             validationFrame, fit.Snapshot,
                             replayExecution, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
@@ -811,6 +818,15 @@ public static class V9NestedCalibrationCoordinator
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
                 reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);
             }
+            physicalGroupClock.Stop();
+            var totalSeconds = physicalGroupClock.Elapsed.TotalSeconds;
+            var postSqlSeconds = Math.Max(0d, totalSeconds - sqlSeconds);
+            // One aggregate group event, never a second progress message for
+            // any hypothesis. Other groups can overlap this wall time.
+            // The post-SQL span includes replay, indexing and progress I/O.
+            lock (Console.Out)
+                Console.WriteLine(FormattableString.Invariant(
+                    $"[V9 PERF GROUP] batch={batch} | group_sha={groupSha} | requests={requests.Count} | replay_calls={replayCalls} | sql_seconds={sqlSeconds:F1} | post_sql_seconds={postSqlSeconds:F1} | total_seconds={totalSeconds:F1}"));
             return result.AsReadOnly();
         }
         catch (V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
