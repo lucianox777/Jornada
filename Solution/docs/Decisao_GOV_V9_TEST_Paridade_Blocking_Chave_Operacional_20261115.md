@@ -1,6 +1,6 @@
 # GOV-V9-TEST-PARIDADE-BLOCKING-CHAVE-OPERACIONAL-20261115
 
-**Autoridade:** mandato do Product Owner de 15/11/2026 para continuar a camada TEST do Calibrador V9. **Política:** GOV-DOC-01. **Estado:** em PR e CI física a confirmar. **TEST científico 100k permanece BLOQUEADO.**
+**Autoridade:** mandato do Product Owner de 15/11/2026 para continuar a camada TEST do Calibrador V9. **Política:** GOV-DOC-01. **Estado:** IMPLEMENTADO/INTEGRADO PR #1562, squash `9be74888d932bc888e4ae27be8683f518126ddec`; CI required-fast #43745392362 3/3 e SQL físico #43745392396 2/2 SUCCESS. **TEST científico 100k permanece BLOQUEADO.**
 
 ## Motivação e contexto
 
@@ -28,3 +28,11 @@ Complementa GOV-V9-TEST-PREPARO-GLOBAL-COORTE-RUNASYNC-20261115 e GOV-V9-TEST-GR
 - Contratos: Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py
 - CI SQL: .github/workflows/v9-operational-model-sql-smoke.yml
 - Condição: required-fast 3/3 e dois jobs SQL físico 2/2 aprovados no HEAD da PR, merge e recibos sincronizados com índices GOV-DOC-01.
+
+## Recibo pós-integração — 15/11/2026
+
+- [PR #1562](https://github.com/lucianox777/Jornada/pull/1562), HEAD verificado `bd54e1ca8fbdd6e7098a8e3e4cc80cf52c9477b0`, squash na master `9be74888d932bc888e4ae27be8683f518126ddec`.
+- [CI obrigatória #43745392362](https://github.com/lucianox777/Jornada/actions/runs/43745392362): jobs `unit-runtime`, `security-guards`, `deterministic-build` **3/3 SUCCESS**.
+- [SQL físico #43745392396](https://github.com/lucianox777/Jornada/actions/runs/43745392396): `one-winner-sql-smoke` e `full-schema-runasync-nonpublish` **2/2 SUCCESS**. Log do NUnit: `V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full manifests; tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked`. **1/1 teste físico PASS** e **6/6 testes Python**. SQL Server descartável, schema e migração canônicos.
+- [Preflight Gold #43745392355](https://github.com/lucianox777/Jornada/actions/runs/43745392355) **SUCCESS** no escopo disparado; não é prova de publicação/TEST independente.
+- **Alcance exato:** verifica consulta efetiva operacional de `identidade.blocking_chave`, com `INTERSECT/UNION`, simetria e materialização de dados de fixture; mantém o seed manual limitado a `JornadaHarness`, isto é, **não valida a produção de chaves V9 a partir de Gold real** nem libera TEST científico 100k. Guard `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` permanece. Issues #1488/#1478 não concluídas.
