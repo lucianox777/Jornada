@@ -8,6 +8,8 @@ on:
       - 'Solution/tests/scripts/test_v9_*.py'
       - '.github/workflows/v9-v3-four-name-100k.yml'
       - '.github/workflows/v9-corpus-prepare-opt-in.yml'
+      - '.github/workflows/v9-corpus-crossrunner-pr-smoke.yml'
+      - 'Solution/tests/scripts/v9_corpus_crossrunner_fixture.py'
       - '.github/workflows/v9-corpus-persistence-contract.yml'
   workflow_dispatch:
 
