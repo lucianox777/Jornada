@@ -230,7 +230,11 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertNotIn("ConnectionStrings__", text)
         self.assertIn("--sql-container", workflow)
         self.assertIn("physical-memory-evidence.json", workflow)
-        self.assertIn("physical-resource-checkpoint.json", workflow)
+        # Check the TF4 job actually modified by this patch; the legacy 100k
+        # technical workflow is intentionally unchanged.
+        tf4_workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
+        self.assertIn("physical-resource-checkpoint.json", tf4_workflow)
+        self.assertNotIn("physical-resource-checkpoint.json", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("v9-100k-physical-memory-evidence.py", workflow.split("Start masked disposable SQL Server")[0])
 
