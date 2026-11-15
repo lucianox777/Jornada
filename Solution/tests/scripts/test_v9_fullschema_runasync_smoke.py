@@ -16,7 +16,10 @@ TEST = ROOT / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs"
 class V9FullSchemaNonPublishingContract(unittest.TestCase):
     def test_physical_smoke_is_isolated_from_real_test(self):
         wf = WF.read_text(encoding="utf-8")
-        self.assertIn("pull_request:", wf)
+        self.assertIn("workflow_call:", wf)
+        caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text(encoding="utf-8")
+        self.assertIn("full-schema-runasync-nonpublish:", caller)
+        self.assertIn("./.github/workflows/v9-test-fullschema-runasync-smoke.yml", caller)
         self.assertIn("workflow_dispatch:", wf)
         self.assertIn("timeout-minutes: 45", wf)
         self.assertIn("v9-tf-start-disposable-sql.sh", wf)
@@ -24,7 +27,7 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         self.assertIn("20261114_V9_Operational_Schema_Readonly_Preflight.sql", wf)
         self.assertIn("JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL", wf)
         self.assertIn("dotnet test tests/Jornada.Tests/Jornada.Tests.csproj", wf)
-        self.assertIn("no_sealed", wf.replace("test_corpus_opened=false", "no_sealed"))
+        self.assertIn("test_corpus_opened=false", wf)
         self.assertIn("scientific_test_100k=BLOCKED", wf)
         self.assertNotIn("V9_TF4_TEST_PRIVATE_KEY_B64", wf)
         self.assertNotIn("TEST_PRIVATE_KEY", wf)
