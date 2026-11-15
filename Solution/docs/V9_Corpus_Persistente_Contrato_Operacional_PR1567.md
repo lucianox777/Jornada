@@ -1,6 +1,6 @@
 # V9 — Contrato operacional do corpus persistente (PR #1567)
 
-**Estado:** implementação parcial; **não apta a merge**. Registro de engenharia vinculado à decisão GOV-DOC-01 já documentada nesta branch. A aprovação de arquitetura pelo PO não autoriza executar a campanha científica nem mesclar.
+**Estado:** implementação parcial; PR #1567 em **DRAFT, aberta e sem merge**, sincronizada à master após #1571. Contratos Python e transporte físico de **apenas 2 registros sintéticos** aprovados; persistência durável, gerador familiar e PREPARE→TRAIN real continuam pendentes. Registro de engenharia vinculado à decisão GOV-DOC-01 já documentada nesta branch. A aprovação de arquitetura pelo PO não autoriza executar a campanha científica nem mesclar.
 
 ## Fluxo implementado nesta branch
 
@@ -33,3 +33,16 @@
 - [ ] Revisão final do PO para autorizar merge **em momento posterior**.
 
 **Instrução permanente do PO para esta atividade:** manter PR #1567 aberta, sem merge na master. A branch foi atualizada para conter todas as mudanças da master até #1571; isso **não** implica aprovação de integração da PR.
+
+## Prova CI independente, sem executar 100k — 15/11/2026
+
+| Gate | Execução | Resultado | Escopo real |
+|---|---|---|---|
+| [PR #1567](https://github.com/lucianox777/Jornada/pull/1567) | DRAFT, não mesclar | aberta | Só protótipo de corpus |
+| [PR-only #43759160834](https://github.com/lucianox777/Jornada/actions/runs/43759160834) | `probe-prepare` + `probe-consumer` | **2/2 SUCCESS** | Dois runners separados; **duas linhas públicas sintéticas**; arquivo/recibo completos; **NÃO TRAIN** |
+| [Contrato #43759160878](https://github.com/lucianox777/Jornada/actions/runs/43759160878) | Python corpus 14/14 + segurança workflow 3/3 | **SUCCESS** | Corrupção e metadados rejeitados; sem ciência |
+| Fonte congelada seed42/43/44 | Código C# do gerador | preservado | Alteração anterior revertida em vez de mudar os locks |
+
+O job consumidor em runner separado registrou exatamente `V9_CORPUS_CROSS_RUNNER_HANDOFF_PASS` com `status=TRANSFER_VERIFIED_NONSCIENTIFIC` e `scientific_test_used=false`. O contrato usa `v9-corpus-crossrunner-pr-smoke.yml`, fixture de duas linhas (`tests/scripts/v9_corpus_crossrunner_fixture.py`) e `v9-corpus-handoff-verify.py`, sem certificados TEST, sem banco real, sem pontuação de pares e sem 324 hipóteses. Não extrapolar o smoke de duas linhas para escala/durabilidade 100k.
+
+**Bloqueios ainda abertos:** armazenamento durável independente do cache evictável, publicação imutável de corpus entre execuções, verdadeiros parâmetros familiares congelados em REF, variante experimental do gerador para degradação materna `13,4%` sem mexer no gerador histórico, integração no workflow físico TRAIN com handoff completo, controle de acesso/retentividade, medição P95 e aceite posterior do PO. O fluxo `workflow_dispatch` criado somente na branch draft não equivale a workflow manual registrado na master. O TEST científico 100k permanece lacrado e NÃO utilizado.
