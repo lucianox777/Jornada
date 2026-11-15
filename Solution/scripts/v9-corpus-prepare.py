@@ -22,13 +22,18 @@ spec.loader.exec_module(snapshot)
 def prepare(store, config, generator, output):
     if not isinstance(config, dict) or not config:
         raise ValueError("Invalid generation configuration")
+    if store.is_symlink():
+        raise ValueError("Symlink store forbidden")
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink():
         raise ValueError("Symlink store forbidden")
     target = store / snapshot.identity(config)
     # A single durable-volume lock protects the entire lookup/generation/publish
     # sequence. The snapshot publisher uses a separate lock for atomic exposure.
-    with (store / ".prepare.lock").open("a+b") as lock:
+    lock_path = store / ".prepare.lock"
+    if lock_path.is_symlink():
+        raise ValueError("Unsafe preparation lock")
+    with lock_path.open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if target.exists() or target.is_symlink():
             receipt = snapshot.verify(target, config)
@@ -36,9 +41,9 @@ def prepare(store, config, generator, output):
         else:
             if not generator:
                 raise ValueError("No generator command configured for cache miss")
-            output.mkdir(parents=True, exist_ok=True)
-            if output.is_symlink():
-                raise ValueError("Unsafe generation output")
+            if output.exists() or output.is_symlink():
+                raise ValueError("Generation output must be fresh and absent")
+            output.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run(generator, check=True)
             receipt = snapshot.publish(store, config, output)
             status = "GENERATED"
