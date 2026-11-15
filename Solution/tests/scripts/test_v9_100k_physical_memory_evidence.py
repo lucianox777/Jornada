@@ -137,6 +137,13 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
             self.assertEqual((results / "worker-owned.txt").read_text(), "ok")
             receipt = json.loads(evidence.read_text())
             self.assertEqual(receipt["workerExitCode"], 0)
+            checkpoint = json.loads(
+                (results / "physical-resource-checkpoint.json").read_text())
+            self.assertEqual(checkpoint["status"], "FINAL_MONITOR")
+            self.assertEqual(checkpoint["workerExitCode"], 0)
+            self.assertEqual(receipt["kernelCounterDeltas"],
+                             checkpoint["kernelCounterDeltas"])
+
             self.assertFalse(receipt["activated"])
 
     def test_early_worker_rejection_still_persists_memory_evidence(self):
@@ -156,6 +163,63 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
             receipt = json.loads(evidence.read_text())
             self.assertEqual(receipt["workerExitCode"], 7)
 
+
+    def test_kernel_pressure_cpu_throttle_and_unknown_values_remain_nullable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            cg = root / "cg"
+            pressure = root / "pressure"
+            cg.mkdir()
+            pressure.mkdir()
+            (cg / "cpu.stat").write_text(
+                "usage_usec 1000\nnr_throttled 2\nthrottled_usec 50\n")
+            for name, value in (("cpu", 200), ("memory", 300), ("io", 400)):
+                (pressure / name).write_text(
+                    f"some avg10=1.0 avg60=2.0 avg300=3.0 total={value}\n")
+            host = root / "stat"
+            host.write_text("cpu 10 1 20 100 5 2 1 2 0 0\n")
+            before = module.read_kernel_counters(cg, pressure, host)
+            self.assertEqual(before["cpuCgroupUsageUsec"], 1000)
+            self.assertEqual(before["cpuCgroupThrottleEvents"], 2)
+            self.assertEqual(before["ioPressureSomeUsec"], 400)
+            (cg / "cpu.stat").write_text(
+                "usage_usec 1200\nnr_throttled 4\nthrottled_usec 90\n")
+            (pressure / "io").write_text("some avg10=5.0 total=450\n")
+            host.write_text("cpu 20 1 30 200 5 2 1 6 0 0\n")
+            after = module.read_kernel_counters(cg, pressure, host)
+            delta = module.numeric_counter_deltas(before, after)
+            self.assertEqual(delta["cpuCgroupUsageUsecDelta"], 200)
+            self.assertEqual(delta["cpuCgroupThrottledUsecDelta"], 40)
+            self.assertEqual(delta["ioPressureSomeUsecDelta"], 50)
+            self.assertIsNotNone(delta["hostCpuStealFraction"])
+            (cg / "cpu.stat").unlink()
+            (pressure / "io").unlink()
+            missing = module.read_kernel_counters(cg, pressure, host)
+            self.assertIsNone(missing["cpuCgroupUsageUsec"])
+            self.assertIsNone(missing["ioPressureSomeUsec"])
+            self.assertIsNone(module.numeric_counter_deltas(
+                after, before)["cpuCgroupUsageUsecDelta"])
+
+    def test_checkpoint_atomic_with_no_precreation_and_no_scientific_claim(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "results" / "physical-resource-checkpoint.json"
+            before = module.read_kernel_counters(Path(folder) / "unavailable")
+            receipt = module.partial_receipt(
+                6, 60.0, 4000, 3000, 2000, before, before,
+                {"oom_kill": None}, {"oom_kill": None})
+            self.assertFalse(module.save_atomic_partial(target, receipt))
+            self.assertFalse(target.parent.exists())
+            target.parent.mkdir()
+            self.assertTrue(module.save_atomic_partial(target, receipt))
+            self.assertEqual(json.loads(target.read_text())["status"], "PARTIAL_RUNNING")
+            self.assertIsNone(json.loads(target.read_text())["workerExitCode"])
+            self.assertFalse(json.loads(target.read_text())["certified"])
+            self.assertTrue(module.save_atomic_partial(target, {"samples": 12}))
+            self.assertEqual(json.loads(target.read_text())["samples"], 12)
+            self.assertFalse(target.with_name(target.name + ".writing").exists())
+            self.assertFalse((target.parent / "physical-memory-evidence.json").exists())
+
     def test_read_only_and_artifact_only(self):
         text = PATH.read_text()
         workflow = WORKFLOW.read_text()
@@ -166,6 +230,7 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertNotIn("ConnectionStrings__", text)
         self.assertIn("--sql-container", workflow)
         self.assertIn("physical-memory-evidence.json", workflow)
+        self.assertIn("physical-resource-checkpoint.json", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("v9-100k-physical-memory-evidence.py", workflow.split("Start masked disposable SQL Server")[0])
 
