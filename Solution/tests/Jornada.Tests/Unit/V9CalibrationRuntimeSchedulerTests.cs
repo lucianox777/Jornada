@@ -12,10 +12,10 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         => new(ramGiB * GiB, diskGiB * GiB, resident, peak);
 
     [Test]
-    public void Pilot_estimate_is_conservative_and_does_not_double_count_shared_memory()
+    public void Observed_increment_estimate_has_no_unmeasured_fixed_reserve()
     {
         Assert.That(V9CalibrationRuntimeScheduler.EstimateIncrementBytes(0),
-            Is.EqualTo(512L * 1024 * 1024));
+            Is.Zero);
         Assert.That(V9CalibrationRuntimeScheduler.EstimateIncrementBytes(GiB),
             Is.EqualTo(GiB + GiB / 2));
         Assert.That(V9CalibrationRuntimeScheduler.EstimateIncrementBytes(long.MaxValue),
@@ -23,20 +23,22 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
-    public void RAM_disk_and_next_worker_reservations_are_joint_admission_guards()
+    public void Live_RAM_disk_and_measured_increment_gate_new_admissions()
     {
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(4 * GiB, 8 * GiB, 0, GiB), Is.True);
-        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, GiB), Is.True); // active allocations already excluded from live available RAM
-        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB - 1, 8 * GiB, 1, GiB), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, GiB), Is.True);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(2 * GiB, 8 * GiB, 1, 0), Is.True);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(2 * GiB - 1, 8 * GiB, 1, 0), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, 3 * GiB), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(8 * GiB, 2 * GiB, 0, GiB), Is.False);
-        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 0, GiB), Is.True);
-        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 1, GiB), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 0, 0), Is.True);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 1, 0), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(long.MaxValue, 8 * GiB,
             int.MaxValue, long.MaxValue), Is.False);
     }
 
     [Test]
-    public async Task Automatic_mode_pilots_existing_request_then_runs_same_requests_in_order()
+    public async Task Automatic_mode_runs_each_declared_request_without_blocking_pilot()
     {
         var budget = V9CalibrationResourceGovernor.Decide(0, 4, 12 * GiB, 10 * GiB, 9 * GiB);
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
@@ -51,8 +53,8 @@ public sealed class V9CalibrationRuntimeSchedulerTests
             }, CancellationToken.None);
         Assert.That(result, Is.EqualTo(new[] { 10, 20, 30, 40, 50 }));
         Assert.That(visited.OrderBy(x => x), Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
-        Assert.That(visited[0], Is.EqualTo(1));
-        Assert.That(receipt.PilotConfigurations, Is.EqualTo(1));
+        Assert.That(visited, Has.Count.EqualTo(5));
+        Assert.That(receipt.PilotConfigurations, Is.Zero);
         Assert.That(receipt.WorkersCeiling, Is.LessThanOrEqualTo(budget.EffectiveParallelism));
         Assert.That(receipt.ScientificOptionsChanged, Is.False);
         Assert.That(receipt.TestUsed, Is.False);
@@ -62,35 +64,45 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
-    public async Task Retained_pilot_memory_is_not_reserved_twice_in_auto_mode()
+    public async Task Second_worker_can_start_while_first_large_group_is_still_running()
     {
-        var budget = V9CalibrationResourceGovernor.Decide(0, 4, 8 * GiB, null, 9 * GiB);
-        var reads = 0;
+        var budget = V9CalibrationResourceGovernor.Decide(0, 4, 12 * GiB, null, 9 * GiB);
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
-            () => Interlocked.Increment(ref reads) == 1
-                ? Sample(6, resident: 512L * 1024 * 1024, peak: 512L * 1024 * 1024)
-                : Sample(3, resident: 3 * GiB, peak: 3 * GiB));
-        var (results, receipt) = await scheduler.MapAsync(new[] { 1, 2 },
-            (i, _) => Task.FromResult(i), CancellationToken.None);
-        Assert.That(results, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(receipt.EstimatedIncrementalWorkerBytes, Is.EqualTo(512L * 1024 * 1024));
+            () => Sample(10));
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var running = scheduler.MapAsync(new[] { 0, 1, 2 }, async (i, ct) =>
+        {
+            if (i == 0)
+            {
+                firstStarted.TrySetResult();
+                await releaseFirst.Task.WaitAsync(ct);
+            }
+            if (i == 1) secondStarted.TrySetResult();
+            return i;
+        }, CancellationToken.None);
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try { await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(8)); }
+        finally { releaseFirst.TrySetResult(); }
+        var (values, receipt) = await running;
+        Assert.That(values, Is.EqualTo(new[] { 0, 1, 2 }));
+        Assert.That(receipt.PilotConfigurations, Is.Zero);
+        Assert.That(receipt.MaximumSimultaneousWorkersObserved, Is.GreaterThanOrEqualTo(2));
+        Assert.That(receipt.EstimatedIncrementalWorkerBytes, Is.Zero);
     }
 
     [Test]
-    public void Explicit_workers_are_not_silently_reduced_after_pilot()
+    public void Explicit_worker_count_remains_the_declared_ceiling()
     {
         var budget = V9CalibrationResourceGovernor.Decide(8, 4, 8 * GiB, null, 9 * GiB);
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
             () => Sample(5));
-        var called = new List<int>();
-        var failure = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
-        {
-            await scheduler.MapAsync(Enumerable.Range(0, 9).ToArray(),
-                (i, _) => { called.Add(i); return Task.FromResult(i); },
-                CancellationToken.None);
-        }));
-        Assert.That(failure!.Message, Does.Contain("EXPLICIT_WORKERS"));
-        Assert.That(called, Is.EqualTo(new[] { 0 })); // pilot, no second worker
+        var (values, receipt) = scheduler.MapAsync(Enumerable.Range(0, 9).ToArray(),
+            (i, _) => Task.FromResult(i), CancellationToken.None).GetAwaiter().GetResult();
+        Assert.That(values, Is.EqualTo(Enumerable.Range(0, 9).ToArray()));
+        Assert.That(receipt.WorkersCeiling, Is.EqualTo(8));
+        Assert.That(receipt.PilotConfigurations, Is.Zero);
         Assert.That(budget.ConfiguredParallelism, Is.EqualTo(8));
     }
 
@@ -108,7 +120,7 @@ public sealed class V9CalibrationRuntimeSchedulerTests
                 CancellationToken.None);
         }));
         Assert.That(failure!.Message, Does.Contain("RAM_UNMEASURED"));
-        Assert.That(called, Is.EqualTo(1));
+        Assert.That(called, Is.Zero);
     }
 
     [Test]
