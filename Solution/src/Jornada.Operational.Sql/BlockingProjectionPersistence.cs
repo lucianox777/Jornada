@@ -425,11 +425,11 @@ public static partial class BlockingProjectionPersistence
 
         var currentKeys = ProjectNames(currentName, currentMother, currentBirth);
         var currentAliases = currentKeys
-            .Where(static key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias)
+            .Where(key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias)
             .ToHashSet();
 
         var stable = currentKeys
-            .Where(static key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
+            .Where(key => Temporal(key.Feature) == BlockingFeatureTemporalSemantics.StableIdentityDatum)
             .Select(key => new BlockingProjectionRow(
                 key.Feature,
                 key.Value,
@@ -442,7 +442,7 @@ public static partial class BlockingProjectionPersistence
         foreach (var observation in observations)
         {
             var keys = ProjectNames(observation.Name, observation.MotherName, currentBirth);
-            foreach (var key in keys.Where(static key =>
+            foreach (var key in keys.Where(key =>
                          Temporal(key.Feature) == BlockingFeatureTemporalSemantics.VersionedAlias))
             {
                 MergeAlias(aliases, key, observation.SourceAsOf, observation.SourceAsOf, Current: false);
