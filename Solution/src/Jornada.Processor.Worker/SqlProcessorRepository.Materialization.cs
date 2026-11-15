@@ -222,21 +222,34 @@ internal sealed partial class SqlProcessorRepository
             await RefreshGoldPersonAsync(connection, tx, uuid, ct);
     }
 
-    private static async Task RefreshGoldPersonAsync(
+    private static async Task<int> RefreshGoldPersonAsync(
         SqlConnection connection,
         SqlTransaction tx,
         Guid uuid,
-        CancellationToken ct)
+        CancellationToken ct,
+        V9ProcessorRehearsalPermit? v9Permit = null)
     {
+        // This exact Gold recompose step is shared by the normal Processor
+        // and the isolated V9 rehearsal; callers cannot bypass it.
         await using var command = connection.CreateCommand();
         command.Transaction = tx;
         command.CommandText = "EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@uuid;";
         command.Parameters.AddWithValue("@uuid", uuid);
         await command.ExecuteNonQueryAsync(ct);
 
-        // PROVISORIA/INDEFINIDA existem para representação e QC, mas não são
-        // referências canônicas e não podem alimentar candidate generation.
+        if (v9Permit is { } permit)
+        {
+            // Only the explicitly guarded TEST seam can construct a permit.
+            // No production call site can opt into V9 by configuration.
+            return await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                connection, tx, uuid, permit.MaximumPrefixLength,
+                permit.ProjectionFingerprintSha256, ct);
+        }
+
+        // The canonical production path remains LEGACY V2. PROVISORIA /
+        // INDEFINIDA are represented in Gold but not candidate generation.
         await BlockingProjectionPersistence.RefreshSqlServerAsync(connection, tx, uuid, ct);
+        return 0;
     }
 
     private static async Task<(long? SubprefeituraId, long? DistritoId)> EnsureGeographyIdsAsync(
