@@ -68,3 +68,14 @@ No passo de verificação de AUTO_0 já existente no workflow manual, imprimir `
 O comparador offline `v9-tf4-compare-train-job-logs.py` aceita logs históricos sem SHA (comparação *ordinal_unverified*) e futuros com SHA em ambos os lados (pareamento pelo hash mesmo que os grupos completem fora de ordem), e verifica consistência de tempos SQL/pós-SQL e número de replays. Cada relatório continua marcado `causalityCertified=false`. Os testes de CI cobrem SHA trocado, phase timings inconsistentes e invariância da única chamada científica por hipótese. Com o HEAD apenas, **não existe nova medição** de ganho ou mitigação de timeout; o próximo TEST científico ainda não está liberado.
 
 **Autoridade/precedência:** prosseguimento da investigação operacional solicitada pelo PO, dentro da decisão já vigente sobre diagnóstico de timeout e sem aprovação de rollback amplo. O uso de flags de replay continua **opcional e falso por padrão**, conforme GOV-V9-LOG-UNICO-PROGRESSO-REPLAY-20261113. As decisões GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO, GOV-V9-TIMESTAMPS-JOB-360, cadeia TRAIN→AUDIT→VALIDATION e TEST one-use prevalecem. GOV-DOC-01.
+
+## Recibo de integração da instrumentação — 15/11/2026
+
+A [PR #1544](https://github.com/lucianox777/Jornada/pull/1544) foi integrada à `master` por squash no SHA **`8c71678d65d87550d1077cc7bacfd178e0dcd9ce`**. O HEAD exato `358b384b3451838746d5c0402f9960bdedea12ae` passou:
+
+- [CI rápida #43690333560](https://github.com/lucianox777/Jornada/actions/runs/43690333560): `security-guards`, `unit-runtime` e `deterministic-build` **3/3 SUCCESS**.
+- [Focused #43690333573](https://github.com/lucianox777/Jornada/actions/runs/43690333573): **SUCCESS**.
+- [Integração cross-job sintética #43690333554](https://github.com/lucianox777/Jornada/actions/runs/43690333554): TRAIN, AUDIT, VALIDATION e closeout **SUCCESS**, TEST opcional **SKIPPED** (não são 100K reais).
+- [Contrato offline V2/V3 #43690333615](https://github.com/lucianox777/Jornada/actions/runs/43690333615): **SUCCESS**.
+
+**Significado restrito:** a instrumentação e os novos testes offline estão integrados. Não houve, nesta PR, nova execução física de 100K, nova evidência de throughput, causalidade da lentidão nem prova de que um rollback recuperaria a performance. A próxima campanha permanece manual e gated; TEST científico e produção continuam bloqueados conforme #1488/#1478. GOV-DOC-01.
