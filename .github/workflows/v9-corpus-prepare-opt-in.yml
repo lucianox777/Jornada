@@ -56,11 +56,16 @@ jobs:
           PY
       # Immutable cache, shared across workflow runs; not guaranteed retention.
       # Missing cache triggers deterministic regeneration; corrupted cache fails.
-      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
+      - id: corpus-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
         with:
           path: Solution/.local/v9-persistent/store
           key: v9-corpus-v1-${{ env.V9_CORPUS_KEY }}
           lookup-only: false
+      - name: Verify corpus preparation contract before expensive generation
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_corpus_*.py' -v
       - name: Build generator and prepare corpus
         run: |
           set -euo pipefail
@@ -77,7 +82,8 @@ jobs:
               --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
               --error-profile clean --people 100000 --seed 42 \
               --out .local/v9-persistent/generated
-      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
+      - if: ${{ steps.corpus-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
         with:
           path: Solution/.local/v9-persistent/store
           key: v9-corpus-v1-${{ env.V9_CORPUS_KEY }}
