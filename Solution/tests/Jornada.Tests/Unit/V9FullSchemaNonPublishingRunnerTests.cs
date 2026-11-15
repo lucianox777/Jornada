@@ -543,6 +543,83 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(await restore.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
 
+        // Processor-native compatibility seam: uses the SAME Gold/history
+        // snapshot loader as the actual legacy Processor refresh, but writes
+        // the exact frozen V9 projection for a NEW reference. Keep the whole
+        // rehearsal in a transaction that must ROLLBACK: the independent
+        // 200-Gold set-based materializer is tested separately afterwards.
+        await using (var shadow = (SqlTransaction)await connection.BeginTransactionAsync())
+        {
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                    connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                    new string('a', 64), CancellationToken.None)));
+
+            var nativeRows = await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                planner.ProjectionFingerprintSha256, CancellationToken.None);
+            Assert.That(nativeRows, Is.GreaterThan(0));
+
+            var actualKeys = new List<string>();
+            await using (var check = new SqlCommand("""
+                SELECT atributo,valor_normalizado,projection_schema_version,
+                       projection_fingerprint_sha256,semantica_temporal
+                  FROM identidade.blocking_chave
+                 WHERE pessoa_uuid=@id ORDER BY atributo,valor_normalizado;
+                """, connection, shadow))
+            {
+                check.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[0];
+                await using var reader = await check.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    actualKeys.Add(reader.GetString(0) + "|" + reader.GetString(1));
+                    Assert.That(reader.GetString(2),
+                        Is.EqualTo(V9CalibrationBlockingProjection.SchemaVersion));
+                    Assert.That(reader.GetString(3),
+                        Is.EqualTo(planner.ProjectionFingerprintSha256));
+                    var feature = reader.GetString(0);
+                    if (feature.StartsWith("name_prefix_", StringComparison.Ordinal)
+                        || feature.StartsWith("mother_name_prefix_", StringComparison.Ordinal))
+                        Assert.That(reader.GetString(4), Is.EqualTo("VERSIONED_ALIAS"));
+                }
+            }
+            var expectedKeys = planner.Project(new IdentityObservation(
+                null, "SEM_CPF", SyntheticPersonName(1), new DateOnly(1980, 5, 6),
+                SyntheticMotherName(1)))
+                .Select(key => key.Feature + "|" + key.Value).Distinct().ToArray();
+            Assert.That(actualKeys, Is.EquivalentTo(expectedKeys));
+            Assert.That(nativeRows, Is.EqualTo(expectedKeys.Length));
+
+            // First-use only. Never replace an operational V9/legacy index
+            // silently, even inside an isolated transaction.
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                    connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                    planner.ProjectionFingerprintSha256, CancellationToken.None)));
+
+            // EXISTING legacy path is unchanged and produces its V2 projection
+            // alongside a separate V9 reference inside the same transaction.
+            await BlockingProjectionPersistence.RefreshSqlServerAsync(
+                connection, shadow, uuids[1], CancellationToken.None);
+            await using (var legacy = new SqlCommand("""
+                SELECT DISTINCT projection_schema_version,projection_fingerprint_sha256
+                  FROM identidade.blocking_chave WHERE pessoa_uuid=@id;
+                """, connection, shadow))
+            {
+                legacy.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[1];
+                await using var rows = await legacy.ExecuteReaderAsync();
+                Assert.That(await rows.ReadAsync(), Is.True);
+                Assert.That(rows.GetString(0), Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+                Assert.That(rows.GetString(1), Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+                Assert.That(await rows.ReadAsync(), Is.False);
+            }
+            await shadow.RollbackAsync();
+        }
+        await using (var unchanged = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM identidade.blocking_chave;
+            """, connection))
+            Assert.That(await unchanged.ExecuteScalarAsync(), Is.EqualTo(0L));
+
         var receipt = await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
             connection, uuids, planner.MaximumPrefixLength!.Value,
             planner.ProjectionFingerprintSha256, CancellationToken.None);
@@ -563,6 +640,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
                 connection, uuids, planner.MaximumPrefixLength!.Value,
                 planner.ProjectionFingerprintSha256, CancellationToken.None)));
+        TestContext.WriteLine("V9_PROCESSOR_NATIVE_V9_PROJECTION_SHADOW_PASS: Gold/history reader -> V9 SQL keys; legacy V2 remains unchanged; shadow rollback leaves no keys; TEST 100k blocked");
         TestContext.WriteLine("V9_TEST_GOLD_BACKED_PROJECTION_PASS: 200 physical Gold references; V9 prefix keys; invalid-Gold rollback; exact fingerprint; re-entry rejected; scientific TEST 100k blocked");
     }
 
