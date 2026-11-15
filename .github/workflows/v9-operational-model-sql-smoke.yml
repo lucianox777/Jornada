@@ -28,6 +28,9 @@ on:
       - 'Solution/database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql'
       - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
       - '.github/workflows/v9-operational-model-sql-smoke.yml'
+      - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
+      - 'Solution/tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs'
+      - 'Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py'
   workflow_dispatch:
 
 permissions:
@@ -106,3 +109,87 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f v9-operational-converter-smoke >/dev/null 2>&1 || true
+
+  full-schema-runasync-nonpublish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Validate TEST guards and fixture isolation
+        run: |
+          set -euo pipefail
+          python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py -v
+          git diff --check
+      - name: Build real Runner and SQL fixture
+        working-directory: Solution
+        run: dotnet build -c Release tests/Jornada.Tests/Jornada.Tests.csproj -warnaserror
+      - name: Launch isolated SQL Server with ephemeral masked password
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Apply canonical complete operational schema and read-only preflight
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec -u 0 "$sql_name" sh -c 'mkdir -p /work/Solution && chmod 755 /work /work/Solution'
+          docker cp Solution/database "$sql_name":/work/Solution/
+          run_sql() {
+            docker exec "$sql_name" sh -c \
+              'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' \
+              sh "$1" "$2"
+          }
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+          run_sql JornadaHarness database/Jornada_Fase1_v3.70.sql >"$RUNNER_TEMP/v9-fullschema-schema.log" 2>&1 || {
+            echo "::error::Full operational SQL schema failed"; tail -n 35 "$RUNNER_TEMP/v9-fullschema-schema.log"; exit 1;
+          }
+          run_sql JornadaHarness database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >"$RUNNER_TEMP/v9-fullschema-v9-model.log" 2>&1 || {
+            echo "::error::V9 TEST_ONLY SQL migration failed"; exit 1;
+          }
+          run_sql JornadaHarness database/testing/20261114_V9_Operational_Schema_Readonly_Preflight.sql >"$RUNNER_TEMP/v9-fullschema-preflight.log" 2>&1 || {
+            echo "::error::Full SQL preflight rejected disposable schema"; exit 1;
+          }
+          grep -q 'SCHEMA_PREFLIGHT_PASS_NOT_RUNTIME_PARITY' "$RUNNER_TEMP/v9-fullschema-preflight.log"
+      - name: Execute actual RunAsync in 200 synthetic observations and induced second-batch failure
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          # Masked connection was written by the canonical SQL bootstrap.
+          test -n "$ConnectionStrings__Jornada"
+          JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL="$ConnectionStrings__Jornada" \
+            dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+              --filter 'FullyQualifiedName~V9FullSchemaNonPublishingRunnerTests.Full_schema_RunAsync_200_two_batches_no_publication_and_second_batch_failure' \
+              --logger 'console;verbosity=normal'
+          printf '%s\n' \
+            "scope=V9_FULL_SCHEMA_RUNASYNC_SYNTHETIC_NONPUBLISH" \
+            "source_sha=$GITHUB_SHA" \
+            "sql=CANONICAL_FULL_SCHEMA_JORNADAHARNESS" \
+            "runasync=ACTUAL_RUNNER_METHOD" \
+            "synthetic_observations=200" \
+            "expected_batch_sizes=100,100" \
+            "second_batch_failure=INJECTED_AND_VERIFIED" \
+            "gold_serving_invariant=EMPTY_BEFORE_AND_AFTER" \
+            "test_corpus_opened=false" \
+            "scientific_test_100k=BLOCKED" \
+            "production_equivalence_certified=false" \
+            >"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
+      - name: Archive sanitized noncertifying receipt
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-fullschema-real-runasync-nonpublishing
+          path: ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
+          retention-days: 30
+          if-no-files-found: error
+      - name: Dispose private SQL container on success and failure
+        if: always()
+        run: docker rm -f "v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >/dev/null 2>&1 || true
