@@ -1069,7 +1069,7 @@ public sealed class V9FittedSnapshotTests
         }));
     }
 
-    private static V9FittedSnapshot CompleteTf4OperationalWinner()
+    internal static V9FittedSnapshot CompleteTf4OperationalWinner()
     {
         var payload = FourUnitTfPayload() with
         {
