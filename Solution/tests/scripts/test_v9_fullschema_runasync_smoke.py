@@ -16,10 +16,11 @@ TEST = ROOT / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs"
 class V9FullSchemaNonPublishingContract(unittest.TestCase):
     def test_physical_smoke_is_isolated_from_real_test(self):
         wf = WF.read_text(encoding="utf-8")
-        self.assertIn("workflow_call:", wf)
+        self.assertIn("workflow_dispatch:", wf)
         caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text(encoding="utf-8")
         self.assertIn("full-schema-runasync-nonpublish:", caller)
-        self.assertIn("./.github/workflows/v9-test-fullschema-runasync-smoke.yml", caller)
+        self.assertIn("JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL", caller)
+        self.assertIn("V9FullSchemaNonPublishingRunnerTests.Full_schema_RunAsync_200", caller)
         self.assertIn("workflow_dispatch:", wf)
         self.assertIn("timeout-minutes: 45", wf)
         self.assertIn("v9-tf-start-disposable-sql.sh", wf)
