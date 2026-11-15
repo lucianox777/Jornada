@@ -1,6 +1,6 @@
 # GOV-V9-TEST-FLUXO-PROCESSOR-HISTORICO-PUBLICACAO-20261115
 
-**Autoridade:** solicitação expressa do Product Owner em 15/11/2026 para comprovar a integração governada da nova entrada V9 ao fluxo de execução do Processor, preservando históricos e regras de publicação. **Política:** GOV-DOC-01. **Estado:** em implementação/testes, resultados CI pendentes. **TEST científico independente de 100 mil: BLOQUEADO e NÃO CONSUMIDO.**
+**Autoridade:** solicitação expressa do Product Owner em 15/11/2026 para comprovar a integração governada da nova entrada V9 ao fluxo de execução do Processor, preservando históricos e regras de publicação. **Política:** GOV-DOC-01. **Estado:** IMPLEMENTADO E INTEGRADO PR #1570, squash `d99f7cdc7ec446672a1b34534b20ed166e2e5ab5`; CI obrigatória #43755561821 3/3 e SQL físico #43755561871 2/2 SUCCESS. **TEST científico independente de 100 mil: BLOQUEADO e NÃO CONSUMIDO.**
 
 ## Lacuna factual e precedência
 
@@ -29,3 +29,12 @@ A prova é agora de integração **pelo método efetivamente usado pelo Processo
 - Contrato estático de não ativação: `Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py`
 - CI: `.github/workflows/v9-operational-model-sql-smoke.yml`
 - Aceite somente com fast 3/3 e SQL físico 2/2 no HEAD, manifesto histórico corretamente preservado, rollback íntegro, PR em master, recibo com evidências e índices GOV-DOC-01 sincronizados. **NÃO declarar ativação produtiva nem liberação TEST 100k.**
+
+## Recibo da comprovação — 15/11/2026
+
+- [PR #1570](https://github.com/lucianox777/Jornada/pull/1570), HEAD final testado `3dbd9e4f18746524b29b84899900a41d42dd2d11`; merge squash na master `d99f7cdc7ec446672a1b34534b20ed166e2e5ab5`.
+- [Fast #43755561821](https://github.com/lucianox777/Jornada/actions/runs/43755561821): `security-guards`, `unit-runtime` e `deterministic-build` **3/3 SUCCESS**.
+- [SQL físico #43755561871](https://github.com/lucianox777/Jornada/actions/runs/43755561871): `one-winner-sql-smoke` e `full-schema-runasync-nonpublish` **2/2 SUCCESS**; suite Python **9/9**, NUnit SQL com esquema operacional completo **1/1 PASS**. O log contém: `V9_PROCESSOR_GOVERNED_HISTORY_PUBLICATION_PASS: canonical Silver history 2 distinct aliases via current vínculos; actual sp_recompor_gold_pessoa and V9 Processor branch; fingerprint guard and reentry; full state hash unchanged after rollback; no publication; 100k blocked`. As provas anteriores Gold-backed, candidatos bidirecionais e RunAsync sem publicação também passam no mesmo ensaio.
+- **Aprendizado temporal preservado:** [SQL inicial #43755342205](https://github.com/lucianox777/Jornada/actions/runs/43755342205) recusou uma asserção indevida que tratava todos os aliases antigos como vigentes. No contrato real, um nome histórico continua representado com `vigencia_fim` preenchida, enquanto o nome corrente fica sem encerramento. Corrigiu-se **somente o teste**, exigindo ambos tipos de alias e verificando `vigencia_fim >= vigencia_inicio`. Não se alterou a regra operacional de atualização temporal.
+- **Publicação:** o ensaio shadow insere vínculos sintéticos dentro de uma transação **ROLLBACK**, faz a recomposição Gold real e cria chaves V9, mas não aciona nenhum mecanismo de publicação. Prova a ausência de cabeçalhos `PUBLICADO` e campos de resultado publicados; compara SHA do estado SQL de Gold, blocking, Silver e vínculos antes/depois e as contagens de Serving e publicação. Serving foi **vazio** no teste; não houve prova de igualdade de linhas Serving reais não vazias. As observações e os vínculos criados no shadow **não** ficam persistidos.
+- **Limite decisivo:** esta prova comprova a passagem controlada de um caso V9 por um método real do Processor sob permit interno, não a **ativação produtiva**, nem um ato de correção de identidade governada real. As chamadas produtivas seguem LEGACY V2, sem DI de V9. Ainda faltam seleção segura do modelo V9 nativo sem âncora RASCUNHO, validação com publicações/Serving não vazio, história real governada, carga 100k, LOCK/one-use e certificação científica. O TEST selado não foi consumido.
