@@ -25,9 +25,14 @@ class CorpusPrepareTests(unittest.TestCase):
             second = prepare.prepare(store, config, [], out)
             self.assertEqual(second["status"], "REUSED")
             self.assertEqual(first["fingerprint"], second["fingerprint"])
+            handoff = prepare.handoff(store, config, root / "train" / "corpus")
+            self.assertEqual(handoff["status"], "HANDOFF_VERIFIED")
+            self.assertEqual(handoff["fingerprint"], first["fingerprint"])
             (Path(second["corpus"]) / "observacoes.csv").write_text("tampered")
             with self.assertRaises(ValueError):
                 prepare.prepare(store, config, [], out)
+            with self.assertRaises(ValueError):
+                prepare.handoff(store, config, root / "second-train" / "corpus")
 
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
