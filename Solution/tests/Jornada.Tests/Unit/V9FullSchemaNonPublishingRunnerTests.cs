@@ -215,7 +215,80 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 status.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = stored.ModelId;
                 Assert.That(await status.ExecuteScalarAsync(), Is.EqualTo("RASCUNHO"));
             }
-            TestContext.WriteLine("V9_FULL_SCHEMA_REAL_RUNASYNC_GLOBAL_PREPARED_NONPUBLISH_PASS: 200 Silver rows; global prepare; batches 100+100; failure 100/200; TEST 100k blocked");
+            // First two physical runs exercise the legacy/synthetic-empty
+            // path above. Now exercise POSITIVE SQL-retrieved cross-batch pairs
+            // using the same snapshot. Identity stubs are explicitly limited
+            // to disposable JornadaHarness to satisfy the real FK on
+            // linkage_resultado, not to represent operational Gold publication.
+            await SeedDisposableDiagnosticIdentitiesAsync(connection);
+            var positiveBefore = await ReadPublicationFingerprintAsync(connection);
+            var sqlScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            var positive = await BuildRunner(sqlScorer).RunAsync(Request(), CancellationToken.None);
+            Assert.That(positive.Status, Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
+            Assert.That(positive.Elegiveis, Is.EqualTo(200));
+            Assert.That(positive.Avaliados, Is.EqualTo(200));
+            Assert.That(positive.PublicadoEm, Is.Null);
+            await AssertRunRowsAsync(connection, positive.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
+
+            // SQL candidate signatures, not caller-provided edges. Both links
+            // must be recovered across the 100/101 page boundary. Two different
+            // comparison levels are used: FULL (FirstName TF) and exact LAST
+            // (LastContentSurname TF), on person and mother sides.
+            var physical = sqlScorer.SqlGraphEvidence;
+            Assert.That(physical, Is.Not.Null);
+            Assert.That(physical!.ProductionCandidateParityCertified, Is.False);
+            Assert.That(physical.Edges, Is.EqualTo(new (int A, int B)[]
+            {
+                (1, 101), (2, 102)
+            }));
+            Assert.That(physical.CanonicalEdgesSha256, Has.Length.EqualTo(64));
+            Assert.That(physical.SignatureRows, Is.GreaterThan(0));
+
+            var cohort = Enumerable.Range(1, 200).Select(i =>
+                new V9PhysicalCalibrationObservation(
+                    i, "TRUTH_UNUSED_" + i, "TEST", i <= 100 ? "V9TEST" : "V9TEST2",
+                    SyntheticPersonName(i), SyntheticMotherName(i), new DateOnly(1980, 5, 6)))
+                .ToArray();
+            var reference = pinned.ReplayTest(cohort, physical.Edges);
+            Assert.That(reference.Decisions, Has.Count.EqualTo(200));
+            await AssertFrozenRunDecisionsAsync(connection, positive.RunId, reference);
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
+                "Gold/Serving não podem ser alterados nem com candidatos TF positivos.");
+
+            // The independently implemented Worker physical SQL signature
+            // join is already bounded at 128 diagnostic observations. This
+            // subset includes both CROSS-BATCH pairs while keeping that cap.
+            var workerEdges = await V9PhysicalSqlAdaptiveCalibrationProbe
+                .ReadFrozenTestCandidateEdgesForParityAsync(
+                    connection, cohort.Take(128).ToArray(), winner,
+                    new V9PhysicalAdaptiveExecution(MaximumPrefixLength: 4),
+                    CancellationToken.None);
+            Assert.That(workerEdges, Is.EquivalentTo(physical.Edges));
+
+            // Exactly the same SQL-positive graph must be prepared even when
+            // the second SQL batch fails at its first observation. No partial
+            // publication and no mixed output from an incomplete run.
+            var failingSqlScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256, failAfter: 100);
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await BuildRunner(failingSqlScorer).RunAsync(Request(), CancellationToken.None)));
+            Assert.That(failingSqlScorer.SqlGraphEvidence?.Edges,
+                Is.EqualTo(new (int A, int B)[] { (1, 101), (2, 102) }));
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
+            await using (var sqlFailed = new SqlCommand("""
+                SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
+                WHERE status=N'FALHOU' AND modelo_id=@id AND avaliados=100
+                ORDER BY iniciado_em DESC;
+                """, connection))
+            {
+                sqlFailed.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = stored.ModelId;
+                var failedId = await sqlFailed.ExecuteScalarAsync();
+                Assert.That(failedId, Is.InstanceOf<Guid>());
+                await AssertRunRowsAsync(connection, (Guid)failedId!, "FALHOU", 100);
+            }
+
+            TestContext.WriteLine("V9_FULL_SCHEMA_POSITIVE_SQL_CROSSBATCH_PASS: physical-signature graph=2; TF-first+last; batches=100+100; worker parity; Gold/Serving unchanged; scientific TEST 100k blocked");
         }
         finally
         {
@@ -253,23 +326,50 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 N'PROCESSADA',SYSUTCDATETIME(),SYSUTCDATETIME());
             INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,status)
                 VALUES(@batch,@delivery,1,1,N'PROCESSADO');
-            SELECT @g,@s,@b;
+            INSERT ref.gestor(codigo,nome) VALUES(N'V9TEST2',N'Disposable V9 TEST partner');
+            DECLARE @g2 bigint=SCOPE_IDENTITY();
+            INSERT ref.sistema_origem(gestor_id,codigo,nome)
+                VALUES(@g2,N'V9TEST2',N'Disposable V9 TEST partner');
+            DECLARE @s2 bigint=SCOPE_IDENTITY();
+            INSERT ref.base_pessoa_origem(
+                codigo,nome,gestor_custodiante_id,escopo,confianca_identidade)
+                VALUES(N'V9TEST2',N'Disposable V9 TEST partner',@g2,N'PRIVADA',N'NAO_HOMOLOGADA');
+            DECLARE @b2 bigint=SCOPE_IDENTITY();
+            INSERT ref.sistema_origem_base_pessoa(sistema_origem_id,base_pessoa_origem_id,padrao)
+                VALUES(@s2,@b2,1);
+            INSERT ref.gestor_pessoa_versao(
+                gestor_id,versao,vigencia_inicio,pessoa_schema_ref,status)
+                VALUES(@g2,1,'20260101',N'isolated-v9-synthetic',N'RASCUNHO');
+            DECLARE @v2 bigint=SCOPE_IDENTITY();
+            INSERT ingestao.entrega(
+                entrega_id,gestor_id,sistema_origem_id,gestor_pessoa_versao_id,
+                idempotency_key,payload_sha256,bytes_recebidos,status,data_referencia,recebido_em)
+                VALUES(@delivery2,@g2,@s2,@v2,N'v9-test-partner-fresh',REPLICATE('0',64),0,
+                N'PROCESSADA',SYSUTCDATETIME(),SYSUTCDATETIME());
+            INSERT ingestao.lote(lote_id,entrega_id,lote_seq,lote_total,status)
+                VALUES(@batch2,@delivery2,1,1,N'PROCESSADO');
+            SELECT @g,@s,@b,@g2,@s2,@b2;
             """, connection, transaction))
         {
             setup.Parameters.Add("@delivery", SqlDbType.UniqueIdentifier).Value = Guid.NewGuid();
             setup.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            setup.Parameters.Add("@delivery2", SqlDbType.UniqueIdentifier).Value = Guid.NewGuid();
+            setup.Parameters.Add("@batch2", SqlDbType.UniqueIdentifier).Value = BatchId2;
             await using var reader = await setup.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
             GestorId = reader.GetInt64(0);
             SistemaId = reader.GetInt64(1);
             BaseId = reader.GetInt64(2);
+            GestorId2 = reader.GetInt64(3);
+            SistemaId2 = reader.GetInt64(4);
+            BaseId2 = reader.GetInt64(5);
         }
 
         for (var i = 1; i <= count; i++)
         {
             var code = "V9TEST_" + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
-            var person = "PESSOA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " SILVA";
-            var mother = "MARIA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA";
+            var person = SyntheticPersonName(i);
+            var mother = SyntheticMotherName(i);
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code))).ToLowerInvariant();
             await using var add = new SqlCommand("""
                 INSERT silver.pessoa_origem(sistema_origem_id,base_pessoa_origem_id,codigo_pessoa_origem)
@@ -284,10 +384,11 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;
                 SELECT @observation;
                 """, connection, transaction);
-            add.Parameters.Add("@system", SqlDbType.BigInt).Value = SistemaId;
-            add.Parameters.Add("@base", SqlDbType.BigInt).Value = BaseId;
-            add.Parameters.Add("@gestor", SqlDbType.BigInt).Value = GestorId;
-            add.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            var partner = i > count / 2;
+            add.Parameters.Add("@system", SqlDbType.BigInt).Value = partner ? SistemaId2 : SistemaId;
+            add.Parameters.Add("@base", SqlDbType.BigInt).Value = partner ? BaseId2 : BaseId;
+            add.Parameters.Add("@gestor", SqlDbType.BigInt).Value = partner ? GestorId2 : GestorId;
+            add.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = partner ? BatchId2 : BatchId;
             add.Parameters.Add("@code", SqlDbType.NVarChar, 120).Value = code;
             add.Parameters.Add("@hash", SqlDbType.Char, 64).Value = hash;
             add.Parameters.Add("@name", SqlDbType.NVarChar, 400).Value = person;
@@ -305,9 +406,95 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
     }
 
     private static readonly Guid BatchId = Guid.NewGuid();
+    private static readonly Guid BatchId2 = Guid.NewGuid();
     private static long GestorId;
     private static long SistemaId;
     private static long BaseId;
+    private static long GestorId2;
+    private static long SistemaId2;
+    private static long BaseId2;
+
+    // Two positive, cross-manager, CROSS-BATCH links. Pair (1,101) chooses
+    // person/mother FirstName TF; pair (2,102) chooses surname TF.
+    // Every other name has disjoint leading prefixes across managers.
+    private static string SyntheticPersonName(int id) => id switch
+    {
+        1 or 101 => "MARIA SILVA",
+        2 => "SILVANA SILVA",
+        102 => "SILVIA SILVA",
+        _ => (id <= 100 ? "ALFA" : "BETA") +
+            id.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " SILVA"
+    };
+    private static string SyntheticMotherName(int id) => id switch
+    {
+        1 or 101 => "ANA COSTA",
+        2 => "COSTELA COSTA",
+        102 => "COSTURA COSTA",
+        _ => (id <= 100 ? "CARLA" : "DORA") +
+            id.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA"
+    };
+
+    private static async Task SeedDisposableDiagnosticIdentitiesAsync(SqlConnection connection)
+    {
+        // The full schema has FKs from linkage_resultado.*_uuid to identidade.pessoa.
+        // Diagnostic group GUIDs are NEVER inserted into Gold/Serving by RunAsync;
+        // these stubs exist only in disposable JornadaHarness.
+        await using var gate = new SqlCommand("SELECT DB_NAME();", connection);
+        if (!string.Equals((string?)await gate.ExecuteScalarAsync(), "JornadaHarness",
+                StringComparison.Ordinal))
+            throw new InvalidOperationException("Referências sintéticas fora de JornadaHarness.");
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
+        for (var i = 1; i <= 200; i++)
+        {
+            await using var insert = new SqlCommand("""
+                INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@id,N'ATIVO');
+                """, connection, tx);
+            insert.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
+                new Guid(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+            Assert.That(await insert.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+        await using (var seed = new SqlCommand("""
+            INSERT gold.pessoa(
+                pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
+                fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
+            VALUES(
+                @id,NULL,N'SEM_CPF',N'MARIA SILVA','1980-05-06',N'ANA COSTA',
+                1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSDATETIMEOFFSET());
+            """, connection, tx))
+        {
+            seed.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
+                new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+            Assert.That(await seed.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+        await tx.CommitAsync();
+    }
+
+    private static async Task AssertFrozenRunDecisionsAsync(
+        SqlConnection connection, Guid runId, V9FrozenSourceReplayResult reference)
+    {
+        await using var query = new SqlCommand("""
+            SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,
+                   melhor_candidato_uuid,score_melhor,motivo
+              FROM identidade.linkage_resultado
+             WHERE linkage_run_id=@run ORDER BY pessoa_observacao_id;
+            """, connection);
+        query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using var reader = await query.ExecuteReaderAsync();
+        foreach (var expected in reference.Decisions.OrderBy(x => x.ObservationId))
+        {
+            Assert.That(await reader.ReadAsync(), Is.True);
+            Assert.That(reader.GetInt64(0), Is.EqualTo(expected.ObservationId));
+            Assert.That(reader.GetString(1), Is.EqualTo(expected.Decision.Status.ToString()));
+            Assert.That((object?)(reader.IsDBNull(2) ? (Guid?)null : reader.GetGuid(2)),
+                Is.EqualTo(expected.Decision.PessoaUuidResolvido));
+            Assert.That((object?)(reader.IsDBNull(3) ? (Guid?)null : reader.GetGuid(3)),
+                Is.EqualTo(expected.Decision.MelhorCandidatoUuid));
+            Assert.That(reader.GetDecimal(4), Is.EqualTo(expected.Decision.MelhorScore).Within(0.00000001m));
+            Assert.That(reader.IsDBNull(5) ? null : reader.GetString(5),
+                Is.EqualTo(expected.Decision.Motivo));
+        }
+        Assert.That(await reader.ReadAsync(), Is.False);
+    }
 
     private static async Task<string> ReadPublicationFingerprintAsync(SqlConnection connection)
     {

@@ -43,6 +43,8 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     private readonly Guid pinnedModelId;
     private readonly string pinnedWinnerSha;
     private readonly (long A, long B)[] syntheticEdges;
+    private readonly bool readPhysicalSqlGraph;
+    public V9FrozenCohortSqlCandidateGraph.Receipt? SqlGraphEvidence { get; private set; }
     private readonly int failAfter;
     private readonly ConcurrentDictionary<long, byte> consumed = new();
     private IReadOnlyDictionary<long, (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>? prepared;
@@ -64,6 +66,18 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         pinnedWinnerSha = pinnedWinnerSha256;
         syntheticEdges = explicitSyntheticEdges.ToArray();
         this.failAfter = failAfter;
+    }
+
+    /// <summary>
+    /// New physical SQL signature-join mode: no caller-supplied edges.
+    /// 200-observation disposable SQL smoke only, not production candidate SQL.
+    /// </summary>
+    public V9PinnedSyntheticGraphCohortRunScorer(IOperationalSqlAdapter sql,
+        Guid pinnedModelId, string pinnedWinnerSha256, int failAfter = int.MaxValue)
+        : this(sql, pinnedModelId, pinnedWinnerSha256,
+            Array.Empty<(long A, long B)>(), failAfter)
+    {
+        readPhysicalSqlGraph = true;
     }
 
     public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
@@ -162,6 +176,18 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             i + 1, "UNUSED_SYNTHETIC_LABEL_" + (i + 1), "TEST",
             managers[row.PessoaObservacaoId], row.Observation.NomeCompleto,
             row.Observation.NomeMae, row.Observation.DataNascimento)).ToArray();
+        if (readPhysicalSqlGraph)
+        {
+            // The entire frozen Silver cohort, not separate RunAsync pages,
+            // is projected into SQL temp tables; no synthetic edge input.
+            var physical = await V9FrozenCohortSqlCandidateGraph.ReadAsync(
+                connection, winner, frozenRows, managers, ct);
+            if (physical.Edges.Count == 0)
+                throw new InvalidDataException(
+                    "Smoke SQL positivo V9 exige pelo menos uma aresta física real.");
+            edges = physical.Edges.ToList();
+            SqlGraphEvidence = physical;
+        }
         // EXACTLY one global grouping over all edges, including cross-batch links.
         var global = pinned.ReplayTest(cohort, edges);
         if (global.SnapshotSha256 != pinnedWinnerSha
