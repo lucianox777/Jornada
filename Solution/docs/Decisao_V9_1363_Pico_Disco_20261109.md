@@ -16,3 +16,9 @@ Cobertura unitária: crescimento e remoção temporária, diretórios aninhados,
 
 ## Precedência
 Observabilidade da V9 e #1302; não substitui decisão de **sem teto de registros** da calibração, campanha 100k #1349, isolamento TEST/Gold ou impedimento de segurança #1253. PR #1362 tem escopo e processo de integração separados; não empilhar sobre esse HEAD nem alterar ciência.
+
+## Revisão posterior vigente — frequência diagnóstica em TRAIN (15/11/2026)
+
+Por decisão posterior expressa do PO, [GOV-V9-CALIBRADOR-LOG-MINIMO-20261115](Decisao_GOV_V9_Calibrador_Log_Minimo_20261115.md), implementada na [PR #1551](https://github.com/lucianox777/Jornada/pull/1551) (squash `ca64a697da096cac61dd2d83bd197f049ad43465`), o chamador `--v9-calibrate` alterou **exclusivamente a periodicidade do scanner diagnóstico de tamanho lógico da pasta de saída de 500 ms para 30 s**. O período de 500 ms descrito na especificação original acima é **histórico**, não a frequência atual dessa execução.
+
+Permanecem as amostras explícitas nas fronteiras, contratos do relatório/JSON, `NOT_MEASURED` e `PARTIAL_SAMPLED`, escopo lógico limitado e controles **independentes** de segurança de capacidade e recursos. O novo intervalo pode não capturar arquivos transitórios que o anterior teria observado; não certifica máximo absoluto nem melhora física de performance. Não modifica a ciência, a definição de métricas, TEST, auditoria ou governança de timeout. Essa revisão altera a frequência observacional, não a exigência do PO de evidenciar o pico **observado**. Documentar ambos os períodos com precedência GOV-DOC-01.
