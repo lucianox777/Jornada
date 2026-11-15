@@ -167,8 +167,7 @@ public static class V9OperationalBlockingChaveCohortParity
 
     public static Guid DiagnosticUuid(int observationIndex)
     {
-        if (observationIndex <= 0)
-            throw new ArgumentOutOfRangeException(nameof(observationIndex));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(observationIndex);
         return new Guid(observationIndex, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
     }
 }
