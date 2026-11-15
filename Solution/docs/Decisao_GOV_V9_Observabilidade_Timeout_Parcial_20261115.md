@@ -1,6 +1,6 @@
 # GOV-V9-OBSERVABILIDADE-TIMEOUT-PARCIAL-20261115 — preservar diagnóstico no timeout
 
-**Autoridade:** Product Owner, 15/11/2026, ordem explícita “Corrija” após investigar lentidão e receber aviso “A action terminou”. **Estado:** correção de observabilidade autorizada; integração e CI em PR. Política GOV-DOC-01.
+**Autoridade:** Product Owner, 15/11/2026, ordem explícita “Corrija” após investigar lentidão e receber aviso “A action terminou”. **Estado:** **APROVADA, IMPLEMENTADA E INTEGRADA** pela [PR #1546](https://github.com/lucianox777/Jornada/pull/1546), squash `4efd450b9b15b5caf145dc37db3ac9872d4e05f2`; CI obrigatória rápida [#43717302364](https://github.com/lucianox777/Jornada/actions/runs/43717302364) **3/3 SUCCESS**, teste focado [#43717302345](https://github.com/lucianox777/Jornada/actions/runs/43717302345) SUCCESS e fixture independente [#43717302357](https://github.com/lucianox777/Jornada/actions/runs/43717302357) SUCCESS. **A performance real não foi comprovadamente recuperada** e nenhuma execução física 100K nova foi iniciada. Política GOV-DOC-01.
 
 ## Contexto e evidência
 
@@ -27,3 +27,7 @@ Complementa [Investigacao_V9_TF4_324_Desempenho_Rollback_20261115.md](Investigac
 Exigir testes offline para contadores inteiros, null de indisponibilidade/reset, checkpoint atômico e repetido, preservação de saída inédita do C#, recebimento no artifact TRAIN após cancelamento, e CI 3/3 da PR. Só um futuro run físico explicitamente autorizado pode comprovar a origem da lentidão e a eficácia da captura.
 
 Arquivos: Solution/scripts/v9-100k-physical-memory-evidence.py; .github/workflows/v9-v3-four-name-100k.yml; Solution/tests/scripts/test_v9_100k_physical_memory_evidence.py; Solution/docs/Indice_Decisoes_Vigentes.md; este documento. GOV-DOC-01.
+
+## Recibo de integração (15/11/2026)
+
+A correção foi integrada por squash à master após o HEAD `831dd392913759076fb711a5c92dca744c633947` passar `security-guards`, `unit-runtime` e `deterministic-build` 3/3 e fixture sintética cross-job. Durante a PR, um teste inicialmente apontou para o workflow legado em vez do TF4; o alvo do teste foi corrigido e a CI foi reexecutada com êxito. A correção instrumenta apenas a persistência de métricas externas ao calibrador, não a regressão causal de ~22% identificada na execução #43631379628. Não reiniciar 100K automaticamente.
