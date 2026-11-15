@@ -66,7 +66,7 @@ public static class SyntheticCorpusMaterializer
             ["gabarito.json"] = await HashFileAsync(truthPath, cancellationToken)
         };
 
-        var declaredErrorProfile = generation.Options.EffectiveErrorProfile;
+        var declaredErrorProfile = SyntheticCorpusV2Rules.Profiles[generation.Options.ErrorProfile];
         var manifest = new
         {
             schema_version = 1,
@@ -229,7 +229,7 @@ public static class SyntheticCorpusMaterializer
         SyntheticCorpusNominalSource source,
         string inputFingerprintSha256)
     {
-        var profile = generation.Options.EffectiveErrorProfile;
+        var profile = SyntheticCorpusV2Rules.Profiles[generation.Options.ErrorProfile];
         var empirical = generation.EmpiricalMExact
             .OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(
