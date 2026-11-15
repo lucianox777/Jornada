@@ -1,6 +1,6 @@
 # GOV-V9-TF4-DISPATCH-SELETOR-TEST-20261115 — novo disparo manual com opção explícita de TEST
 
-**Autoridade e data:** Product Owner, 15/11/2026 (America/Sao_Paulo): «um novo workflow pra eu executar, inclusive com a opção dos testes». **Estado:** DECIDIDO; implementação proposta na branch `feat/v9-tf4-dispatch-test-mode-20261115`; CI, PR/merge e execução física dependem de evidência própria. **Regra:** GOV-DOC-01.
+**Autoridade e data:** Product Owner, 15/11/2026 (America/Sao_Paulo): «um novo workflow pra eu executar, inclusive com a opção dos testes». **Estado:** DECIDIDO e IMPLEMENTADO/INTEGRADO pela PR #1554 (squash `7de4f3d5966ab0ccf6fb9801d748893667949d0e`), CI rápida 3/3 e smoke cross-job sintético aprovados; registro do novo workflow na `master` confirmado, execução física V9/100k e TEST operacional ainda NÃO REALIZADOS. **Regra:** GOV-DOC-01.
 
 ## Contexto e motivação
 
@@ -35,3 +35,11 @@ Em Actions, selecionar **V9 TF4 100k - Execucao com opcao de TEST** → **Run wo
 ## Precedência e rastreabilidade
 
 **Complementa**, sem revogar, [GOV-V9-TEST-DATABASE-EXISTENTE-OPCIONAL-20261114](Decisao_GOV_V9_TEST_Database_Existente_Opcional_20261114.md), [GOV-V9-CALIBRADOR-LOG-MINIMO-20261115](Decisao_GOV_V9_Calibrador_Log_Minimo_20261115.md), [GOV-V9-CADEIA-OBRIGATORIA-E2E-PREFLIGHT-20261114](Decisao_GOV_V9_Cadeia_Obrigatoria_E2E_Preflight_20261114.md) e a política GOV-DOC-01. Mantém os bloqueios de paridade #1488/#1478 e o TEST científico global one-use. **Arquivos de mudança:** `.github/workflows/v9-tf4-execucao-testes.yml`, `.github/workflows/v9-v3-four-name-100k.yml`, `Solution/tests/scripts/test_v9_tf4_dispatch_test_modes.py`, este documento e os dois índices. Registrar PR, SHA e evidências CI após obtenção; antes disso, status de implementação física é **NÃO VERIFICADO**.
+
+## Recibo de integração — 15/11/2026
+
+- **PR:** [#1554](https://github.com/lucianox777/Jornada/pull/1554), branch `feat/v9-tf4-dispatch-test-mode-20261115`, head `8840e314dcc63318d4d947141e6f91f95c22f46c`, merge por squash na master `7de4f3d5966ab0ccf6fb9801d748893667949d0e`.
+- **CI obrigatória:** [jornada-pr-required-fast #43735403883](https://github.com/lucianox777/Jornada/actions/runs/43735403883): `security-guards`, `unit-runtime`, `deterministic-build` **SUCCESS (3/3)**.
+- **Smoke de integração entre jobs (sem 100k físico):** [#43735403970](https://github.com/lucianox777/Jornada/actions/runs/43735403970) **SUCCESS**, com TRAIN/AUDIT/VALIDATION/closeout por fixtures e TEST opcional `skipped`.
+- **Workflow versionado na master:** [v9-tf4-execucao-testes.yml](../../.github/workflows/v9-tf4-execucao-testes.yml) verificado por leitura da árvore mestre. A disponibilização/execução real em Actions e as escolhas do formulário exigem confirmação no próprio serviço no próximo disparo.
+- **Limites da prova:** CI e merge NÃO mediram 324×100k, não exercitaram TEST com banco existente e não desbloquearam TEST científico sintético. Manter #1488/#1478 e o status de prova física pendente. GOV-DOC-01.
