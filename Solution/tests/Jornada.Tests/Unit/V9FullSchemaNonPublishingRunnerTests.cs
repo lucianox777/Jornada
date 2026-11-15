@@ -463,7 +463,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             """, connection, tx))
         {
             seed.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
-                new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+                new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
             Assert.That(await seed.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
         await tx.CommitAsync();
@@ -485,9 +485,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(await reader.ReadAsync(), Is.True);
             Assert.That(reader.GetInt64(0), Is.EqualTo(expected.ObservationId));
             Assert.That(reader.GetString(1), Is.EqualTo(expected.Decision.Status.ToString()));
-            Assert.That(reader.IsDBNull(2) ? null : reader.GetGuid(2),
+            Assert.That((object?)(reader.IsDBNull(2) ? (Guid?)null : reader.GetGuid(2)),
                 Is.EqualTo(expected.Decision.PessoaUuidResolvido));
-            Assert.That(reader.IsDBNull(3) ? null : reader.GetGuid(3),
+            Assert.That((object?)(reader.IsDBNull(3) ? (Guid?)null : reader.GetGuid(3)),
                 Is.EqualTo(expected.Decision.MelhorCandidatoUuid));
             Assert.That(reader.GetDecimal(4), Is.EqualTo(expected.Decision.MelhorScore).Within(0.00000001m));
             Assert.That(reader.IsDBNull(5) ? null : reader.GetString(5),
