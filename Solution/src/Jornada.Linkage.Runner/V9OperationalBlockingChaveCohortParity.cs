@@ -96,7 +96,11 @@ public static class V9OperationalBlockingChaveCohortParity
                     || !string.Equals(reader.GetString(5),
                         planner.ProjectionFingerprintSha256, StringComparison.OrdinalIgnoreCase)
                     || reader.IsDBNull(6)
-                    || reader.IsDBNull(7) == false
+                    || reader.GetString(6) !=
+                        (planner.TemporalSemantics(feature) ==
+                            BlockingFeatureTemporalSemantics.StableIdentityDatum
+                            ? "STABLE_IDENTITY_DATUM" : "VERSIONED_ALIAS")
+                    || !reader.IsDBNull(7)
                     || !seen.Add((uuid, feature, value)))
                     throw new InvalidDataException(
                         "Manifesto blocking_chave V9 não é exclusivamente da coorte congelada.");
