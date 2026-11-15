@@ -30,6 +30,7 @@ on:
       - '.github/workflows/v9-operational-model-sql-smoke.yml'
       - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
       - 'Solution/tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs'
       - 'Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py'
   workflow_dispatch:
 
