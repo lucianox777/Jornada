@@ -1,6 +1,6 @@
 # GOV-V9-TEST-PROCESSOR-NATIVE-PROJECAO-GOLD-20261115
 
-**Autoridade:** continuidade solicitada pelo Product Owner em 15/11/2026. **Política:** GOV-DOC-01. **Estado:** implementação proposta em PR/CI. **TEST científico selado de 100 mil registros: BLOQUEADO e NÃO CONSUMIDO.**
+**Autoridade:** continuidade solicitada pelo Product Owner em 15/11/2026. **Política:** GOV-DOC-01. **Estado:** IMPLEMENTADO E INTEGRADO NA MASTER pela PR #1568, squash `8a02fa3995f83c48532d815be3309e3e0d5f7778`, required-fast #43749665252 3/3 e SQL físico #43749665254 2/2 SUCCESS. **TEST científico selado de 100 mil registros: BLOQUEADO e NÃO CONSUMIDO.**
 
 ## Contexto e lacuna verificada
 
@@ -28,3 +28,11 @@ O método novo é **um ponto de integração do componente operacional**, não u
 - Teste de regressão/contrato: `Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py`
 - Workflow: `.github/workflows/v9-operational-model-sql-smoke.yml`
 - Aceite: CI `jornada-pr-required-fast` 3/3 e SQL `V9 lossless operational SQL model smoke` 2/2 no HEAD, prova shadow rollback V9+V2 e atualização de GOV-DOC-01/índices na `master`. Nunca remover guard `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` neste PR.
+
+## Recibo integrado — 15/11/2026
+
+- [PR #1568](https://github.com/lucianox777/Jornada/pull/1568), HEAD do código efetivamente testado `cf92ada3dc031b5c1131af8df34b96bb4deb0605`, merge squash `8a02fa3995f83c48532d815be3309e3e0d5f7778` em master.
+- [CI rápida #43749665252](https://github.com/lucianox777/Jornada/actions/runs/43749665252) **3/3 SUCCESS** (`security-guards`, `unit-runtime`, `deterministic-build`).
+- [SQL físico #43749665254](https://github.com/lucianox777/Jornada/actions/runs/43749665254) **2/2 SUCCESS** (`one-winner-sql-smoke` e `full-schema-runasync-nonpublish`). Log do NUnit: `V9_PROCESSOR_NATIVE_V9_PROJECTION_SHADOW_PASS: Gold/history reader -> V9 SQL keys; legacy V2 remains unchanged; shadow rollback leaves no keys; TEST 100k blocked`. Testes Python de contrato **8/8 PASS**, NUnit de schema operacional **1/1 PASS**. Após o rollback do shadow, materialização separada de 200 Gold V9, grafo com dois pares positivos interlotes e ausência de publicação continuam aprovados.
+- A primeira execução da PR #1568, [SQL #43749512131](https://github.com/lucianox777/Jornada/actions/runs/43749512131), falhou na compilação por três lambdas `static` que capturavam `Temporal`. A revisão substituiu as lambdas por capturas locais válidas, e o HEAD corrigido foi revalidado integralmente nos dois pipelines indicados.
+- **Escopo protegido:** a produção **continua chamando `BlockingProjectionPersistence.RefreshSqlServerAsync/BatchAsync` legados**, sem registro do novo método V9 no Processor, sem seleção de modelo produtivo e sem qualquer mudança na regra de publicação. A prova de aliases históricos foi somente a reutilização do leitor, não um corpus com vínculos históricos efetivos. Gold/Serving produtivos, binding V9 nativo, LOCK/one-use e TEST independente 100k permanecem pendentes; guards científicos preservados. GOV-DOC-01.
