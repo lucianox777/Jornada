@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/v9-corpus-*.py'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/tests/Jornada.Tests/Unit/SyntheticCorpusV2PortTests.cs'
       - 'Solution/tests/scripts/test_v9_*.py'
       - '.github/workflows/v9-v3-four-name-100k.yml'
       - '.github/workflows/v9-corpus-prepare-opt-in.yml'
@@ -24,5 +26,5 @@ jobs:
         working-directory: Solution
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/v9-corpus-snapshot.py scripts/v9-corpus-input-receipt.py scripts/v9-corpus-prepare.py
+          python3 -m py_compile scripts/v9-corpus-snapshot.py scripts/v9-corpus-input-receipt.py scripts/v9-corpus-prepare.py scripts/v9-corpus-handoff-verify.py
           python3 -m unittest discover -s tests/scripts -p 'test_v9_*.py' -v
