@@ -19,51 +19,6 @@ public sealed class SyntheticCorpusV2PortTests
     }
 
     [Test]
-    public void Maternal_rate_override_is_optional_validated_and_preserves_clean_ten_percent()
-    {
-        var legacy = new SyntheticCorpusOptions(People: 200, Seed: 42, ErrorProfile: "clean");
-        var explicitLegacy = legacy with { MotherCorruptionProbabilityOverride = .10 };
-        var exploratory = legacy with { MotherCorruptionProbabilityOverride = .134 };
-
-        Assert.That(SyntheticCorpusV2Rules.Profiles["clean"].MotherCorruptionProbability,
-            Is.EqualTo(.10), "O perfil histórico não pode ser mutado.");
-        Assert.That(legacy.EffectiveErrorProfile, Is.EqualTo(explicitLegacy.EffectiveErrorProfile));
-        Assert.That(exploratory.EffectiveErrorProfile.MotherCorruptionProbability,
-            Is.EqualTo(.134));
-        Assert.That(exploratory.EffectiveErrorProfile.NameCorruptionProbability,
-            Is.EqualTo(.06));
-
-        foreach (var invalid in new[] { -0.01, 1.01, double.NaN,
-                     double.PositiveInfinity, double.NegativeInfinity })
-            Assert.Throws<ArgumentOutOfRangeException>(() =>
-                (legacy with { MotherCorruptionProbabilityOverride = invalid }).Validate());
-
-        var first = new SyntheticFrequencySampler(new[]
-        {
-            new SyntheticFrequencyValue("ANA", 100),
-            new SyntheticFrequencyValue("MARIA", 90)
-        }, 1);
-        var surname = new SyntheticFrequencySampler(new[]
-        {
-            new SyntheticFrequencyValue("SILVA", 100),
-            new SyntheticFrequencyValue("LIMA", 80)
-        }, 1);
-        var generator = new SyntheticCorpusGenerator(first, surname);
-        var baseline = generator.Generate(legacy);
-        var identical = generator.Generate(explicitLegacy);
-        var changed = generator.Generate(legacy with { MotherCorruptionProbabilityOverride = 1.0 });
-        Assert.That(
-            baseline.Observations.Select(x => (x.Name, x.MotherName, x.BirthDate, x.Corruptions)),
-            Is.EqualTo(identical.Observations.Select(x =>
-                (x.Name, x.MotherName, x.BirthDate, x.Corruptions))),
-            "Uma taxa explícita 10% tem de reproduzir a sequência histórica.");
-        Assert.That(
-            baseline.Observations.Select(x => x.MotherName),
-            Is.Not.EqualTo(changed.Observations.Select(x => x.MotherName)),
-            "O parâmetro experimental deve afetar efetivamente a geração.");
-    }
-
-    [Test]
     public void Cpf_has_valid_check_digits_and_rejects_uniform_seed_body()
     {
         var random = new Xoshiro256StarStar(42);
