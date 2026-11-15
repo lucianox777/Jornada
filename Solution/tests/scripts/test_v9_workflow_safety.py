@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
-WORKFLOWS = ROOT.parent / ".github" / "workflows"
+WORKFLOWS = ROOT / ".github" / "workflows"
 
 class V9WorkflowSafetyTests(unittest.TestCase):
     def test_scientific_master_and_owner_gates_remain(self):
