@@ -483,19 +483,22 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             insert.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
                 new Guid(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
             Assert.That(await insert.ExecuteNonQueryAsync(), Is.EqualTo(1));
-        }
-        await using (var seed = new SqlCommand("""
-            INSERT gold.pessoa(
-                pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
-                fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
-            VALUES(
-                @id,NULL,N'SEM_CPF',N'MARIA SILVA','1980-05-06',N'ANA COSTA',
-                1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSDATETIMEOFFSET());
-            """, connection, tx))
-        {
-            seed.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
-                new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
-            Assert.That(await seed.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            // Gold reference is physically persisted BEFORE materialization.
+            // A separate production-like component must later read these
+            // values back; the fixture itself cannot supply any blocking key.
+            await using var gold = new SqlCommand("""
+                INSERT gold.pessoa(
+                    pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
+                    fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
+                VALUES(
+                    @id,NULL,N'SEM_CPF',@name,'1980-05-06',@mother,
+                    1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME());
+                """, connection, tx);
+            gold.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value =
+                V9OperationalBlockingChaveCohortParity.DiagnosticUuid(i);
+            gold.Parameters.Add("@name", SqlDbType.NVarChar, 500).Value = SyntheticPersonName(i);
+            gold.Parameters.Add("@mother", SqlDbType.NVarChar, 500).Value = SyntheticMotherName(i);
+            Assert.That(await gold.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
         await tx.CommitAsync();
     }
@@ -503,59 +506,64 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
     private static async Task SeedDisposableOperationalBlockingProjectionAsync(
         SqlConnection connection, V9FittedSnapshot winner)
     {
-        // Diagnostic-only materialization of the EXACT V9 projection into the
-        // real operational blocking_chave table, not production pipeline DI.
-        await using var guard = new SqlCommand("SELECT DB_NAME();", connection);
-        if (!string.Equals((string?)await guard.ExecuteScalarAsync(), "JornadaHarness",
-                StringComparison.Ordinal))
-            throw new InvalidOperationException("Blocking V9 sintético fora do JornadaHarness.");
-
+        // No direct insertion of identidade.blocking_chave by the fixture:
+        // the real Gold rows are loaded by the isolated operational materializer
+        // and projected with the immutable V9 Contracts component.
         var planner = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), winner.ContentSha256);
-        var table = new DataTable();
-        table.Columns.Add("pessoa_uuid", typeof(Guid));
-        table.Columns.Add("normalizacao_versao", typeof(string));
-        table.Columns.Add("atributo", typeof(string));
-        table.Columns.Add("valor_normalizado", typeof(string));
-        table.Columns.Add("semantica_temporal", typeof(string));
-        table.Columns.Add("vigencia_inicio", typeof(DateTimeOffset));
-        table.Columns.Add("vigencia_fim", typeof(DateTimeOffset));
-        table.Columns.Add("projection_schema_version", typeof(string));
-        table.Columns.Add("projection_fingerprint_sha256", typeof(string));
-        var asOf = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        for (var i = 1; i <= 200; i++)
+        Assert.That(planner.MaximumPrefixLength, Is.Not.Null);
+        var uuids = Enumerable.Range(1, 200)
+            .Select(V9OperationalBlockingChaveCohortParity.DiagnosticUuid).ToArray();
+
+        // Negative: a non-reference Gold person must abort the entire
+        // operation and leave NO partial physical projection rows.
+        await using (var tamper = new SqlCommand("""
+            UPDATE gold.pessoa SET estado_identidade=N'INDEFINIDA'
+             WHERE pessoa_uuid=@id;
+            """, connection))
         {
-            var observation = new IdentityObservation(null, "SEM_CPF",
-                SyntheticPersonName(i), new DateOnly(1980, 5, 6), SyntheticMotherName(i));
-            foreach (var key in planner.Project(observation).Distinct())
-            {
-                var stable = planner.TemporalSemantics(key.Feature) ==
-                    BlockingFeatureTemporalSemantics.StableIdentityDatum;
-                table.Rows.Add(
-                    V9OperationalBlockingChaveCohortParity.DiagnosticUuid(i),
-                    IdentityComparison.NormalizationVersion,
-                    key.Feature, key.Value,
-                    stable ? "STABLE_IDENTITY_DATUM" : "VERSIONED_ALIAS",
-                    asOf, DBNull.Value, planner.ProjectionSchemaVersion,
-                    planner.ProjectionFingerprintSha256);
-            }
+            tamper.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[2];
+            Assert.That(await tamper.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
+                connection, uuids, planner.MaximumPrefixLength!.Value,
+                planner.ProjectionFingerprintSha256, CancellationToken.None)));
+        await using (var noPartial = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM identidade.blocking_chave;
+            """, connection))
+            Assert.That(await noPartial.ExecuteScalarAsync(), Is.EqualTo(0L));
+
+        await using (var restore = new SqlCommand("""
+            UPDATE gold.pessoa SET estado_identidade=N'REFERENCIA'
+             WHERE pessoa_uuid=@id;
+            """, connection))
+        {
+            restore.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[2];
+            Assert.That(await restore.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
 
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
-        using (var bulk = new SqlBulkCopy(
-            connection, SqlBulkCopyOptions.CheckConstraints, tx)
+        var receipt = await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
+            connection, uuids, planner.MaximumPrefixLength!.Value,
+            planner.ProjectionFingerprintSha256, CancellationToken.None);
+        Assert.Multiple((Action)(() =>
         {
-            DestinationTableName = "identidade.blocking_chave",
-            BatchSize = 1000,
-            BulkCopyTimeout = 120
-        })
-        {
-            foreach (DataColumn col in table.Columns)
-                bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
-            await bulk.WriteToServerAsync(table);
-        }
-        await tx.CommitAsync();
-        TestContext.WriteLine("V9_OPERATIONAL_BLOCKING_CHAVE_DIAGNOSTIC_MANIFEST: complete V9 fingerprint, 200 source UUIDs; no production lineage claim");
+            Assert.That(receipt.ReadGoldReferences, Is.EqualTo(200));
+            Assert.That(receipt.MaterializedBlockingRows, Is.GreaterThan(200));
+            Assert.That(receipt.ProjectionSchemaVersion,
+                Is.EqualTo(V9CalibrationBlockingProjection.SchemaVersion));
+            Assert.That(receipt.ProjectionFingerprintSha256,
+                Is.EqualTo(planner.ProjectionFingerprintSha256));
+            Assert.That(receipt.CanonicalKeysSha256, Has.Length.EqualTo(64));
+            Assert.That(receipt.ProductionGoldPublicationCertified, Is.False);
+        }));
+        // Strict one-use: re-materializing the same active SQL index is
+        // rejected rather than silently replacing existing published keys.
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
+                connection, uuids, planner.MaximumPrefixLength!.Value,
+                planner.ProjectionFingerprintSha256, CancellationToken.None)));
+        TestContext.WriteLine("V9_TEST_GOLD_BACKED_PROJECTION_PASS: 200 physical Gold references; V9 prefix keys; invalid-Gold rollback; exact fingerprint; re-entry rejected; scientific TEST 100k blocked");
     }
 
     private static async Task AssertFrozenRunDecisionsAsync(
