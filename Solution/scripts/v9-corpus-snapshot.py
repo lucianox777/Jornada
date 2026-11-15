@@ -9,7 +9,7 @@ import shutil
 import tempfile
 
 VERSION = "v9-corpus-snapshot-v1"
-REQUIRED = ("pessoas.csv", "observacoes.csv", "gabarito.csv")
+REQUIRED = ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json", "generation-manifest.json")
 
 def digest(path):
     h = hashlib.sha256()
