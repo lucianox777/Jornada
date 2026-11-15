@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import fcntl
 
 VERSION = "v9-corpus-snapshot-v1"
 REQUIRED = ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json", "generation-manifest.json")
@@ -35,8 +36,8 @@ def snapshot(config, source):
 
 def verify(target, config):
     p = target / "snapshot.json"
-    if not p.is_file() or p.is_symlink():
-        raise ValueError("Missing snapshot")
+    if target.is_symlink() or not p.is_file() or p.is_symlink():
+        raise ValueError("Missing or unsafe snapshot")
     recorded = json.loads(p.read_text(encoding="utf-8"))
     if recorded.get("schema") != VERSION or recorded.get("fingerprint") != identity(config):
         raise ValueError("Corpus configuration mismatch")
@@ -51,6 +52,10 @@ def publish(store, config, source):
     key = identity(config)
     destination = store / key
     store.mkdir(parents=True, exist_ok=True)
+    if store.is_symlink():
+        raise ValueError("Symlink store is forbidden")
+    if destination.is_symlink():
+        raise ValueError("Symlink corpus is forbidden")
     if destination.exists():
         return verify(destination, config)
     # No partial directory is ever exposed at its final address.
@@ -62,10 +67,13 @@ def publish(store, config, source):
         (tmp / "snapshot.json").write_text(
             json.dumps(manifest, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8")
-        try:
+        # flock serializes competing publishers on the same durable POSIX volume.
+        # Do not use this primitive on object stores without equivalent leases.
+        with open(store / ".publish.lock", "a+b") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if destination.exists():
+                return verify(destination, config)
             os.rename(tmp, destination)
-        except FileExistsError:
-            return verify(destination, config)
         return verify(destination, config)
     finally:
         if tmp.exists():
