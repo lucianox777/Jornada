@@ -48,7 +48,7 @@ public sealed class SyntheticCorpusGenerator
         options.Validate();
 
         var random = new Xoshiro256StarStar(options.Seed);
-        var profile = SyntheticCorpusV2Rules.Profiles[options.ErrorProfile];
+        var profile = options.EffectiveErrorProfile;
 
         var people = new List<SyntheticPerson>(options.People);
         for (var i = 0; i < options.People; i++)
