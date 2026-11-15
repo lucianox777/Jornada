@@ -1,6 +1,6 @@
 # V9 TF4/324 — investigação de desempenho e hipótese de rollback (15/11/2026)
 
-**Natureza:** registro técnico de incidente e comparação retrospectiva, **não uma nova decisão do Product Owner** nem autorização para rollback amplo. Relacionado às decisões vigentes GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO-20261114, GOV-V9-ETA-TAXA-MEDIA-GLOBAL-CONCLUSOES-20261114 e GOV-DOC-01. **Estado:** logs reais examinados, mecanismo ainda sem causalidade provada; nenhuma nova campanha 100K nem TEST foi iniciada por esta investigação.
+**Natureza:** registro técnico de incidente e comparação retrospectiva, **não uma nova decisão do Product Owner** nem autorização para rollback amplo. Relacionado às decisões vigentes GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO-20261114, GOV-V9-ETA-TAXA-MEDIA-GLOBAL-CONCLUSOES-20261114 e GOV-DOC-01. **Estado:** logs reais examinados, mecanismo ainda sem causalidade provada; nenhuma nova campanha 100K nem TEST foi iniciada por esta investigação. **Ferramenta e relatório integrados:** [PR #1542](https://github.com/lucianox777/Jornada/pull/1542), squash `4990677331aabdc7b63806d22aeb2e23498cbe20`, CI rápida [#43674204732](https://github.com/lucianox777/Jornada/actions/runs/43674204732) **3/3 SUCCESS** e teste focused [#43674204736](https://github.com/lucianox777/Jornada/actions/runs/43674204736) **SUCCESS** (somente testes offline; sem prova causal ou nova execução 100K).
 
 ## Evidências de origem, SHA e resultado
 
