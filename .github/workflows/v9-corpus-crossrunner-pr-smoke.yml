@@ -1,0 +1,101 @@
+name: V9 corpus cross-runner transport PR probe (NONSCIENTIFIC)
+
+# Deliberately tiny, public, synthetic PR-only proof: never generates
+# independent scientific TEST and never starts 324-hypothesis TRAIN.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-corpus-crossrunner-pr-smoke.yml'
+      - 'Solution/scripts/v9-corpus-*.py'
+      - 'Solution/tests/scripts/v9_corpus_crossrunner_fixture.py'
+      - 'Solution/tests/scripts/test_v9_corpus_*.py'
+
+permissions:
+  contents: read
+
+jobs:
+  probe-prepare:
+    if: \${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feature/v9-persistent-synthetic-corpus-20261115' && github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head and owner PR admission
+        env:
+          EXPECTED_SHA: \${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "pull_request"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Prepare a TWO-ROW probe, not a 100k calibration corpus
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p .local/v9-probe/export
+          printf '%s\n' '{"schema":"V9_CROSSRUNNER_2_ROWS_PROBE_ONLY","people":2,"seed":42,"no_scientific_test":true}' \
+            > .local/v9-probe/config.json
+          python3 scripts/v9-corpus-prepare.py \
+            --store .local/v9-probe/store \
+            --config .local/v9-probe/config.json \
+            --generation-output .local/v9-probe/generated \
+            --handoff-to .local/v9-probe/export/train-handoff \
+            --receipt .local/v9-probe/export/prepare-receipt.json -- \
+            python3 tests/scripts/v9_corpus_crossrunner_fixture.py \
+            --out .local/v9-probe/generated
+          cp .local/v9-probe/config.json .local/v9-probe/export/config.json
+      - name: Upload exact same-run tiny probe only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-corpus-crossrunner-probe-\${{ github.run_id }}
+          path: Solution/.local/v9-probe/export/
+          if-no-files-found: error
+          retention-days: 1
+
+  probe-consumer:
+    needs: [probe-prepare]
+    if: \${{ needs.probe-prepare.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: \${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Admit exact same PR HEAD and original run
+        env:
+          EXPECTED_SHA: \${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "pull_request"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - name: Download only same-run probe on a different runner
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-corpus-crossrunner-probe-\${{ github.run_id }}
+          path: Solution/.local/v9-probe-received
+      - name: Prove SHA-bound consumer verification, no scientific TEST
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-corpus-handoff-verify.py \
+            --corpus .local/v9-probe-received/train-handoff \
+            --config .local/v9-probe-received/config.json \
+            --prepare-receipt .local/v9-probe-received/prepare-receipt.json
+          echo "V9_CROSSRUNNER_TWO_JOB_PHYSICAL_PROBE_PASS: two public rows, no TRAIN and no TEST"
