@@ -89,7 +89,7 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     }
 
     public Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
-        IdentityObservation observation, Guid modelId, CancellationToken ct) =>
+        IdentityObservation observation, Guid modeloId, CancellationToken ct) =>
         throw new InvalidOperationException(
             "V9 agrupado exige preparação integral do universo e ResolvePreparedAsync por ID SQL.");
 
@@ -222,7 +222,7 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         if (!string.Equals((string?)await guard.ExecuteScalarAsync(ct), "JornadaHarness",
                 StringComparison.Ordinal))
             throw new InvalidOperationException("V9 TEST de coorte só pode usar JornadaHarness.");
-        if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct)) != 1)
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture) != 1)
             throw new InvalidDataException("Anchor RASCUNHO de fixture V9 ausente ou adulterado.");
     }
 }
