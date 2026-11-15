@@ -62,7 +62,6 @@ public static class V9DisposableGoldBlockingProjectionMaterializer
             SELECT CASE WHEN NOT EXISTS
                   (SELECT 1 FROM identidade.blocking_chave WITH(UPDLOCK,HOLDLOCK))
               AND (SELECT COUNT_BIG(*) FROM gold.pessoa WITH(HOLDLOCK)) = @expected
-              AND (SELECT COUNT_BIG(*) FROM identidade.pessoa WITH(HOLDLOCK)) = @expected
               THEN 1 ELSE 0 END;
             """, connection, transaction))
         {
@@ -117,9 +116,11 @@ public static class V9DisposableGoldBlockingProjectionMaterializer
 
         await using (var read = new SqlCommand("""
             SELECT g.pessoa_uuid,g.nome_completo,g.nome_mae,g.data_nascimento,
-                   g.atualizado_em,g.estado_identidade,g.status_cpf,g.cpf,g.completude_nucleo
+                   g.atualizado_em,g.estado_identidade,g.status_cpf,g.cpf,g.completude_nucleo,
+                   p.status
               FROM #v9_gold_source_ids s
               JOIN gold.pessoa g ON g.pessoa_uuid=s.pessoa_uuid
+              JOIN identidade.pessoa p ON p.pessoa_uuid=g.pessoa_uuid
              ORDER BY g.pessoa_uuid;
             """, connection, transaction) { CommandTimeout = 120 })
         {
@@ -132,7 +133,8 @@ public static class V9DisposableGoldBlockingProjectionMaterializer
                     || reader.IsDBNull(1) || reader.IsDBNull(2) || reader.IsDBNull(3)
                     || reader.GetString(5) != "REFERENCIA"
                     || reader.GetString(6) != "SEM_CPF" || !reader.IsDBNull(7)
-                    || reader.GetString(8) != "COMPLETO")
+                    || reader.GetString(8) != "COMPLETO"
+                    || reader.GetString(9) != "ATIVO")
                     throw new InvalidDataException(
                         "Referência Gold V9 ausente, duplicada, incompleta ou com CPF.");
 
