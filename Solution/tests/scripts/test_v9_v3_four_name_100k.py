@@ -152,16 +152,16 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertNotIn("timeout-minutes:", workflow)
         self.assertIn("Remove disposable SQL even after failure", workflow)
 
-    def test_manual_workflow_exposes_opt_in_replay_timing_without_relaxing_guards(self):
+    def test_minimal_progress_without_relaxing_guards(self):
         workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
-        self.assertIn("replay_timing_diagnostics:", workflow)
-        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS: ${{ inputs.replay_timing_diagnostics && '1' || '0' }}", workflow)
+        self.assertIn("V9_PHYSICAL_PROGRESS_LOG: '1'", workflow)
+        self.assertNotIn("replay_timing_diagnostics:", workflow)
+        self.assertNotIn("V9_REPLAY_TIMING_DIAGNOSTICS", workflow)
         self.assertIn("github.actor == github.repository_owner", workflow)
         self.assertIn("security_preflight_approved == true", workflow)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', workflow)
         self.assertIn("workflow_dispatch:", workflow)
-
 
     def test_physical_job_and_audit_are_distinct_without_local_deadlines(self):
         workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
@@ -175,19 +175,16 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertIn("v9-v3-four-name-100k-audit.py", audit)
         self.assertNotIn("python3 scripts/v9-v3-four-name-100k-audit.py \\", train)
         self.assertIn("needs: audit-100k", workflow)
-        self.assertIn("V9_JOB_TIMEOUT_MINUTES: '360'", train)
-        self.assertIn('V9_JOB_START_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)', train)
-        self.assertIn('physicalStartUtc ??= DateTimeOffset.UtcNow;', coordinator)
+        self.assertIn("V9_PHYSICAL_PROGRESS_LOG: '1'", train)
+        self.assertIn("{done}/{physicalTotal} - {sha[..Math.Min(12, sha.Length)]}", coordinator)
         self.assertNotIn("V9_PHYSICAL_STEP_START_UTC", workflow)
         self.assertNotIn("physicalDeadlineUtc", coordinator)
         self.assertNotIn("AddMinutes(340)", coordinator)
-        self.assertIn("ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT", coordinator)
-        self.assertIn("elapsedMinutes / completed * (total - completed)", coordinator)
+        self.assertNotIn("Stopwatch", coordinator)
         self.assertNotIn("margem_etapa_305min=", coordinator)
         self.assertNotIn("ETA_min=", coordinator)
         self.assertIn("security_preflight_approved == true", workflow)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
-        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS:", workflow)
 
 
 if __name__ == "__main__":
