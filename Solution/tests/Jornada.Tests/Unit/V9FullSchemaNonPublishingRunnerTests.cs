@@ -684,7 +684,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 WHERE status=N'PUBLICADO'),
               (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
                 WHERE publicado_em IS NOT NULL);
-            """, connection) { CommandTimeout = 120 });
+            """, connection) { CommandTimeout = 120 };
         await using var reader = await cmd.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
         var all = new StringBuilder();
