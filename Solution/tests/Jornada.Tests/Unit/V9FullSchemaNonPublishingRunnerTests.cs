@@ -122,7 +122,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                     Guid.NewGuid(), false);
 
             var first = await MakeRunner(int.MaxValue).RunAsync(Request(), CancellationToken.None);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(first.Status, Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
                 Assert.That(first.ModeloId, Is.EqualTo(stored.ModelId));
@@ -130,7 +130,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 Assert.That(first.Avaliados, Is.EqualTo(200));
                 Assert.That(first.Resolvidos + first.NaoResolvidos + first.Conflitos, Is.EqualTo(200));
                 Assert.That(first.PublicadoEm, Is.Null);
-            });
+            }));
             await AssertRunRowsAsync(connection, first.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before),
                 "O runner sem publicação não pode alterar Gold, Serving nem vínculo corrente.");
@@ -139,8 +139,8 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             // injected exception in batch #2. It MUST NOT fake global rollback.
             // With MaxParallelism=1, the 101st score fails deterministically.
             var failedRunner = MakeRunner(100);
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await failedRunner.RunAsync(Request(), CancellationToken.None));
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await failedRunner.RunAsync(Request(), CancellationToken.None)));
             await using (var terminal = new SqlCommand("""
                 SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
                 WHERE status=N'FALHOU' AND modelo_id=@id
