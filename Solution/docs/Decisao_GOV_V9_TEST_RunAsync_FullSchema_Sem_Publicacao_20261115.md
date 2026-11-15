@@ -1,6 +1,6 @@
 # GOV-V9-TEST-RUNASYNC-FULL-SCHEMA-SEM-PUBLICACAO-20261115
 
-**Autoridade/contexto:** Product Owner, 15/11/2026: “Implementar a implementação do que falta para testar, para executar a camada teste do calibrador.” Avanço incremental nas issues #1488 e #1478, conforme GOV-DOC-01. **Estado:** IMPLEMENTADO EM BRANCH; CI e execução física pendentes de comprovação; **TEST científico 100k NÃO HABILITADO**.
+**Autoridade/contexto:** Product Owner, 15/11/2026: “Implementar a implementação do que falta para testar, para executar a camada teste do calibrador.” Avanço incremental nas issues #1488 e #1478, conforme GOV-DOC-01. **Estado:** IMPLEMENTADO/INTEGRADO pela PR #1556, squash `33ceedfcdaa99ef4c290fd3ae275c78c589d5fc1`, CI rápida #43737580457 3/3 e SQL físico #43737580398 2/2 SUCCESS; **TEST científico 100k NÃO HABILITADO**.
 
 ## Problema e justificativa
 
