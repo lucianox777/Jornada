@@ -7,6 +7,7 @@ using Jornada.Linkage.Parameters.Worker;
 using Jornada.Linkage.Runner;
 using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
+using Jornada.Processor.Worker;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -221,6 +222,10 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             // to disposable JornadaHarness to satisfy the real FK on
             // linkage_resultado, not to represent operational Gold publication.
             await SeedDisposableDiagnosticIdentitiesAsync(connection);
+            // Actual Processor Gold recomposition + linked Silver name history
+            // with an explicit V9 permit. The entire governed exercise rolls
+            // back and leaves zero publication, Gold or historical changes.
+            await ProveGovernedProcessorHistoryAndPublicationAsync(connection, winner);
             await SeedDisposableOperationalBlockingProjectionAsync(connection, winner);
             var positiveBefore = await ReadPublicationFingerprintAsync(connection);
             var sqlScorer = new V9PinnedSyntheticGraphCohortRunScorer(
@@ -503,6 +508,212 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         await tx.CommitAsync();
     }
 
+    private static async Task ProveGovernedProcessorHistoryAndPublicationAsync(
+        SqlConnection connection, V9FittedSnapshot winner)
+    {
+        var model = V9FittedSnapshotExecutionRuntime.Load(
+            winner.SerializeUtf8(), winner.ContentSha256);
+        Assert.That(model.MaximumPrefixLength, Is.Not.Null);
+        var uuid = V9OperationalBlockingChaveCohortParity.DiagnosticUuid(1);
+        var before = await ReadGovernedPublicationAndHistoryDigestAsync(connection);
+
+        // This is historical evidence from the REAL operational Silver and
+        // vínculo_fonte tables, never an in-memory alias list or truth label.
+        // Both observations already belong to distinct source identities in
+        // the earlier complete SQL fixture.
+        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync())
+        {
+            await using (var link = new SqlCommand("""
+                INSERT identidade.vinculo_fonte(
+                    pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,
+                    modelo_id,ativo,resolvido_em,motivo)
+                SELECT po.pessoa_observacao_id,@uuid,
+                       N'UUID_JORNADA_RETROALIMENTACAO',NULL,N'RESOLVIDO',
+                       NULL,1,SYSDATETIMEOFFSET(),N'V9_DISPOSABLE_HISTORY_PROOF'
+                  FROM silver.pessoa_observacao po
+                 WHERE po.codigo_pessoa_origem IN(N'V9TEST_0001',N'V9TEST_0003');
+                """, connection, tx))
+            {
+                link.Parameters.Add("@uuid", SqlDbType.UniqueIdentifier).Value = uuid;
+                Assert.That(await link.ExecuteNonQueryAsync(), Is.EqualTo(2));
+            }
+            await using (var current = new SqlCommand("""
+                SELECT COUNT_BIG(*) FROM identidade.v_vinculo_corrente
+                 WHERE pessoa_uuid=@uuid AND status=N'RESOLVIDO'
+                   AND linkage_run_id IS NULL;
+                """, connection, tx))
+            {
+                current.Parameters.Add("@uuid", SqlDbType.UniqueIdentifier).Value = uuid;
+                Assert.That(await current.ExecuteScalarAsync(), Is.EqualTo(2L));
+            }
+
+            // Guard failures must happen BEFORE sp_recompor_gold_pessoa and
+            // before even a temporary mutation of Gold.
+            var badBefore = await ReadGoldReferenceSignatureAsync(connection, tx, uuid);
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await SqlProcessorRepository.RehearseV9GoldHistoryRefreshAsync(
+                    connection, tx, uuid, model.MaximumPrefixLength!.Value,
+                    new string('a', 64), CancellationToken.None)));
+            Assert.That(await ReadGoldReferenceSignatureAsync(connection, tx, uuid),
+                Is.EqualTo(badBefore));
+            await using (var empty = new SqlCommand("""
+                SELECT COUNT_BIG(*) FROM identidade.blocking_chave
+                 WHERE pessoa_uuid=@uuid;
+                """, connection, tx))
+            {
+                empty.Parameters.Add("@uuid", SqlDbType.UniqueIdentifier).Value = uuid;
+                Assert.That(await empty.ExecuteScalarAsync(), Is.EqualTo(0L));
+            }
+
+            // Calls the EXACT RefreshGoldPersonAsync production method:
+            // sp_recompor_gold_pessoa first, then V9 projection permitted
+            // only by the internal JornadaHarness test gate.
+            var rowsWritten = await SqlProcessorRepository.RehearseV9GoldHistoryRefreshAsync(
+                connection, tx, uuid, model.MaximumPrefixLength!.Value,
+                model.ProjectionFingerprintSha256, CancellationToken.None);
+            Assert.That(rowsWritten, Is.GreaterThan(0));
+
+            await using (var recomposed = new SqlCommand("""
+                SELECT estado_identidade,completude_nucleo,estado_concordancia
+                  FROM gold.pessoa WHERE pessoa_uuid=@uuid;
+                """, connection, tx))
+            {
+                recomposed.Parameters.Add("@uuid", SqlDbType.UniqueIdentifier).Value = uuid;
+                await using var rd = await recomposed.ExecuteReaderAsync();
+                Assert.That(await rd.ReadAsync(), Is.True);
+                Assert.That(rd.GetString(0), Is.EqualTo("REFERENCIA"));
+                Assert.That(rd.GetString(1), Is.EqualTo("COMPLETO"));
+                Assert.That(rd.GetString(2), Is.EqualTo("DIVERGENTE"));
+            }
+
+            var rowsFound = new HashSet<(string Feature, string Value)>();
+            var closedHistoricalAliases = 0;
+            var currentAliases = 0;
+            await using (var check = new SqlCommand("""
+                SELECT atributo,valor_normalizado,semantica_temporal,
+                       projection_schema_version,projection_fingerprint_sha256,
+                       vigencia_inicio,vigencia_fim
+                  FROM identidade.blocking_chave WHERE pessoa_uuid=@uuid;
+                """, connection, tx))
+            {
+                check.Parameters.Add("@uuid", SqlDbType.UniqueIdentifier).Value = uuid;
+                await using var rd = await check.ExecuteReaderAsync();
+                while (await rd.ReadAsync())
+                {
+                    var feat = rd.GetString(0);
+                    Assert.That(rowsFound.Add((feat, rd.GetString(1))), Is.True);
+                    Assert.That(rd.GetString(3), Is.EqualTo(model.ProjectionSchemaVersion));
+                    Assert.That(rd.GetString(4), Is.EqualTo(model.ProjectionFingerprintSha256));
+                    // Historical aliases are RETAINED even when a newer Gold
+                    // name has superseded their temporal validity. The
+                    // operational query deliberately accepts old name aliases
+                    // while stable features must remain current.
+                    if (!rd.IsDBNull(6))
+                    {
+                        Assert.That(rd.GetDateTimeOffset(6),
+                            Is.GreaterThanOrEqualTo(rd.GetDateTimeOffset(5)));
+                        Assert.That(rd.GetString(2), Is.EqualTo("VERSIONED_ALIAS"));
+                        closedHistoricalAliases++;
+                    }
+                    else if (rd.GetString(2) == "VERSIONED_ALIAS")
+                        currentAliases++;
+
+                    if (feat.StartsWith("name_prefix_", StringComparison.Ordinal)
+                        || feat.StartsWith("mother_name_prefix_", StringComparison.Ordinal))
+                        Assert.That(rd.GetString(2), Is.EqualTo("VERSIONED_ALIAS"));
+                }
+            }
+            var expected = model.Project(new IdentityObservation(
+                    null, "SEM_CPF", SyntheticPersonName(1),
+                    new DateOnly(1980, 5, 6), SyntheticMotherName(1)))
+                .Concat(model.Project(new IdentityObservation(
+                    null, "SEM_CPF", SyntheticPersonName(3),
+                    new DateOnly(1980, 5, 6), SyntheticMotherName(3))))
+                .Select(key => (key.Feature, key.Value)).ToHashSet();
+            Assert.That(rowsFound, Is.EquivalentTo(expected));
+            Assert.That(rowsWritten, Is.EqualTo(expected.Count));
+            Assert.That(closedHistoricalAliases, Is.GreaterThan(0),
+                "Nomes antigos devem sobreviver com vigência encerrada.");
+            Assert.That(currentAliases, Is.GreaterThan(0),
+                "Nomes da referência Gold corrente devem permanecer vigentes.");
+
+            // Only an explicit first use is allowed; a second invocation
+            // cannot overwrite Gold history or previously written keys.
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await SqlProcessorRepository.RehearseV9GoldHistoryRefreshAsync(
+                    connection, tx, uuid, model.MaximumPrefixLength!.Value,
+                    model.ProjectionFingerprintSha256, CancellationToken.None)));
+
+            // Neither a resolved historical source nor a successful V9 score
+            // is sufficient to publish a probabilistic run.
+            await using (var gate = new SqlCommand("""
+                SELECT (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+                         WHERE status=N'PUBLICADO')
+                     + (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+                         WHERE resultado_publicacao IS NOT NULL);
+                """, connection, tx))
+                Assert.That(await gate.ExecuteScalarAsync(), Is.EqualTo(0L));
+            await tx.RollbackAsync();
+        }
+
+        Assert.That(await ReadGovernedPublicationAndHistoryDigestAsync(connection),
+            Is.EqualTo(before),
+            "Processor V9 shadow must not change ANY Gold, Silver, links, blocking, Serving or publication header.");
+        TestContext.WriteLine(
+            "V9_PROCESSOR_GOVERNED_HISTORY_PUBLICATION_PASS: canonical Silver history 2 distinct aliases via current vínculos; actual sp_recompor_gold_pessoa and V9 Processor branch; fingerprint guard and reentry; full state hash unchanged after rollback; no publication; 100k blocked");
+    }
+
+    private static async Task<string> ReadGoldReferenceSignatureAsync(
+        SqlConnection connection, SqlTransaction tx, Guid uuid)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT nome_completo,nome_mae,estado_identidade,completude_nucleo,
+                   atualizado_em
+              FROM gold.pessoa WHERE pessoa_uuid=@id FOR JSON PATH;
+            """, connection, tx);
+        cmd.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuid;
+        return (string)(await cmd.ExecuteScalarAsync()
+            ?? throw new InvalidDataException("Gold de referência ausente."));
+    }
+
+    private static async Task<string> ReadGovernedPublicationAndHistoryDigestAsync(
+        SqlConnection connection)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT
+              (SELECT g.pessoa_uuid,g.nome_completo,g.nome_mae,g.data_nascimento,
+                      g.status_cpf,g.cpf,g.estado_identidade,g.estado_concordancia,
+                      g.completude_nucleo,g.atualizado_em
+                 FROM gold.pessoa g ORDER BY g.pessoa_uuid FOR JSON PATH),
+              (SELECT b.blocking_chave_id,b.pessoa_uuid,b.normalizacao_versao,
+                      b.atributo,b.valor_normalizado,b.semantica_temporal,
+                      b.vigencia_inicio,b.vigencia_fim,
+                      b.projection_schema_version,b.projection_fingerprint_sha256
+                 FROM identidade.blocking_chave b ORDER BY b.blocking_chave_id FOR JSON PATH),
+              (SELECT v.vinculo_id,v.pessoa_observacao_id,v.pessoa_uuid,
+                      v.metodo_resolucao,v.status,v.ativo,v.linkage_run_id,
+                      v.resolvido_em,v.motivo
+                 FROM identidade.vinculo_fonte v ORDER BY v.vinculo_id FOR JSON PATH),
+              (SELECT po.pessoa_observacao_id,po.nome_completo,po.nome_mae,
+                      po.data_nascimento,po.source_as_of
+                 FROM silver.pessoa_observacao po ORDER BY po.pessoa_observacao_id FOR JSON PATH),
+              (SELECT COUNT_BIG(*) FROM serving.registro_integrado),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+                WHERE status=N'PUBLICADO'),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+                WHERE publicado_em IS NOT NULL);
+            """, connection) { CommandTimeout = 120 };
+        await using var reader = await cmd.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        var all = new StringBuilder();
+        for (var i = 0; i < reader.FieldCount; i++)
+            all.Append(i).Append('|').Append(reader.IsDBNull(i)
+                ? "<NULL>" : Convert.ToString(reader.GetValue(i),
+                    System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            all.ToString()))).ToLowerInvariant();
+    }
+
     private static async Task SeedDisposableOperationalBlockingProjectionAsync(
         SqlConnection connection, V9FittedSnapshot winner)
     {
@@ -543,6 +754,83 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(await restore.ExecuteNonQueryAsync(), Is.EqualTo(1));
         }
 
+        // Processor-native compatibility seam: uses the SAME Gold/history
+        // snapshot loader as the actual legacy Processor refresh, but writes
+        // the exact frozen V9 projection for a NEW reference. Keep the whole
+        // rehearsal in a transaction that must ROLLBACK: the independent
+        // 200-Gold set-based materializer is tested separately afterwards.
+        await using (var shadow = (SqlTransaction)await connection.BeginTransactionAsync())
+        {
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                    connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                    new string('a', 64), CancellationToken.None)));
+
+            var nativeRows = await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                planner.ProjectionFingerprintSha256, CancellationToken.None);
+            Assert.That(nativeRows, Is.GreaterThan(0));
+
+            var actualKeys = new List<string>();
+            await using (var check = new SqlCommand("""
+                SELECT atributo,valor_normalizado,projection_schema_version,
+                       projection_fingerprint_sha256,semantica_temporal
+                  FROM identidade.blocking_chave
+                 WHERE pessoa_uuid=@id ORDER BY atributo,valor_normalizado;
+                """, connection, shadow))
+            {
+                check.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[0];
+                await using var reader = await check.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    actualKeys.Add(reader.GetString(0) + "|" + reader.GetString(1));
+                    Assert.That(reader.GetString(2),
+                        Is.EqualTo(V9CalibrationBlockingProjection.SchemaVersion));
+                    Assert.That(reader.GetString(3),
+                        Is.EqualTo(planner.ProjectionFingerprintSha256));
+                    var feature = reader.GetString(0);
+                    if (feature.StartsWith("name_prefix_", StringComparison.Ordinal)
+                        || feature.StartsWith("mother_name_prefix_", StringComparison.Ordinal))
+                        Assert.That(reader.GetString(4), Is.EqualTo("VERSIONED_ALIAS"));
+                }
+            }
+            var expectedKeys = planner.Project(new IdentityObservation(
+                null, "SEM_CPF", SyntheticPersonName(1), new DateOnly(1980, 5, 6),
+                SyntheticMotherName(1)))
+                .Select(key => key.Feature + "|" + key.Value).Distinct().ToArray();
+            Assert.That(actualKeys, Is.EquivalentTo(expectedKeys));
+            Assert.That(nativeRows, Is.EqualTo(expectedKeys.Length));
+
+            // First-use only. Never replace an operational V9/legacy index
+            // silently, even inside an isolated transaction.
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(
+                    connection, shadow, uuids[0], planner.MaximumPrefixLength!.Value,
+                    planner.ProjectionFingerprintSha256, CancellationToken.None)));
+
+            // EXISTING legacy path is unchanged and produces its V2 projection
+            // alongside a separate V9 reference inside the same transaction.
+            await BlockingProjectionPersistence.RefreshSqlServerAsync(
+                connection, shadow, uuids[1], CancellationToken.None);
+            await using (var legacy = new SqlCommand("""
+                SELECT DISTINCT projection_schema_version,projection_fingerprint_sha256
+                  FROM identidade.blocking_chave WHERE pessoa_uuid=@id;
+                """, connection, shadow))
+            {
+                legacy.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = uuids[1];
+                await using var rows = await legacy.ExecuteReaderAsync();
+                Assert.That(await rows.ReadAsync(), Is.True);
+                Assert.That(rows.GetString(0), Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
+                Assert.That(rows.GetString(1), Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
+                Assert.That(await rows.ReadAsync(), Is.False);
+            }
+            await shadow.RollbackAsync();
+        }
+        await using (var unchanged = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM identidade.blocking_chave;
+            """, connection))
+            Assert.That(await unchanged.ExecuteScalarAsync(), Is.EqualTo(0L));
+
         var receipt = await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
             connection, uuids, planner.MaximumPrefixLength!.Value,
             planner.ProjectionFingerprintSha256, CancellationToken.None);
@@ -563,6 +851,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await V9DisposableGoldBlockingProjectionMaterializer.MaterializeAsync(
                 connection, uuids, planner.MaximumPrefixLength!.Value,
                 planner.ProjectionFingerprintSha256, CancellationToken.None)));
+        TestContext.WriteLine("V9_PROCESSOR_NATIVE_V9_PROJECTION_SHADOW_PASS: Gold/history reader -> V9 SQL keys; legacy V2 remains unchanged; shadow rollback leaves no keys; TEST 100k blocked");
         TestContext.WriteLine("V9_TEST_GOLD_BACKED_PROJECTION_PASS: 200 physical Gold references; V9 prefix keys; invalid-Gold rollback; exact fingerprint; re-entry rejected; scientific TEST 100k blocked");
     }
 
