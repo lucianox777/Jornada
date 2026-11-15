@@ -154,7 +154,8 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(frozen.SnapshotSha256, Is.EqualTo(winner.ContentSha256));
             Assert.That(frozen.Decisions, Has.Count.EqualTo(200));
             var byName = frozen.Decisions.ToDictionary(
-                row => cohort[row.ObservationId - 1].PersonName,
+                row => cohort[row.ObservationId - 1].PersonName
+                    ?? throw new InvalidDataException("Coorte TEST sem nome para associar recibo de teste."),
                 row => row.Decision with { ModeloId = stored.ModelId },
                 StringComparer.Ordinal);
 
