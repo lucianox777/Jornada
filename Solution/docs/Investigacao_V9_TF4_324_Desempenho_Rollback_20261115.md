@@ -56,3 +56,7 @@ O diff `8ce35420...81423879` contém **28 commits** e mudanças de workflow/TEST
 ## Precedência
 
 Este relatório **não altera** GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO, GOV-V9-CADEIA-OBRIGATORIA-E2E-PREFLIGHT, GOV-V9-VALIDATION-ARQUIVO-OPERACIONAL-FINAL-TEST-NOME, nem GOV-DOC-01. Serve como evidência corrente sobre um incidente real posterior aos recibos de integração. `TRAIN 308/324` **não** habilita AUDIT, VALIDATION, TEST ou certificação. Necessário novo TRAIN 324/324 completo para a cadeia obrigatória.
+
+## Correção de observabilidade autorizada em 15/11/2026
+
+O PO determinou “Corrija” após o encerramento da execução #43631379628. A lacuna concreta identificada é a ausência de checkpoints de recursos após o cancelamento: o wrapper só persistia o recibo ao terminar. Uma mudança **sem alterar ciência/SQL/paralelismo**, documentada em [GOV-V9-OBSERVABILIDADE-TIMEOUT-PARCIAL-20261115](Decisao_GOV_V9_Observabilidade_Timeout_Parcial_20261115.md), acrescenta checkpoint atômico aproximadamente por minuto de CPU/IO/pressão/RAM, com indisponibilidade representada por null e publicação apenas como diagnóstico TRAIN mesmo após timeout. O replay por hipótese permanece opcional (OFF por padrão). **Não é correção comprovada de desempenho**; requer nova evidência física e autorização separada para repetir 100K. GOV-DOC-01.
