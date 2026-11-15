@@ -103,11 +103,11 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         Directory.CreateDirectory(root);
         try
         {
-            ProbabilisticLinkageBatchRunner MakeRunner(int failAfter) =>
-                new(new ConfigurationBuilder().Build(), sql,
-                    new PinnedV9DisposableLinkage(sql, model,
-                        V9FittedSnapshotExecutionRuntime.Load(
-                            pinned.FrozenWinner.SerializeUtf8(), winner.ContentSha256), failAfter),
+            // FIRST PROVE the real current RunAsync cannot score a grouped V9
+            // winner observation by observation; its rejection is intentional.
+            // Passing this attempt off as TEST/production parity is forbidden.
+            ProbabilisticLinkageBatchRunner BuildRunner(IProbabilisticIdentityLinkage scorer) =>
+                new(new ConfigurationBuilder().Build(), sql, scorer,
                     new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
                     new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(root), root),
                     new Dt05CandidateStateSnapshotPublisher(sql, root),
@@ -120,6 +120,46 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 new(LinkageRunType.MODEL_VALIDATION, 1, null, null, null,
                     100, 1, null, "V9_HARNESS", "NO_PUBLISH_FULL_SCHEMA_E2E",
                     Guid.NewGuid(), false);
+
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BuildRunner(new PinnedV9DisposableLinkage(sql, model,
+                    V9FittedSnapshotExecutionRuntime.Load(
+                        pinned.FrozenWinner.SerializeUtf8(), winner.ContentSha256),
+                    int.MaxValue)).RunAsync(Request(), CancellationToken.None)));
+            await using (var negative = new SqlCommand("""
+                SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
+                WHERE modelo_id=@id AND status=N'FALHOU' AND avaliados=0
+                ORDER BY iniciado_em DESC;
+                """, connection))
+            {
+                negative.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = stored.ModelId;
+                var negativeId = await negative.ExecuteScalarAsync();
+                Assert.That(negativeId, Is.InstanceOf<Guid>());
+                await AssertRunRowsAsync(connection, (Guid)negativeId!, "FALHOU", 0);
+            }
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before));
+
+            // PRECOMPUTED GLOBAL V9 replay in a disposable fixture, not
+            // productive support for per-observation grouped scoring.
+            // All 200 rows are processed together before RunAsync persists
+            // their decisions in two real SQL batches; no target labels
+            // are used by the scorer and the graph is explicitly empty.
+            var cohort = Enumerable.Range(1, 200)
+                .Select(i => new V9PhysicalCalibrationObservation(i,
+                    "SYNTHETIC_UNUSED_TRUTH_" + i, "TEST", "V9TEST",
+                    "PESSOA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " SILVA",
+                    "MARIA " + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA",
+                    new DateOnly(1980, 5, 6))).ToArray();
+            var frozen = pinned.ReplayTest(cohort, Array.Empty<(int A, int B)>());
+            Assert.That(frozen.SnapshotSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(frozen.Decisions, Has.Count.EqualTo(200));
+            var byName = frozen.Decisions.ToDictionary(
+                row => cohort[row.ObservationId - 1].PersonName,
+                row => row.Decision with { ModeloId = stored.ModelId },
+                StringComparer.Ordinal);
+
+            ProbabilisticLinkageBatchRunner MakeRunner(int failAfter) =>
+                BuildRunner(new PinnedGloballyGroupedV9Decisions(model, byName, failAfter));
 
             var first = await MakeRunner(int.MaxValue).RunAsync(Request(), CancellationToken.None);
             Assert.Multiple((Action)(() =>
@@ -143,7 +183,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await failedRunner.RunAsync(Request(), CancellationToken.None)));
             await using (var terminal = new SqlCommand("""
                 SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
-                WHERE status=N'FALHOU' AND modelo_id=@id
+                WHERE status=N'FALHOU' AND modelo_id=@id AND avaliados=100
                 ORDER BY iniciado_em DESC;
                 """, connection))
             {
@@ -282,6 +322,39 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         Assert.That(reader.GetInt64(1), Is.EqualTo(expectedRows));
         Assert.That(reader.GetInt64(2), Is.EqualTo(expectedRows));
         Assert.That(await reader.ReadAsync(), Is.False);
+    }
+
+    /// <summary>
+    /// SQL persistence-only adapter. Global TEST decisions are computed by the
+    /// frozen V9 coorte runtime before the real RunAsync. The only remapping is
+    /// the model identity field required by the legacy linkage_resultado FK.
+    /// This is deliberately not the production scorer/loader integration.
+    /// </summary>
+    private sealed class PinnedGloballyGroupedV9Decisions(
+        ProbabilisticLinkageModelRef model,
+        IReadOnlyDictionary<string, ProbabilisticLinkageDecision> frozenByName,
+        int failAfter) : IProbabilisticIdentityLinkage
+    {
+        private int scored;
+        public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
+            throw new InvalidOperationException("Fixture V9 não aceita modelo ATIVO.");
+        public Task<ProbabilisticLinkageModelRef> GetModelByVersionAsync(int version, CancellationToken ct) =>
+            version == model.Version ? Task.FromResult(model)
+                : throw new InvalidDataException("Versão de modelo congelado divergiu.");
+        public Task<ProbabilisticLinkageDecision> ResolveWithoutCpfAsync(
+            IdentityObservation observation, Guid modelId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (modelId != model.ModelId || observation.Cpf is not null
+                || observation.NomeCompleto is not { } name
+                || !frozenByName.TryGetValue(name, out var frozen))
+                throw new InvalidDataException("Decisão global da coorte V9 não pinada.");
+            if (Interlocked.Increment(ref scored) > failAfter)
+                throw new InvalidOperationException("V9_SYNTHETIC_SECOND_BATCH_INJECTED_FAILURE");
+            if (frozen.ModeloId != model.ModelId)
+                throw new InvalidDataException("Modelo de decisão frozen não corresponde ao anchor do run.");
+            return Task.FromResult(frozen);
+        }
     }
 
     private sealed class PinnedV9DisposableLinkage(
