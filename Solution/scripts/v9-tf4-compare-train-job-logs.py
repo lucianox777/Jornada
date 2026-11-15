@@ -90,9 +90,9 @@ def read_log(path):
             raise ValueError(f"V9_TIMING_DUPLICATE_{name.upper()}_GROUP_SHA")
     for phase in phases:
         matched = [sql for sql in groups if sql["sha"] == phase["sha"]]
-        if len(matched) != 1 or matched[0]["batch"] != phase["batch"]
+        if (len(matched) != 1 or matched[0]["batch"] != phase["batch"]
                 or matched[0]["requests"] != phase["requests"]
-                or abs(matched[0]["seconds"] - phase["sqlSeconds"]) > 0.11:
+                or abs(matched[0]["seconds"] - phase["sqlSeconds"]) > 0.11):
             raise ValueError("V9_TIMING_PHASE_SQL_GROUP_MISMATCH")
     return {"progress": progress, "groups": groups, "phaseGroups": phases}
 
