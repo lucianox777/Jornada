@@ -130,6 +130,16 @@ class V9Tf4PerformanceComparisonTests(unittest.TestCase):
             "await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync("), 1)
         self.assertIn("reportPhysicalCompletion?.Invoke(individualClock.Elapsed,"
                       " result[^1], replayElapsedMilliseconds);", source)
+        workflow = (ROOT.parent / ".github/workflows/"
+                    "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
+        self.assertIn("V9_TRAIN_RUNNER_CAPACITY", workflow)
+        self.assertIn("affinity_cpu_count=", workflow)
+        self.assertIn("cgroup_cpu_max=", workflow)
+        self.assertIn("cgroup_memory_current=", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  schedule:", workflow)
+        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS: "
+                      "${{ inputs.replay_timing_diagnostics && '1' || '0' }}", workflow)
 
     def test_cli_emits_aggregate_json_and_refuses_overwrite(self):
         shas = ["a" * 12, "b" * 12, "c" * 12]
