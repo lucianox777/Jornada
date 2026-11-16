@@ -41,10 +41,14 @@ class RefPromotionTests(unittest.TestCase):
                 {"fingerprint": B, "configuration": "seed42", "state": "HISTORICAL", "validated": True, "approved": True},
             ]}
             path.write_text(json.dumps(initial))
-            self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B)["status"], "PROMOTED_NO_DELETION")
+            self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B, environment="experimental")["status"], "PROMOTED_NO_DELETION")
             states = {e["fingerprint"]: e["state"] for e in json.loads(path.read_text())["entries"]}
             self.assertEqual(states, {A: "PREVIOUS", B: "CURRENT"})
             self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B)["status"], "ALREADY_CURRENT")
+
+    def test_unspecified_environment_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "production requires manual PO approval"):
+            module.promote(Path("/unused/index"), B, "seed42")
 
     def test_production_auto_promotion_is_forbidden(self):
         with self.assertRaisesRegex(ValueError, "production requires manual PO approval"):
