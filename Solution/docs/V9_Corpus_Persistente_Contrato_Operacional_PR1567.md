@@ -305,3 +305,7 @@ Commit `87d564c2` amplia a CI PR de **duas linhas não científicas**: PREPARE c
 ## Integração condicional no TRAIN científico (16/11/2026)
 
 Commit `7617ada8` altera o job `physical-100k`: se ZIP e manifesto REF existirem no checkout, descompacta com verificação SHA; se apenas um existir, aborta; se nenhum existir, preserva o gerador legado e emite marcador explícito `LEGACY_GENERATION_NO_PERSISTENT_REF`. **Pendente antes do merge:** gerar/medir e versionar o ZIP 100k verdadeiro, vincular manifesto à configuração científica exata (100k, seed42, gerador e referências), comprovar consumo cross-run pelo checkout e eliminar/justificar o fallback legado conforme critério de aceite. Nenhuma execução científica foi disparada. PR segue DRAFT.
+
+## Preparação e medição do ZIP real 100k (16/11/2026)
+
+Commits `9daf2853` e `9399f03b` adicionam ao PREPARE opt-in owner-only o empacotamento físico dos quatro arquivos do handoff 100k já verificado, inclusive no caso de cache hit, com manifesto SHA-256, medição do ZIP e aviso se >95 MB. O ZIP candidato é artifact temporário de sete dias, **não está versionado na REF**; não confundir artifact com persistência. O workflow manual ainda precisa ser disparado e validado; se o tamanho inviabilizar Git regular, consultar PO antes de LFS/custos. Não há campanha científica nem merge autorizado apenas por essa medição.
