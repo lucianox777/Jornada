@@ -5,7 +5,7 @@ This test intentionally does not execute the 100k scientific campaign.
 from pathlib import Path
 import unittest
 
-WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/v9-standard-linear-100k.yml"
+WORKFLOW = Path(__file__).resolve().parents[3] / ".github/workflows/v9-standard-linear-100k.yml"
 
 
 class StandardLinearWorkflowTests(unittest.TestCase):
