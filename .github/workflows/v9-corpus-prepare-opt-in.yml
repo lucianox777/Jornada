@@ -158,15 +158,6 @@ jobs:
             --ibge-names data/reference/ibge-nomes-2022 \\
             --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \\
             --output .local/v9-handoff-received/expected-config.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path(".local/v9-handoff-received")
-          received = json.loads((root / "config.json").read_text())
-          expected = json.loads((root / "expected-config.json").read_text())
-          if received != expected:
-              raise SystemExit("V9_CORPUS_CONSUMER_SOURCE_REF_MISMATCH")
-          PY
           expected_fingerprint="$(python3 - <<'PY'
           import importlib.util, json
           from pathlib import Path
@@ -181,6 +172,7 @@ jobs:
           python3 scripts/v9-corpus-handoff-verify.py \
             --corpus .local/v9-handoff-received/train-handoff \
             --config .local/v9-handoff-received/config.json \
+            --expected-config .local/v9-handoff-received/expected-config.json \
             --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
             --train-destination .local/v9-handoff-received/verified-train-input \
             --expected-fingerprint "$expected_fingerprint"
