@@ -6,6 +6,8 @@ using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jornada.Linkage.Runner;
 
@@ -201,7 +203,14 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             BlockingChaveParityEvidence = operational;
         }
         // EXACTLY one global grouping over all edges, including cross-batch links.
-        var global = pinned.ReplayTest(cohort, edges);
+        // Route frozen TEST scoring through the production-side linkage class,
+        // not directly through the test adapter's own replay invocation.
+        // This does not imply parity with legacy per-row ResolveWithoutCpfAsync.
+        var operationalLinkage = new SqlProbabilisticIdentityLinkage(
+            new ConfigurationBuilder().Build(), sql,
+            NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
+        var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync(
+            pinnedModelId, pinnedWinnerSha, cohort, edges, ct);
         if (global.SnapshotSha256 != pinnedWinnerSha
             || global.Decisions.Count != cohort.Length
             || global.IdentityByObservation.Count != cohort.Length)
