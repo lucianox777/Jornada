@@ -159,10 +159,16 @@ public static class V9OperationalCandidateGraphParityAudit
             throw new InvalidDataException(
                 $"Paridade de candidatos V9 falhou: físico={expected.Count}, operacional={actual.Count}; diferença simétrica de {expected.Except(actual).Count() + actual.Except(expected).Count()} arestas.");
 
-        var canonical = string.Concat(actual.OrderBy(e => e.A).ThenBy(e => e.B)
-            .Select(e => FormattableString.Invariant($"{e.A}:{e.B}\n")));
-        var digest = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+        // Canonical digest must use the same byte protocol as the physical
+        // SQL signature graph, without allocating a second full graph string.
+        using var canonicalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var edge in actual.OrderBy(e => e.A).ThenBy(e => e.B))
+        {
+            ct.ThrowIfCancellationRequested();
+            canonicalHash.AppendData(Encoding.UTF8.GetBytes(
+                FormattableString.Invariant($"{edge.A}:{edge.B}\n")));
+        }
+        var digest = Convert.ToHexString(canonicalHash.GetHashAndReset()).ToLowerInvariant();
 
         // ONE global replay of the fully reassembled graph. Never run grouping
         // separately inside retrieval batches: edges may cross every boundary.
