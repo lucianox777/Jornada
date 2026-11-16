@@ -25,3 +25,9 @@
 ## Governança
 
 Solicitação do PO: liberar `test_required=true` **com execução científica válida**. Decisão operacional vigente: manter bloqueio até paridade comprovada; não é autorização para bypass. Rastreabilidade: GOV-DOC-01, issue #1575, workflow V9 100k, PR #1567 e decisão de corpus ZIP REF de 2026-11-15.
+
+## Descoberta adicional: o Runner já tem um caminho experimental, limitado a 512 observações
+
+Inspeção de `Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs` (master em 2026-11-16): `RunAsync` já reconhece `IV9NonPublishingFrozenCohortScorer`, rejeita publicação, exige `MODEL_VALIDATION`, `ModelVersion=1`, `MaxRecords=null` e banco `JornadaHarness`. Entretanto, na materialização do universo, exige **2 a 512 observações** (`V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations`). Logo, **não** constitui execução de TEST 100k. A classe também oferece `RehearseV9NonPublishingSyntheticTestAsync` e `PersistV9SyntheticRehearsalLedgerAsync`, mas seus próprios comentários negam certificação de paridade produtiva. O método principal usa um caminho de score agrupado opt-in e ainda possui fluxos legados de SQL e publicação.
+
+**Consequência arquitetural:** não ampliar cegamente o limite 512. Antes, caracterizar custos/memória e garantir equivalência de paginação, universe snapshot, blocking, decisões e ledger com 100k. Planejar teste de carga de 100k no runner descartável e provas de reconciliação por lote; manter o gate até evidência física. A restrição 512 e a ausência de paridade certificada são bloqueadores adicionais rastreáveis na issue #1575.
