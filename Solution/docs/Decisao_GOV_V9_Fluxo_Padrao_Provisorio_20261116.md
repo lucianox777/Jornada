@@ -38,3 +38,16 @@ Complementa GOV-V9-CADEIA-OBRIGATORIA-E2E-PREFLIGHT-20261114, GOV-V9-TF4-JOBS-IN
 ## Frente paralela: TEST científico
 
 Pesquisa de PRs abertas em 16/11/2026: [PR #1576](https://github.com/lucianox777/Jornada/pull/1576) documenta critérios de paridade, **não é identificada como a PR única de implementação**. A implementação de paridade está rastreada nas issues [#1584](https://github.com/lucianox777/Jornada/issues/1584) e [#1575](https://github.com/lucianox777/Jornada/issues/1575), com incrementos em PRs anteriores. Nenhuma PR aberta de implementação integral do TEST foi identificada na listagem consultada; verificar a PR específica com o PO ou com busca adicional antes de atribuir propriedade. Esta frente permanece independente do PREPARE/TRAIN.
+
+## Revisão de escopo aprovada pelo PO — workflow exclusivamente padrão
+
+O PO decidiu **eliminar do novo fluxo padrão as bifurcações de seleção de modalidade de TEST**, inclusive o ramo de banco externo/diagnóstico SELECT-only. Em vez de adaptar o workflow legado de múltiplas modalidades diretamente, criar **um workflow de execução padrão** com **um único parâmetro funcional de TEST científico: habilitado ou desabilitado**. A sequência obrigatória é **ADMISSION → PREPARE → TRAIN → AUDIT → VALIDATION → [TEST científico se habilitado] → CLOSEOUT**. A ausência de TEST deve produzir um encerramento válido, não um desvio para outro tipo de TEST.
+
+- ADMISSION preserva SHA exato, owner-only, one-use e preflight de segurança; o formulário não apresenta `test_mode` nem `test_database` como alternativas.
+- PREPARE gera exclusivamente a base sintética TRAIN padrão (100k, seed 42), prepara plano TF4 e transfere artefatos por contrato SHA-256 para o TRAIN. Não há base informada nem ramificação de origem da base.
+- TRAIN, AUDIT e VALIDATION permanecem sequenciais e obrigatórios; o TEST científico é a única etapa condicional, após VALIDATION.
+- A preparação lacrada e independente do TEST, se habilitado, pode ocorrer antecipadamente por exigência científica e de sigilo, mas **não deve criar uma bifurcação de modalidade visível ou alterar a ordem lógica de execução**. Detalhar a implementação preservando a independência e o não vazamento antes do TEST.
+- **Bloqueio mantido:** `test_required=true` não poderá ser executado até que a frente de paridade produtiva comprove os requisitos e gates vigentes. A simplificação do formulário não é bypass nem autorização de executar TEST.
+- Preservar o workflow legado e seus usos existentes até substituição segura e aprovada; a decisão atual é criar o caminho padrão, não apagar funcionalidades legadas sem inventário.
+
+**Precedência:** esta revisão substitui a sugestão anterior de apenas adicionar PREPARE ao fluxo de seleção de TEST já existente, e especializa a decisão GOV-V9-TF4-DISPATCH-SELETOR-TEST-20261115 **somente para o novo workflow padrão**, sem revogar o histórico ou o workflow legado. Implementação, testes e integração permanecem pendentes.
