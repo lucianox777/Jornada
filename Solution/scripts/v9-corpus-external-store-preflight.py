@@ -27,6 +27,8 @@ def validate(root: Path, attestation: dict, expected_repository: str):
         raise ValueError("External store path must be absolute and symlink-free")
     if not root.is_dir():
         raise ValueError("External store mount is absent")
+    if root == Path("/"):
+        raise ValueError("Filesystem root cannot be an external corpus store")
     if not os.path.ismount(root):
         raise ValueError("External store must be a mounted filesystem")
     if not os.access(root, os.R_OK | os.W_OK | os.X_OK):
