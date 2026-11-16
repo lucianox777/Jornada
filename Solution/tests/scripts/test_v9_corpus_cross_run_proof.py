@@ -14,7 +14,9 @@ def observation(run):
     return {"schema": "v9-ref-cross-run-observation-v1",
             "repository": "lucianox777/Jornada", "run_id": run,
             "run_attempt": 1, "fingerprint": "a" * 64,
-            "files": {name: {"sha256": "b" * 64, "size": 12} for name in\n                      ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json",\n                       "generation-manifest.json")},
+            "files": {name: {"sha256": "b" * 64, "size": 12} for name in
+                      ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json",
+                       "generation-manifest.json")},
             "store_identity": "operator-attested-ref-mount-1"}
 
 
