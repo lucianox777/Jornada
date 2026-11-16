@@ -40,6 +40,12 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn("test -s \"$root/people-100k/observacoes.csv\"", text)
         self.assertIn("--people 100000 --seed 42", text)
 
+    def test_prepare_creates_generation_log_parent_before_redirect(self):
+        prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        generation = prepare.split("      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan\n", 1)[1].split("      - name: ", 1)[0]
+        self.assertIn('mkdir -p "$root"', generation)
+        self.assertLess(generation.index('mkdir -p "$root"'), generation.index('> "$root/generation.log"'))
+
     def test_only_train_executes_physical_hypotheses_after_handoff(self):
         text = self.workflow
         prepare = text.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
