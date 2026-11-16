@@ -1,7 +1,8 @@
 name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION optional TEST
 
-# STRICTLY MANUAL. Optional independent TEST cohort is preregistered and CMS-sealed
-# before TRAIN; the physical TEST evaluator takes ONLY the frozen winner model.
+# STRICTLY MANUAL. Standard synthetic TRAIN-only chain is enabled.
+# Scientific TEST remains fail-closed until sealed independent preparation
+# and full production RunAsync parity are integrated and certified.
 on:
   workflow_dispatch:
     inputs:
@@ -51,6 +52,10 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: scientific TEST remains blocked; no TRAIN or TEST starts."
+            exit 1
+          fi
   prepare-100k:
     name: "V9 PREPARE: synthetic TRAIN 100k and frozen TF4 plan"
     needs: admission
