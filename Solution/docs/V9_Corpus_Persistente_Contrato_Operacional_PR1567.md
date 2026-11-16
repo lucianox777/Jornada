@@ -165,3 +165,7 @@ Commit `db813e6d`: teste estático do workflow passa a exigir que o fingerprint 
 ## Validação dos ancestrais do armazenamento PREPARE — 15/11/2026
 
 Commits `1f3dfb0c` e `8125ea65`: tanto `prepare` quanto `handoff` recusam armazenamento cujo caminho contenha symlink em qualquer ancestral; teste comprova recusa antes de executar gerador ou criar o armazenamento por alias. Justificativa: impedir redirecionamento acidental/malicioso de corpus e efeitos fora da raiz pretendida. Limite: não impede substituição concorrente de diretórios por processos com permissão de escrita. CI do novo HEAD pendente; provider durável e TRAIN científico permanecem bloqueios independentes.
+
+## Publisher independente com mesma política de caminhos — 15/11/2026
+
+Commits `dda72108` e `ed509212`: `v9-corpus-snapshot.publish` rejeita symlink em qualquer ancestral da raiz do armazenamento, mesmo quando chamado diretamente fora de `v9-corpus-prepare.py`; teste confirma que nenhum diretório de armazenamento é criado por alias. Contexto: impedir bypass da proteção PREPARE pela API de publicação isolada. Impacto: caminhos intencionalmente montados via symlink precisam ser substituídos por caminho canônico sem alias; não resolve corrida de diretórios nem storage durável. CI do novo HEAD pendente; sem mudança de ciência, TEST ou custos.
