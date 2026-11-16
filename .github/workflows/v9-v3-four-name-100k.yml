@@ -111,6 +111,34 @@ jobs:
           test -f Solution/scripts/v9-v3-four-name-100k-plan.py
           test -f Solution/scripts/v9-v3-four-name-100k-audit.py
           echo "V9_PREPARE_ADMISSION=SUCCESS"
+          mkdir -p Solution/.local/v9-prepare
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          files = [
+              "Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json",
+              "Solution/scripts/v9-v3-four-name-100k-plan.py",
+              "Solution/scripts/v9-v3-four-name-100k-audit.py",
+          ]
+          receipt = {
+              "schema": "V9_PREPARE_ADMISSION_V1",
+              "commitSha": os.environ["EXACT_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "files": {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files},
+          }
+          Path("Solution/.local/v9-prepare/receipt.json").write_text(
+              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload immutable PREPARE admission receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-prepare-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Solution/.local/v9-prepare/receipt.json
   # An explicitly named existing database must be admitted BEFORE the 324
   # expensive physical hypotheses. Only a SELECT-only SQL secret is exposed
   # here, never to TRAIN/VALIDATION. No citizen rows are read in preflight.
@@ -307,6 +335,34 @@ jobs:
           ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Download PREPARE admission receipt from same campaign
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-prepare-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-prepare
+      - name: Verify PREPARE receipt against exact code and campaign
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          receipt = json.loads(Path(".local/v9-prepare/receipt.json").read_text(encoding="utf-8"))
+          assert receipt["schema"] == "V9_PREPARE_ADMISSION_V1"
+          assert receipt["commitSha"] == os.environ["EXACT_SHA"] == os.environ["GITHUB_SHA"]
+          assert receipt["runId"] == os.environ["GITHUB_RUN_ID"]
+          assert receipt["runAttempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
+          expected = {
+              "Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json",
+              "Solution/scripts/v9-v3-four-name-100k-plan.py",
+              "Solution/scripts/v9-v3-four-name-100k-audit.py",
+          }
+          assert set(receipt["files"]) == expected
+          for file, digest in receipt["files"].items():
+              assert hashlib.sha256(Path("..", file).read_bytes()).hexdigest() == digest, file
+          print("V9_PREPARE_RECEIPT_VERIFIED")
+          PY
       - name: Assert and report safe diagnostic environment
         run: |
           set -euo pipefail
