@@ -10,7 +10,7 @@ spec = importlib.util.spec_from_file_location("ref_promote", script)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-snapshot_spec = importlib.util.spec_from_file_location("v9_snapshot", script.with_name("v9-corpus-snapshot.py"))
+snapshot_spec = importlib.util.spec_from_file_location("v9_snapshot", script.parent / "v9-corpus-snapshot.py")
 snapshot = importlib.util.module_from_spec(snapshot_spec)
 snapshot_spec.loader.exec_module(snapshot)
 CONFIG_A = {"seed": 42}
