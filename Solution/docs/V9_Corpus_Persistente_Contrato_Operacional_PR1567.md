@@ -245,3 +245,7 @@ No SHA `ffa0e4e9`, os checks `v9-corpus-persistence-contract`, `v9-experimental-
 ## CI 43786123043 — ambiente experimental nos testes (16/11/2026)
 
 O contrato de persistência falhou no SHA `9bddfb1a` por **três chamadas de teste** que não informavam `environment="experimental"` após o bloqueio fail-closed da API. Commit `d7b3de76` passa o contexto explícito nos casos de promoção, idempotência, alvo não validado e snapshot adulterado, mantendo testes negativos separados para ausência de ambiente e `production`. Não foi relaxado o bloqueio produtivo. A CI do HEAD deve confirmar. A integração REF durável cross-run e PREPARE→TRAIN permanece pendente; PR DRAFT sem merge.
+
+## CI 43786215815 — duas chamadas negativas remanescentes (16/11/2026)
+
+A CI de persistência ainda falhou em dois testes negativos porque as chamadas de alvo não validado e snapshot adulterado omitiam `environment="experimental"`. O commit `f0970aec` altera explicitamente ambas, preservando os testes que rejeitam ambiente omitido ou `production`. A correção foi verificada pela leitura do arquivo na branch; confirmação da nova CI ainda pendente. Sem alteração de critérios de produção, REF durável ou merge.
