@@ -181,3 +181,7 @@ Commit `73ca5934`: corrigidas quatro continuações de linha com barras invertid
 ## Regressão do Bash no consumidor opt-in — 15/11/2026
 
 Commit `e071cffd`: teste `test_v9_corpus_opt_in_shell_safety.py` verifica que as opções do recibo de entrada existem no job consumidor e que cada linha continuada termina em exatamente uma barra invertida, impedindo reintrodução da falha corrigida em `73ca5934`. É teste estático; não substitui execução física do workflow manual nem certifica persistência cross-run. CI do novo commit pendente.
+
+## Negativa de raiz do filesystem no preflight — 15/11/2026
+
+Commits `d2c446a4` e `4c17ea22`: o preflight de storage externo recusa explicitamente `/`, que satisfaz `os.path.ismount` em runners comuns, mas não é evidência de armazenamento externo. Teste negativo incluído. Esta proteção não certifica que outras montagens sejam remotas nem autentica as declarações do operador; a persistência cross-run continua não comprovada. Sem mudança científica e sem autorização de campanha 100k.
