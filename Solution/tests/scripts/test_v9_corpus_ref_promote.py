@@ -46,6 +46,10 @@ class RefPromotionTests(unittest.TestCase):
             self.assertEqual(states, {A: "PREVIOUS", B: "CURRENT"})
             self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B)["status"], "ALREADY_CURRENT")
 
+    def test_production_auto_promotion_is_forbidden(self):
+        with self.assertRaisesRegex(ValueError, "production requires manual PO approval"):
+            module.promote(Path("/unused/index"), B, "seed42", environment="production")
+
     def test_unvalidated_target_rejected_without_mutation(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "index.json"
