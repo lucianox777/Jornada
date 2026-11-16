@@ -177,3 +177,7 @@ Commits `914547bc` e `f232aa9e`: novo script `v9-corpus-external-store-preflight
 ## Correção do shell do consumidor opt-in — 15/11/2026
 
 Commit `73ca5934`: corrigidas quatro continuações de linha com barras invertidas duplicadas no passo `Verify exact config/manifest SHA and complete file hashes` de `.github/workflows/v9-corpus-prepare-opt-in.yml`. Com duas barras, o Bash não escapava a quebra de linha e podia executar opções `--generator-source`, `--ibge-names` e outras como comandos separados, interrompendo o consumidor antes da verificação. Agora cada continuação usa uma única barra. Esta correção não comprova execução física do workflow manual, não habilita TRAIN 100k nem resolve persistência durável; CI e ensaio operacional continuam necessários.
+
+## Regressão do Bash no consumidor opt-in — 15/11/2026
+
+Commit `e071cffd`: teste `test_v9_corpus_opt_in_shell_safety.py` verifica que as opções do recibo de entrada existem no job consumidor e que cada linha continuada termina em exatamente uma barra invertida, impedindo reintrodução da falha corrigida em `73ca5934`. É teste estático; não substitui execução física do workflow manual nem certifica persistência cross-run. CI do novo commit pendente.
