@@ -2,7 +2,7 @@
 
 **Autoridade:** Product Owner, 16/11/2026 (America/Sao_Paulo): após avaliação de custo de recriar `IX_v9_cal_sig` e esclarecimento de que se trata de mudar sua ordem relativamente ao `SqlBulkCopy`, aprovou: **«Pode implantar esta alteração»**. **Política:** GOV-DOC-01.
 
-**Estado:** decisão APROVADA; implementação proposta na branch `perf/v9-sql-signature-index-after-bulk-20261116`; **não declarar integrada à master, validada em SQL físico ou acelerada sem evidência**. PR, CI, squash e medições devem ser anexados a este registro quando disponíveis.
+**Estado:** APROVADA, IMPLEMENTADA E INTEGRADA À `master` em 16/11/2026 via [PR #1608](https://github.com/lucianox777/Jornada/pull/1608), squash `9520bb66c8d47096dfe5dd19ec43338d352610ba`. A [CI obrigatória #43946961266](https://github.com/lucianox777/Jornada/actions/runs/43946961266) concluiu `security-guards`, `unit-runtime`, `deterministic-build` **3/3 SUCCESS**. **Não há benchmark SQL físico nem aceleração demonstrada**; a validação estrutural/CI não certifica paridade de tempo ou ganho.
 
 ## Contexto e evidência
 
@@ -32,3 +32,10 @@ O risco de alteração do plano de execução devido à atualização das estat�
 - Investigação anterior: [V9 TF4/324, desempenho e rollback 15/11](Investigacao_V9_TF4_324_Desempenho_Rollback_20261115.md); [plano de possível reutilização física do holdout](Plano_Otimizacao_V9_Holdout_SQL_20261112.md), que **permanece proposta separada e não foi aprovada por esta decisão**.
 - Política superior: GOV-DOC-01; decisões TF4 324 hipóteses, SQL físico íntegro, P95 ponta a ponta, TRAIN→AUDIT→VALIDATION, TEST one-use/fail-closed e autorização manual de campanhas continuam vigentes.
 - Aceite de integração: revisão do diff restrito, CI de segurança/unidade/build e merge squash após checks; aceite de **desempenho** futuro somente com medições físicas reproduzíveis do mesmo corpus/SQL/runner, sem atalhos de ciência.
+
+## Recibo de implementação (16/11/2026)
+
+- Branch: `perf/v9-sql-signature-index-after-bulk-20261116`; PR [#1608](https://github.com/lucianox777/Jornada/pull/1608), merge `squash` confirmado no commit [`9520bb66c8d47096dfe5dd19ec43338d352610ba`](https://github.com/lucianox777/Jornada/commit/9520bb66c8d47096dfe5dd19ec43338d352610ba).
+- [CI obrigatória #43946961266](https://github.com/lucianox777/Jornada/actions/runs/43946961266): `security-guards`, `unit-runtime` e `deterministic-build` **SUCCESS**.
+- Alcance: código C# e teste estrutural novo integrados; consulta de materialização, índice de pares, 324 hipóteses, repetições e P95 físico mantidos. A campanha [#43908715448](https://github.com/lucianox777/Jornada/actions/runs/43908715448) foi iniciada no SHA `a47263dc1cdf34241ad8714467f339b0401f0770` anterior ao merge e não recebe retroativamente esta modificação.
+- Pendência explícita: benchmark SQL Server descartável, SHA/contagens de pares e resultados científicos idênticos, comparação de custo/carga e P95 por hipótese antes de declarar ganho. Não foi autorizado/disparado TRAIN ou TEST científicos novos por esta PR.
