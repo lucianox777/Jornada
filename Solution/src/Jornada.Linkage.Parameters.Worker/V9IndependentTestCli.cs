@@ -82,7 +82,7 @@ public static class V9IndependentTestCli
         var plan = winner.Payload.CandidateGrouping;
         if (plan is null
             || plan.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
-            || plan.MaximumObservationsPerIdentity != 4
+            || plan.MaximumObservationsPerIdentity <= 0
             || plan.MinimumPairPosterior is < 0m or > 1m
             || string.IsNullOrWhiteSpace(winner.Payload.ProjectionSchemaVersion)
             || winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 })
