@@ -43,3 +43,67 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests/scripts -p 'test_v9_standard_*.py' -v
           python3 -m py_compile scripts/v9-standard-prepare-handoff.py
+
+  prepare-transfer-smoke:
+    name: "PREPARE smoke: upload synthetic fixture artifact"
+    needs: contract-tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - name: Create fixture and package using production handoff script
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-prepare-smoke"
+          mkdir -p "$root/people-100k" "$root/bound" "$root/base-bound" "$root/prepare-transfer"
+          printf 'fixture-only-not-100k\n' > "$root/people-100k/observacoes.csv"
+          printf '{"smoke":true}\n' > "$root/bound/plan.json"
+          printf '{"smoke":true}\n' > "$root/bound/binding-receipt.json"
+          printf '{"smoke":true}\n' > "$root/base-bound/plan.json"
+          printf '{"smoke":true}\n' > "$root/base-bound/binding-receipt.json"
+          python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --out "$root/prepare-transfer/train-inputs.tar.gz"
+          printf '%s' "$GITHUB_SHA" > "$root/prepare-transfer/code-sha.txt"
+          printf '%s' "$GITHUB_RUN_ID" > "$root/prepare-transfer/run-id.txt"
+          (cd "$root/prepare-transfer" && sha256sum train-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
+      - name: Upload artifact across job boundary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-standard-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-prepare-smoke/prepare-transfer/
+          if-no-files-found: error
+          retention-days: 1
+
+  train-transfer-smoke:
+    name: "TRAIN smoke: download and verify PREPARE artifact"
+    needs: prepare-transfer-smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - name: Download immutable artifact in independent runner
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-standard-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-train-smoke/prepare-transfer
+      - name: Verify provenance and extract with production handoff script
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-train-smoke"
+          transfer="$root/prepare-transfer"
+          (cd "$transfer" && sha256sum -c SHA256SUMS)
+          test "$(cat "$transfer/code-sha.txt")" = "$GITHUB_SHA"
+          test "$(cat "$transfer/run-id.txt")" = "$GITHUB_RUN_ID"
+          python3 scripts/v9-standard-prepare-handoff.py unpack --root "$root" --archive "$transfer/train-inputs.tar.gz"
+          test "$(cat "$root/people-100k/observacoes.csv")" = 'fixture-only-not-100k'
+          python3 - "$root" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          for name in ('bound/plan.json','bound/binding-receipt.json','base-bound/plan.json','base-bound/binding-receipt.json'):
+              assert json.loads((root/name).read_text()) == {'smoke': True}, name
+          print("V9_PREPARE_TRAIN_CROSS_JOB_HANDOFF_SMOKE_PASS")
+          PY
