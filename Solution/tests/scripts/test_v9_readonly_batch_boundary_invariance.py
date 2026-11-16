@@ -23,7 +23,8 @@ class V9ReadOnlyBatchBoundaryInvarianceTests(unittest.TestCase):
     def test_fail_closed_comparison_includes_graph_decisions_groups_and_counts(self):
         source = self.source
         for field in (
-            "WinnerSha256", "ProjectionSchemaVersion",
+            "ObservationCount", "PhysicalSqlEdgeCount",
+            "OperationalSqlEdgeCount", "WinnerSha256", "ProjectionSchemaVersion",
             "ProjectionFingerprintSha256", "CanonicalEdgesSha256",
             "DecisionsSha256", "IdentityGroupsSha256", "Resolved",
             "Unresolved", "Conflicts", "NoCandidateInBlock",
