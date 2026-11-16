@@ -1,0 +1,45 @@
+name: v9-standard-linear-contract-ci
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-standard-linear-100k.yml'
+      - '.github/workflows/v9-standard-linear-contract-ci.yml'
+      - 'Solution/scripts/v9-standard-prepare-handoff.py'
+      - 'Solution/tests/scripts/test_v9_standard_*.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    name: "V9 standard: syntax and PREPARE transfer contract (no physical TRAIN)"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - name: Validate GitHub Actions YAML syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'PyYAML==6.0.2'
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+          for filename in (
+              ".github/workflows/v9-standard-linear-100k.yml",
+              ".github/workflows/v9-standard-linear-contract-ci.yml",
+          ):
+              parsed = yaml.safe_load(Path(filename).read_text(encoding="utf-8"))
+              assert isinstance(parsed, dict) and isinstance(parsed.get("jobs"), dict)
+              assert len(parsed["jobs"]) > 0
+              print(f"YAML_VALID {filename}")
+          PY
+      - name: Execute standard linear and transfer unit tests
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_standard_*.py' -v
+          python3 -m py_compile scripts/v9-standard-prepare-handoff.py
