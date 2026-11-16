@@ -381,6 +381,19 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
                 await BuildRunner(missingReferenceScorer).RunAsync(Request(), CancellationToken.None)));
             Assert.That(missingReferenceScorer.BlockingChaveParityEvidence, Is.Null);
+            // Fail-closed must be visible in the actual SQL run ledger, with
+            // zero persisted decisions. Exception alone is insufficient.
+            await using (var failedMissingReference = new SqlCommand("""
+                SELECT TOP (1) linkage_run_id FROM identidade.linkage_run
+                 WHERE modelo_id=@id AND status=N'FALHOU' AND avaliados=0
+                 ORDER BY iniciado_em DESC;
+                """, connection))
+            {
+                failedMissingReference.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = stored.ModelId;
+                var failedId = await failedMissingReference.ExecuteScalarAsync();
+                Assert.That(failedId, Is.InstanceOf<Guid>());
+                await AssertRunRowsAsync(connection, (Guid)failedId!, "FALHOU", 0);
+            }
             await using (var restoreReference = new SqlCommand("""
                 UPDATE gold.pessoa SET estado_identidade=N'REFERENCIA'
                  WHERE pessoa_uuid=@id;
