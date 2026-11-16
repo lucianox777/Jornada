@@ -16,7 +16,9 @@ class DiagnosticContract(unittest.TestCase):
     def test_explicit_isolated_entry_and_no_scientific_p95_changes(self):
         self.assertIn('public const string Flag = "--v9-diagnose-sql-replay";', SRC)
         self.assertIn('V9SqlReplayDiagnosticCli.RunAsync(guardedArgs)', ENTRY)
-        self.assertRegex(ENTRY, r'(?m)^if \\(guardedArgs\\.Length > 0 && guardedArgs\\[0\\] == V9SqlReplayDiagnosticCli\\.Flag\\)        self.assertIn('await V9PhysicalSqlAdaptiveCalibrationProbe.DiagnoseFrozenReplayPhasesAsync(', SRC)
+        self.assertIn('\nif (guardedArgs.Length > 0 && guardedArgs[0] == V9SqlReplayDiagnosticCli.Flag)\n', ENTRY)
+        self.assertNotIn(r'\nif (guardedArgs.Length > 0 && guardedArgs[0] == V9SqlReplayDiagnosticCli.Flag)', ENTRY)
+        self.assertIn('await V9PhysicalSqlAdaptiveCalibrationProbe.DiagnoseFrozenReplayPhasesAsync(', SRC)
         self.assertIn('V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges)', SRC)
         self.assertIn('scientific_p95_certified = false', SRC)
         self.assertIn('test_opened = false', SRC)
