@@ -117,3 +117,7 @@ O PO reiterou **“Pode continuar até mesclagem.”** após ser apresentada a p
 ## Regressão de concorrência entre publicadores locais — 15/11/2026
 
 Commit `b6a23d1cd0b4ba2ac901e41af83a53e671fbc0c5`: teste não científico com 12 publicações concorrentes em 6 threads para a mesma identidade de configuração, exigindo um único diretório final, recibos equivalentes e validação integral do snapshot. A prova cobre a serialização cooperativa no mesmo filesystem POSIX e **não** comprova concorrência distribuída entre runners ou durabilidade entre execuções GitHub Actions. CI deste commit ainda pendente de verificação. Mantidos os gates de backend durável, integração real TRAIN, autorização de infraestrutura e TEST lacrado.
+
+## Allowlist física de entradas no snapshot — 15/11/2026
+
+Commits `07d5601e` e `0050027f`: além de exigir o conjunto exato de arquivos no manifesto, `verify` passa a rejeitar entradas físicas adicionais no diretório do snapshot (arquivos ou subdiretórios). Testes negativos cobrem rejeição em `verify` e na reutilização por `publish`, sem regeneração silenciosa. Isso fortalece a fronteira de integridade, **não** demonstra durabilidade entre runs nem integra TRAIN. CI dos novos commits precisa ser observada. Sem alteração de decisões do PO, gerador congelado ou TEST lacrado.
