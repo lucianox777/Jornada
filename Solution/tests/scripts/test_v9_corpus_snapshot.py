@@ -56,6 +56,25 @@ class CorpusSnapshotTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.publish(root / "store", {"seed": 42}, src)
 
+    def test_published_snapshot_is_immutable_on_conflicting_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source_a = root / "source-a"
+            source_b = root / "source-b"
+            source_a.mkdir()
+            source_b.mkdir()
+            for name in module.REQUIRED:
+                (source_a / name).write_text("original-" + name)
+                (source_b / name).write_text("different-" + name)
+            store = root / "store"
+            first = module.publish(store, config, source_a)
+            reused = module.publish(store, config, source_b)
+            self.assertEqual(first, reused)
+            self.assertEqual(module.verify(store / module.identity(config), config), first)
+            self.assertEqual((store / module.identity(config) / "observacoes.csv").read_text(),
+                             "original-observacoes.csv")
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
