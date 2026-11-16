@@ -2,7 +2,7 @@
 
 **Autoridade:** Product Owner, 16/11/2026: após avaliação das alternativas A (gerar 100k dentro do TRAIN) e B (restaurar o workflow reutilizável de 15/11), aprovou explicitamente: "Concordo pode alterar". Esta decisão tem precedência **somente** sobre a persistência/reutilização da população sintética TRAIN 100k no workflow científico. GOV-DOC-01.
 
-**Estado:** APROVADO PARA IMPLEMENTAÇÃO. A integração depende de CI obrigatória e revisão da PR; execução física das 324 hipóteses **não** é autorizada implicitamente por esta mudança.
+**Estado:** APROVADO PELO PO, **INTEGRADO À MASTER** em 16/11/2026 pela PR #1599. Os gates obrigatórios foram concluídos com sucesso; execução física das 324 hipóteses **não** é autorizada implicitamente por esta mudança.
 
 ## Contexto e justificativa
 
@@ -36,4 +36,8 @@
 
 - Comparação: [workflow histórico de 15/11](https://github.com/lucianox777/Jornada/blob/7de4f3d5966ab0ccf6fb9801d748893667949d0e/.github/workflows/v9-v3-four-name-100k.yml) e [workflow com consumo REF de 16/11](https://github.com/lucianox777/Jornada/blob/7dcd2c70d5348be3f9e46e7487e6165b648d9c68/.github/workflows/v9-v3-four-name-100k.yml).
 - Antecedentes: [decisão de corpus/REF familiar](Decisao_GOV_V9_Corpus_Persistente_REF_Familiar_20261115.md) e [integração técnica REF](Decisao_GOV_V9_TRAIN_REF_Persistido_20261116.md). Ambos preservados, com anotação de precedência.
-- O registro definitivo da integração, PR, checks e commit de merge será acrescentado após aprovação dos gates; aprovação da decisão não equivale a conclusão da implementação.
+- Integração documental e operacional concluída: PR [#1599](https://github.com/lucianox777/Jornada/pull/1599), squash [`cc844695bde37b3bf81546e58c899026964e7ad9`](https://github.com/lucianox777/Jornada/commit/cc844695bde37b3bf81546e58c899026964e7ad9), [CI obrigatória #43905763281](https://github.com/lucianox777/Jornada/actions/runs/43905763281) **SUCCESS**, [integração sintética TRAIN→AUDIT→VALIDATION #43905763347](https://github.com/lucianox777/Jornada/actions/runs/43905763347) **SUCCESS**, [prova de admissão #43905763346](https://github.com/lucianox777/Jornada/actions/runs/43905763346) **SUCCESS**. Nenhuma execução científica física 324 foi disparada por esta PR; TEST científico permanece bloqueado.
+
+## Fechamento GOV-DOC-01 — 16/11/2026
+
+A decisão, sua precedência parcial sobre a política de persistência sintética, os controles e o índice de decisões vigentes foram integrados junto ao workflow. O merge referido acima concluiu a reversão operacional **sem** autorizar ensaio físico nem revogar a fundamentação de geração familiar.
