@@ -70,8 +70,8 @@ def open_publish_lock(path):
 def publish(store, config, source):
     key = identity(config)
     destination = store / key
-    if store.is_symlink():
-        raise ValueError("Symlink store is forbidden")
+    if any(ancestor.is_symlink() for ancestor in (store, *store.parents)):
+        raise ValueError("Symlink store or ancestor is forbidden")
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink():
         raise ValueError("Symlink store is forbidden")
