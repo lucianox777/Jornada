@@ -193,3 +193,7 @@ Commits `8ed3eb04` e `56dd7d8c`: IDs de execução na declaração de persistên
 ## Ligação PREPARE → plano científico no probe opt-in — 15/11/2026
 
 Commits `7944fa4e` e `5ea8e5a5`: após a validação independente do snapshot no runner consumidor, o workflow manual opt-in obtém o artefato histórico oficial por ID e SHA-256 fixos e passa o diretório materializado do PREPARE ao mesmo planejador `v9-scale-100k-technical-plan.py` e ao planejador V3 `v9-v3-four-name-100k-plan.py` usados no TRAIN. O download recebe somente o token Actions de leitura no passo consumidor. Isso é **prova de binding do plano, não execução das 324 hipóteses**; não modifica o workflow científico principal, não usa TEST, não demonstra armazenamento externo durável. Execução manual opt-in não disparada; aprovação CI do commit ainda pendente. O merge permanece bloqueado pelas evidências operacionais e integração física aprovadas.
+
+## Regressão do binding do plano V3 — 15/11/2026
+
+Commit `9f7c452c`: teste estático do workflow opt-in exige que o diretório materializado pelo verificador de handoff seja exatamente o `--corpus-root` do planejador técnico, seguido do planejador V3; exige SHA fixo do artefato histórico e token de leitura, e impede inclusão de calibração física ou preparação de TEST nesse job. A verificação estática não prova execução do probe manual, persistência durável nem TRAIN físico. A aprovação da CI deve ser verificada após o commit.
