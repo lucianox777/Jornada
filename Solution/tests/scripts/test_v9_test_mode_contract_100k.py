@@ -62,6 +62,23 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn('report["inputReadOnly"] is True', external)
         self.assertIn("V9ExternalDatabaseReadOnlyTest.RunAsync", self.test_cli)
 
+    def test_candidate_winner_is_not_active_model_or_new_test_selection(self):
+        cli = self.test_cli
+        scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
+        self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile)", cli)
+        self.assertIn("V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winnerSha)", cli)
+        self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(", cli)
+        self.assertNotIn("GetActiveModelAsync(", cli)
+        self.assertNotIn("GetModelByVersionAsync(", cli)
+        self.assertIn("TotalComparedConfigurations: 1", cli)
+        self.assertIn("operationalModelActive = false", cli)
+        self.assertIn("operationalModelPublished = false", cli)
+        self.assertIn("activated = false", cli)
+        self.assertIn("GetActiveModelAsync(CancellationToken ct) =>", scorer)
+        self.assertIn("Modelo ativo é proibido no V9 agrupado TEST_ONLY.", scorer)
+        self.assertIn("model.BlockingContract?.ProjectionSchemaVersion != winner.Payload.ProjectionSchemaVersion", scorer)
+        self.assertIn("model.BlockingContract?.ProjectionFingerprintSha256 != winner.Payload.ProjectionFingerprintSha256", scorer)
+
     def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
         runner = (ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
