@@ -59,3 +59,7 @@ Novo workflow `.github/workflows/v9-standard-linear-100k.yml` com ADMISSION, PRE
 **Limite de implementação:** TEST científico selecionado é rejeitado já em ADMISSION, até que a outra frente implemente a preparação independente lacrada e comprove paridade produtiva. O código de TEST do workflow novo permanece inacessível por esse gate; **não afirmar TEST executável ou certificado**. O empacotamento de 100k e o custo da transferência ainda requerem execução física autorizada. Não disparar automaticamente campanha 100k.
 
 **Evidência:** teste estrutural `Solution/tests/scripts/test_v9_standard_linear_workflow.py`; CI e revisão pendentes na PR de implementação. A integração deste registro deve ocorrer junto com a implementação, conforme GOV-DOC-01.
+
+## Hardening incremental PREPARE → TRAIN
+
+O job PREPARE recebeu `GH_TOKEN` com permissões `actions: read` para o download pinado de artefato histórico, preservando SHA esperado. O TRAIN deixou de compilar o gerador sintético, pois a geração passou a ocorrer exclusivamente no PREPARE. O handoff usa `scripts/v9-standard-prepare-handoff.py` com allowlist de diretórios, rejeição de symlinks, caminhos relativos perigosos e duplicatas, limite de arquivos e tamanho descompactado, além do checksum SHA-256 do pacote e vínculo SHA/run ID. Testes unitários cobrem roundtrip, traversal, symlink e arquivo obrigatório ausente. Esses controles não substituem a execução real nem a CI; PR permanece em draft.
