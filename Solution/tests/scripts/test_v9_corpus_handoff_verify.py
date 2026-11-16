@@ -132,5 +132,17 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verifier.materialize_train_input(corpus, config, receipt, target)
 
+    def test_train_admission_rejects_wrong_expected_fingerprint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            target = root / "train" / "people-100k"
+            with self.assertRaisesRegex(ValueError, "fingerprint mismatch"):
+                verifier.materialize_train_input(corpus, config, receipt, target, "0" * 64)
+            self.assertFalse(target.exists())
+            actual = snapshot.identity(json.loads(config.read_text()))
+            evidence = verifier.materialize_train_input(corpus, config, receipt, target, actual)
+            self.assertEqual(evidence["fingerprint"], actual)
+
 if __name__ == "__main__":
     unittest.main()
