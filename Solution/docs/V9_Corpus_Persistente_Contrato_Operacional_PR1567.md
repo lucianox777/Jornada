@@ -225,3 +225,7 @@ Commits `068120bf`, `869ae454`, `e22940aa`: o promotor do índice REF agora exig
 ## Revisão de automação do PO — 15/11/2026
 
 Commits `1bd4dd07`, `eab3ab69`, `654d2c20`, `cc6ec1a0`: decisão aprovada e indexada; retirada a exigência de `--approved` por promoção rotineira do índice REF. O alvo continua obrigado a estar **previamente validado e aprovado no índice** e a passar verificação física SHA-256. **Não foi habilitada exclusão automática:** falta prova independente de ausência de leitores ativos e dependências de reprodutibilidade, além da durabilidade real do backend REF. A automação end-to-end por alteração de parâmetros e CI do HEAD seguem pendentes; nenhum corpus foi excluído.
+
+## Correção da CI e bloqueio técnico de promoção produtiva — 15/11/2026
+
+Run `43785788817` identificou duas chamadas obsoletas `approved=True` nos testes após revisão da interface. Commit `9ba60ef9` removeu esses argumentos e forneceu os parâmetros de verificação física. Commits `463af1a9` e `95a144dd` exigem `--environment experimental|production` na CLI do promotor e **rejeitam `production` antes de qualquer operação**, com teste negativo. A ferramenta é exclusivamente de ciclo interno experimental; autorização manual de produção continua externa a ela, conforme decisão do PO/DT-15. Este bloqueio não implementa pipeline produtivo de aprovação nem prova REF cross-run. Nova CI pendente.
