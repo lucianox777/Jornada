@@ -90,6 +90,23 @@ class CorpusSnapshotTests(unittest.TestCase):
                 module.publish(store, {"seed": 42}, source)
             self.assertFalse((store / module.identity({"seed": 42})).exists())
 
+    def test_publish_rejects_symlink_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source"
+            source.mkdir()
+            for name in module.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            store.mkdir()
+            outside = root / "outside-lock"
+            outside.write_text("untouched")
+            (store / ".publish.lock").symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, "publish lock"):
+                module.publish(store, {"seed": 42}, source)
+            self.assertEqual(outside.read_text(), "untouched")
+            self.assertFalse((store / module.identity({"seed": 42})).exists())
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
