@@ -149,6 +149,8 @@ jobs:
           name: v9-prepared-corpus-${{ github.run_id }}
           path: Solution/.local/v9-handoff-received
       - name: Verify exact config/manifest SHA and complete file hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           # Independently recompute generation inputs from checked-out pinned
