@@ -77,53 +77,7 @@ jobs:
           # V9FittedSnapshot bytes (hash verified). Small immutable artifact only.
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/14181765642/zip" > "$root/validated-fit.zip"
           fit=24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208
-          entry="$(unzip -Z1 "$root/validated-fit.zip" | grep -E '(^|/)24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208\.operational\.json
-          test -n "$entry"
-          unzip -p "$root/validated-fit.zip" "$entry" > "$root/baseline/$fit.fitted.json"
-          echo "$fit  $root/baseline/$fit.fitted.json" | sha256sum -c -
-          rm -f -- "$root/validated-fit.zip"
-          echo "V9_SQL_DIAGNOSTIC_FROZEN_FINALIST_PINNED=1"
-      - name: Start exact SQL Server 2022 CU26 digest on separate disposable runner
-        run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Create empty isolated JornadaHarness; no Gold, production tables or TEST
-        run: |
-          set -euo pipefail
-          cid="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          docker exec "$cid" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "IF DB_ID(N'\''JornadaHarness'\'') IS NOT NULL THROW 51000, '\''Preexisting database'\'', 1; CREATE DATABASE JornadaHarness;"'
-      - name: Measure 20 isolated and 60 concurrent replays with actual SQL plan
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-sql-replay-diagnostic"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-diagnose-sql-replay "$root/baseline/bound/plan.json" \
-            "$root/data/observacoes.csv" \
-            "$root/baseline/24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208.fitted.json" \
-            "$root/evidence/sql-replay-phase-diagnostic.json"
-          python3 - "$root/evidence/sql-replay-phase-diagnostic.json" <<'PY'
-          import json,sys
-          r=json.load(open(sys.argv[1],encoding='utf-8'))
-          assert r['schema']=='V9_SQL_REPLAY_PHASE_DIAGNOSTIC_V1'
-          assert not r['scientific_p95_certified'] and not r['test_opened'] and not r['publication']
-          assert r['isolated']['ReplaysMeasured']==20 and r['concurrent']['ReplaysMeasured']==60
-          assert r['isolated']['FrozenReplaySha256']==r['concurrent']['FrozenReplaySha256']
-          assert r['isolated']['CandidatePairs']==r['planEvidence']['ReconciledCandidatePairs']
-          assert len(r['planEvidence']['ActualPlanSha256'])==64
-          print('V9_SQL_REPLAY_DIAGNOSTIC_EVIDENCE_PASS: 20 solo + 60 concurrent; TEST blocked.')
-          PY
-      - name: Upload aggregate timings and plan summary only, never CSV or frozen fit
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: v9-sql-replay-diagnostic-${{ github.run_id }}-${{ github.sha }}
-          retention-days: 30
-          if-no-files-found: warn
-          path: Solution/.local/v9-sql-replay-diagnostic/evidence/sql-replay-phase-diagnostic.json
-      - name: Remove disposable SQL even on failure
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
- | head -1)"
+          entry="$(unzip -Z1 "$root/validated-fit.zip" | grep -E '(^|/)24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208\.operational\.json$' | head -1)"
           test -n "$entry"
           unzip -p "$root/validated-fit.zip" "$entry" > "$root/baseline/$fit.fitted.json"
           echo "$fit  $root/baseline/$fit.fitted.json" | sha256sum -c -
