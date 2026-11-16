@@ -153,3 +153,7 @@ Commits `e8b7c915` e `14af87b5`: o teste estático do workflow opt-in passa a ex
 ## Proteção de caminhos também no PREPARE handoff — 15/11/2026
 
 Commits `318ac7c3` e `052eff0b`: `prepare.handoff` agora rejeita links simbólicos em todos os ancestrais do destino antes de criar o diretório, com teste regressivo para alias intermediário e ausência de efeitos no alvo real. Complementa a proteção já existente em `materialize_train_input`; não constitui garantia contra substituição concorrente de diretórios por agente com acesso de escrita. CI do novo HEAD pendente. Sem alteração de gerador congelado, TEST, custo ou decisão sobre backend durável.
+
+## Fingerprint esperado ancorado na receita independente — 15/11/2026
+
+Commit `82bf9d55`: no consumidor opt-in, `--expected-fingerprint` passa a ser derivado de `expected-config.json`, recalculado a partir de código e REF do checkout fixado, em vez de `config.json` transportado. A API já compara as duas configurações; a alteração elimina dependência redundante do valor não confiável no cálculo da expectativa. A CI do novo HEAD deve ser validada. Não modifica ciência, TEST, custos nem resolve armazenamento durável ou integração ao TRAIN real.
