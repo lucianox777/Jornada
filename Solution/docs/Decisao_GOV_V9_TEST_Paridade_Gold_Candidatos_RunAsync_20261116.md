@@ -52,3 +52,6 @@ Contexto: `V9PinnedSyntheticGraphCohortRunScorer` invocava diretamente `pinned.R
 
 ## Ajuste de regressão contratual PR #1596
 CI obrigatória #43897883730 3/3 SUCCESS; gate shared policy #43897883957 SUCCESS. SQL smoke #43897883684 falhou na fase de testes estáticos Python (antes do SQL físico): `test_v9_fullschema_runasync_smoke.py` ainda exigia a chamada direta `pinned.ReplayTest(cohort, edges)` que foi substituída pelo ponto de entrada operacional. Corrigidas duas asserções para exigir `ResolvePinnedV9FrozenTestCohortAsync`, verificar que a classe operacional ainda usa `pinned.ReplayTest` e preservar a ordem blocking antes do scoring. Aguardam nova CI e SQL físico. Nenhuma alegação de equivalência produtiva completa; guard TEST 100k mantido.
+
+## Integração da entrada produtiva de coorte — 16/11/2026
+PR #1596 integrada à master no squash `4e2a4c105a4b2c1d8152331ad34f3c041914e6d4`, CI #43899892247 3/3, SQL físico #43899892143 2/2, shared policy #43899892032 SUCCESS. Workflow Gold #43899892018: apenas preflight compilou; matriz física e agregação SKIPPED, portanto sem evidência Gold holdout. O método opt-in da classe operacional ainda usa ReplayTest, não comprova equivalência de scoring independente; dois guards TEST 100k permanecem. Issue #1584. GOV-DOC-01.
