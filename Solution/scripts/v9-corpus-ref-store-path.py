@@ -5,6 +5,7 @@ Path separation is necessary but NOT evidence of cross-run durability.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 
@@ -14,6 +15,8 @@ def validate(ref_root: Path, corpus_store: Path, official_ref: Path) -> dict:
             raise ValueError(name + " must be absolute")
         if any(part.is_symlink() for part in (path, *path.parents)):
             raise ValueError(name + " cannot contain symlink ancestors")
+    if ref_root == Path("/") or corpus_store == Path("/"):
+        raise ValueError("Filesystem root is not a safe REF namespace")
     if not ref_root.is_dir():
         raise ValueError("REF root must already exist")
     if not official_ref.is_dir():
