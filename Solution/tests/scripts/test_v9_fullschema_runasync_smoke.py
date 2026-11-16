@@ -90,6 +90,19 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         self.assertNotIn("UPDATE identidade.", scorer)
         self.assertNotIn("GetActiveModelAsync(ct)", runner)
 
+    def test_operational_test_cohort_rejects_bad_graph_before_sql(self):
+        operational = (ROOT / "src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs").read_text()
+        start = operational.index("ResolvePinnedV9FrozenTestCohortAsync(")
+        section = operational[start:operational.index("private", start)] if "private" in operational[start:] else operational[start:]
+        self.assertIn('row.Partition != "TEST"', section)
+        self.assertIn("row.ObservationId != index + 1", section)
+        self.assertIn("!seenEdges.Add((a, b))", section)
+        self.assertIn("managers[a], managers[b]", section)
+        self.assertLess(section.index("foreach (var (a, b) in completeSqlEdges)"),
+                        section.index("operationalSql.OpenAsync(cancellationToken)"))
+        self.assertLess(section.index('SELECT DB_NAME();'),
+                        section.index("V9OperationalPinnedCohortRuntime.LoadPinnedAsync("))
+
     def test_sql_positive_crossbatch_matches_worker_and_stays_disposable(self):
         sql_graph = (ROOT / "src/Jornada.Linkage.Runner/V9FrozenCohortSqlCandidateGraph.cs").read_text()
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
