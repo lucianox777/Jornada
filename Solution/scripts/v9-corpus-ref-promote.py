@@ -13,7 +13,9 @@ from pathlib import Path
 import tempfile
 
 
-def promote(index_path: Path, fingerprint: str, configuration: str, *, store: Path = None, generation: dict = None):
+def promote(index_path: Path, fingerprint: str, configuration: str, *, store: Path = None, generation: dict = None, environment: str = "experimental"):
+    if environment != "experimental":
+        raise ValueError("REF corpus auto-promotion forbidden outside experimental environment; production requires manual PO approval")
     if store is None or not isinstance(generation, dict) or not generation:
         raise ValueError("Physical snapshot store and generation configuration required")
     if any(p.is_symlink() for p in (store, *store.parents)) or not store.is_dir():
@@ -87,12 +89,14 @@ def main():
     parser.add_argument("--index", type=Path, required=True)
     parser.add_argument("--fingerprint", required=True)
     parser.add_argument("--configuration", required=True)
+    parser.add_argument("--environment", choices=("experimental", "production"), required=True)
     parser.add_argument("--store", type=Path, required=True)
     parser.add_argument("--generation-config", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(promote(args.index, args.fingerprint, args.configuration,
                              store=args.store,
-                             generation=json.loads(args.generation_config.read_text(encoding="utf-8"))), sort_keys=True))
+                             generation=json.loads(args.generation_config.read_text(encoding="utf-8")),
+                             environment=args.environment), sort_keys=True))
 
 
 if __name__ == "__main__":
