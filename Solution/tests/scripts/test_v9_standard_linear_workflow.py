@@ -40,6 +40,19 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn("test -s \"$root/people-100k/observacoes.csv\"", text)
         self.assertIn("--people 100000 --seed 42", text)
 
+    def test_scientific_generation_is_byte_identical_to_legacy(self):
+        legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
+        marker = "      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan"
+        ending = "      - name: "
+        def extract(text):
+            start = text.index(marker)
+            end = text.index(ending, start + len(marker))
+            return text[start:end]
+        self.assertEqual(extract(legacy), extract(self.workflow))
+
+    def test_legacy_workflow_remains_present(self):
+        self.assertTrue((WORKFLOW.parent / "v9-v3-four-name-100k.yml").is_file())
+
     def test_test_remains_fail_closed(self):
         text = self.workflow
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", text)
