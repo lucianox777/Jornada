@@ -40,6 +40,22 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn("test -s \"$root/people-100k/observacoes.csv\"", text)
         self.assertIn("--people 100000 --seed 42", text)
 
+    def test_only_train_executes_physical_hypotheses_after_handoff(self):
+        text = self.workflow
+        prepare = text.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        train = text.split("  physical-100k:\n", 1)[1].split("  audit-100k:\n", 1)[0]
+        self.assertIn("v9-standard-prepare-handoff.py pack", prepare)
+        self.assertIn("actions/upload-artifact@", prepare)
+        self.assertNotIn("--v9-calibrate", prepare)
+        self.assertNotIn("Start masked disposable SQL Server", prepare)
+        self.assertNotIn("v9-100k-physical-memory-evidence.py", prepare)
+        self.assertIn("actions/download-artifact@", train)
+        self.assertIn("sha256sum -c SHA256SUMS", train)
+        self.assertIn("v9-standard-prepare-handoff.py unpack", train)
+        self.assertIn("--v9-calibrate", train)
+        self.assertLess(train.index("sha256sum -c SHA256SUMS"), train.index("Start masked disposable SQL Server"))
+        self.assertLess(train.index("v9-standard-prepare-handoff.py unpack"), train.index("--v9-calibrate"))
+
     def test_scientific_generation_is_byte_identical_to_legacy(self):
         legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
         marker = "      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan"
