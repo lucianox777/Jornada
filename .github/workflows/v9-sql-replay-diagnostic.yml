@@ -1,0 +1,125 @@
+name: V9 isolated physical SQL versus CSharp diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-sql-replay-diagnostic.yml'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9SqlReplayDiagnostic.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
+      - 'Solution/tests/scripts/test_v9_sql_replay_diagnostic_contract.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+# Separate diagnostic runner; never cancel or reuse a TRAIN/AUDIT/VALIDATION run.
+concurrency:
+  group: v9-sql-replay-diagnostic-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  sql-versus-csharp:
+    name: Isolated pinned 100k SQL and CSharp replay phases - no TRAIN or TEST
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify strictly isolated diagnostic contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/scripts -p test_v9_sql_replay_diagnostic_contract.py -v
+          test "$GITHUB_REPOSITORY" = "lucianox777/Jornada"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build diagnostic Worker and the unchanged synthetic generator
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Generate same immutable 100k seed42 corpus and verify 15-Nov CSV SHA
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-sql-replay-diagnostic"
+          mkdir -p "$root"/{data,baseline,evidence}
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 42 --out "$root/data" \
+            > "$root/generation.log"
+          echo "6a2cb2ffd48d14b705faeb14ec4dd517bef94ced730e20a062e0dd5403c832b1  $root/data/observacoes.csv" | sha256sum -c -
+          echo "V9_SQL_DIAGNOSTIC_CORPUS_SHA_MATCH=1"
+      - name: Retrieve SHA-pinned historical plan and single frozen finalist
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-sql-replay-diagnostic"
+          gh run download 43735943823 --repo "$GITHUB_REPOSITORY" \
+            --name "v9-v3-tf4-physical-train-7de4f3d5966ab0ccf6fb9801d748893667949d0e-43735943823" \
+            --dir "$root/baseline"
+          echo "82f348b7eafdd82cbcaa6055832838089d1adaf0c3be8d7fe7624d5104914555  $root/baseline/bound/plan.json" | sha256sum -c -
+          # The 15-Nov validated operational file is the same SHA-pinned frozen
+          # V9FittedSnapshot bytes (hash verified). Small immutable artifact only.
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/14181765642/zip" > "$root/validated-fit.zip"
+          fit=24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208
+          entry="$(unzip -Z1 "$root/validated-fit.zip" | grep -E '(^|/)24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208\.operational\.json$' | head -1)"
+          test -n "$entry"
+          unzip -p "$root/validated-fit.zip" "$entry" > "$root/baseline/$fit.fitted.json"
+          echo "$fit  $root/baseline/$fit.fitted.json" | sha256sum -c -
+          rm -f -- "$root/validated-fit.zip"
+          echo "V9_SQL_DIAGNOSTIC_FROZEN_FINALIST_PINNED=1"
+      - name: Start exact SQL Server 2022 CU26 digest on separate disposable runner
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Create empty isolated JornadaHarness; no Gold, production tables or TEST
+        run: |
+          set -euo pipefail
+          cid="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker exec "$cid" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "IF DB_ID(N'\''JornadaHarness'\'') IS NOT NULL THROW 51000, '\''Preexisting database'\'', 1; CREATE DATABASE JornadaHarness;"'
+      - name: Measure 20 isolated and 60 concurrent replays with actual SQL plan
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-sql-replay-diagnostic"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-diagnose-sql-replay "$root/baseline/bound/plan.json" \
+            "$root/data/observacoes.csv" \
+            "$root/baseline/24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208.fitted.json" \
+            "$root/evidence/sql-replay-phase-diagnostic.json"
+          python3 - "$root/evidence/sql-replay-phase-diagnostic.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1],encoding='utf-8'))
+          assert r['schema']=='V9_SQL_REPLAY_PHASE_DIAGNOSTIC_V1'
+          assert not r['scientific_p95_certified'] and not r['test_opened'] and not r['publication']
+          assert r['isolated']['ReplaysMeasured']==20 and r['concurrent']['ReplaysMeasured']==60
+          assert r['isolated']['FrozenReplaySha256']==r['concurrent']['FrozenReplaySha256']
+          assert r['isolated']['CandidatePairs']==r['planEvidence']['ReconciledCandidatePairs']
+          assert len(r['planEvidence']['ActualPlanSha256'])==64
+          print('V9_SQL_REPLAY_DIAGNOSTIC_EVIDENCE_PASS: 20 solo + 60 concurrent; TEST blocked.')
+          PY
+      - name: Upload aggregate timings and plan summary only, never CSV or frozen fit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-sql-replay-diagnostic-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: Solution/.local/v9-sql-replay-diagnostic/evidence/sql-replay-phase-diagnostic.json
+      - name: Remove disposable SQL even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true

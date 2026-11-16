@@ -29,6 +29,7 @@ FLAGS = (
     "--v9-gold-frozen-tf-preflight",
     "--v9-inspect-fitted-snapshot",
     "--v9-physical-probe-seed42",
+    "--v9-diagnose-sql-replay",
 )
 SAFE = re.compile(
     r"V9_CALIBRATOR_FAILED:(?:INPUT_NOT_FOUND|INVALID_DATA|IO_ERROR|INVALID_ARGUMENTS|UNEXPECTED)(?::[A-Z][A-Z0-9_]{0,79}){0,2}\n?",

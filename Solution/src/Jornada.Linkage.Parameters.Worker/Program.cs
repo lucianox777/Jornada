@@ -171,6 +171,13 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-inspect-fitted-snapshot")
     return;
 }
 
+// Isolated SQL-versus-CSharp phase diagnostic; no calibration, TEST or publication.
+if (guardedArgs.Length > 0 && guardedArgs[0] == V9SqlReplayDiagnosticCli.Flag)
+{
+    await V9SqlReplayDiagnosticCli.RunAsync(guardedArgs);
+    return;
+}
+
 // Read-only opt-in physical diagnostic; never starts the operational worker.
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-physical-probe-seed42")
 {
