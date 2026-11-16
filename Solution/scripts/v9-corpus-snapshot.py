@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import fcntl
+import stat
 
 VERSION = "v9-corpus-snapshot-v1"
 REQUIRED = ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json", "generation-manifest.json")
@@ -50,6 +51,19 @@ def verify(target, config):
         raise ValueError("Corpus content hash or manifest mismatch")
     return recorded
 
+def open_publish_lock(path):
+    """Reject symlinks and special files at the opened lock inode."""
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW |
+                     os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
+    except OSError as exc:
+        raise ValueError("Unsafe publish lock") from exc
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise ValueError("Unsafe publish lock")
+    return os.fdopen(fd, "a+b")
+
+
 def publish(store, config, source):
     key = identity(config)
     destination = store / key
@@ -79,7 +93,7 @@ def publish(store, config, source):
         lock_path = store / ".publish.lock"
         if lock_path.is_symlink():
             raise ValueError("Unsafe publish lock")
-        with open(lock_path, "a+b") as lock:
+        with open_publish_lock(lock_path) as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if destination.exists():
                 return verify(destination, config)
