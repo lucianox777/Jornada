@@ -153,10 +153,10 @@ jobs:
           set -euo pipefail
           # Independently recompute generation inputs from checked-out pinned
           # source and REF. Never trust only the config shipped in the artifact.
-          python3 scripts/v9-corpus-input-receipt.py \\
-            --generator-source src/Jornada.Linkage.SyntheticCorpus \\
-            --ibge-names data/reference/ibge-nomes-2022 \\
-            --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \\
+          python3 scripts/v9-corpus-input-receipt.py \
+            --generator-source src/Jornada.Linkage.SyntheticCorpus \
+            --ibge-names data/reference/ibge-nomes-2022 \
+            --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
             --output .local/v9-handoff-received/expected-config.json
           expected_fingerprint="$(python3 - <<'PY'
           import importlib.util, json
