@@ -319,6 +319,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_test_global_one_use.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_test_production_model_format.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_test_mode_contract_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_operational_converter.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
