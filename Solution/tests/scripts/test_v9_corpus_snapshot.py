@@ -107,6 +107,26 @@ class CorpusSnapshotTests(unittest.TestCase):
             self.assertEqual(outside.read_text(), "untouched")
             self.assertFalse((store / module.identity({"seed": 42})).exists())
 
+    def test_concurrent_publishers_reuse_one_verified_snapshot(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42, "purpose": "concurrent-publication-probe"}
+            source = root / "source"
+            source.mkdir()
+            for name in module.REQUIRED:
+                (source / name).write_text("synthetic-" + name)
+            store = root / "store"
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                results = list(executor.map(
+                    lambda _: module.publish(store, config, source), range(12)))
+            self.assertTrue(all(item == results[0] for item in results))
+            self.assertEqual(module.verify(store / module.identity(config), config),
+                             results[0])
+            self.assertEqual(
+                [p.name for p in store.iterdir() if p.is_dir()],
+                [module.identity(config)])
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
