@@ -88,6 +88,7 @@ public static class V9OperationalCandidateGraphParityAudit
                     "Grafo físico TEST inválido, repetido ou intragestor.");
         }
 
+        operationalRuntime.RequireSupportedFrozenExecutionPlan();
         var frozen = operationalRuntime.FrozenWinner;
         if (operationalRuntime.ModelId
                 != V9OperationalSqlModelConverter.ModelIdFromWinnerSha(frozen.ContentSha256)
@@ -134,6 +135,11 @@ public static class V9OperationalCandidateGraphParityAudit
                 var a = Math.Min(row.ObservationId, candidate.ObservationId);
                 var b = Math.Max(row.ObservationId, candidate.ObservationId);
                 var key = (a, b);
+                // Reject an unexpected SQL edge immediately rather than
+                // retaining an unbounded divergent candidate graph.
+                if (!expected.Contains(key))
+                    throw new InvalidDataException(
+                        "SQL operacional retornou aresta ausente do grafo físico TEST.");
                 var direction = (byte)(row.ObservationId == a ? 1 : 2);
                 actualDirections.TryGetValue(key, out var prior);
                 if ((prior & direction) != 0)
