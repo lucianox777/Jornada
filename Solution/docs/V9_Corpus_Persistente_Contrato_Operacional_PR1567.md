@@ -197,3 +197,7 @@ Commits `7944fa4e` e `5ea8e5a5`: após a validação independente do snapshot no
 ## Regressão do binding do plano V3 — 15/11/2026
 
 Commit `9f7c452c`: teste estático do workflow opt-in exige que o diretório materializado pelo verificador de handoff seja exatamente o `--corpus-root` do planejador técnico, seguido do planejador V3; exige SHA fixo do artefato histórico e token de leitura, e impede inclusão de calibração física ou preparação de TEST nesse job. A verificação estática não prova execução do probe manual, persistência durável nem TRAIN físico. A aprovação da CI deve ser verificada após o commit.
+
+## Correção de falha CI do contrato de segurança — 15/11/2026
+
+O job `corpus-contract` da execução `43784104143` falhou em `test_corpus_prepare_cannot_dispatch_scientific_train` porque o novo marcador de binding substituíra indevidamente o marcador exigido `TRANSFER_PROBE_ONLY`. Commit `5ca8cfb1` restaura explicitamente `V9_CORPUS_TRANSFER_PROBE_ONLY` preservando o novo `V9_CORPUS_PLAN_BINDING_PROBE_ONLY`. Impacto: preserva o controle de não execução científica; sem alteração dos dados, das 324 hipóteses ou do TEST. A aprovação CI do novo SHA segue necessária.
