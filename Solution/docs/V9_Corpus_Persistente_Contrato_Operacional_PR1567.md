@@ -149,3 +149,7 @@ Commits `0618696f`, `9a13d1e5` e `6ca4464b`: a API `verify_handoff` e a material
 ## Regressões obrigatórias da proveniência do consumidor — 15/11/2026
 
 Commits `e8b7c915` e `14af87b5`: o teste estático do workflow opt-in passa a exigir explicitamente `--expected-config`, código gerador e referência de nascimentos fixados; teste unitário garante que recibo independente ausente rejeite admissão e não crie destino. Justificativa: impedir regressão silenciosa da verificação independente recém-implementada. CI do novo HEAD pendente; persistência durável e TRAIN científico continuam bloqueados. Nenhuma autorização de custos ou nova execução científica inferida.
+
+## Proteção de caminhos também no PREPARE handoff — 15/11/2026
+
+Commits `318ac7c3` e `052eff0b`: `prepare.handoff` agora rejeita links simbólicos em todos os ancestrais do destino antes de criar o diretório, com teste regressivo para alias intermediário e ausência de efeitos no alvo real. Complementa a proteção já existente em `materialize_train_input`; não constitui garantia contra substituição concorrente de diretórios por agente com acesso de escrita. CI do novo HEAD pendente. Sem alteração de gerador congelado, TEST, custo ou decisão sobre backend durável.
