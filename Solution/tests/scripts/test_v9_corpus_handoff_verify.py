@@ -175,5 +175,15 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsafe independently"):
                 verifier.verify_handoff(corpus, config, receipt, alias)
 
+    def test_independent_expected_config_missing_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            missing = root / "not-present.json"
+            target = root / "train" / "people-100k"
+            with self.assertRaisesRegex(ValueError, "Missing or unsafe"):
+                verifier.materialize_train_input(corpus, config, receipt, target, expected_config_path=missing)
+            self.assertFalse(target.exists())
+
 if __name__ == "__main__":
     unittest.main()
