@@ -101,3 +101,7 @@ O controle anterior verificava `.is_symlink()` antes de `open()`, permitindo uma
 ## Proteção equivalente no lock de publicação — 15/11/2026
 
 Após o endurecimento do lock PREPARE, a publicação atômica ainda usava `open(lock_path, "a+b")` após verificação de symlink separada. O commit `0bd7feb709d3c1411d63362fe16ca7f9f33fc049` aplica `os.open(O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)` e `fstat` para exigir inode regular também em `.publish.lock`; `f881aedd923c77dc7d0be6d93cbfabbf4f415813` adiciona teste de FIFO que deve falhar antes da exposição do snapshot. Objetivo: eliminar a mesma janela de troca do componente final do lock e evitar bloqueio em FIFO. **CI do HEAD com estes commits pendente**. Não constitui lease distribuído, durabilidade física, nem autorização para TRAIN/TEST ou merge. Complementa GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115 sem decisão nova do PO.
+
+## Teste complementar de symlink no lock de publicação — 15/11/2026
+
+Commit `6fdb7a9bbc15c46e2e859254afe2cfc9e69c866b`: cenário negativo cria `.publish.lock` como symlink para arquivo externo e exige falha fechada, preservação dos bytes externos e ausência de snapshot publicado. Complementa o teste de FIFO do commit `f881aedd`. Evidência da CI **anterior**, no commit `f62847f3`: workflow de contrato [#43780348371](https://github.com/lucianox777/Jornada/actions/runs/43780348371) **SUCCESS**. A CI do commit novo ainda não está confirmada. Sem escolha de backend, sem mudança de decisão do PO e sem uso do TEST científico.
