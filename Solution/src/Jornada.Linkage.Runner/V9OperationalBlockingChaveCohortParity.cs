@@ -12,7 +12,9 @@ namespace Jornada.Linkage.Runner;
 /// BlockingProjectionCandidateQueryBuilder against identidade.blocking_chave.
 /// Caller is responsible for separately seeding only diagnostic references in
 /// JornadaHarness and for the independently built physical SQL graph.
-/// This does NOT certify real Gold reference semantics or production publication.
+/// Verifies the actual Gold reference rows and their names/dates against the frozen
+/// Silver universe before SQL batch persistence. This does NOT certify
+/// production Gold lifecycle or scientific TEST 100k.
 /// </summary>
 public static class V9OperationalBlockingChaveCohortParity
 {
@@ -20,6 +22,7 @@ public static class V9OperationalBlockingChaveCohortParity
         int DirectedSqlEdges,
         int UndirectedSqlEdges,
         string CanonicalEdgesSha256,
+        int GoldReferenceRows,
         bool ProductionGoldCertified = false);
 
     public static async Task<Receipt> VerifyAsync(
@@ -114,6 +117,40 @@ public static class V9OperationalBlockingChaveCohortParity
             throw new InvalidDataException(
                 "Fingerprint, cobertura ou valores do manifesto blocking_chave V9 divergiram.");
 
+        // A valid blocking key alone must never prove an operational match:
+        // its Gold reference may have changed after keys were materialized.
+        // Require exactly one live Gold reference for EVERY frozen observation,
+        // with the same names and birth date. Any stale/missing/extra Gold row
+        // is rejected BEFORE the first linkage_resultado batch is persisted.
+        var goldCount = 0;
+        await using (var gold = new SqlCommand("""
+            SELECT pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,
+                   estado_identidade
+              FROM gold.pessoa ORDER BY pessoa_uuid;
+            """, connection) { CommandTimeout = 120 })
+        {
+            var found = new HashSet<Guid>();
+            await using var reader = await gold.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var uuid = reader.GetGuid(0);
+                if (!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)
+                    || !reader.IsDBNull(1) || reader.GetString(5) != "REFERENCIA")
+                    throw new InvalidDataException(
+                        "Gold V9 contém UUID externo, duplicado, CPF ou referência inválida.");
+                var frozen = frozenRows[candidate.Index - 1].Observation;
+                if ((reader.IsDBNull(2) ? null : reader.GetString(2)) != frozen.NomeCompleto
+                    || (reader.IsDBNull(3) ? (DateOnly?)null
+                        : DateOnly.FromDateTime(reader.GetDateTime(3))) != frozen.DataNascimento
+                    || (reader.IsDBNull(4) ? null : reader.GetString(4)) != frozen.NomeMae)
+                    throw new InvalidDataException(
+                        "Gold V9 divergiu do conteúdo Silver congelado; bloquear scoring com índice obsoleto.");
+                goldCount++;
+            }
+        }
+        if (goldCount != frozenRows.Count)
+            throw new InvalidDataException("Manifesto Gold V9 incompleto para coorte congelada.");
+
         // The actual production INTERSECT/UNION query is executed for EVERY
         // source, in both directions. Inferred reverse edges are forbidden.
         var directions = new Dictionary<(int A, int B), byte>();
@@ -122,9 +159,14 @@ public static class V9OperationalBlockingChaveCohortParity
             ct.ThrowIfCancellationRequested();
             await using var cmd = connection.CreateCommand();
             cmd.CommandTimeout = 120;
-            cmd.CommandText = planner.BuildCandidateUuidQuery(cmd,
+            var candidateQuery = planner.BuildCandidateUuidQuery(cmd,
                 frozenRows[i].Observation, planner.ProjectionSchemaVersion,
                 planner.ProjectionFingerprintSha256);
+            // Same production-shaped candidate-to-Gold read used by the
+            // Runner; raw blocking UUID equality alone is not sufficient.
+            cmd.CommandText = "SELECT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae " +
+                "FROM (" + candidateQuery + ") c JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid " +
+                "WHERE g.estado_identidade=N'REFERENCIA' ORDER BY g.pessoa_uuid;";
             var fromSource = new HashSet<Guid>();
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -135,6 +177,12 @@ public static class V9OperationalBlockingChaveCohortParity
                 if (!byUuid.TryGetValue(candidateUuid, out var candidate))
                     throw new InvalidDataException(
                         "Consulta produtiva V9 alcançou UUID externo à coorte diagnóstica.");
+                var goldObservation = frozenRows[candidate.Index - 1].Observation;
+                if ((reader.IsDBNull(1) ? null : reader.GetString(1)) != goldObservation.NomeCompleto
+                    || (reader.IsDBNull(2) ? (DateOnly?)null
+                        : DateOnly.FromDateTime(reader.GetDateTime(2))) != goldObservation.DataNascimento
+                    || (reader.IsDBNull(3) ? null : reader.GetString(3)) != goldObservation.NomeMae)
+                    throw new InvalidDataException("Consulta candidata SQL retornou conteúdo Gold adulterado.");
                 if (candidate.Index == i + 1
                     || string.Equals(candidate.Manager,
                         managers[frozenRows[i].PessoaObservacaoId], StringComparison.Ordinal))
@@ -162,7 +210,8 @@ public static class V9OperationalBlockingChaveCohortParity
             .Select(x => $"{x.A}:{x.B}\n"));
         var digest = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
-        return new(directions.Count * 2, directions.Count, digest, ProductionGoldCertified: false);
+        return new(directions.Count * 2, directions.Count, digest, goldCount,
+            ProductionGoldCertified: false);
     }
 
     public static Guid DiagnosticUuid(int observationIndex)
