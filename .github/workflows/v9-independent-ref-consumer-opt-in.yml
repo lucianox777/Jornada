@@ -1,0 +1,64 @@
+name: V9 independent persistent REF 100k consumer (owner opt-in)
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact 40-character feature HEAD containing the persistent REF"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify-independent-consumer:
+    if: ${{ github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact experimental REF commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit owner, immutable feature HEAD and distinct run
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git fetch --no-tags origin refs/heads/feature/v9-persistent-synthetic-corpus-20261115
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_RUN_ID" != "43797713311"
+          test "$GITHUB_RUN_ID" != "43789530462"
+      - name: Verify committed physical REF and prepare independent TRAIN input
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root=data/reference/v9-synthetic-corpus-100000
+          test -f "$root/corpus-seed42.zip"
+          test -f "$root/manifest.json"
+          python3 scripts/v9-corpus-ref-zip.py verify --zip "$root/corpus-seed42.zip" --manifest "$root/manifest.json"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('data/reference/v9-synthetic-corpus-100000/manifest.json').read_text())
+          assert m['zip_sha256']=='d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d'
+          assert m['zip_size']==7697354
+          assert set(m['files'])=={'pessoas_verdade.csv','observacoes.csv','gabarito.json','generation-manifest.json'}
+          PY
+          python3 scripts/v9-corpus-ref-zip.py unpack --zip "$root/corpus-seed42.zip" --manifest "$root/manifest.json" --destination .local/v9-independent-train-input
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('.local/v9-independent-train-input')
+          m=json.loads(Path('data/reference/v9-synthetic-corpus-100000/manifest.json').read_text())
+          for name,meta in m['files'].items():
+              b=(p/name).read_bytes()
+              assert len(b)==meta['size'] and hashlib.sha256(b).hexdigest()==meta['sha256']
+          print('V9_INDEPENDENT_PERSISTENT_REF_100K_CONSUMER_PASS')
+          print('V9_TRAIN_INPUT_DIRECTORY='+str(p.resolve()))
+          print('V9_SCIENTIFIC_TRAIN_NOT_EXECUTED')
+          PY
