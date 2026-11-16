@@ -56,8 +56,11 @@ def materialize_train_input(corpus: Path, config_path: Path, receipt_path: Path,
         raise ValueError("TRAIN expected generation fingerprint mismatch")
     if destination.exists() or destination.is_symlink():
         raise ValueError("TRAIN destination must be absent")
-    if destination.parent.is_symlink():
-        raise ValueError("Unsafe TRAIN destination parent")
+    # Reject symlink ancestors, not just the immediate parent. Otherwise an
+    # attacker-controlled intermediate directory can redirect the materialization.
+    for ancestor in destination.parents:
+        if ancestor.is_symlink():
+            raise ValueError("Unsafe TRAIN destination ancestor")
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".v9-train-admit-", dir=destination.parent))
     try:
