@@ -1,6 +1,6 @@
 > **GOV-V9-SQL-INDICE-ASSINATURAS-APOS-BULK-20261116 — APROVADA PELO PO; IMPLEMENTAÇÃO EM PR, NÃO INTEGRADA:** criar `IX_v9_cal_sig` depois da inserção integral de assinaturas por `SqlBulkCopy`, preservando a mesma definição, o auto-JOIN, o número de replays completos, a definição do P95 e o isolamento TEST. O ganho é hipótese a medir; não atribuir causalidade à REF e não alterar o TRAIN ativo #43908715448. [Decisão, impacto e evidência pendente](Decisao_GOV_V9_SQL_Indice_Assinaturas_Apos_Bulk_20261116.md). GOV-DOC-01.
 
-> **GOV-V9-TEST-ORACULO-DECISAO-20261116 — PROPOSTA EM PR, NÃO VIGENTE:** tabela-verdade independente para limiar, margem em log-odds, guardas de conflito e conjunto vazio com abstenção; não certifica TF4 scoring ou SQL. Ver decisão TEST/RunAsync e issue #1584.
+> **GOV-V9-TEST-ORACULO-DECISAO-20261116 — INTEGRADO NA MASTER PR #1606:** tabela-verdade independente para limiar, margem em log-odds, guardas de conflito e conjunto vazio com abstenção; não certifica TF4 scoring ou SQL. Ver decisão TEST/RunAsync e issue #1584.
 
 > **GOV-V9-TEST-ORACULO-AGRUPAMENTO-20261116 — INTEGRADO NA MASTER PR #1603:** testar agrupamento TEST com oráculo de partições independente em 2.187 cenários (729 grafos de 4 observações × 3 limites), incluindo arestas ausentes e assimetria de scores. Não certifica TF4 score, abstenção, RunAsync físico ou TEST 100k. [Contexto](Decisao_GOV_V9_TEST_Paridade_Gold_Candidatos_RunAsync_20261116.md), issue #1584. GOV-DOC-01.
 
