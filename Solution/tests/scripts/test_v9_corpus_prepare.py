@@ -34,6 +34,19 @@ class CorpusPrepareTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare.handoff(store, config, root / "second-train" / "corpus")
 
+    def test_handoff_requires_preparation_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            prepare.snapshot.publish(store, config, source)
+            with self.assertRaisesRegex(ValueError, "preparation lock"):
+                prepare.handoff(store, config, root / "consumer")
+
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
