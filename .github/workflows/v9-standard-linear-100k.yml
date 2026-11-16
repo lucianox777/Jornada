@@ -65,6 +65,7 @@ jobs:
       actions: read
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
       DOTNET_ENVIRONMENT: DEV
       ASPNETCORE_ENVIRONMENT: DEV
       JORNADA_RUNTIME_MODE: DEV
@@ -108,7 +109,7 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root/prepare-transfer"
-          tar -czf "$root/prepare-transfer/train-inputs.tar.gz" -C "$root" people-100k bound base-bound
+          python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --out "$root/prepare-transfer/train-inputs.tar.gz"
           printf '%s' "$EXACT_SHA" > "$root/prepare-transfer/code-sha.txt"
           printf '%s' "$GITHUB_RUN_ID" > "$root/prepare-transfer/run-id.txt"
           (cd "$root/prepare-transfer" && sha256sum train-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
@@ -125,8 +126,7 @@ jobs:
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
   physical-100k:
     needs: [prepare-100k]
-    # TRAIN can start without TEST preparation, but cannot ignore a failed
-    # requested seal. With TEST sealed, TRAIN still has no decryption key.
+    # PREPARE is mandatory. TEST remains blocked by ADMISSION until parity.
     if: ${{ needs.prepare-100k.result == 'success' }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
@@ -203,11 +203,8 @@ jobs:
           dotnet-version: "10.0.113"
           cache: true
           cache-dependency-path: "Solution/**/packages.lock.json"
-      - name: Build existing CSharp V9 calibrator and generator unchanged
-        run: |
-          set -euo pipefail
-          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
-          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Build existing CSharp V9 calibrator (synthetic generation already completed in PREPARE)
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
       - name: Download prepared synthetic TRAIN and immutable TF4 plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
@@ -222,10 +219,11 @@ jobs:
           test "$(cat "$transfer/code-sha.txt")" = "$EXACT_SHA"
           test "$(cat "$transfer/run-id.txt")" = "$GITHUB_RUN_ID"
           mkdir -p "$root/people-100k" "$root/bound" "$root/base-bound"
-          tar -xzf "$transfer/train-inputs.tar.gz" -C "$root" --no-same-owner --no-same-permissions
+          python3 scripts/v9-standard-prepare-handoff.py unpack --root "$root" --archive "$transfer/train-inputs.tar.gz"
           test -s "$root/people-100k/observacoes.csv"
           test -s "$root/bound/plan.json"
           test -s "$root/bound/binding-receipt.json"
+          python3 -m unittest discover -s tests/scripts -p test_v9_standard_prepare_handoff.py -v
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
       - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
