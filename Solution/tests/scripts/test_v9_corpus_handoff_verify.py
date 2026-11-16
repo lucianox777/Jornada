@@ -24,6 +24,8 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             (source / file).write_text("synthetic-training-fixture-" + file, encoding="utf-8")
         config = {"seed": 42, "people": 100, "error_profile": "clean"}
         prepared = snapshot.publish(root / "store", config, source)
+        # This fixture publishes directly; normal PREPARE creates the lock.
+        (root / "store" / ".prepare.lock").touch(mode=0o600)
         dest = root / "other-runner" / "train-handoff"
         result = prepare.handoff(root / "store", config, dest)
         self.assertEqual(result["status"], "HANDOFF_VERIFIED")
