@@ -46,6 +46,24 @@ class RefZipTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.inspect(self.archive, self.manifest)
 
+    def test_verified_unpack_and_no_overwrite(self):
+        module.pack(self.source, self.archive, self.manifest)
+        dest = self.root / "train"
+        module.unpack(self.archive, self.manifest, dest)
+        for name in module.REQUIRED:
+            self.assertEqual((dest / name).read_bytes(), (self.source / name).read_bytes())
+        with self.assertRaises(ValueError):
+            module.unpack(self.archive, self.manifest, dest)
+
+    def test_unpack_tampered_fails_without_destination(self):
+        module.pack(self.source, self.archive, self.manifest)
+        with self.archive.open("ab") as f:
+            f.write(b"tamper")
+        dest = self.root / "train"
+        with self.assertRaises(ValueError):
+            module.unpack(self.archive, self.manifest, dest)
+        self.assertFalse(dest.exists())
+
     def test_missing_source_fails(self):
         (self.source / module.REQUIRED[0]).unlink()
         with self.assertRaises(ValueError):
