@@ -10,25 +10,29 @@ import json
 from pathlib import Path
 
 
-def audit(first: dict, second: dict) -> dict:
+def validate_observation(receipt: dict) -> None:
     required = ("repository", "run_id", "run_attempt", "fingerprint", "files", "store_identity")
-    for receipt in (first, second):
-        if not isinstance(receipt, dict) or receipt.get("schema") != "v9-ref-cross-run-observation-v1":
-            raise ValueError("Invalid REF observation schema")
-        if any(key not in receipt for key in required):
-            raise ValueError("Incomplete REF observation")
-        if type(receipt["run_id"]) is not int or receipt["run_id"] <= 0:
-            raise ValueError("Invalid run ID")
-        if type(receipt["run_attempt"]) is not int or receipt["run_attempt"] != 1:
-            raise ValueError("Rerun is not independent evidence")
-        if not isinstance(receipt["repository"], str) or not receipt["repository"]:
-            raise ValueError("Missing repository")
-        if not isinstance(receipt["files"], dict) or not receipt["files"]:
-            raise ValueError("Missing physical file hashes")
-        if not isinstance(receipt["store_identity"], str) or not receipt["store_identity"]:
-            raise ValueError("Missing external store identity")
-        if not isinstance(receipt["fingerprint"], str) or len(receipt["fingerprint"]) != 64 or any(ch not in "0123456789abcdef" for ch in receipt["fingerprint"]):
-            raise ValueError("Invalid fingerprint")
+    if not isinstance(receipt, dict) or receipt.get("schema") != "v9-ref-cross-run-observation-v1":
+        raise ValueError("Invalid REF observation schema")
+    if any(key not in receipt for key in required):
+        raise ValueError("Incomplete REF observation")
+    if type(receipt["run_id"]) is not int or receipt["run_id"] <= 0:
+        raise ValueError("Invalid run ID")
+    if type(receipt["run_attempt"]) is not int or receipt["run_attempt"] != 1:
+        raise ValueError("Rerun is not independent evidence")
+    if not isinstance(receipt["repository"], str) or not receipt["repository"]:
+        raise ValueError("Missing repository")
+    if not isinstance(receipt["files"], dict) or not receipt["files"]:
+        raise ValueError("Missing physical file hashes")
+    if not isinstance(receipt["store_identity"], str) or not receipt["store_identity"]:
+        raise ValueError("Missing external store identity")
+    if not isinstance(receipt["fingerprint"], str) or len(receipt["fingerprint"]) != 64 or any(ch not in "0123456789abcdef" for ch in receipt["fingerprint"]):
+        raise ValueError("Invalid fingerprint")
+
+
+def audit(first: dict, second: dict) -> dict:
+    validate_observation(first)
+    validate_observation(second)
     if first["run_id"] == second["run_id"]:
         raise ValueError("Evidence must originate in distinct workflow runs")
     for key in ("repository", "fingerprint", "files", "store_identity"):
@@ -60,7 +64,7 @@ def observe(corpus: Path, config_path: Path, *, repository: str, run_id: int,
                    "repository": repository, "run_id": run_id,
                    "run_attempt": run_attempt, "fingerprint": physical["fingerprint"],
                    "files": physical["files"], "store_identity": store_identity}
-    audit(observation, {**observation, "run_id": run_id + 1})
+    validate_observation(observation)
     return observation
 
 def main():
