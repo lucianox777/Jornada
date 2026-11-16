@@ -176,4 +176,22 @@ jobs:
             --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
             --train-destination .local/v9-handoff-received/verified-train-input \
             --expected-fingerprint "$expected_fingerprint"
-          echo "V9_CORPUS_TRANSFER_PROBE_ONLY: V9_CORPUS_TRAIN_INPUT_ADMITTED_ONLY; no calibration, no independent TEST"
+          # Prove that the scientific TRAIN planner can bind to the exact
+          # verified corpus directory. This does NOT execute 324 hypotheses.
+          python3 scripts/v9-j-download-pinned-artifact.py \
+            --artifact-id 13654549483 \
+            --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7 \
+            --output .local/v9-handoff-received/historical-official.zip
+          mkdir -p .local/v9-handoff-received/plan-bound
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip .local/v9-handoff-received/historical-official.zip \
+            --corpus-root .local/v9-handoff-received/verified-train-input \
+            --plan .local/v9-handoff-received/plan-bound/base-plan.json \
+            --receipt .local/v9-handoff-received/plan-bound/base-receipt.json \
+            --parallelism auto
+          python3 scripts/v9-v3-four-name-100k-plan.py \
+            --base-plan .local/v9-handoff-received/plan-bound/base-plan.json \
+            --base-receipt .local/v9-handoff-received/plan-bound/base-receipt.json \
+            --plan .local/v9-handoff-received/plan-bound/v3-plan.json \
+            --receipt .local/v9-handoff-received/plan-bound/v3-receipt.json
+          echo "V9_CORPUS_PLAN_BINDING_PROBE_ONLY: verified PREPARE corpus bound to V3 TRAIN plan; no physical calibration or TEST"
