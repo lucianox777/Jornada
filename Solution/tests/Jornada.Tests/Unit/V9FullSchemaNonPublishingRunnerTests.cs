@@ -363,6 +363,34 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             }
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
 
+            // Negative coverage: one Gold reference disappears from the
+            // eligible reference set while its blocking keys remain intact.
+            // Even if the two positive candidate pairs still exist, a partial
+            // Gold universe MUST NOT be accepted or silently truncated.
+            var missingGoldUuid = V9OperationalBlockingChaveCohortParity.DiagnosticUuid(200);
+            await using (var removeReference = new SqlCommand("""
+                UPDATE gold.pessoa SET estado_identidade=N'INDEFINIDA'
+                 WHERE pessoa_uuid=@id;
+                """, connection))
+            {
+                removeReference.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = missingGoldUuid;
+                Assert.That(await removeReference.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            var missingReferenceScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BuildRunner(missingReferenceScorer).RunAsync(Request(), CancellationToken.None)));
+            Assert.That(missingReferenceScorer.BlockingChaveParityEvidence, Is.Null);
+            await using (var restoreReference = new SqlCommand("""
+                UPDATE gold.pessoa SET estado_identidade=N'REFERENCIA'
+                 WHERE pessoa_uuid=@id;
+                """, connection))
+            {
+                restoreReference.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = missingGoldUuid;
+                Assert.That(await restoreReference.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
+
             // Corrupt one physically persisted projection fingerprint. The next
             // grouped RunAsync must refuse the stale/tampered manifest BEFORE
             // persisting its first SQL result. Never silently fall back to
@@ -383,7 +411,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await BuildRunner(tamperedScorer).RunAsync(Request(), CancellationToken.None)));
             Assert.That(tamperedScorer.BlockingChaveParityEvidence, Is.Null);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
-            TestContext.WriteLine("V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full Gold/blocking manifests; stale Gold + projection tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked");
+            TestContext.WriteLine("V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full Gold/blocking manifests; stale Gold + missing reference + projection tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked");
         }
         finally
         {
