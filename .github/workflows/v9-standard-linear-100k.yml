@@ -1,0 +1,924 @@
+name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION optional TEST
+
+# STRICTLY MANUAL. Standard synthetic TRAIN-only chain is enabled.
+# Scientific TEST remains fail-closed until sealed independent preparation
+# and full production RunAsync parity are integrated and certified.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact master commit SHA to run the 100k V9 technical TRAIN
+        required: true
+        type: string
+      security_preflight_approved:
+        description: Confirm one-use SQL, historical credentials not reused, private runner
+        required: true
+        type: boolean
+      test_required:
+        description: "Execute scientific TEST after VALIDATION (currently fail-closed pending parity)"
+        required: true
+        default: false
+        type: boolean
+      disable_python_sql_budget:
+        description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
+        required: true
+        default: true
+        type: boolean
+
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-standard-linear-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    name: "V9 ADMISSION: owner, SHA and preflight"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail closed before PREPARE
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+          APPROVED: ${{ inputs.security_preflight_approved }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$APPROVED" = "true"
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: scientific TEST remains blocked; no TRAIN or TEST starts."
+            exit 1
+          fi
+  prepare-100k:
+    name: "V9 PREPARE: synthetic TRAIN 100k and frozen TF4 plan"
+    needs: admission
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Verify admission binding
+        run: |
+          set -euo pipefail
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build unchanged synthetic corpus generator
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
+          mkdir -p "$root/bound" "$root/base-bound"
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip "$root/historical-official.zip" \
+            --corpus-root "$root/people-100k" \
+            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
+          python3 scripts/v9-v3-four-name-100k-plan.py \
+            --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
+            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+      - name: Package and checksum immutable PREPARE transfer
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          mkdir -p "$root/prepare-transfer"
+          python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --out "$root/prepare-transfer/train-inputs.tar.gz"
+          printf '%s' "$EXACT_SHA" > "$root/prepare-transfer/code-sha.txt"
+          printf '%s' "$GITHUB_RUN_ID" > "$root/prepare-transfer/run-id.txt"
+          (cd "$root/prepare-transfer" && sha256sum train-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
+      - name: Upload prepared synthetic TRAIN only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-standard-train-prepared-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: error
+          path: Solution/.local/v9-100k-technical/prepare-transfer/
+      - name: Erase transient PREPARE plaintext after upload
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
+  physical-100k:
+    needs: [prepare-100k]
+    # PREPARE is mandatory. TEST remains blocked by ADMISSION until parity.
+    if: ${{ needs.prepare-100k.result == 'success' }}
+    name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
+    # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
+    # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
+    # Strict manual owner-only dispatch still requires cleared security preflight.
+    runs-on: ubuntu-24.04
+
+    env:
+      # Diagnostic campaign on synthetic 100k data. Full exception traces are enabled.
+      # Do not pass production credentials or real personal data to this workflow.
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      # Native hosted-runner job budget, observation only; NOT a local timeout.
+      V9_PHYSICAL_PROGRESS_LOG: '1'
+      V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
+      # Default: SQL bootstrap uses native memory without Python sizing; false opts in to sizing.
+      # New standalone TRAIN plan; original 24-arm plan and CSharp algorithm unchanged.
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      # First visible job step, before checkout/build; does not imply calibration has started.
+      - name: Announce V9 workflow start
+        # Before checkout, Solution/ does not exist yet.
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Earliest in-job UTC sample; GitHub runner's exact timer can start earlier.
+          echo '[V9 WORKFLOW START] 100k calibration workflow started; preflight and build pending'
+          echo "[V9 WORKFLOW START] run=${GITHUB_RUN_ID} sha=${GITHUB_SHA} ref=${GITHUB_REF}"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Assert and report safe diagnostic environment
+        run: |
+          set -euo pipefail
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$ASPNETCORE_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          echo "V9_RUNTIME_ENVIRONMENT=DEV"
+          echo "V9_EXCEPTION_DIAGNOSTICS=FULL_EXCEPTION"
+      - name: Fail-closed SHA, environment and resources before physics
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "${{ needs.prepare-100k.result }}" = "success"
+          python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k_handoff.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k_preaudit.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_three_job_timeouts.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_e2e_closeout.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_validated_operational_handoff.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_existing_database_option.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_prepared_sealed_test.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_test_global_one_use.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_test_production_model_format.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_operational_converter.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
+          python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
+          mkdir -p "$PWD/.local/v9-100k-technical"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build existing CSharp V9 calibrator (synthetic generation already completed in PREPARE)
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download prepared synthetic TRAIN and immutable TF4 plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-standard-train-prepared-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-100k-technical/prepare-transfer
+      - name: Verify PREPARE transfer and restore immutable TRAIN inputs
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          transfer="$root/prepare-transfer"
+          (cd "$transfer" && sha256sum -c SHA256SUMS)
+          test "$(cat "$transfer/code-sha.txt")" = "$EXACT_SHA"
+          test "$(cat "$transfer/run-id.txt")" = "$GITHUB_RUN_ID"
+          mkdir -p "$root/people-100k" "$root/bound" "$root/base-bound"
+          python3 scripts/v9-standard-prepare-handoff.py unpack --root "$root" --archive "$transfer/train-inputs.tar.gz"
+          test -s "$root/people-100k/observacoes.csv"
+          test -s "$root/bound/plan.json"
+          test -s "$root/bound/binding-receipt.json"
+          python3 -m unittest discover -s tests/scripts -p test_v9_standard_prepare_handoff.py -v
+      - name: Start masked disposable SQL Server
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-100k-load-frozen-ibge.sh "$root/bound/plan.json" "$root/reference-ibge"
+      - name: Recheck physical RAM/disk before 324 exploratory fits
+        if: ${{ inputs.disable_python_sql_budget != true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-100k-execution-resource-budget.py --stage before-fit \
+            --exact-sha "$EXACT_SHA" --resource-root "$PWD" \
+            --previous "$root/capacity-before-sql.json" \
+            --output "$root/bound/capacity-before-calibration.json"
+      - name: Guard memory/disk before 324 exploratory fits
+        if: ${{ inputs.disable_python_sql_budget == true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-100k-sql-budget-optout-guard.sh before-fit "$root/bound/capacity-before-calibration.json"
+      - name: Prove operational parallelism AUTO is bound before CSharp fitting
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 - "$root/bound/plan.json" "$root/bound/binding-receipt.json" <<'PY'
+          import json,sys
+          plan=json.load(open(sys.argv[1],encoding="utf-8"))
+          receipt=json.load(open(sys.argv[2],encoding="utf-8"))
+          assert plan["Calibration"]["MaximumParallelRuleSets"]==0, "AUTO_0_REQUIRED"
+          assert receipt["runtimeParallelismMode"]=="AUTO_0", "AUTO_RECEIPT_REQUIRED"
+          assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
+          print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
+          PY
+          # One aggregate, sanitized snapshot of the actual hosted-runner
+          # capacity. This is informational only, no resource admission change.
+          # A native runner can have different effective CPU/cgroup limits
+          # even with the same SHA and AUTO_0 scientific plan.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          def safe_cgroup(path):
+              try:
+                  value = Path(path).read_text(encoding="ascii").strip()
+              except (OSError, UnicodeError):
+                  return "UNKNOWN"
+              return value.replace(" ", "_") if re.fullmatch(r"[0-9a-zA-Z _-]{1,64}", value) else "UNKNOWN"
+
+          print("V9_TRAIN_RUNNER_CAPACITY "
+                f"os_cpu_count={os.cpu_count() or 0} "
+                f"affinity_cpu_count={len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else 0} "
+                f"cgroup_cpu_max={safe_cgroup('/sys/fs/cgroup/cpu.max')} "
+                f"cgroup_memory_max={safe_cgroup('/sys/fs/cgroup/memory.max')} "
+                f"cgroup_memory_current={safe_cgroup('/sys/fs/cgroup/memory.current')}")
+          PY
+      # No local step deadline: GitHub-hosted job's native time budget governs.
+      # Independent audit must never share this job clock.
+      - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-100k-physical-memory-evidence.py \
+            --sql-container "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$root/results/physical-memory-evidence.json" -- \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
+      - name: Prepare byte-verified TRAIN evidence for the separate AUDIT job
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-preaudit.py prepare \
+            --source-root "$root" --handoff "$root/preaudit-transfer" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload immutable preaudit evidence, never raw TRAIN/TEST data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-calibration-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/preaudit-transfer/
+      - name: Upload TRAIN diagnostic evidence, explicitly not audited
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
+        with:
+          name: v9-v3-tf4-physical-train-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/capacity-before-sql.json
+            Solution/.local/v9-100k-technical/bound/capacity-before-calibration.json
+            Solution/.local/v9-100k-technical/bound/plan.json
+            Solution/.local/v9-100k-technical/bound/binding-receipt.json
+            Solution/.local/v9-100k-technical/results/physical-memory-evidence.json
+            # Atomic partial read-only resource evidence survives 6-hour cancellation.
+            Solution/.local/v9-100k-technical/results/physical-resource-checkpoint.json
+            Solution/.local/v9-100k-technical/results/interrupted.json
+            Solution/.local/v9-100k-technical/results/startup-progress.jsonl
+            Solution/.local/v9-100k-technical/results/batch-progress.jsonl
+            Solution/.local/v9-100k-technical/results/memory-progress.jsonl
+            Solution/.local/v9-100k-technical/results/mu-statistical-analysis.json
+            Solution/.local/v9-100k-technical/results/runtime-diagnostics.json
+            Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
+            Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
+            Solution/.local/v9-100k-technical/results/selection-reference.json
+            Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
+            # Frozen envelope/snapshots are transferred separately for AUDIT;
+            # never include them in diagnostic-only artifact uploads.
+      - name: Dispose temporary TRAIN bases after mandatory stages
+        if: always()
+        # Cleanup must also run when checkout never happened.
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
+          # TEST is disabled by the fail-closed admission above. Preserve aggregate evidence.
+          rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-ibge" "$root/base-bound" "$root/historical-official.zip"
+      - name: Remove disposable SQL even after failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  audit-100k:
+    needs: physical-100k
+    # Skip of optional TEST preparation must never suppress a successful audit.
+    # Fail closed on failed/cancelled TRAIN and on unapproved dispatch.
+    if: ${{ always() && !cancelled() && needs.physical-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 AUDIT independent: 324 frozen TRAIN hypotheses"
+    runs-on: ubuntu-24.04
+    outputs:
+      has_finalists: ${{ steps.finalists.outputs.has_finalists }}
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed AUDIT SHA, owner, run-attempt and TRAIN result
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ needs.physical-100k.result }}" = "success"
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+      - name: Download physical evidence and frozen snapshots, not a scientific PASS
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-calibration-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-100k-technical/preaudit
+      - name: Verify all preaudit hashes, cardinalities, origin and exact allowlist
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-preaudit.py verify \
+            --handoff "$root/preaudit" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+          mkdir -p "$root/bound" "$root/results"
+          cp "$root/preaudit/plan.json" "$root/bound/plan.json"
+          cp "$root/preaudit/binding-receipt.json" "$root/bound/binding-receipt.json"
+          cp "$root/preaudit/selection-reference.json" "$root/results/selection-reference.json"
+      - name: Independently audit all 324 V3-only TF4 fits, TP/FP/FN, FDR and replay P95
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-audit.py \
+            --plan "$root/preaudit/plan.json" --receipt "$root/preaudit/binding-receipt.json" \
+            --analysis "$root/preaudit/mu-statistical-analysis.json" \
+            --runtime "$root/preaudit/runtime-diagnostics.json" \
+            --selection "$root/preaudit/selection-reference.json" \
+            --out "$root/bound/technical-audit.json" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Stage only frozen finalist models and verified selection envelope
+        id: finalists
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib,shutil
+          root=pathlib.Path(".local/v9-100k-technical/results")
+          receipt=json.loads((root/"selection-reference.json").read_text())
+          digest=receipt["envelopeSha256"]
+          ids=receipt["FinalistSnapshotShas"]
+          assert 0 <= len(ids) <= 3 and len(set(ids))==len(ids)
+          stage=root/"frozen-finalists"
+          stage.mkdir(exist_ok=False)
+          for name in [digest+".selection.json", *[i+".fitted.json" for i in ids]]:
+              src=pathlib.Path(".local/v9-100k-technical/preaudit")/name
+              assert src.is_file() and not src.is_symlink(), "Missing frozen finalist: "+name
+              # The selection envelope may be larger than 2 GiB: stream hashes.
+              with src.open("rb") as stream:
+                  assert hashlib.file_digest(stream,"sha256").hexdigest()==name.split(".")[0], "SHA mismatch: "+name
+              shutil.copyfile(src,stage/name)
+          if not ids:
+              (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\n")
+          with open(__import__("os").environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("has_finalists="+("true" if ids else "false")+"\n")
+          print("Verified frozen finalists:",len(ids))
+          PY
+      - name: Fail incomplete campaign when no finalists are eligible for mandatory VALIDATION
+        if: ${{ success() && steps.finalists.outputs.has_finalists != 'true' }}
+        run: |
+          echo "::error::V9_MANDATORY_VALIDATION_NO_FINALISTS: TRAIN/AUDIT complete, but no eligible finalist exists; VALIDATION cannot run. Campaign is INCOMPLETE, not SUCCESS."
+          exit 1
+      - name: Prepare audited immutable finalist handoff
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-handoff.py prepare \
+            --source-root "$root" --handoff "$root/results/frozen-finalists" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload frozen finalist handoff for independent VALIDATION job
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
+        with:
+          name: v9-tf4-validation-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          # Strict allowlist in handoff.py; never stage raw TRAIN CSV or secrets.
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/results/frozen-finalists/
+      - name: Upload independent audit receipt and scientific campaign status
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-independent-audit-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/bound/technical-audit.json
+            Solution/.local/v9-100k-technical/bound/technical-audit.md
+            Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
+      - name: Dispose transferred preaudit models after AUDIT
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/preaudit" \
+            "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/results/frozen-finalists"
+
+  validation-100k:
+    needs: audit-100k
+    # TEST preparation is optional and normally skipped. GitHub's implicit
+    # success() may propagate that ancestor skip even after TRAIN succeeds.
+    # Evaluate the dependency explicitly, but never bypass TRAIN success,
+    # audited finalists, owner/preflight checks or workflow cancellation.
+    if: ${{ always() && !cancelled() && needs.audit-100k.result == 'success' && needs.audit-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 VALIDATION independent: frozen TF4 finalists"
+    runs-on: ubuntu-24.04
+    # GitHub-hosted runner owns the native job timeout, including closing steps.
+
+    env:
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed VALIDATION provenance and one-use admission
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          # Never repeat the same sealed holdout by rerunning this job/attempt.
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ needs.audit-100k.result }}" = "success"
+          test "${{ needs.audit-100k.outputs.has_finalists }}" = "true"
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build frozen V9 validator and synthetic holdout generator
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download audited frozen finalists from independent AUDIT job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 pinned
+        with:
+          name: v9-tf4-validation-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-100k-technical/handoff
+      - name: Independently verify all transferred SHA256, audit and plan before SQL or holdout
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-handoff.py verify \
+            --handoff "$root/handoff" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Start fresh masked disposable SQL Server for VALIDATION only
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Rehydrate frozen local IBGE in independent VALIDATION SQL, no 30k regeneration
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-100k-load-frozen-ibge.sh "$root/handoff/plan.json" "$root/reference-ibge"
+      - name: Mandatory fresh independent VALIDATION of frozen finalists
+
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          # Download was already checked byte-for-byte against pinned names
+          # and the successful TRAIN audit, before generating new holdout data.
+          mkdir -p "$root/validation-people"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261112001 \
+            --out "$root/validation-people" > "$root/validation-generation.log"
+          envelope="$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f)"
+          test "$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
+          export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-validate-finalists "$root/handoff/plan.json" "$envelope" \
+            "$root/validation-people/observacoes.csv" "$root/validation-results"
+          test -s "$root/validation-results/finalist-validation.json"
+          python3 - "$root/validation-results/finalist-validation.json" "$root/validation-results/validation-e2e-status.json" <<'PY'
+          import hashlib,json,pathlib,re,sys
+          source,target=map(pathlib.Path,sys.argv[1:])
+          with source.open("rb") as stream:
+              digest=hashlib.file_digest(stream,"sha256").hexdigest()
+          with source.open("r",encoding="utf-8") as stream:
+              r=json.load(stream)
+          assert r["refitted"] is False and r["testUsed"] is False and r["activated"] is False
+          assert r["certified"] is False
+          assert r["comparedConfigurations"] in (1,2,3)
+          assert len(r["measured"])==r["comparedConfigurations"]
+          assert re.fullmatch("[0-9a-f]{64}",r["selectionEnvelopeSha256"])
+          summary={
+              "schema":"V9_VALIDATION_E2E_STATUS_V1",
+              "status":r["status"],
+              "selectedValidationSnapshotSha256":r.get("selectedValidationSnapshotSha256"),
+              "selectedValidationOperationalModelFileName":r.get("selectedValidationOperationalModelFileName"),
+              "selectedValidationOperationalModelContract":r.get("selectedValidationOperationalModelContract"),
+              "selectionEnvelopeSha256":r["selectionEnvelopeSha256"],
+              "comparedConfigurations":r["comparedConfigurations"],
+              "measuredCount":len(r["measured"]),
+              "validationResultSha256":digest,
+              "refitted":False,"testUsed":False,"activated":False,"certified":False
+          }
+          with target.open("x",encoding="utf-8") as output:
+              json.dump(summary,output,sort_keys=True,indent=2)
+              output.write("\n")
+          print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
+          PY
+      - name: Verify FINAL production-side V9 JSON emitted by VALIDATION, independently of TEST
+        id: operational_file
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-tf4-validated-operational-handoff.py verify \
+            --validation "$root/validation-results/validation-e2e-status.json" \
+            --reference "$root/validation-results/selected-operational-model-reference.json" \
+            --directory "$root/validation-results/validated-operational-model" \
+            --expected-contract JORNADA_V9_OPERATIONAL_SQL_MODEL_V1
+          if test -s "$root/validation-results/selected-operational-model-reference.json"; then
+            echo "has_model=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_model=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload final VALIDATION operational JSON even when TEST is not requested
+        if: ${{ success() && steps.operational_file.outputs.has_model == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: error
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/validation-results/validated-operational-model/*.operational.json
+      - name: Upload compact E2E validation status separately from large scientific metrics
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-validation-e2e-status-${{ github.sha }}-${{ github.run_id }}
+          path: Solution/.local/v9-100k-technical/validation-results/validation-e2e-status.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload independent VALIDATION aggregate result, never the holdout corpus
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
+        with:
+          name: v9-tf4-independent-validation-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/validation-results/*.json
+      - name: Dispose all temporary VALIDATION data and transferred finalist copies
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
+          rm -rf -- "$root/validation-people" "$root/reference-ibge" "$root/handoff" "$root/validation-holdout-exposures"
+      - name: Remove VALIDATION disposable SQL even after failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  # TEST owns the corpus, protocol, SQL and metric computation.
+  # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
+  test-100k:
+    needs: [validation-100k]
+    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.validation-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 independent TEST: one frozen winner, sealed 100k"
+    runs-on: ubuntu-24.04
+
+    # Contents write is scoped ONLY to TEST to atomically reserve a unique
+    # one-use tag for this TEST seed before any decrypted data are opened.
+    # TRAIN, VALIDATION and preparation retain read-only credentials.
+    permissions:
+      contents: write
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed TEST SHA, owner and one-use run attempt
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ needs.validation-100k.result }}" = "success"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build independent physical TEST evaluator
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
+          path: Solution/.local/v9-independent-test/winner
+      - name: Download TEST's own corpus sealed before TRAIN
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-independent-test/sealed
+      - name: Verify one SHA-pinned winner and authenticated TEST ciphertext
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          python3 - "$root/winner" <<'PY'
+          import hashlib,pathlib,re,sys
+          files=list(pathlib.Path(sys.argv[1]).iterdir())
+          assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
+          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
+          with files[0].open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
+          print("ONE_SHA_PINNED_WINNER_ONLY")
+          PY
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Start brand-new disposable SQL database only for TEST
+        run: |
+          set -euo pipefail
+          bash scripts/v9-tf-start-disposable-sql.sh
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+      - name: Load versioned V9 SQL operational schema (no activation or publication)
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec -i "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
+            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+      - name: Convert the ONLY SHA-pinned VALIDATION winner to SQL before TEST exposure
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-convert-winner-operational "$model"
+          # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
+      - name: Reserve single-use TEST seed atomically before opening its own corpus
+        env:
+          TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
+          TEST_PRIVATE_KEY_B64: ${{ secrets.V9_TF4_TEST_PRIVATE_KEY_B64 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$PWD/.local/v9-independent-test"
+          test -n "$TEST_PUBLIC_CERT_B64" && test -n "$TEST_PRIVATE_KEY_B64" || {
+            echo "::error::TEST_ENCRYPTION_KEYS_NOT_CONFIGURED"
+            exit 1
+          }
+          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
+          printf '%s' "$TEST_PRIVATE_KEY_B64" | base64 -d > "$root/private.pem"
+          # Fail before consuming the one-use TEST exposure if credentials do not
+          # open the exact certificate used by the preparation job.
+          python3 - "$root/recipient.pem" "$root/private.pem" "$root/sealed/test-seal-receipt.json" <<'PY'
+          import hashlib,json,pathlib,subprocess,sys
+          cert,key,receipt=map(pathlib.Path,sys.argv[1:])
+          r=json.loads(receipt.read_text(encoding="utf-8"))
+          assert hashlib.sha256(cert.read_bytes()).hexdigest()==r["certificateSha256"]
+          expected=subprocess.run(["openssl","x509","-in",str(cert),"-pubkey","-noout"],
+                                  check=True,capture_output=True).stdout
+          actual=subprocess.run(["openssl","pkey","-in",str(key),"-pubout"],
+                                check=True,capture_output=True).stdout
+          assert expected==actual, "TEST private key does not match sealed recipient"
+          print("TEST_KEYS_MATCH_ENCRYPTED_CORPUS_RECIPIENT")
+          PY
+          # An immutable seed is a one-use scientific resource across ALL runs.
+          # Reserve a global, deterministic Git tag ATOMICALLY before exposure:
+          # GitHub returns 422 if it already exists; fail closed without opening.
+          # No rerun/re-dispatch gets a second look at the same 100k cohort.
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          exposure_ref="refs/tags/v9-tf4-test-seed-20261113001-exposed"
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \
+            -f ref="$exposure_ref" -f sha="$GITHUB_SHA" --silent >/dev/null || {
+              echo "::error::V9_TEST_EXPOSURE_ALREADY_RESERVED_OR_GITHUB_TAG_DENIED"
+              exit 1
+            }
+          echo "V9_TEST_ONE_USE_EXPOSURE_RESERVED=$exposure_ref"
+          python3 scripts/v9-tf4-sealed-test-preparation.py unseal \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
+            --certificate "$root/recipient.pem" --key "$root/private.pem" --out "$root/corpus"
+          rm -f -- "$root/private.pem" "$root/recipient.pem"
+      - name: Apply one frozen winner to TEST, no refit and no winner selection
+
+        env:
+          JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
+          JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/results
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-independent-test "$model"
+          python3 - "$root/results/independent-test.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r["configurationsEvaluated"]==1
+          assert r["trainPlanRead"] is False and r["validationResultsRead"] is False
+          assert r["refitted"] is False and r["testUsed"] is True
+          assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
+          assert r["operationalModelByteExactRoundTrip"] is True
+          assert r["validatedOperationalJsonSchema"] == "V9_FITTED_SNAPSHOT_V3"
+          assert r["sameOperationalJsonBytesAsProductionSideSqlPayload"] is True
+          assert r["validatedOperationalModelFileName"] == r["winnerSnapshotSha256"] + ".operational.json"
+          assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
+          assert r["productionRunnerFullPipelineParityCertified"] is False
+          assert r["certified"] is False and r["activated"] is False
+          print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",r["winnerSnapshotSha256"])
+          PY
+      - name: Upload only aggregate TEST result, never base, keys or truth
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: Solution/.local/v9-independent-test/results/independent-test.json
+      - name: Dispose entire TEST corpus and keys after run or failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test"
+      - name: Dispose TEST SQL even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  # External TEST uses EXISTING rows in the named database, NEVER the
+  # independent synthetic scientific TEST cohort. The SQL login must be
+  # SELECT-only and is exposed only to preflight and this opt-in runner.
+  # No TEST truth, gabarito, Gold, Serving, SQL model conversion or DB writes.
+  e2e-closeout:
+    needs: [prepare-100k, physical-100k, audit-100k, validation-100k, test-100k]
+    if: ${{ always() }}
+    name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
+      AUDIT_RESULT: ${{ needs.audit-100k.result }}
+      VALIDATION_RESULT: ${{ needs.validation-100k.result }}
+      PREPARATION_RESULT: ${{ inputs.test_required && 'failure' || 'skipped' }} # TEST stays fail-closed until sealed preparation is integrated
+      TEST_RESULT: ${{ needs.test-100k.result }}
+      EXTERNAL_PREFLIGHT_RESULT: skipped
+      EXTERNAL_TEST_RESULT: skipped
+      V9_EXTERNAL_DATABASE: ''
+      V9_TEST_REQUESTED: ${{ inputs.test_required && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # SHA pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Check immutable manual provenance for E2E reporting
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$EXACT_SHA"
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+      - name: Download independent VALIDATION result only after VALIDATION SUCCESS
+        if: ${{ always() && needs.validation-100k.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-validation-e2e-status-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/validation
+      - name: Download independent TEST result only when TEST was explicitly requested and successful
+        if: ${{ always() && inputs.test_required == true && needs.test-100k.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/test
+      - name: Fail closed on missing physical job, incomplete audit/validation or unproven TEST parity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
+            extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
+          fi
+          extra+=(--external-preflight "$EXTERNAL_PREFLIGHT_RESULT"
+                  --external-test "$EXTERNAL_TEST_RESULT")
+          python3 Solution/scripts/v9-tf4-e2e-closeout.py \
+            --physical "$PHYSICAL_RESULT" --audit "$AUDIT_RESULT" \
+            --validation "$VALIDATION_RESULT" --preparation "$PREPARATION_RESULT" \
+            --test "$TEST_RESULT" --test-requested "$V9_TEST_REQUESTED" \
+            --validation-file "$RUNNER_TEMP/v9-e2e-closeout/validation/validation-e2e-status.json" \
+            "${extra[@]}" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
+            --out "$RUNNER_TEMP/v9-e2e-closeout/e2e-status.json"
+      - name: Upload sanitized E2E completion or failure receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-e2e-closeout-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/e2e-status.json
+          if-no-files-found: warn
+          retention-days: 30
