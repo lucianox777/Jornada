@@ -161,21 +161,27 @@ public static class V9FrozenCohortSqlCandidateGraph
                 await bulk.WriteToServerAsync(table, ct);
         }
 
-        // Preflight the SQL DISTINCT result itself before transferring any
-        // edges to the client. Signature incidence counts can exceed DISTINCT
-        // counts, but neither is a substitute for a hard output bound.
-        // COUNT_BIG is evaluated by SQL over the entire frozen graph.
-        long distinctEdgeCount;
-        await using (var countQuery = new SqlCommand("""
-            SELECT COUNT_BIG(*)
-              FROM (
-                SELECT DISTINCT a.obs_id,b.obs_id
-                  FROM #v9_run_sig a
-                  JOIN #v9_run_sig b
-                    ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
-                   AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
-              ) AS candidate_edges;
+        // Materialize the exact DISTINCT candidate graph ONCE in disposable
+        // SQL tempdb. The count and subsequent ordered reader now inspect
+        // the same immutable snapshot, rather than recomputing a costly join
+        // twice (which could otherwise diverge under concurrent writes).
+        // This is a bounded small-cohort bridge, NOT 100k certification.
+        await using (var materialize = new SqlCommand("""
+            IF OBJECT_ID('tempdb..#v9_run_edges') IS NOT NULL DROP TABLE #v9_run_edges;
+            SELECT DISTINCT a.obs_id AS a,b.obs_id AS b
+              INTO #v9_run_edges
+              FROM #v9_run_sig a
+              JOIN #v9_run_sig b
+                ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
+               AND a.obs_id<b.obs_id AND a.gestor<>b.gestor;
+            CREATE UNIQUE CLUSTERED INDEX IX_v9_run_edges ON #v9_run_edges(a,b);
             """, connection) { CommandTimeout = 120 })
+            await materialize.ExecuteNonQueryAsync(ct);
+
+        long distinctEdgeCount;
+        await using (var countQuery = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM #v9_run_edges;", connection)
+            { CommandTimeout = 120 })
         {
             distinctEdgeCount = Convert.ToInt64(
                 await countQuery.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
@@ -191,12 +197,7 @@ public static class V9FrozenCohortSqlCandidateGraph
         var previousA = 0;
         var previousB = 0;
         await using (var query = new SqlCommand("""
-            SELECT DISTINCT a.obs_id,b.obs_id
-              FROM #v9_run_sig a
-              JOIN #v9_run_sig b
-                ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
-               AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
-             ORDER BY a.obs_id,b.obs_id;
+            SELECT a,b FROM #v9_run_edges ORDER BY a,b;
             """, connection) { CommandTimeout = 120 })
         {
             await using var reader = await query.ExecuteReaderAsync(ct);
