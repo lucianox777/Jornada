@@ -189,3 +189,7 @@ Commits `d2c446a4` e `4c17ea22`: o preflight de storage externo recusa explicita
 ## Tipagem estrita da evidência cross-run — 15/11/2026
 
 Commits `8ed3eb04` e `56dd7d8c`: IDs de execução na declaração de persistência exigem `int` exato positivo; `True` e `False` não são aceitos como inteiros por herança de tipo Python. Incluído teste negativo. Não equivale a verificação independente da autenticidade dos IDs ou da durabilidade do provedor; não libera merge, campanha 100k ou TEST. CI do novo HEAD deve ser conferida.
+
+## Ligação PREPARE → plano científico no probe opt-in — 15/11/2026
+
+Commits `7944fa4e` e `5ea8e5a5`: após a validação independente do snapshot no runner consumidor, o workflow manual opt-in obtém o artefato histórico oficial por ID e SHA-256 fixos e passa o diretório materializado do PREPARE ao mesmo planejador `v9-scale-100k-technical-plan.py` e ao planejador V3 `v9-v3-four-name-100k-plan.py` usados no TRAIN. O download recebe somente o token Actions de leitura no passo consumidor. Isso é **prova de binding do plano, não execução das 324 hipóteses**; não modifica o workflow científico principal, não usa TEST, não demonstra armazenamento externo durável. Execução manual opt-in não disparada; aprovação CI do commit ainda pendente. O merge permanece bloqueado pelas evidências operacionais e integração física aprovadas.
