@@ -229,3 +229,7 @@ Commits `1bd4dd07`, `eab3ab69`, `654d2c20`, `cc6ec1a0`: decisão aprovada e inde
 ## Correção da CI e bloqueio técnico de promoção produtiva — 15/11/2026
 
 Run `43785788817` identificou duas chamadas obsoletas `approved=True` nos testes após revisão da interface. Commit `9ba60ef9` removeu esses argumentos e forneceu os parâmetros de verificação física. Commits `463af1a9` e `95a144dd` exigem `--environment experimental|production` na CLI do promotor e **rejeitam `production` antes de qualquer operação**, com teste negativo. A ferramenta é exclusivamente de ciclo interno experimental; autorização manual de produção continua externa a ela, conforme decisão do PO/DT-15. Este bloqueio não implementa pipeline produtivo de aprovação nem prova REF cross-run. Nova CI pendente.
+
+## CI — correção de chamada residual (16/11/2026)
+
+O run `43785880946` falhou em **um** teste (`test_unvalidated_target_rejected_without_mutation`), ainda chamando `promote(..., approved=True)` após remoção deliberada desse argumento. Commit `1acc458c` corrige a última chamada residual e passa `store` e `generation` para a validação física; demais 51 testes desse job passaram. A CI do novo HEAD precisa confirmar a correção. Não altera produção, TEST ou os critérios científicos.
