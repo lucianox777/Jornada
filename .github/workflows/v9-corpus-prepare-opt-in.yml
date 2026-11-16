@@ -97,6 +97,17 @@ jobs:
               --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
               --error-profile clean --people 100000 --seed 42 \
               --out .local/v9-persistent/generated
+      - name: Package and measure physical 100k REF ZIP (candidate only)
+        run: |
+          set -euo pipefail
+          mkdir -p .local/v9-persistent/ref-zip-candidate
+          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-persistent/generated --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
+          python3 scripts/v9-corpus-ref-zip.py verify --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
+          bytes="$(stat -c %s .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip)"
+          echo "V9_REF_ZIP_100K_COMPRESSED_BYTES=$bytes"
+          if (( bytes > 95000000 )); then
+            echo "::warning::V9_REF_ZIP_EXCEEDS_SAFE_GIT_SIZE_THRESHOLD: PO governance decision required before versioning"
+          fi
       - if: ${{ steps.corpus-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
         with:
@@ -109,6 +120,7 @@ jobs:
             Solution/.local/v9-persistent/train-handoff/
             Solution/.local/v9-persistent/config.json
             Solution/.local/v9-persistent/prepare-receipt.json
+            Solution/.local/v9-persistent/ref-zip-candidate/
           if-no-files-found: error
           retention-days: 7
 
