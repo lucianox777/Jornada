@@ -265,3 +265,7 @@ A CI de contrato de persistência falhou com `SyntaxError` no arquivo `v9-corpus
 ## Teste físico do observador REF — 16/11/2026
 
 CI do commit `11b81dec`: contrato de persistência e testes experimentais concluídos com sucesso; workflows geral e transporte ainda em execução na consulta. Commit `a8228af2` acrescenta teste com snapshot físico e SHA calculado sobre arquivos, e verifica rejeição após adulteração de `observacoes.csv`. O teste é local e não comprova persistência entre execuções independentes nem execução científica PREPARE→TRAIN. Nova CI deve confirmar a cobertura. Merge continua sujeito aos critérios de aceite e revisão final do PO.
+
+## Separação entre validação de observação e comparação independente (16/11/2026)
+
+O commit `63c4fbe` remove a chamada que fabricava um segundo `run_id + 1` apenas para validar metadados do observador físico. A nova `validate_observation` verifica uma única observação; somente `audit` compara duas observações realmente fornecidas. O commit `b13a32f5` acrescenta teste negativo para tentativa de reexecução. Isso evita qualquer aparência de evidência de segunda execução inexistente. CI do novo HEAD ainda pendente; persistência externa e PREPARE→TRAIN científico continuam sem comprovação, sem merge.
