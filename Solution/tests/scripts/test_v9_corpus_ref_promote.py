@@ -59,7 +59,7 @@ class RefPromotionTests(unittest.TestCase):
             ]}
             path.write_text(json.dumps(initial))
             with self.assertRaisesRegex(ValueError, "validated and approved"):
-                module.promote(path, B, "seed42", approved=True)
+                module.promote(path, B, "seed42", store=store, generation=CONFIG_B)
             self.assertEqual(json.loads(path.read_text()), initial)
 
 
