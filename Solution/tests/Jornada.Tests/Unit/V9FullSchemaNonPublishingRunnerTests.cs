@@ -287,6 +287,22 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 Is.EqualTo(operational!.CanonicalEdgesSha256));
             await AssertRunRowsAsync(connection, alternate.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
             await AssertFrozenRunDecisionsAsync(connection, alternate.RunId, reference);
+            // Four real SQL pages must yield exactly the same frozen TF4
+            // decisions as one or two pages, including cross-page edges.
+            var fourPageScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            var fourPage = await BuildRunner(fourPageScorer)
+                .RunAsync(Request(batchSize: 50), CancellationToken.None);
+            Assert.That(fourPage.Status, Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
+            Assert.That(fourPage.Elegiveis, Is.EqualTo(200));
+            Assert.That(fourPage.Avaliados, Is.EqualTo(200));
+            Assert.That(fourPage.PublicadoEm, Is.Null);
+            Assert.That(fourPageScorer.SqlGraphEvidence?.CanonicalEdgesSha256,
+                Is.EqualTo(physical.CanonicalEdgesSha256));
+            Assert.That(fourPageScorer.BlockingChaveParityEvidence?.CanonicalEdgesSha256,
+                Is.EqualTo(operational!.CanonicalEdgesSha256));
+            await AssertRunRowsAsync(connection, fourPage.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
+            await AssertFrozenRunDecisionsAsync(connection, fourPage.RunId, reference);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
                 "Gold/Serving não podem ser alterados nem com candidatos TF positivos.");
 
