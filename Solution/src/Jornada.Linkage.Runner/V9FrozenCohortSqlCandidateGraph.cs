@@ -165,6 +165,7 @@ public static class V9FrozenCohortSqlCandidateGraph
         // edges to the client. Signature incidence counts can exceed DISTINCT
         // counts, but neither is a substitute for a hard output bound.
         // COUNT_BIG is evaluated by SQL over the entire frozen graph.
+        long distinctEdgeCount;
         await using (var countQuery = new SqlCommand("""
             SELECT COUNT_BIG(*)
               FROM (
@@ -176,7 +177,7 @@ public static class V9FrozenCohortSqlCandidateGraph
               ) AS candidate_edges;
             """, connection) { CommandTimeout = 120 })
         {
-            var distinctEdgeCount = Convert.ToInt64(
+            distinctEdgeCount = Convert.ToInt64(
                 await countQuery.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
             if (distinctEdgeCount > MaximumPairIncidences)
                 throw new InvalidDataException(
@@ -217,6 +218,8 @@ public static class V9FrozenCohortSqlCandidateGraph
                 edges.Add((a, b));
             }
         }
+        if (edges.Count != distinctEdgeCount)
+            throw new InvalidDataException("Transferência SQL V9 não corresponde ao censo DISTINCT integral.");
         var digest = Convert.ToHexString(edgeDigest.GetHashAndReset()).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
             ProductionCandidateParityCertified: false);
