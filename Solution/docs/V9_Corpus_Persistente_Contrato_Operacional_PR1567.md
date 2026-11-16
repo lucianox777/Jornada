@@ -269,3 +269,7 @@ CI do commit `11b81dec`: contrato de persistência e testes experimentais conclu
 ## Separação entre validação de observação e comparação independente (16/11/2026)
 
 O commit `63c4fbe` remove a chamada que fabricava um segundo `run_id + 1` apenas para validar metadados do observador físico. A nova `validate_observation` verifica uma única observação; somente `audit` compara duas observações realmente fornecidas. O commit `b13a32f5` acrescenta teste negativo para tentativa de reexecução. Isso evita qualquer aparência de evidência de segunda execução inexistente. CI do novo HEAD ainda pendente; persistência externa e PREPARE→TRAIN científico continuam sem comprovação, sem merge.
+
+## Contrato de hashes do recibo REF — 16/11/2026
+
+No HEAD `f120e4bc`, os workflows `v9-corpus-persistence-contract` e `v9-experimental-fast-pr` concluíram com sucesso; CI obrigatória e transporte não científico ainda pendentes na consulta. O commit `38eecdaf` exige exatamente os quatro arquivos físicos esperados, com SHA-256 hexadecimal e tamanho inteiro não negativo em cada recibo; o commit `13b00276` atualiza fixtures e adiciona testes negativos para ausência de arquivo e hash inválido. Esta validação protege a forma das evidências, não substitui verificação independente do mount externo, prova entre execuções ou integração científica PREPARE→TRAIN. Sem merge enquanto critérios pendentes.
