@@ -44,7 +44,7 @@ class RefPromotionTests(unittest.TestCase):
             self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B, environment="experimental")["status"], "PROMOTED_NO_DELETION")
             states = {e["fingerprint"]: e["state"] for e in json.loads(path.read_text())["entries"]}
             self.assertEqual(states, {A: "PREVIOUS", B: "CURRENT"})
-            self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B)["status"], "ALREADY_CURRENT")
+            self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B, environment="experimental")["status"], "ALREADY_CURRENT")
 
     def test_unspecified_environment_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "production requires manual PO approval"):
