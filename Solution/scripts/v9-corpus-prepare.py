@@ -23,7 +23,7 @@ spec.loader.exec_module(snapshot)
 def open_preparation_lock(path, *, create=False):
     """Open the actual lock inode without following a final-component symlink."""
     flags = os.O_RDWR | os.O_CREAT if create else os.O_RDONLY
-    flags |= os.O_NOFOLLOW | os.O_CLOEXEC
+    flags |= os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
     try:
         fd = os.open(path, flags, 0o600)
     except OSError as exc:
