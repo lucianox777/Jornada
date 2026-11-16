@@ -89,6 +89,15 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("plan.MinimumPairPosterior is < 0m or > 1m", runtime)
         self.assertIn("winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 }", runtime)
 
+    def test_sql_candidate_preflight_counts_all_cross_manager_incidences(self):
+        graph = (ROOT / "src/Jornada.Linkage.Runner/V9FrozenCohortSqlCandidateGraph.cs").read_text(encoding="utf-8")
+        self.assertIn("n * (n - 1) / 2 - sameManager", graph)
+        self.assertIn("GroupBy(row => row.Manager, StringComparer.Ordinal)", graph)
+        self.assertIn("incidences = checked(incidences + crossManager)", graph)
+        self.assertIn("if (incidences > MaximumPairIncidences)", graph)
+        self.assertIn("SELECT DISTINCT a.obs_id,b.obs_id", graph)
+        self.assertIn("public const int MaximumObservations = 512;", graph)
+
     def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
         runner = (ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
