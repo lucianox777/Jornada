@@ -21,11 +21,11 @@ def audit(first: dict, second: dict) -> dict:
             raise ValueError("Invalid run ID")
         if type(receipt["run_attempt"]) is not int or receipt["run_attempt"] != 1:
             raise ValueError("Rerun is not independent evidence")
-        if not isinstance(receipt["files"], dict) or not receipt["files"]:
+        if not isinstance(receipt["repository"], str) or not receipt["repository"]:\n            raise ValueError("Missing repository")\n        if not isinstance(receipt["files"], dict) or not receipt["files"]:
             raise ValueError("Missing physical file hashes")
         if not isinstance(receipt["store_identity"], str) or not receipt["store_identity"]:
             raise ValueError("Missing external store identity")
-        if not isinstance(receipt["fingerprint"], str) or len(receipt["fingerprint"]) != 64:
+        if not isinstance(receipt["fingerprint"], str) or len(receipt["fingerprint"]) != 64 or any(ch not in "0123456789abcdef" for ch in receipt["fingerprint"]):
             raise ValueError("Invalid fingerprint")
     if first["run_id"] == second["run_id"]:
         raise ValueError("Evidence must originate in distinct workflow runs")
