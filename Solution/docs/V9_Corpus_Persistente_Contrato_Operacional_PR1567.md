@@ -137,3 +137,7 @@ Commits `a9a57bbf`, `9ebd9fd6`, `255aa371` e `12f861d2`: `materialize_train_inpu
 ## Endurecimento de ancestral simbólico — 15/11/2026
 
 Commits `0a7cdf9c` e `8e9a2b7b`: a admissão do diretório TRAIN rejeita agora symlinks em **qualquer ancestral** do destino, além do destino e do pai imediato. Teste regressivo cria um alias simbólico intermediário e exige falha sem criação de diretório sob o alvo real. Esta defesa de caminhos não é prova de isolamento contra adversários concorrentes com controle do filesystem; uso produtivo exige diretórios/ACL controlados. CI do HEAD pendente. Sem alteração da ciência ou dos requisitos de armazenamento durável.
+
+## Admissão independente das entradas de geração no consumidor — 15/11/2026
+
+Commit `0836c4fc`: no workflow manual opt-in, o runner consumidor agora recalcula a configuração de geração usando o **checkout do SHA fixado**, o código do gerador e as referências IBGE/nascimentos presentes nesse checkout. Compara integralmente esse recibo esperado ao `config.json` recebido do produtor **antes** de admitir o corpus. Isso corrige o limite anterior em que o fingerprint era derivado apenas da configuração transportada pelo próprio produtor, sem âncora independente. O contrato permanece NONSCIENTIFIC e não comprova durabilidade entre execuções; o workflow manual ainda não foi executado fisicamente e a CI do novo HEAD está pendente. Sem alterar os geradores congelados, o TEST independente ou a política de autorização de 100k. A seleção de provedor/retention/ACL permanece pendente, portanto não declarar merge pronto.
