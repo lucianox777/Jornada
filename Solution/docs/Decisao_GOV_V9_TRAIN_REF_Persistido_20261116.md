@@ -1,6 +1,6 @@
 # GOV-V9-TRAIN-REF-PERSISTIDO-20261116 — integração técnica concluída; TEST científico bloqueado
 
-**Estado atualizado em 2026-11-16:** PR #1581 integrada à `master` pelo squash commit `468429d0467fd0f737408ced3716d87c71c4599a`. Prova de admissão do corpus #43800637171, integração TF4 #43800637164 e CI obrigatória #43800637157: SUCCESS. Isto não representa execução do TRAIN científico nem liberação de TEST.
+> **ESTADO EM 16/11/2026: SUPERADO OPERACIONALMENTE PARA O TRAIN 100K.** O PO aprovou voltar à geração local de 100 mil pessoas e deixar de consumir o ZIP sintético REF. Ver [GOV-V9-TRAIN-100K-GERACAO-LOCAL-SEM-REF-CORPUS-20261116](Decisao_GOV_V9_TRAIN_100K_Geracao_Local_Sem_REF_Corpus_20261116.md). Manter este documento e seus recibos como histórico; TEST científico permanece bloqueado.\n\n**Estado histórico atualizado em 2026-11-16:** PR #1581 integrada à `master` pelo squash commit `468429d0467fd0f737408ced3716d87c71c4599a`. Prova de admissão do corpus #43800637171, integração TF4 #43800637164 e CI obrigatória #43800637157: SUCCESS. Isto não representa execução do TRAIN científico nem liberação de TEST.
 
 ## Contexto e justificativa
 A prova independente #43798179373 validou o ZIP persistido da coorte sintética 100k, mas o workflow científico `.github/workflows/v9-v3-four-name-100k.yml` ainda gerava novamente seed42. A integração proposta elimina essa geração no passo de preparação do TRAIN, tornando a entrada materialmente vinculada ao artefato já verificado.

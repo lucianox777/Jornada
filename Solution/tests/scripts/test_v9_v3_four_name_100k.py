@@ -137,6 +137,23 @@ class V9FourName100kTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "AUDIT_FAIL_CLOSED"):
                 a.p95_was_measured(row)
 
+    def test_train_100k_is_generated_locally_before_fitting_without_corpus_ref(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
+        train = workflow.split("\n  physical-100k:\n", 1)[1].split("\n  audit-100k:\n", 1)[0]
+        self.assertIn("Generate known-seed 100k clean TRAIN", train)
+        self.assertIn("src/Jornada.Linkage.SyntheticCorpus -- generate", train)
+        self.assertIn("--error-profile clean --people 100000 --seed 42", train)
+        self.assertIn('--out "$root/people-100k"', train)
+        self.assertIn("scripts/v9-scale-100k-technical-plan.py", train)
+        self.assertIn('scripts/v9-100k-load-frozen-ibge.sh', train)
+        self.assertNotIn("Admit pinned persistent REF 100k", train)
+        self.assertNotIn("v9-synthetic-corpus-100000", train)
+        self.assertNotIn("V9_TRAIN_INPUT_FROM_PERSISTED_REF", train)
+        self.assertLess(train.index("SyntheticCorpus -- generate"),
+                        train.index("Run physical V9 CSharp on 324"))
+        self.assertIn("Prepare byte-verified TRAIN evidence", train)
+        self.assertIn("Dispose temporary TRAIN bases", train)
+
     def test_manual_workflow_and_scientific_gates(self):
         workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
         self.assertIn("workflow_dispatch:", workflow)
