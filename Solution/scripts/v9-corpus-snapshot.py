@@ -39,6 +39,9 @@ def verify(target, config):
     p = target / "snapshot.json"
     if target.is_symlink() or not p.is_file() or p.is_symlink():
         raise ValueError("Missing or unsafe snapshot")
+    expected_entries = set(REQUIRED) | {"snapshot.json"}
+    if {entry.name for entry in target.iterdir()} != expected_entries:
+        raise ValueError("Unexpected corpus snapshot entry")
     recorded = json.loads(p.read_text(encoding="utf-8"))
     if recorded.get("schema") != VERSION or recorded.get("fingerprint") != identity(config):
         raise ValueError("Corpus configuration mismatch")
