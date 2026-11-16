@@ -76,3 +76,20 @@ Commit `deefe4a5a9cb3b2c63be1afb6a926322cc1ba8d9`: teste de regressão para a se
 ## Reutilização entre processos — contrato local, não cross-run — 15/11/2026
 
 Commit `b355be587322fbd3c618c9cd20aaa5bc299a6d80`: teste inicia um **processo Python independente** sobre store POSIX previamente publicado, sem comando de gerador, e exige estado `REUSED`, ausência de geração e handoff íntegro. Isso exercita o caminho de reutilização entre processos, mas **não** comprova persistência entre runs de GitHub Actions, runners ou máquinas; o teste compartilha o mesmo diretório temporário local. CI do novo HEAD pendente. Próximo gate físico exige backend durável governado, ACL, retenção, imutabilidade, recuperação, duas execuções independentes com cache miss/hit e teste de corrupção. O cache Actions continua evictável, sem garantia de retenção. Sem alteração do TEST científico, sem ativação TRAIN, sem autorização de merge.
+
+## Gate de seleção e prova de armazenamento durável — especificação de aceite (não ativada)
+
+**Estado: critérios propostos de verificação do requisito já aprovado; provedor, credenciais, retenção e custos continuam SEM decisão específica do PO.** O volume POSIX dos scripts é uma interface local, não uma escolha de serviço. GitHub Actions cache e artifact de 7 dias não satisfazem isoladamente o requisito de durabilidade. Não marcar este gate como aprovado por sucesso de testes locais, cross-process ou cross-job.
+
+| Gate | Evidência física exigida | Estado |
+|---|---|---|
+| Backend e segurança | Identificação explícita de provedor/volume, responsável, ACL de leitura/escrita por papel, criptografia, trilha de auditoria e credenciais efêmeras; sem secrets em logs | PENDENTE |
+| Retenção e recuperação | Política de retenção e expurgo aprovada, procedimento de recuperação documentado e restauração comprovada com SHA idêntico | PENDENTE |
+| Miss entre runs | Run A em runner novo, store inicialmente vazio, gera fixture pequena não científica, publica atomicamente e guarda recibo/ID imutável | PENDENTE |
+| Hit entre runs | Run B independente de A, runner novo e ID de execução distinto, consome a mesma versão sem invocar gerador; comprova hash, tamanho e fingerprint | PENDENTE |
+| Corrupção e identidade | Run C separado com fixture propositalmente adulterada ou referência inválida: rejeita antes do consumo; não sobrescreve versão íntegra nem faz fallback silencioso | PENDENTE |
+| Concorrência | Dois produtores competindo pela mesma chave no backend real: somente uma versão íntegra visível, sem parcial e com lock/lease compatível com o backend | PENDENTE |
+| Métricas | Bytes, duração PREPARE, transferência, custo de armazenamento/egresso, tempo de restauração e impacto no orçamento do TRAIN, sem executar 100k sem autorização | PENDENTE |
+| Integração científica | PREPARE→TRAIN físico com 324 hipóteses/81 células e segregação TRAIN/VALIDATION/TEST comprovadas; TEST independente permanece selado até autorização separada | BLOQUEADO |
+
+**Sequência de aprovação:** (1) PO decide provedor e política operacional; (2) implementar adaptador adequado, sem tratar `flock` POSIX como lease de object storage; (3) executar provas físicas de baixo custo com fixture pública; (4) revisar resultados e custos; (5) somente depois avaliar ativação do TRAIN e autorização científica independente. Nenhuma etapa autoriza mesclar a PR #1567 sem aprovação expressa posterior. Esta matriz complementa a decisão `GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115` e não altera sua precedência.
