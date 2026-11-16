@@ -183,11 +183,18 @@ public static class V9FrozenCohortSqlCandidateGraph
                 edges.Add((a, b));
             }
         }
-        var canonicalEdges = string.Concat(edges.Select(edge =>
-            edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
-            edge.B.ToString(CultureInfo.InvariantCulture) + "\n"));
-        var digest = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes(canonicalEdges))).ToLowerInvariant();
+        // Hash the canonical SQL-ordered graph incrementally: no second
+        // potentially large concatenated string or UTF-8 byte buffer.
+        // The canonical encoding remains exactly "A:B\\n" in invariant culture.
+        using var edgeDigest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var edge in edges)
+        {
+            ct.ThrowIfCancellationRequested();
+            var line = edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
+                edge.B.ToString(CultureInfo.InvariantCulture) + "\n";
+            edgeDigest.AppendData(Encoding.UTF8.GetBytes(line));
+        }
+        var digest = Convert.ToHexString(edgeDigest.GetHashAndReset()).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
             ProductionCandidateParityCertified: false);
     }
