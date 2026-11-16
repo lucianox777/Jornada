@@ -257,3 +257,7 @@ No SHA `44e26ba8`, todos os quatro workflows da PR concluíram com **SUCCESS**, 
 ## Evidência física REF — observador (16/11/2026)
 
 Após sucesso dos quatro workflows no HEAD `22b8d4f5`, os commits `84257e7b` e `6364374e` estendem a auditoria: o modo `--corpus --config --repository --run-id --run-attempt --store-identity` produz observação diretamente de arquivos físicos verificados com `snapshot.verify`, não de hashes fornecidos pelo operador; rejeita caminho de corpus com symlink, configuração inválida, fingerprint não hexadecimal e metadados incompletos. A identidade do mount ainda é declaração do operador; recibos não equivalem a prova de persistência ou atestado independente. Não houve execução 100k, implantação em produção ou autorização de merge. Nova CI pendente.
+
+## Falha de sintaxe no observador REF — CI 43786788804
+
+A CI de contrato de persistência falhou com `SyntaxError` no arquivo `v9-corpus-cross-run-proof.py`, pois uma atualização introduziu sequências literais `\\n` na linha de validação do repositório. O commit `47b4cadf` substituiu os escapes literais por quebras de linha reais. A CI subsequente deve validar o reparo. Não há evidência nova de durabilidade REF ou integração PREPARE→TRAIN e o merge permanece bloqueado pelos critérios científicos e revisão final do PO.
