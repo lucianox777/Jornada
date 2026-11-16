@@ -162,6 +162,11 @@ public static class V9FrozenCohortSqlCandidateGraph
         }
 
         var edges = new List<(int A, int B)>();
+        // Hash while reading the SQL-ordered DISTINCT stream. Retain edges
+        // only for the bounded complete-link replay; never scan them twice.
+        using var edgeDigest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var previousA = 0;
+        var previousB = 0;
         await using (var query = new SqlCommand("""
             SELECT DISTINCT a.obs_id,b.obs_id
               FROM #v9_run_sig a
@@ -180,19 +185,15 @@ public static class V9FrozenCohortSqlCandidateGraph
                 var b = reader.GetInt32(1);
                 if (a < 1 || a >= b || b > frozenRows.Count)
                     throw new InvalidDataException("Aresta física V9 fora da coorte congelada.");
+                if (a < previousA || (a == previousA && b <= previousB))
+                    throw new InvalidDataException("Grafo SQL V9 não está estritamente ordenado e distinto.");
+                previousA = a;
+                previousB = b;
+                var line = a.ToString(CultureInfo.InvariantCulture) + ":" +
+                    b.ToString(CultureInfo.InvariantCulture) + "\n";
+                edgeDigest.AppendData(Encoding.UTF8.GetBytes(line));
                 edges.Add((a, b));
             }
-        }
-        // Hash the canonical SQL-ordered graph incrementally: no second
-        // potentially large concatenated string or UTF-8 byte buffer.
-        // The canonical encoding remains exactly "A:B\\n" in invariant culture.
-        using var edgeDigest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        foreach (var edge in edges)
-        {
-            ct.ThrowIfCancellationRequested();
-            var line = edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
-                edge.B.ToString(CultureInfo.InvariantCulture) + "\n";
-            edgeDigest.AppendData(Encoding.UTF8.GetBytes(line));
         }
         var digest = Convert.ToHexString(edgeDigest.GetHashAndReset()).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
