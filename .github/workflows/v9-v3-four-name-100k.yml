@@ -139,6 +139,48 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: Solution/.local/v9-prepare/receipt.json
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Generate mandatory TRAIN 100k once in PREPARE
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          root="$PWD/.local/v9-prepare"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 42 --out "$root/people-100k" \
+            > "$root/generation.log"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(".local/v9-prepare")
+          files = sorted(p for p in (root / "people-100k").rglob("*") if p.is_file())
+          assert files and (root / "people-100k/observacoes.csv").is_file()
+          receipt = {
+              "schema": "V9_PREPARE_TRAIN_CORPUS_V1",
+              "commitSha": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "files": {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
+          }
+          (root / "corpus-receipt.json").write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n", encoding="utf-8")
+          print("V9_PREPARE_TRAIN_CORPUS_SEALED", len(files))
+          PY
+      - name: Upload mandatory TRAIN corpus with pinned manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-prepare-train-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            Solution/.local/v9-prepare/people-100k/
+            Solution/.local/v9-prepare/corpus-receipt.json
   # An explicitly named existing database must be admitted BEFORE the 324
   # expensive physical hypotheses. Only a SELECT-only SQL secret is exposed
   # here, never to TRAIN/VALIDATION. No citizen rows are read in preflight.
@@ -363,6 +405,34 @@ jobs:
               assert hashlib.sha256(Path("..", file).read_bytes()).hexdigest() == digest, file
           print("V9_PREPARE_RECEIPT_VERIFIED")
           PY
+      - name: Download TRAIN corpus prepared in mandatory PREPARE
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-prepare-train-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-prepare
+      - name: Verify prepared TRAIN corpus hashes and bind into TRAIN workspace
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(".local/v9-prepare")
+          receipt = json.loads((root / "corpus-receipt.json").read_text(encoding="utf-8"))
+          assert receipt["schema"] == "V9_PREPARE_TRAIN_CORPUS_V1"
+          assert receipt["commitSha"] == os.environ["GITHUB_SHA"]
+          assert receipt["runId"] == os.environ["GITHUB_RUN_ID"]
+          assert receipt["runAttempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
+          actual = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in (root / "people-100k").rglob("*") if p.is_file()}
+          assert actual and actual == receipt["files"], "V9_PREPARE_TRAIN_CORPUS_HASH_MISMATCH"
+          assert "people-100k/observacoes.csv" in actual
+          target = Path(".local/v9-100k-technical/people-100k")
+          assert not target.exists(), "V9_TRAIN_CORPUS_MUST_NOT_BE_REGENERATED"
+          target.parent.mkdir(parents=True, exist_ok=True)
+          (root / "people-100k").rename(target)
+          print("V9_PREPARE_TRAIN_CORPUS_VERIFIED")
+          PY
       - name: Assert and report safe diagnostic environment
         run: |
           set -euo pipefail
@@ -430,7 +500,8 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          # Corpus comes from mandatory PREPARE; never regenerate in TRAIN.
+          test -f "$root/people-100k/observacoes.csv"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound" "$root/base-bound"
           python3 scripts/v9-scale-100k-technical-plan.py \
