@@ -21,7 +21,7 @@ def validate(root: Path, attestation: dict, expected_repository: str):
         raise ValueError("Cross-run durability has not been independently verified")
     if not isinstance(attestation.get("evidence_run_ids"), list) or len(set(attestation["evidence_run_ids"])) < 2:
         raise ValueError("At least two distinct run IDs are required as evidence")
-    if any(not isinstance(x, int) or x <= 0 for x in attestation["evidence_run_ids"]):
+    if any(type(x) is not int or x <= 0 for x in attestation["evidence_run_ids"]):
         raise ValueError("Invalid cross-run evidence IDs")
     if not root.is_absolute() or any(p.is_symlink() for p in (root, *root.parents)):
         raise ValueError("External store path must be absolute and symlink-free")
