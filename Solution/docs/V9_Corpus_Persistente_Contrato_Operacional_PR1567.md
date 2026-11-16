@@ -129,3 +129,7 @@ Commit `9001e6905d177322c7e86c4b444ed374b37b3ced`: o verificador `v9-corpus-hand
 ## Cobertura da admissão TRAIN e prova opt-in — 15/11/2026
 
 Commits `d983a4b0` e `2011b04f`: três testes unitários exercitam materialização íntegra para destino novo, rejeição de payload adulterado sem publicar destino e rejeição de symlink no destino. O job manual `train-handoff-probe` passa a invocar `--train-destination` para comprovar cópia validada em runner consumidor, mas continua **NONSCIENTIFIC**, não invoca TRAIN, não comprova retenção entre runs e não deve ser confundido com execução física já realizada (workflow manual não disparado). A CI deste HEAD ainda precisa ser observada. Nenhum novo custo, alteração do gerador congelado ou TEST independente.
+
+## Vinculação opcional de fingerprint na admissão — 15/11/2026
+
+Commits `a9a57bbf`, `9ebd9fd6`, `255aa371` e `12f861d2`: `materialize_train_input` aceita `expected_fingerprint` opcional e rejeita divergência antes de copiar; teste cobre rejeição e sucesso. O job manual consumidor calcula fingerprint da configuração recebida e o passa ao verificador; esse cálculo **não é uma âncora externa independente**, portanto não substitui a vinculação futura à receita esperada pelo TRAIN principal. A variável derivada no PREPARE não atravessa automaticamente jobs; o último commit corrige esse escopo. CI atualizada ainda não validada; sem backend durável, sem execução científica e sem merge.
