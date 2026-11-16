@@ -1,0 +1,53 @@
+name: V9 pinned REF TRAIN input admission proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-v3-four-name-100k.yml'
+      - '.github/workflows/v9-pinned-ref-train-proof.yml'
+      - 'Solution/scripts/v9-scale-100k-technical-plan.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pinned-ref-admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify immutable REF and scientific TRAIN corpus provenance without physical calibration
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          ref_commit=9058c5dfe9b7dd6b8e77827fbaa55e5dc4faca50
+          ref_path=Solution/data/reference/v9-synthetic-corpus-100000
+          git -C .. fetch --no-tags origin refs/heads/feature/v9-persistent-synthetic-corpus-20261115
+          test "$(git -C .. rev-parse FETCH_HEAD)" = "$ref_commit"
+          root="$PWD/.local/v9-100k-technical"
+          mkdir -p "$root/pinned-ref"
+          git -C .. show "$ref_commit:$ref_path/corpus-seed42.zip" > "$root/pinned-ref/corpus-seed42.zip"
+          git -C .. show "$ref_commit:$ref_path/manifest.json" > "$root/pinned-ref/manifest.json"
+          git -C .. show "$ref_commit:Solution/scripts/v9-corpus-ref-zip.py" > "$root/pinned-ref/v9-corpus-ref-zip.py"
+          python3 - "$root/pinned-ref/manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1], encoding='utf-8'))
+          assert m['schema']=='v9-ref-zip-v1'
+          assert m['zip_sha256']=='d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d'
+          assert m['zip_size']==7697354
+          assert set(m['files'])=={'pessoas_verdade.csv','observacoes.csv','gabarito.json','generation-manifest.json'}
+          PY
+          python3 "$root/pinned-ref/v9-corpus-ref-zip.py" verify --zip "$root/pinned-ref/corpus-seed42.zip" --manifest "$root/pinned-ref/manifest.json"
+          python3 "$root/pinned-ref/v9-corpus-ref-zip.py" unpack --zip "$root/pinned-ref/corpus-seed42.zip" --manifest "$root/pinned-ref/manifest.json" --destination "$root/people-100k"
+          python3 - "$root/people-100k" <<'PY'
+          import importlib.util,sys
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('v9_scale',Path('scripts/v9-scale-100k-technical-plan.py'))
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          manifest,manifest_sha,obs_sha=mod.corpus_provenance(sys.argv[1])
+          assert manifest['seed']==42
+          print('V9_PINNED_REF_TRAIN_CORPUS_PROVENANCE_PASS')
+          print('V9_SCIENTIFIC_TRAIN_NOT_EXECUTED')
+          PY
