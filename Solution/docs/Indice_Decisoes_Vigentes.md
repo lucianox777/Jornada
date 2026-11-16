@@ -1,3 +1,5 @@
+> **GOV-V9-TF4-COBERTURA-UNIDADES-20261116 — PROPOSTA EM PR, NÃO VIGENTE:** fixtures independentes de aplicabilidade e ausência de frequência publicada para as quatro posições pessoa/mãe × prenome/sobrenome; não demonstram paridade numérica TF4 ou SQL. Issue #1584.
+
 > **GOV-V9-SQL-INDICE-ASSINATURAS-APOS-BULK-20261116 — APROVADA PELO PO; IMPLEMENTAÇÃO EM PR, NÃO INTEGRADA:** criar `IX_v9_cal_sig` depois da inserção integral de assinaturas por `SqlBulkCopy`, preservando a mesma definição, o auto-JOIN, o número de replays completos, a definição do P95 e o isolamento TEST. O ganho é hipótese a medir; não atribuir causalidade à REF e não alterar o TRAIN ativo #43908715448. [Decisão, impacto e evidência pendente](Decisao_GOV_V9_SQL_Indice_Assinaturas_Apos_Bulk_20261116.md). GOV-DOC-01.
 
 > **GOV-V9-TEST-ORACULO-DECISAO-20261116 — INTEGRADO NA MASTER PR #1606:** tabela-verdade independente para limiar, margem em log-odds, guardas de conflito e conjunto vazio com abstenção; não certifica TF4 scoring ou SQL. Ver decisão TEST/RunAsync e issue #1584.
