@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
