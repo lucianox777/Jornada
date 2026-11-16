@@ -185,3 +185,7 @@ Commit `e071cffd`: teste `test_v9_corpus_opt_in_shell_safety.py` verifica que as
 ## Negativa de raiz do filesystem no preflight — 15/11/2026
 
 Commits `d2c446a4` e `4c17ea22`: o preflight de storage externo recusa explicitamente `/`, que satisfaz `os.path.ismount` em runners comuns, mas não é evidência de armazenamento externo. Teste negativo incluído. Esta proteção não certifica que outras montagens sejam remotas nem autentica as declarações do operador; a persistência cross-run continua não comprovada. Sem mudança científica e sem autorização de campanha 100k.
+
+## Tipagem estrita da evidência cross-run — 15/11/2026
+
+Commits `8ed3eb04` e `56dd7d8c`: IDs de execução na declaração de persistência exigem `int` exato positivo; `True` e `False` não são aceitos como inteiros por herança de tipo Python. Incluído teste negativo. Não equivale a verificação independente da autenticidade dos IDs ou da durabilidade do provedor; não libera merge, campanha 100k ou TEST. CI do novo HEAD deve ser conferida.
