@@ -28,3 +28,6 @@ Complementa `GOV-V9-RUNASYNC-PARIDADE-FISICA-LOTES-100-200-20261116` e não revo
 - CI obrigatória #43884370292: `unit-runtime`, `security-guards`, `deterministic-build` SUCCESS.
 - SQL físico #43884370284: `one-winner-sql-smoke` e `full-schema-runasync-nonpublish` SUCCESS.
 - Pré-voo de compilação #43884370283: SUCCESS; matriz física Gold holdout omitida por escopo (skipped), não considerar como ensaio Gold holdout completo.
+
+## Extensão de cobertura — 16/11/2026 (proposta, não vigente)
+Após a integração da PR #1589, o PO solicitou continuidade da implementação do TEST. A branch `test/v9-gold-reference-completeness-runasync-20261116` adiciona regressão SQL física para uma referência Gold que deixa de ser `REFERENCIA`, embora suas chaves de blocking permaneçam no banco. A preparação global do `RunAsync` deve recusar o universo incompleto antes de produzir decisões. A referência é restaurada após o ensaio, e o fingerprint de publicação permanece inalterado. Complementa o teste de nome materno obsoleto; não altera o algoritmo ou o contrato de produção, nem libera o TEST 100k. Evidências CI/SQL pendentes de aprovação da PR. Issue #1584; GOV-DOC-01.
