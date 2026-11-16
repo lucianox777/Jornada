@@ -74,9 +74,10 @@ def handoff(store, config, destination):
     # concurrently with a writer on the shared POSIX volume.
     if destination.exists() or destination.is_symlink():
         raise ValueError("Handoff destination must not exist")
+    for ancestor in destination.parents:
+        if ancestor.is_symlink():
+            raise ValueError("Unsafe handoff destination ancestor")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.parent.is_symlink():
-        raise ValueError("Unsafe handoff parent")
     temporary = Path(tempfile.mkdtemp(prefix=".handoff-", dir=destination.parent))
     try:
         lock_path = store / ".prepare.lock"
