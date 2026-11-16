@@ -73,3 +73,6 @@ Contexto: após integração das PRs #1603/#1605, o oráculo independente abrang
 
 ## Integração do oráculo independente de decisão ranqueada — 16/11/2026
 PR #1606 integrada por squash `2f9b8b8aad2295e403ef7953b51dab63ccde0a9b`; CI obrigatória #43942647018 3/3 SUCCESS. A tabela-verdade independente cobre decisão sobre scores fornecidos, incluindo limiar, margem, colisão demográfica, guarda de dois candidatos e abstenção de ranking vazio. Não valida cálculo das quatro TFs, cobertura de termos IBGE, SQL RunAsync ou TEST 100k. Issue #1584 permanece aberta. GOV-DOC-01.
+
+## Proposta de fixtures independentes de cobertura TF4 — 16/11/2026
+Contexto: oráculos independentes de agrupamento e decisão já integrados; cálculo numérico TF4 ainda não certificado. Decisão proposta: fixar exemplos literais de seleção exclusiva de unidade nominal e frequências publicadas/ausentes em quatro posições (pessoa/mãe × prenome/sobrenome). Justificativa: prevenir regressão de elegibilidade e abstenção sem gerar resultado esperado a partir do seletor operacional. Impacto: apenas testes; nenhuma mudança de score, SQL, release gate ou estatística calibrada. Precedência: evidência parcial; não certifica U_ref, peso, log-odds, desempate TF4 ou RunAsync; issue #1584 aberta. GOV-DOC-01.
