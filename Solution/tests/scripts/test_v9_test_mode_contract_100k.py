@@ -35,7 +35,10 @@ class TestV9TestModeContract(unittest.TestCase):
         audit = wf.split("\n  audit-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
         validation = wf.split("\n  validation-100k:\n", 1)[1].split("\n  test-100k:\n", 1)[0]
         closeout = wf.split("\n  e2e-closeout:\n", 1)[1]
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight]", train)
+        self.assertIn("needs: [prepare-100k, prepare-test-100k, test-database-preflight]", train)
+        self.assertIn("needs.prepare-100k.result == 'success'", train)
+        prepare = wf.split("\n  prepare-100k:\n", 1)[1].split("\n  test-database-preflight:\n", 1)[0]
+        self.assertIn("V9_PREPARE_ADMISSION=SUCCESS", prepare)
         self.assertIn("PREPARE mandatory campaign: generate frozen TRAIN corpus", train)
         self.assertIn("PREPARE mandatory campaign: start masked disposable SQL Server", train)
         self.assertIn("PREPARE mandatory campaign: rehydrate frozen IBGE", train)
