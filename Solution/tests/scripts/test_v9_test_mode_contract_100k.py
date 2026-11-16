@@ -28,6 +28,26 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("test-100k:", wf)
         self.assertIn("test-database-readonly:", wf)
 
+    def test_train_audit_validation_are_one_mandatory_campaign(self):
+        """PO contract: TEST optional; TRAIN/AUDIT/VALIDATION never independent."""
+        wf = self.workflow
+        train = wf.split("\n  physical-100k:\n", 1)[1].split("\n  audit-100k:\n", 1)[0]
+        audit = wf.split("\n  audit-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
+        validation = wf.split("\n  validation-100k:\n", 1)[1].split("\n  test-100k:\n", 1)[0]
+        closeout = wf.split("\n  e2e-closeout:\n", 1)[1]
+        self.assertIn("needs: [prepare-test-100k, test-database-preflight]", train)
+        self.assertIn("inputs.test_required != true", train)
+        self.assertIn("needs: physical-100k", audit)
+        self.assertIn("needs.physical-100k.result == 'success'", audit)
+        self.assertIn("needs: audit-100k", validation)
+        self.assertIn("needs.audit-100k.result == 'success'", validation)
+        self.assertIn("needs.audit-100k.outputs.has_finalists == 'true'", validation)
+        self.assertIn("needs: [prepare-test-100k, test-database-preflight, physical-100k, audit-100k, validation-100k, test-100k, test-database-readonly]", closeout)
+        self.assertIn("always()", closeout)
+        # No standalone validation dispatch or independent optional phase flag.
+        self.assertNotIn("validation_required:", wf)
+        self.assertNotIn("train_only:", wf)
+
     def test_synthetic_is_new_sealed_corpus_before_train(self):
         wf = self.workflow
         prep = wf.split("\n  prepare-test-100k:\n", 1)[1].split("\n  physical-100k:\n", 1)[0]
