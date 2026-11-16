@@ -55,6 +55,28 @@ public static class V9ReadOnlyTestBatchRunner
             || receipt.DecisionsSha256 is not { Length: 64 }
             || receipt.IdentityGroupsSha256 is not { Length: 64 })
             throw new InvalidDataException("Recibo de ensaio V9 sem proveniência e paridade completas.");
+        // Re-run against a different SQL page boundary; globally reconstructed
+        // candidate graphs, decisions and identity groups must be invariant.
+        var alternateBatchSize = batchSize == 1 ? 2 : 1;
+        var alternate = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+            connection, runtime, syntheticTest, physicalSqlEdges,
+            alternateBatchSize, cancellationToken);
+        if (alternate.ObservationCount != receipt.ObservationCount
+            || alternate.PhysicalSqlEdgeCount != receipt.PhysicalSqlEdgeCount
+            || alternate.OperationalSqlEdgeCount != receipt.OperationalSqlEdgeCount
+            || alternate.WinnerSha256 != receipt.WinnerSha256
+            || alternate.ProjectionSchemaVersion != receipt.ProjectionSchemaVersion
+            || alternate.ProjectionFingerprintSha256 != receipt.ProjectionFingerprintSha256
+            || alternate.CanonicalEdgesSha256 != receipt.CanonicalEdgesSha256
+            || alternate.DecisionsSha256 != receipt.DecisionsSha256
+            || alternate.IdentityGroupsSha256 != receipt.IdentityGroupsSha256
+            || alternate.Resolved != receipt.Resolved
+            || alternate.Unresolved != receipt.Unresolved
+            || alternate.Conflicts != receipt.Conflicts
+            || alternate.NoCandidateInBlock != receipt.NoCandidateInBlock
+            || alternate.ProductionBatchPipelineCertified)
+            throw new InvalidDataException(
+                "V9 TEST divergiu entre tamanhos de lote SQL; paridade operacional recusada.");
         return receipt;
     }
 }
