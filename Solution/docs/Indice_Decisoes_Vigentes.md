@@ -1,4 +1,4 @@
-> **GOV-V9-TEST-ORACULO-DECISAO-20261116 — PROPOSTA EM PR, NÃO VIGENTE:** tabela-verdade independente para limiar, margem em log-odds, guardas de conflito e conjunto vazio com abstenção; não certifica TF4 scoring ou SQL. Ver decisão TEST/RunAsync e issue #1584.
+> **GOV-V9-TEST-ORACULO-DECISAO-20261116 — INTEGRADO NA MASTER PR #1606:** tabela-verdade independente para limiar, margem em log-odds, guardas de conflito e conjunto vazio com abstenção; não certifica TF4 scoring ou SQL. Ver decisão TEST/RunAsync e issue #1584.
 
 > **GOV-V9-TEST-ORACULO-AGRUPAMENTO-20261116 — INTEGRADO NA MASTER PR #1603:** testar agrupamento TEST com oráculo de partições independente em 2.187 cenários (729 grafos de 4 observações × 3 limites), incluindo arestas ausentes e assimetria de scores. Não certifica TF4 score, abstenção, RunAsync físico ou TEST 100k. [Contexto](Decisao_GOV_V9_TEST_Paridade_Gold_Candidatos_RunAsync_20261116.md), issue #1584. GOV-DOC-01.
 
