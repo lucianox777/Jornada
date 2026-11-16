@@ -117,6 +117,10 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("actualDirections.Values.Any(v => v != 3)", audit)
         self.assertIn("expected.SetEquals(actual)", audit)
         self.assertIn("ProductionBatchPipelineCertified: false", audit)
+        self.assertIn("IncrementalHash.CreateHash(HashAlgorithmName.SHA256)", audit)
+        self.assertIn("canonicalHash.AppendData(Encoding.UTF8.GetBytes(", audit)
+        self.assertIn("referenceHash.AppendData(Encoding.UTF8.GetBytes(", audit)
+        self.assertIn("if (!string.Equals(digest, referenceDigest, StringComparison.Ordinal))", audit)
 
     def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
