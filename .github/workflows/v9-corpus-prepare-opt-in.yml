@@ -196,4 +196,4 @@ jobs:
             --base-receipt .local/v9-handoff-received/plan-bound/base-receipt.json \
             --plan .local/v9-handoff-received/plan-bound/v3-plan.json \
             --receipt .local/v9-handoff-received/plan-bound/v3-receipt.json
-          echo "V9_CORPUS_PLAN_BINDING_PROBE_ONLY: verified PREPARE corpus bound to V3 TRAIN plan; no physical calibration or TEST"
+          echo "V9_CORPUS_TRANSFER_PROBE_ONLY V9_CORPUS_PLAN_BINDING_PROBE_ONLY: verified PREPARE corpus bound to V3 TRAIN plan; no physical calibration or TEST"
