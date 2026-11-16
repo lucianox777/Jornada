@@ -154,5 +154,6 @@ jobs:
           python3 scripts/v9-corpus-handoff-verify.py \
             --corpus .local/v9-handoff-received/train-handoff \
             --config .local/v9-handoff-received/config.json \
-            --prepare-receipt .local/v9-handoff-received/prepare-receipt.json
-          echo "V9_CORPUS_TRANSFER_PROBE_ONLY: no calibration, no independent TEST"
+            --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
+            --train-destination .local/v9-handoff-received/verified-train-input
+          echo "V9_CORPUS_TRAIN_INPUT_ADMITTED_ONLY: no calibration, no independent TEST"
