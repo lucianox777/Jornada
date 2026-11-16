@@ -39,6 +39,12 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("needs.prepare-100k.result == 'success'", train)
         prepare = wf.split("\n  prepare-100k:\n", 1)[1].split("\n  test-database-preflight:\n", 1)[0]
         self.assertIn("V9_PREPARE_ADMISSION=SUCCESS", prepare)
+        self.assertIn("Generate mandatory TRAIN 100k once in PREPARE", prepare)
+        self.assertIn("Upload mandatory TRAIN corpus with pinned manifest", prepare)
+        self.assertIn("Download TRAIN corpus prepared in mandatory PREPARE", train)
+        self.assertIn("V9_PREPARE_TRAIN_CORPUS_VERIFIED", train)
+        self.assertIn("V9_TRAIN_CORPUS_MUST_NOT_BE_REGENERATED", train)
+        self.assertNotIn("dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate", train)
         self.assertIn('json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n"', prepare)
         self.assertIn("Upload immutable PREPARE admission receipt", prepare)
         self.assertIn("v9-prepare-admission-", prepare)
@@ -46,10 +52,10 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("V9_PREPARE_RECEIPT_VERIFIED", train)
         self.assertIn('receipt["runId"] == os.environ["GITHUB_RUN_ID"]', train)
         self.assertIn('receipt["commitSha"] == os.environ["EXACT_SHA"]', train)
-        self.assertIn("PREPARE mandatory campaign: generate frozen TRAIN corpus", train)
+        self.assertIn("TRAIN: bind TF4 plan using verified PREPARE corpus", train)
         self.assertIn("PREPARE mandatory campaign: start masked disposable SQL Server", train)
         self.assertIn("PREPARE mandatory campaign: rehydrate frozen IBGE", train)
-        self.assertLess(train.index("PREPARE mandatory campaign: generate frozen TRAIN corpus"),
+        self.assertLess(train.index("TRAIN: bind TF4 plan using verified PREPARE corpus"),
                         train.index("Run physical V9 CSharp on 324"))
         self.assertNotIn("needs.prepare-test-100k.result == 'success' && inputs.test_required != true", train)
         self.assertIn("inputs.test_required != true", train)
