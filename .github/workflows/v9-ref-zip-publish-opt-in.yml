@@ -1,0 +1,74 @@
+name: V9 publish measured 100k REF ZIP to feature (owner only)
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact current feature HEAD SHA"
+        required: true
+        type: string
+      source_run:
+        description: "Successful bootstrap run ID (43789530462)"
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    if: ${{ github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/v9-persistent-synthetic-corpus-20261115
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify immutable source and current feature HEAD
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git fetch --no-tags origin refs/heads/feature/v9-persistent-synthetic-corpus-20261115
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$SOURCE_RUN" = "43789530462"
+      - name: Retrieve immutable candidate from successful bootstrap
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GITHUB_REPOSITORY/actions/runs/43789530462 --jq .conclusion)" = "success"
+          mkdir -p .local/v9-ref-publish
+          gh run download 43789530462 -R "$GITHUB_REPOSITORY" -n v9-100k-ref-zip-43789530462 -D .local/v9-ref-publish
+          find .local/v9-ref-publish -type f -printf '%P\n'
+      - name: Verify bytes, allowlist and commit exact physical REF
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root=Path('.local/v9-ref-publish')
+          files=list(root.rglob('*'))
+          names={p.name for p in files if p.is_file()}
+          assert names=={'corpus-seed42.zip','manifest.json'}, names
+          zipfile=next(p for p in files if p.name=='corpus-seed42.zip')
+          assert zipfile.stat().st_size==7697354
+          assert hashlib.sha256(zipfile.read_bytes()).hexdigest()=='d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d'
+          PY
+          root=Solution/data/reference/v9-synthetic-corpus-100000
+          test ! -e "$root/corpus-seed42.zip"
+          test ! -e "$root/manifest.json"
+          mkdir -p "$root"
+          cp "$(find .local/v9-ref-publish -name corpus-seed42.zip -type f -print -quit)" "$root/corpus-seed42.zip"
+          cp "$(find .local/v9-ref-publish -name manifest.json -type f -print -quit)" "$root/manifest.json"
+          python3 Solution/scripts/v9-corpus-ref-zip.py verify --zip "$root/corpus-seed42.zip" --manifest "$root/manifest.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$root/corpus-seed42.zip" "$root/manifest.json"
+          git commit -m "data(v9): persist verified physical seed42 100k REF ZIP"
+          git push origin HEAD:refs/heads/feature/v9-persistent-synthetic-corpus-20261115
