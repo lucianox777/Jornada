@@ -335,7 +335,7 @@ jobs:
           set -euo pipefail
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+      # Mandatory PREPARE phase of the same TRAIN → AUDIT → VALIDATION campaign.\n      # This is NOT prepare-test-100k, which remains TEST-only and optional.\n      - name: "PREPARE mandatory campaign: generate frozen TRAIN corpus and bind TF4 plan"
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
@@ -349,9 +349,9 @@ jobs:
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
-      - name: Start masked disposable SQL Server
+      - name: "PREPARE mandatory campaign: start masked disposable SQL Server"
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
+      - name: "PREPARE mandatory campaign: rehydrate frozen IBGE with canonical hashes"
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
