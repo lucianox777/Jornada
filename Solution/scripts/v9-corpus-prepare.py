@@ -14,10 +14,25 @@ import shutil
 import tempfile
 import os
 import sys
+import stat
 
 spec = importlib.util.spec_from_file_location("v9_corpus_snapshot", Path(__file__).with_name("v9-corpus-snapshot.py"))
 snapshot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snapshot)
+
+def open_preparation_lock(path, *, create=False):
+    """Open the actual lock inode without following a final-component symlink."""
+    flags = os.O_RDWR | os.O_CREAT if create else os.O_RDONLY
+    flags |= os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        fd = os.open(path, flags, 0o600)
+    except OSError as exc:
+        raise ValueError("Missing or unsafe preparation lock") from exc
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise ValueError("Missing or unsafe preparation lock")
+    return os.fdopen(fd, "a+b" if create else "rb")
+
 
 def prepare(store, config, generator, output):
     if not isinstance(config, dict) or not config:
@@ -33,7 +48,7 @@ def prepare(store, config, generator, output):
     lock_path = store / ".prepare.lock"
     if lock_path.is_symlink():
         raise ValueError("Unsafe preparation lock")
-    with lock_path.open("a+b") as lock:
+    with open_preparation_lock(lock_path, create=True) as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if target.exists() or target.is_symlink():
             receipt = snapshot.verify(target, config)
@@ -67,7 +82,7 @@ def handoff(store, config, destination):
         lock_path = store / ".prepare.lock"
         if lock_path.is_symlink() or not lock_path.is_file():
             raise ValueError("Missing or unsafe preparation lock")
-        with lock_path.open("rb") as lock:
+        with open_preparation_lock(lock_path) as lock:
             fcntl.flock(lock, fcntl.LOCK_SH)
             snapshot.verify(source, config)
             for name in snapshot.REQUIRED:
