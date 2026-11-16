@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Globalization;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
