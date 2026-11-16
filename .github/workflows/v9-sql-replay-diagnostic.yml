@@ -73,15 +73,15 @@ jobs:
             --name "v9-v3-tf4-physical-train-7de4f3d5966ab0ccf6fb9801d748893667949d0e-43735943823" \
             --dir "$root/baseline"
           echo "82f348b7eafdd82cbcaa6055832838089d1adaf0c3be8d7fe7624d5104914555  $root/baseline/bound/plan.json" | sha256sum -c -
-          # The historical artifact contains immutable final fits, not TEST or raw corpus.
-          # Download to runner-local disk and extract ONLY the one SHA-pinned finalist.
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/14180809696/zip" > "$root/preaudit.zip"
+          # The 15-Nov validated operational file is the same SHA-pinned frozen
+          # V9FittedSnapshot bytes (hash verified). Small immutable artifact only.
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/14181765642/zip" > "$root/validated-fit.zip"
           fit=24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208
-          entry="$(unzip -Z1 "$root/preaudit.zip" | grep -E "(^|/)${fit}\\.fitted\\.json$" | head -1)"
+          entry="$(unzip -Z1 "$root/validated-fit.zip" | grep -E "(^|/)\${fit}\\.operational\\.json$" | head -1)"
           test -n "$entry"
-          unzip -p "$root/preaudit.zip" "$entry" > "$root/baseline/$fit.fitted.json"
-          test -s "$root/baseline/$fit.fitted.json"
-          rm -f -- "$root/preaudit.zip"
+          unzip -p "$root/validated-fit.zip" "$entry" > "$root/baseline/$fit.fitted.json"
+          echo "$fit  $root/baseline/$fit.fitted.json" | sha256sum -c -
+          rm -f -- "$root/validated-fit.zip"
           echo "V9_SQL_DIAGNOSTIC_FROZEN_FINALIST_PINNED=1"
       - name: Start exact SQL Server 2022 CU26 digest on separate disposable runner
         run: bash scripts/v9-tf-start-disposable-sql.sh
