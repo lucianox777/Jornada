@@ -39,6 +39,12 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("needs.prepare-100k.result == 'success'", train)
         prepare = wf.split("\n  prepare-100k:\n", 1)[1].split("\n  test-database-preflight:\n", 1)[0]
         self.assertIn("V9_PREPARE_ADMISSION=SUCCESS", prepare)
+        self.assertIn("Upload immutable PREPARE admission receipt", prepare)
+        self.assertIn("v9-prepare-admission-", prepare)
+        self.assertIn("Download PREPARE admission receipt from same campaign", train)
+        self.assertIn("V9_PREPARE_RECEIPT_VERIFIED", train)
+        self.assertIn('receipt["runId"] == os.environ["GITHUB_RUN_ID"]', train)
+        self.assertIn('receipt["commitSha"] == os.environ["EXACT_SHA"]', train)
         self.assertIn("PREPARE mandatory campaign: generate frozen TRAIN corpus", train)
         self.assertIn("PREPARE mandatory campaign: start masked disposable SQL Server", train)
         self.assertIn("PREPARE mandatory campaign: rehydrate frozen IBGE", train)
