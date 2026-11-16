@@ -99,6 +99,11 @@ public static class V9IndependentTestCli
             sameOperationalJsonBytesAsProductionSideSqlPayload = true,
             operationalModelContract = V9OperationalSqlModelConverter.ContractVersion,
             operationalModelId,
+            // Bind the evaluated candidate to the exact operational execution plan.
+            // A TEST result must never be mistaken for the currently active model.
+            candidateExecutionPlanSchemaVersion = winner.Payload.ProjectionSchemaVersion,
+            candidateExecutionPlanFingerprintSha256 = winner.Payload.ProjectionFingerprintSha256,
+            candidateGroupingAlgorithm = winner.Payload.CandidateGrouping?.CandidateGrouping,
             operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
             operationalModelActive = false,
             operationalModelPublished = false,
