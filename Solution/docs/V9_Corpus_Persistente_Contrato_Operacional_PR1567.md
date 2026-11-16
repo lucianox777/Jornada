@@ -289,3 +289,7 @@ Para comprovar a persistência, o operador deve: (1) disponibilizar o mesmo moun
 ## Mudança aprovada pelo PO — ZIP versionado em REF (15/11/2026)
 
 A decisão [DC-V9-CORPUS-100K-ZIP-REF](Decisao_V9_Corpus_100K_ZIP_REF_20261115.md) aprova avaliar e implementar corpus físico 100k em ZIP versionado na camada REF, sujeito a tamanho real, verificação de hashes, isolamento de TEST e testes de reuso. O procedimento de mount externo acima permanece histórico e deixa de ser pré-requisito quando a alternativa ZIP for comprovada. A CI verde anterior não certifica a nova arquitetura; PR continua em DRAFT até implementação e aceite.
+
+## Implementação incremental ZIP REF (16/11/2026)
+
+Commits `162e2069` e `e3815f01` adicionam ferramenta create-only `v9-corpus-ref-zip.py` e testes de empacotamento/verificação, alteração de bytes, entrada extra e fonte incompleta. A ferramenta verifica hashes físicos e allowlist, mas **ainda não é integração PREPARE→TRAIN**, não mede ZIP 100k real, não versiona o corpus, não prova reuso entre execuções independentes nem executa experimento científico. Não confundir os testes de unidade com aceite final; PR permanece DRAFT até esses requisitos e CI.
