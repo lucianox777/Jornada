@@ -67,3 +67,9 @@ O job PREPARE recebeu `GH_TOKEN` com permissões `actions: read` para o download
 ## CI de contrato sem execução física
 
 Adicionado `.github/workflows/v9-standard-linear-contract-ci.yml` para validar a sintaxe YAML dos dois workflows, executar `test_v9_standard_*.py` e compilar o script de handoff em PRs pertinentes. Não executa SQL, TRAIN 100k ou TEST científico. Resultado real de CI ainda deve ser verificado; o workflow novo não substitui os gates obrigatórios do repositório.
+
+## Ratificação do PO — retrocompatibilidade e escopo estrito (16/11/2026)
+
+O PO ratificou que **não há mudança no comportamento científico/operacional já vigente**: o escopo técnico desta PR é exclusivamente separar PREPARE como job independente, transferir seus artefatos para TRAIN e demonstrar que o handoff funciona. Devem permanecer idênticos o gerador/seed e a configuração científica, as 324 hipóteses TF4, o motor C#, a cadeia AUDIT/VALIDATION, o comportamento de segurança, a política de TEST e a retrocompatibilidade dos workflows legados. A nova entrada linear é adicional; não remover ou redirecionar o workflow operacional existente. O tempo de preparação deixa de consumir o relógio do job TRAIN, mas isso é uma mudança de orquestração, não de ciência.
+
+**Aceitação necessária:** CI de contrato verde, prova do conteúdo e integridade do artifact PREPARE→TRAIN, comparação de invariantes com o workflow legado e, antes de considerar concluído, execução controlada autorizada que comprove o handoff no runner real. A execução física não está automaticamente autorizada por esta ratificação. O TEST científico permanece bloqueado por paridade produtiva e não é objeto desta PR.
