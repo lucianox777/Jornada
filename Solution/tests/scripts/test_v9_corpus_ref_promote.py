@@ -52,13 +52,30 @@ class RefPromotionTests(unittest.TestCase):
 
     def test_unvalidated_target_rejected_without_mutation(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "index.json"
+            root = Path(temp)
+            store = make_store(root)
+            path = root / "index.json"
             initial = {"schema": "v9-ref-retention-index-v1", "entries": [
                 {"fingerprint": A, "configuration": "seed42", "state": "CURRENT", "validated": True, "approved": True},
                 {"fingerprint": B, "configuration": "seed42", "state": "HISTORICAL", "validated": False, "approved": False},
             ]}
             path.write_text(json.dumps(initial))
             with self.assertRaisesRegex(ValueError, "validated and approved"):
+                module.promote(path, B, "seed42", store=store, generation=CONFIG_B)
+            self.assertEqual(json.loads(path.read_text()), initial)
+
+    def test_tampered_snapshot_rejected_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = make_store(root)
+            path = root / "index.json"
+            initial = {"schema": "v9-ref-retention-index-v1", "entries": [
+                {"fingerprint": A, "configuration": "seed42", "state": "CURRENT", "validated": True, "approved": True},
+                {"fingerprint": B, "configuration": "seed42", "state": "HISTORICAL", "validated": True, "approved": True},
+            ]}
+            path.write_text(json.dumps(initial))
+            (store / B / "observacoes.csv").write_text("tampered")
+            with self.assertRaisesRegex(ValueError, "mismatch"):
                 module.promote(path, B, "seed42", store=store, generation=CONFIG_B)
             self.assertEqual(json.loads(path.read_text()), initial)
 
