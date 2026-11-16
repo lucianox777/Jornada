@@ -153,5 +153,20 @@ class CorpusSnapshotTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.publish(Path(d) / "store", {"seed": 1}, Path(d))
 
+    def test_publish_rejects_intermediate_symlink_store_ancestor(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source"
+            source.mkdir()
+            for name in module.REQUIRED:
+                (source / name).write_text("synthetic")
+            real = root / "real"
+            real.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "ancestor"):
+                module.publish(alias / "store", {"seed": 42}, source)
+            self.assertFalse((real / "store").exists())
+
 if __name__ == "__main__":
     unittest.main()
