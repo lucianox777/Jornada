@@ -67,3 +67,6 @@ Contexto: após PRs #1596, #1601 e #1602, a comparação RunAsync versus ReplayT
 
 ## Integração do oráculo independente TEST — 16/11/2026
 PR #1603 integrada por squash `b8da454353fc0246732a3f3f8740248d74f1d673`, CI obrigatória #43934771240 3/3 SUCCESS. O teste de 729 grafos × 3 limites verifica somente semântica do agrupamento com oráculo separado; não constitui certificação do score TF4, abstenção, desempate, persistência SQL ou TEST 100k. Mantêm-se os bloqueios e a issue #1584. GOV-DOC-01.
+
+## Proposta de oráculo independente de decisão ranqueada — 16/11/2026
+Contexto: após integração das PRs #1603/#1605, o oráculo independente abrange agrupamento, não decisão. Decisão proposta: teste de tabela-verdade sem reutilizar o kernel para calcular status esperado, cobrindo limiar de posterior, margem em log-odds, guarda demográfica, dois candidatos acima do limiar e abstenção quando ranking vazio. Justificativa: detectar regressões em decisão de candidato TF4 ranqueado sem circularidade ReplayTest. Impactos: somente teste, nenhuma alteração de runtime, SQL, publicação ou gates científicos. Precedência: evidência parcial, NÃO demonstra cálculo TF4 independente nem paridade SQL RunAsync; issue #1584 permanece aberta. GOV-DOC-01.
