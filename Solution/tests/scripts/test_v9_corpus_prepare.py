@@ -98,6 +98,35 @@ class CorpusPrepareTests(unittest.TestCase):
                 prepare.handoff(alias, config, root / "consumer")
             self.assertFalse((root / "consumer").exists())
 
+    def test_cross_process_reuse_without_generator(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic-" + name)
+            store = root / "store"
+            config = {"seed": 42}
+            prepare.snapshot.publish(store, config, source)
+            (store / ".prepare.lock").touch()
+            config_path = root / "config.json"
+            import json
+            import subprocess
+            import sys
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "v9-corpus-prepare.py"),
+                 "--store", str(store), "--config", str(config_path),
+                 "--generation-output", str(root / "unused-output"),
+                 "--handoff-to", str(root / "consumer"),
+                 "--receipt", str(root / "receipt.json")],
+                check=True, capture_output=True, text=True)
+            self.assertIn("V9_CORPUS_PREPARE_REUSED", result.stdout)
+            self.assertFalse((root / "unused-output").exists())
+            self.assertEqual(
+                prepare.snapshot.verify(root / "consumer", config)["fingerprint"],
+                prepare.snapshot.identity(config))
+
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
