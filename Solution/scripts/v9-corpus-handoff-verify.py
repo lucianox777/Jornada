@@ -45,13 +45,15 @@ def verify_handoff(corpus: Path, config_path: Path, receipt_path: Path) -> dict:
         "scientific_test_used": False,
     }
 
-def materialize_train_input(corpus: Path, config_path: Path, receipt_path: Path, destination: Path) -> dict:
+def materialize_train_input(corpus: Path, config_path: Path, receipt_path: Path, destination: Path, expected_fingerprint=None) -> dict:
     """Copy only an authenticated PREPARE snapshot to a fresh TRAIN input directory.
 
     This is an admission primitive, NOT authorization to execute scientific TRAIN.
     Never overwrite a generated corpus or accept a partial destination.
     """
     evidence = verify_handoff(corpus, config_path, receipt_path)
+    if expected_fingerprint is not None and evidence["fingerprint"] != expected_fingerprint:
+        raise ValueError("TRAIN expected generation fingerprint mismatch")
     if destination.exists() or destination.is_symlink():
         raise ValueError("TRAIN destination must be absent")
     if destination.parent.is_symlink():
@@ -77,8 +79,11 @@ def main():
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--prepare-receipt", type=Path, required=True)
     parser.add_argument("--train-destination", type=Path, help="Opt-in verified copy only; does not execute TRAIN")
+    parser.add_argument("--expected-fingerprint", help="Required generation fingerprint when specified by TRAIN")
     args = parser.parse_args()
-    evidence = (materialize_train_input(args.corpus, args.config, args.prepare_receipt, args.train_destination)
+    if args.expected_fingerprint is not None and args.train_destination is None:
+        parser.error("--expected-fingerprint requires --train-destination")
+    evidence = (materialize_train_input(args.corpus, args.config, args.prepare_receipt, args.train_destination, args.expected_fingerprint)
                 if args.train_destination is not None else
                 verify_handoff(args.corpus, args.config, args.prepare_receipt))
     print("V9_CORPUS_CROSS_RUNNER_HANDOFF_PASS " + json.dumps(evidence, sort_keys=True))
