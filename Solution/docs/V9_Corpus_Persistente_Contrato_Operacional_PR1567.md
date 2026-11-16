@@ -64,3 +64,7 @@ O commit `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9` acrescenta dois cenários ne
 ## Ampliação do contrato de admissão — 15/11/2026
 
 Commit `a61b1bd51fc65d609a0b31b85a32e6158faac0f7`: testes de consumidor para aceitar recibo `REUSED` íntegro, rejeitar estados inesperados e recusar arquivo de corpus substituído por symlink. São **testes adicionados**, não evidência de validação até a CI correspondente passar. Complementam os negativos de lock e corrupção de `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9`. Não alteram a arquitetura de persistência nem os gates científicos.
+
+## Recusa de store simbólico no consumidor — 15/11/2026
+
+No handoff, a verificação anterior rejeitava symlink do diretório de corpus final e do lock, mas não rejeitava explicitamente um **symlink no diretório raiz do store**. O commit `b4a79a9d8e35c05c9f074c8d47f995888c7e1d56` acrescenta recusa antecipada para store ausente ou simbólico; o commit `d9f25b0af1933171cacd98b8244c7d9c303489e1` introduz regressão negativa específica. **Implementado na branch, CI do novo HEAD pendente**. Impacto: reduz aceitação acidental de caminhos indiretos no consumidor; não substitui ACL/imutabilidade de um backend durável. Precedência: complementa o contrato da PR #1567, sem decisão nova sobre provedor, retenção ou ativação científica.
