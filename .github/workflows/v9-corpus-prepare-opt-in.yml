@@ -100,8 +100,11 @@ jobs:
       - name: Package and measure physical 100k REF ZIP (candidate only)
         run: |
           set -euo pipefail
-          mkdir -p .local/v9-persistent/ref-zip-candidate
-          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-persistent/generated --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
+          mkdir -p .local/v9-persistent/ref-zip-candidate .local/v9-persistent/ref-zip-source
+          for name in pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json; do
+            cp ".local/v9-persistent/train-handoff/$name" ".local/v9-persistent/ref-zip-source/$name"
+          done
+          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-persistent/ref-zip-source --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
           python3 scripts/v9-corpus-ref-zip.py verify --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
           bytes="$(stat -c %s .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip)"
           echo "V9_REF_ZIP_100K_COMPRESSED_BYTES=$bytes"
