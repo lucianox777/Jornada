@@ -169,6 +169,18 @@ public static class V9OperationalCandidateGraphParityAudit
                 FormattableString.Invariant($"{edge.A}:{edge.B}\n")));
         }
         var digest = Convert.ToHexString(canonicalHash.GetHashAndReset()).ToLowerInvariant();
+        // Independent reference digest: a set equality alone must not mask
+        // a mismatch in canonical ordering/encoding between both paths.
+        using var referenceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var edge in expected.OrderBy(e => e.A).ThenBy(e => e.B))
+        {
+            ct.ThrowIfCancellationRequested();
+            referenceHash.AppendData(Encoding.UTF8.GetBytes(
+                FormattableString.Invariant($"{edge.A}:{edge.B}\n")));
+        }
+        var referenceDigest = Convert.ToHexString(referenceHash.GetHashAndReset()).ToLowerInvariant();
+        if (!string.Equals(digest, referenceDigest, StringComparison.Ordinal))
+            throw new InvalidDataException("Digest do grafo SQL operacional divergiu do grafo físico TEST.");
 
         // ONE global replay of the fully reassembled graph. Never run grouping
         // separately inside retrieval batches: edges may cross every boundary.
