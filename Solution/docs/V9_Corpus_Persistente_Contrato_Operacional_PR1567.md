@@ -161,3 +161,7 @@ Commit `82bf9d55`: no consumidor opt-in, `--expected-fingerprint` passa a ser de
 ## Guarda de regressão do fingerprint independente — 15/11/2026
 
 Commit `db813e6d`: teste estático do workflow passa a exigir que o fingerprint esperado derive explicitamente de `expected-config.json` e seja enviado a `--expected-fingerprint`. Evita regressão para a configuração recebida do produtor, preservando a âncora independente de proveniência. CI do novo HEAD pendente; sem alteração dos gates científicos, custos, armazenamento ou TEST.
+
+## Validação dos ancestrais do armazenamento PREPARE — 15/11/2026
+
+Commits `1f3dfb0c` e `8125ea65`: tanto `prepare` quanto `handoff` recusam armazenamento cujo caminho contenha symlink em qualquer ancestral; teste comprova recusa antes de executar gerador ou criar o armazenamento por alias. Justificativa: impedir redirecionamento acidental/malicioso de corpus e efeitos fora da raiz pretendida. Limite: não impede substituição concorrente de diretórios por processos com permissão de escrita. CI do novo HEAD pendente; provider durável e TRAIN científico permanecem bloqueios independentes.
