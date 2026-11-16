@@ -50,6 +50,19 @@ class StandardLinearWorkflowTests(unittest.TestCase):
             return text[start:end]
         self.assertEqual(extract(legacy), extract(self.workflow))
 
+    def test_audit_validation_jobs_are_identical_to_legacy(self):
+        legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
+        def extract(text, start, end):
+            first = text.index("  " + start + ":\n")
+            last = text.index("  " + end + ":\n", first)
+            return text[first:last]
+        self.assertEqual(
+            extract(legacy, "audit-100k", "validation-100k"),
+            extract(self.workflow, "audit-100k", "validation-100k"))
+        self.assertEqual(
+            extract(legacy, "validation-100k", "test-100k"),
+            extract(self.workflow, "validation-100k", "test-100k"))
+
     def test_legacy_workflow_remains_present(self):
         self.assertTrue((WORKFLOW.parent / "v9-v3-four-name-100k.yml").is_file())
 
