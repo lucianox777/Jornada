@@ -287,8 +287,6 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await AssertRunRowsAsync(connection, alternate.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
             await AssertFrozenRunDecisionsAsync(connection, alternate.RunId, reference);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
-                "A mudança de fronteira de lotes não pode publicar Gold/Serving.");
-            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
                 "Gold/Serving não podem ser alterados nem com candidatos TF positivos.");
 
             // The independently implemented Worker physical SQL signature
