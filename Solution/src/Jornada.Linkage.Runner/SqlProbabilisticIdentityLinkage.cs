@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Globalization;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
@@ -134,6 +135,36 @@ public sealed class SqlProbabilisticIdentityLinkage(
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         return await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
             connection, modelId, winnerSha256, cancellationToken);
+    }
+
+    /// <summary>
+    /// Production-side, explicitly opt-in TEST_ONLY V9 cohort entry point.
+    /// Unlike per-row ResolveWithoutCpfAsync, V9 complete-link needs the
+    /// entire frozen SQL candidate graph before any row can be resolved.
+    /// Strictly disposable JornadaHarness; never selects an active model,
+    /// persists decisions, fits, publishes, or accesses Gold/TEST truth.
+    /// This is an integration seam, NOT production-format parity certification.
+    /// </summary>
+    public async Task<V9FrozenSourceReplayResult> ResolvePinnedV9FrozenTestCohortAsync(
+        Guid modelId, string winnerSha256,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> frozenTest,
+        IReadOnlyList<(int A, int B)> completeSqlEdges,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(frozenTest);
+        ArgumentNullException.ThrowIfNull(completeSqlEdges);
+        if (modelId == Guid.Empty || winnerSha256 is not { Length: 64 }
+            || frozenTest.Count is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
+            throw new InvalidDataException("Coorte TEST V9 ou modelo pinado inválido.");
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        await using (var guard = new SqlCommand("SELECT DB_NAME();", connection))
+            if (!string.Equals((string?)await guard.ExecuteScalarAsync(cancellationToken),
+                    "JornadaHarness", StringComparison.Ordinal))
+                throw new InvalidOperationException("Coorte V9 TEST_ONLY exige JornadaHarness descartável.");
+        var pinned = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
+            connection, modelId, winnerSha256, cancellationToken);
+        return pinned.ReplayTest(frozenTest, completeSqlEdges);
     }
 
     // The resident database marker, not the process environment, is the final gate.
