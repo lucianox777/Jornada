@@ -12,6 +12,7 @@ import zipfile
 
 REQUIRED = ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json", "generation-manifest.json")
 MAX_UNCOMPRESSED = 2_000_000_000
+MAX_ZIP_BYTES = 2_000_000_000
 
 def sha(path):
     h = hashlib.sha256()
@@ -28,6 +29,8 @@ def inspect(archive, manifest):
         raise ValueError("Invalid REF ZIP manifest")
     if record.get("zip_sha256") != sha(archive) or record.get("zip_size") != archive.stat().st_size:
         raise ValueError("REF ZIP digest/size mismatch")
+    if archive.stat().st_size > MAX_ZIP_BYTES:
+        raise ValueError("REF ZIP exceeds safety limit")
     with zipfile.ZipFile(archive) as z:
         infos = z.infolist()
         if len(infos) != len(REQUIRED) or {i.filename for i in infos} != set(REQUIRED):
@@ -64,6 +67,8 @@ def pack(source, archive, manifest):
         if p.is_symlink() or not p.is_file():
             raise ValueError("Unsafe REF source entry")
         files[name] = {"sha256": sha(p), "size": p.stat().st_size}
+    if any(p.is_symlink() for p in (archive.parent, *archive.parent.parents, manifest.parent, *manifest.parent.parents)):
+        raise ValueError("Unsafe REF output parent")
     archive.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as z:
         for name in sorted(REQUIRED):
