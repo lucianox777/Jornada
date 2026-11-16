@@ -14,7 +14,7 @@ def observation(run):
     return {"schema": "v9-ref-cross-run-observation-v1",
             "repository": "lucianox777/Jornada", "run_id": run,
             "run_attempt": 1, "fingerprint": "a" * 64,
-            "files": {"observacoes.csv": {"sha256": "b" * 64, "size": 12}},
+            "files": {name: {"sha256": "b" * 64, "size": 12} for name in\n                      ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json",\n                       "generation-manifest.json")},
             "store_identity": "operator-attested-ref-mount-1"}
 
 
@@ -69,6 +69,18 @@ class CrossRunProofTests(unittest.TestCase):
         second = observation(102)
         second["store_identity"] = "other"
         with self.assertRaisesRegex(ValueError, "store_identity"):
+            module.audit(observation(101), second)
+
+    def test_missing_file_metadata_rejected(self):
+        second = observation(102)
+        del second["files"]["gabarito.json"]
+        with self.assertRaisesRegex(ValueError, "allowlist"):
+            module.audit(observation(101), second)
+
+    def test_malformed_sha_rejected(self):
+        second = observation(102)
+        second["files"]["observacoes.csv"]["sha256"] = "invalid"
+        with self.assertRaisesRegex(ValueError, "SHA-256"):
             module.audit(observation(101), second)
 
     def test_rerun_rejected(self):
