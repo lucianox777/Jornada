@@ -169,7 +169,7 @@ jobs:
               "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "files": {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
           }
-          (root / "corpus-receipt.json").write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n", encoding="utf-8")
+          (root / "corpus-receipt.json").write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
           print("V9_PREPARE_TRAIN_CORPUS_SEALED", len(files))
           PY
       - name: Upload mandatory TRAIN corpus with pinned manifest
@@ -496,7 +496,7 @@ jobs:
           set -euo pipefail
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      # Mandatory PREPARE phase of the same TRAIN → AUDIT → VALIDATION campaign.\n      # This is NOT prepare-test-100k, which remains TEST-only and optional.\n      - name: "PREPARE mandatory campaign: generate frozen TRAIN corpus and bind TF4 plan"
+      # Mandatory PREPARE phase of the same TRAIN → AUDIT → VALIDATION campaign.\n      # This is NOT prepare-test-100k, which remains TEST-only and optional.\n      - name: "TRAIN: bind TF4 plan using verified PREPARE corpus"
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
