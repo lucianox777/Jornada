@@ -61,7 +61,10 @@ public static class V9ReadOnlyTestBatchRunner
         var alternate = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
             connection, runtime, syntheticTest, physicalSqlEdges,
             alternateBatchSize, cancellationToken);
-        if (alternate.WinnerSha256 != receipt.WinnerSha256
+        if (alternate.ObservationCount != receipt.ObservationCount
+            || alternate.PhysicalSqlEdgeCount != receipt.PhysicalSqlEdgeCount
+            || alternate.OperationalSqlEdgeCount != receipt.OperationalSqlEdgeCount
+            || alternate.WinnerSha256 != receipt.WinnerSha256
             || alternate.ProjectionSchemaVersion != receipt.ProjectionSchemaVersion
             || alternate.ProjectionFingerprintSha256 != receipt.ProjectionFingerprintSha256
             || alternate.CanonicalEdgesSha256 != receipt.CanonicalEdgesSha256
