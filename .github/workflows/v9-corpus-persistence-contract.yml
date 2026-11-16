@@ -1,0 +1,36 @@
+name: v9-corpus-persistence-contract
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-corpus-*.py'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/tests/Jornada.Tests/Unit/SyntheticCorpusV2PortTests.cs'
+      - 'Solution/tests/scripts/test_v9_*.py'
+      - '.github/workflows/v9-v3-four-name-100k.yml'
+      - '.github/workflows/v9-corpus-prepare-opt-in.yml'
+      - '.github/workflows/v9-corpus-crossrunner-pr-smoke.yml'
+      - 'Solution/tests/scripts/v9_corpus_crossrunner_fixture.py'
+      - '.github/workflows/v9-corpus-persistence-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corpus-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          persist-credentials: false
+      - name: Python syntax and snapshot contracts
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/v9-corpus-snapshot.py scripts/v9-corpus-input-receipt.py scripts/v9-corpus-prepare.py scripts/v9-corpus-handoff-verify.py
+          # Focused contract: frozen seed42/43/44 and unrelated V9 CI
+          # have independent mandated workflows. This gate must never
+          # rewrite their hash pins to accommodate a WIP experiment.
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_corpus_*.py' -v
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_workflow_safety.py' -v

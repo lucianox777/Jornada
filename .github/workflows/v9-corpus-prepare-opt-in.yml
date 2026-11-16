@@ -1,0 +1,222 @@
+name: V9 corpus PREPARE (isolated, opt-in)
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact branch commit SHA (40 lowercase hex)
+        required: true
+        type: string
+      mother_corruption_rate:
+        description: "RESERVED, FAIL-CLOSED: maternal override not executable while frozen generator SHA is protected. Leave blank (clean 10%)."
+        required: false
+        default: ""
+        type: string
+permissions:
+  contents: read
+
+jobs:
+  prepare-corpus:
+    if: ${{ github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      MOTHER_CORRUPTION_RATE: ${{ inputs.mother_corruption_rate }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit exact SHA, branch and owner only
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          test "$GITHUB_REF" = "refs/heads/feature/v9-persistent-synthetic-corpus-20261115"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Derive generation-only fingerprint from pinned source and REF
+        run: |
+          set -euo pipefail
+          mkdir -p .local/v9-persistent
+          # The historical C# generator source is pinned by scientific
+          # seed42/43/44 transfers. Do not silently accept an override that
+          # this pinned executable cannot apply. The recipe supports a future
+          # separated experiment; until then only the clean 10% path runs.
+          if [[ -n "$MOTHER_CORRUPTION_RATE" ]]; then
+            echo "::error::V9_MATERNAL_RATE_EXPERIMENTAL_NOT_IMPLEMENTED: frozen generator cannot accept a maternal override"
+            exit 1
+          fi
+          python3 scripts/v9-corpus-input-receipt.py \
+            --generator-source src/Jornada.Linkage.SyntheticCorpus \
+            --ibge-names data/reference/ibge-nomes-2022 \
+            --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
+            --output .local/v9-persistent/config.json
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import importlib.util,json
+          from pathlib import Path
+          p=Path("scripts/v9-corpus-snapshot.py")
+          s=importlib.util.spec_from_file_location("snapshot",p)
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          print("V9_CORPUS_KEY="+m.identity(json.loads(Path(".local/v9-persistent/config.json").read_text())))
+          PY
+      # Immutable cache, shared across workflow runs; not guaranteed retention.
+      # Missing cache triggers deterministic regeneration; corrupted cache fails.
+      - id: corpus-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
+        with:
+          path: Solution/.local/v9-persistent/store
+          key: v9-corpus-v1-${{ env.V9_CORPUS_KEY }}
+          lookup-only: false
+      - name: Verify corpus preparation contract before expensive generation
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_*.py' -v
+      - name: Build generator and prepare corpus
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          python3 scripts/v9-corpus-prepare.py \
+            --store .local/v9-persistent/store \
+            --config .local/v9-persistent/config.json \
+            --generation-output .local/v9-persistent/generated \
+            --handoff-to .local/v9-persistent/train-handoff \
+            --receipt .local/v9-persistent/prepare-receipt.json -- \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+              --reference-root data/reference/ibge-nomes-2022 \
+              --population-profile demographic-primary \
+              --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
+              --error-profile clean --people 100000 --seed 42 \
+              --out .local/v9-persistent/generated
+      - name: Package and measure physical 100k REF ZIP (candidate only)
+        run: |
+          set -euo pipefail
+          mkdir -p .local/v9-persistent/ref-zip-candidate .local/v9-persistent/ref-zip-source
+          for name in pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json; do
+            cp ".local/v9-persistent/train-handoff/$name" ".local/v9-persistent/ref-zip-source/$name"
+          done
+          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-persistent/ref-zip-source --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
+          python3 scripts/v9-corpus-ref-zip.py verify --zip .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-persistent/ref-zip-candidate/manifest.json
+          bytes="$(stat -c %s .local/v9-persistent/ref-zip-candidate/corpus-seed42.zip)"
+          echo "V9_REF_ZIP_100K_COMPRESSED_BYTES=$bytes"
+          if (( bytes > 95000000 )); then
+            echo "::warning::V9_REF_ZIP_EXCEEDS_SAFE_GIT_SIZE_THRESHOLD: PO governance decision required before versioning"
+          fi
+      - if: ${{ steps.corpus-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2686 # v4.2.3 pinned
+        with:
+          path: Solution/.local/v9-persistent/store
+          key: v9-corpus-v1-${{ env.V9_CORPUS_KEY }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-prepared-corpus-${{ github.run_id }}
+          path: |
+            Solution/.local/v9-persistent/train-handoff/
+            Solution/.local/v9-persistent/config.json
+            Solution/.local/v9-persistent/prepare-receipt.json
+            Solution/.local/v9-persistent/ref-zip-candidate/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Separate GitHub-hosted runner to prove artifacts cross job boundaries,
+  # without starting the 324-hypothesis TRAIN or independent sealed TEST.
+  train-handoff-probe:
+    name: "V9 PREPARE -> consumer verification (NONSCIENTIFIC, no TRAIN)"
+    needs: [prepare-corpus]
+    if: ${{ needs.prepare-corpus.result == 'success' && github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4.2.2
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit verified branch/SHA before consuming any artifact
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_REF" = "refs/heads/feature/v9-persistent-synthetic-corpus-20261115"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "${{ needs.prepare-corpus.result }}" = "success"
+      - name: Fetch only same-run PREPARE artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned v4
+        with:
+          name: v9-prepared-corpus-${{ github.run_id }}
+          path: Solution/.local/v9-handoff-received
+      - name: Verify physical 100k REF ZIP candidate on independent consumer runner
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-corpus-ref-zip.py unpack --zip .local/v9-handoff-received/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-handoff-received/ref-zip-candidate/manifest.json --destination .local/v9-handoff-received/ref-zip-verified
+          for name in pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json; do
+            cmp ".local/v9-handoff-received/ref-zip-verified/$name" ".local/v9-handoff-received/train-handoff/$name"
+          done
+          echo "V9_100K_REF_ZIP_CROSS_RUNNER_SAME_RUN_PHYSICAL_BYTES_PASS"
+      - name: Verify exact config/manifest SHA and complete file hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Independently recompute generation inputs from checked-out pinned
+          # source and REF. Never trust only the config shipped in the artifact.
+          python3 scripts/v9-corpus-input-receipt.py \
+            --generator-source src/Jornada.Linkage.SyntheticCorpus \
+            --ibge-names data/reference/ibge-nomes-2022 \
+            --birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
+            --output .local/v9-handoff-received/expected-config.json
+          expected_fingerprint="$(python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          module = Path("scripts/v9-corpus-snapshot.py")
+          spec = importlib.util.spec_from_file_location("snapshot", module)
+          obj = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(obj)
+          config = json.loads(Path(".local/v9-handoff-received/expected-config.json").read_text())
+          print(obj.identity(config))
+          PY
+          )"
+          python3 scripts/v9-corpus-handoff-verify.py \
+            --corpus .local/v9-handoff-received/train-handoff \
+            --config .local/v9-handoff-received/config.json \
+            --expected-config .local/v9-handoff-received/expected-config.json \
+            --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
+            --train-destination .local/v9-handoff-received/verified-train-input \
+            --expected-fingerprint "$expected_fingerprint"
+          # Prove that the scientific TRAIN planner can bind to the exact
+          # verified corpus directory. This does NOT execute 324 hypotheses.
+          python3 scripts/v9-j-download-pinned-artifact.py \
+            --artifact-id 13654549483 \
+            --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7 \
+            --output .local/v9-handoff-received/historical-official.zip
+          mkdir -p .local/v9-handoff-received/plan-bound
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip .local/v9-handoff-received/historical-official.zip \
+            --corpus-root .local/v9-handoff-received/verified-train-input \
+            --plan .local/v9-handoff-received/plan-bound/base-plan.json \
+            --receipt .local/v9-handoff-received/plan-bound/base-receipt.json \
+            --parallelism auto
+          python3 scripts/v9-v3-four-name-100k-plan.py \
+            --base-plan .local/v9-handoff-received/plan-bound/base-plan.json \
+            --base-receipt .local/v9-handoff-received/plan-bound/base-receipt.json \
+            --plan .local/v9-handoff-received/plan-bound/v3-plan.json \
+            --receipt .local/v9-handoff-received/plan-bound/v3-receipt.json
+          echo "V9_CORPUS_TRANSFER_PROBE_ONLY V9_CORPUS_PLAN_BINDING_PROBE_ONLY: verified PREPARE corpus bound to V3 TRAIN plan; no physical calibration or TEST"

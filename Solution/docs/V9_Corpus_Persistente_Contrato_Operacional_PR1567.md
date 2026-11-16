@@ -46,3 +46,278 @@
 O job consumidor em runner separado registrou exatamente `V9_CORPUS_CROSS_RUNNER_HANDOFF_PASS` com `status=TRANSFER_VERIFIED_NONSCIENTIFIC` e `scientific_test_used=false`. O contrato usa `v9-corpus-crossrunner-pr-smoke.yml`, fixture de duas linhas (`tests/scripts/v9_corpus_crossrunner_fixture.py`) e `v9-corpus-handoff-verify.py`, sem certificados TEST, sem banco real, sem pontuação de pares e sem 324 hipóteses. Não extrapolar o smoke de duas linhas para escala/durabilidade 100k.
 
 **Bloqueios ainda abertos:** armazenamento durável independente do cache evictável, publicação imutável de corpus entre execuções, verdadeiros parâmetros familiares congelados em REF, variante experimental do gerador para degradação materna `13,4%` sem mexer no gerador histórico, integração no workflow físico TRAIN com handoff completo, controle de acesso/retentividade, medição P95 e aceite posterior do PO. O fluxo `workflow_dispatch` criado somente na branch draft não equivale a workflow manual registrado na master. O TEST científico 100k permanece lacrado e NÃO utilizado.
+
+## Correção de concorrência e regressão CI — 15/11/2026
+
+**Estado: IMPLEMENTADO na branch, validação do HEAD mais recente PENDENTE.** O handoff agora mantém `flock(LOCK_SH)` em `.prepare.lock` durante a verificação e cópia dos quatro arquivos e manifesto. Falha fechada quando o lock está ausente ou é symlink. O PREPARE utiliza `LOCK_EX` no mesmo lock para lookup/generate/publish. Isso é uma proteção local em volume POSIX compartilhado, **não** prova de armazenamento durável entre runs ou imutabilidade contra escritores externos não cooperativos.
+
+Rastreabilidade: commits `04234e839d0f8645f13fadd7deadb5d52d95cfc4` (handoff), `bb70758a62a19bf859061d881dcde7b1338d6332` (teste de lock ausente) e `fb3a9ba1948f6b082ff672181739e2c33e61210c` (fixture de publicação direta). A [CI de contrato #43778938540](https://github.com/lucianox777/Jornada/actions/runs/43778938540) **FALHOU** no SHA `bb70758` porque seis casos do fixture chamavam `snapshot.publish` diretamente, sem criar o lock que o PREPARE normalmente cria. A correção do fixture adiciona explicitamente esse lock; **não afirmar PASS até o novo SHA passar pela CI**. O [smoke cross-runner #43778938541](https://github.com/lucianox777/Jornada/actions/runs/43778938541) no SHA anterior passou, mas não substitui o contrato reprovado.
+
+Precedência: complementa o contrato operacional da PR #1567, sem modificar a decisão canônica GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115, nem autorizar merge, TRAIN científico ou TEST 100k. Próximo gate: CI no HEAD corrigido; depois durabilidade real com ACL, retenção, recuperação e provas entre execuções.
+
+## Verificação de regressão e negativos adicionais — 15/11/2026
+
+No HEAD `6f97aa928758557abc665938c692cc0b452dd99c`, os quatro workflows de PR terminaram **SUCCESS**: [contrato #43779051691](https://github.com/lucianox777/Jornada/actions/runs/43779051691), [cross-runner #43779051798](https://github.com/lucianox777/Jornada/actions/runs/43779051798), [fast experimental #43779051701](https://github.com/lucianox777/Jornada/actions/runs/43779051701) e [required-fast #43779051694](https://github.com/lucianox777/Jornada/actions/runs/43779051694). Essa evidência resolve a regressão do fixture no SHA citado, **não** valida commits posteriores.
+
+O commit `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9` acrescenta dois cenários negativos: lock de preparação simbólico rejeitado no handoff e corpus reutilizado corrompido rejeitado sem executar gerador novamente. **Testes adicionados, CI deste novo HEAD ainda não confirmada.** Sem mudança de decisão do PO, sem ativação de armazenamento durável, TRAIN ou TEST científico.
+
+## Ampliação do contrato de admissão — 15/11/2026
+
+Commit `a61b1bd51fc65d609a0b31b85a32e6158faac0f7`: testes de consumidor para aceitar recibo `REUSED` íntegro, rejeitar estados inesperados e recusar arquivo de corpus substituído por symlink. São **testes adicionados**, não evidência de validação até a CI correspondente passar. Complementam os negativos de lock e corrupção de `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9`. Não alteram a arquitetura de persistência nem os gates científicos.
+
+## Recusa de store simbólico no consumidor — 15/11/2026
+
+No handoff, a verificação anterior rejeitava symlink do diretório de corpus final e do lock, mas não rejeitava explicitamente um **symlink no diretório raiz do store**. O commit `b4a79a9d8e35c05c9f074c8d47f995888c7e1d56` acrescenta recusa antecipada para store ausente ou simbólico; o commit `d9f25b0af1933171cacd98b8244c7d9c303489e1` introduz regressão negativa específica. **Implementado na branch, CI do novo HEAD pendente**. Impacto: reduz aceitação acidental de caminhos indiretos no consumidor; não substitui ACL/imutabilidade de um backend durável. Precedência: complementa o contrato da PR #1567, sem decisão nova sobre provedor, retenção ou ativação científica.
+
+## Contrato de não sobrescrita do snapshot — 15/11/2026
+
+Commit `deefe4a5a9cb3b2c63be1afb6a926322cc1ba8d9`: teste de regressão para a semântica existente de `publish`: quando o corpus identificado pela mesma configuração já existe e é íntegro, uma segunda fonte com bytes diferentes **não substitui** os arquivos publicados; o recibo e os bytes originais permanecem. Este é um teste de imutabilidade **lógica sob a API cooperativa**, não prova de armazenamento WORM, ACL ou proteção contra alterações externas. CI do HEAD com este teste ainda pendente. A escolha de provedor e política de retenção continuam pendentes de aprovação/implementação; TEST 100k lacrado e PR DRAFT.
+
+## Reutilização entre processos — contrato local, não cross-run — 15/11/2026
+
+Commit `b355be587322fbd3c618c9cd20aaa5bc299a6d80`: teste inicia um **processo Python independente** sobre store POSIX previamente publicado, sem comando de gerador, e exige estado `REUSED`, ausência de geração e handoff íntegro. Isso exercita o caminho de reutilização entre processos, mas **não** comprova persistência entre runs de GitHub Actions, runners ou máquinas; o teste compartilha o mesmo diretório temporário local. CI do novo HEAD pendente. Próximo gate físico exige backend durável governado, ACL, retenção, imutabilidade, recuperação, duas execuções independentes com cache miss/hit e teste de corrupção. O cache Actions continua evictável, sem garantia de retenção. Sem alteração do TEST científico, sem ativação TRAIN, sem autorização de merge.
+
+## Gate de seleção e prova de armazenamento durável — especificação de aceite (não ativada)
+
+**Estado: critérios propostos de verificação do requisito já aprovado; provedor, credenciais, retenção e custos continuam SEM decisão específica do PO.** O volume POSIX dos scripts é uma interface local, não uma escolha de serviço. GitHub Actions cache e artifact de 7 dias não satisfazem isoladamente o requisito de durabilidade. Não marcar este gate como aprovado por sucesso de testes locais, cross-process ou cross-job.
+
+| Gate | Evidência física exigida | Estado |
+|---|---|---|
+| Backend e segurança | Identificação explícita de provedor/volume, responsável, ACL de leitura/escrita por papel, criptografia, trilha de auditoria e credenciais efêmeras; sem secrets em logs | PENDENTE |
+| Retenção e recuperação | Política de retenção e expurgo aprovada, procedimento de recuperação documentado e restauração comprovada com SHA idêntico | PENDENTE |
+| Miss entre runs | Run A em runner novo, store inicialmente vazio, gera fixture pequena não científica, publica atomicamente e guarda recibo/ID imutável | PENDENTE |
+| Hit entre runs | Run B independente de A, runner novo e ID de execução distinto, consome a mesma versão sem invocar gerador; comprova hash, tamanho e fingerprint | PENDENTE |
+| Corrupção e identidade | Run C separado com fixture propositalmente adulterada ou referência inválida: rejeita antes do consumo; não sobrescreve versão íntegra nem faz fallback silencioso | PENDENTE |
+| Concorrência | Dois produtores competindo pela mesma chave no backend real: somente uma versão íntegra visível, sem parcial e com lock/lease compatível com o backend | PENDENTE |
+| Métricas | Bytes, duração PREPARE, transferência, custo de armazenamento/egresso, tempo de restauração e impacto no orçamento do TRAIN, sem executar 100k sem autorização | PENDENTE |
+| Integração científica | PREPARE→TRAIN físico com 324 hipóteses/81 células e segregação TRAIN/VALIDATION/TEST comprovadas; TEST independente permanece selado até autorização separada | BLOQUEADO |
+
+**Sequência de aprovação:** (1) PO decide provedor e política operacional; (2) implementar adaptador adequado, sem tratar `flock` POSIX como lease de object storage; (3) executar provas físicas de baixo custo com fixture pública; (4) revisar resultados e custos; (5) somente depois avaliar ativação do TRAIN e autorização científica independente. Nenhuma etapa autoriza mesclar a PR #1567 sem aprovação expressa posterior. Esta matriz complementa a decisão `GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115` e não altera sua precedência.
+
+## Endurecimento do inode de lock — 15/11/2026
+
+O controle anterior verificava `.is_symlink()` antes de `open()`, permitindo uma janela TOCTOU entre a checagem do caminho e sua abertura. Commits `54e9ad4d` e `09f23e84`: a abertura do lock de PREPARE/handoff agora usa `os.open` com `O_NOFOLLOW`, `O_CLOEXEC` e `O_NONBLOCK`, verifica `fstat` para exigir inode regular e fecha o descritor em caso de recusa. O commit `5e7b9803` adiciona teste negativo com FIFO para comprovar recusa sem bloqueio indefinido. **CI deste novo HEAD pendente**. Limitação: `flock` e `O_NOFOLLOW` pressupõem Linux/POSIX; não representam lease distribuído em object storage e não eliminam alterações externas sem ACL. Esta implementação reforça o contrato existente, sem seleção de provedor nem nova decisão aprovada pelo PO.
+
+## Proteção equivalente no lock de publicação — 15/11/2026
+
+Após o endurecimento do lock PREPARE, a publicação atômica ainda usava `open(lock_path, "a+b")` após verificação de symlink separada. O commit `0bd7feb709d3c1411d63362fe16ca7f9f33fc049` aplica `os.open(O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)` e `fstat` para exigir inode regular também em `.publish.lock`; `f881aedd923c77dc7d0be6d93cbfabbf4f415813` adiciona teste de FIFO que deve falhar antes da exposição do snapshot. Objetivo: eliminar a mesma janela de troca do componente final do lock e evitar bloqueio em FIFO. **CI do HEAD com estes commits pendente**. Não constitui lease distribuído, durabilidade física, nem autorização para TRAIN/TEST ou merge. Complementa GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115 sem decisão nova do PO.
+
+## Teste complementar de symlink no lock de publicação — 15/11/2026
+
+Commit `6fdb7a9bbc15c46e2e859254afe2cfc9e69c866b`: cenário negativo cria `.publish.lock` como symlink para arquivo externo e exige falha fechada, preservação dos bytes externos e ausência de snapshot publicado. Complementa o teste de FIFO do commit `f881aedd`. Evidência da CI **anterior**, no commit `f62847f3`: workflow de contrato [#43780348371](https://github.com/lucianox777/Jornada/actions/runs/43780348371) **SUCCESS**. A CI do commit novo ainda não está confirmada. Sem escolha de backend, sem mudança de decisão do PO e sem uso do TEST científico.
+
+## Diretriz posterior do Product Owner — prosseguir até a mesclagem (15/11/2026)
+
+O Product Owner solicitou expressamente **“Pode continuar até mesclagem.”** Essa instrução substitui a proibição anterior de realizar o merge **quanto à autorização para concluir o trabalho e mesclar**, mas **não declara atendidos os critérios de aceite** nem autoriza presumir provedor de armazenamento, custo, política de retenção, liberação do TEST lacrado ou campanha científica 100k. A PR continua DRAFT até conclusão técnica e verificação dos gates documentados; não efetuar merge de implementação incompleta sob pretexto desta autorização. Contexto: PR #1567 já dispõe de contrato local, prova não científica entre runners e testes de integridade, porém não dispõe de durabilidade entre runs nem integração real ao TRAIN. Impacto: a equipe pode conduzir a PR até merge após resolver e evidenciar os bloqueios, sem solicitar nova autorização genérica de merge; decisões operacionais novas, como backend e retenção, permanecem sujeitas à governança. Rastreabilidade: conversa do PO de 15/11/2026, PR #1567 e decisão GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115. Estado: **AUTORIZAÇÃO DE OBJETIVO REGISTRADA; CRITÉRIOS TÉCNICOS PENDENTES**.
+
+## Reiteração da autorização para concluir até merge — 15/11/2026
+
+O PO reiterou **“Pode continuar até mesclagem.”** após ser apresentada a proposta de escolher o armazenamento durável mais adequado com prioridade a baixo custo e integração GitHub. A reiteração autoriza prosseguir com a avaliação e implementação técnica visando o merge; **não especifica** provedor, orçamento, credenciais, prazo de retenção nem aprova execução científica 100k ou abertura do TEST lacrado. Decisões concretas de infraestrutura deverão ser documentadas antes de sua ativação e comprovadas em execução independente. Estado da CI observado no HEAD `c7f434eb1a0840774d1968b43d5a3a5f39d5a1da`: contrato [#43780466895](https://github.com/lucianox777/Jornada/actions/runs/43780466895), cross-runner [#43780466903](https://github.com/lucianox777/Jornada/actions/runs/43780466903) e fast experimental [#43780466982](https://github.com/lucianox777/Jornada/actions/runs/43780466982) SUCCESS; required-fast [#43780466965](https://github.com/lucianox777/Jornada/actions/runs/43780466965) ainda `pending` na consulta. A autorização não substitui as evidências de durabilidade e integração TRAIN exigidas na decisão original.
+
+## Regressão de concorrência entre publicadores locais — 15/11/2026
+
+Commit `b6a23d1cd0b4ba2ac901e41af83a53e671fbc0c5`: teste não científico com 12 publicações concorrentes em 6 threads para a mesma identidade de configuração, exigindo um único diretório final, recibos equivalentes e validação integral do snapshot. A prova cobre a serialização cooperativa no mesmo filesystem POSIX e **não** comprova concorrência distribuída entre runners ou durabilidade entre execuções GitHub Actions. CI deste commit ainda pendente de verificação. Mantidos os gates de backend durável, integração real TRAIN, autorização de infraestrutura e TEST lacrado.
+
+## Allowlist física de entradas no snapshot — 15/11/2026
+
+Commits `07d5601e` e `0050027f`: além de exigir o conjunto exato de arquivos no manifesto, `verify` passa a rejeitar entradas físicas adicionais no diretório do snapshot (arquivos ou subdiretórios). Testes negativos cobrem rejeição em `verify` e na reutilização por `publish`, sem regeneração silenciosa. Isso fortalece a fronteira de integridade, **não** demonstra durabilidade entre runs nem integra TRAIN. CI dos novos commits precisa ser observada. Sem alteração de decisões do PO, gerador congelado ou TEST lacrado.
+
+## Preparação do diretório de entrada TRAIN — 15/11/2026
+
+Commit `9001e6905d177322c7e86c4b444ed374b37b3ced`: o verificador `v9-corpus-handoff-verify.py` passou a oferecer `--train-destination <diretorio-ainda-inexistente>`. A rotina `materialize_train_input` valida recibo, fingerprint e SHA de todos os arquivos ANTES de copiar, copia apenas a allowlist para staging temporário, valida novamente o snapshot e expõe a entrada por rename. Rejeita destino já existente, inclusive symlink, sem sobrescrever dados. **É um primitivo de admissão, não a integração do workflow TRAIN**: o workflow científico continua gerando o corpus seed42, sem consumir esta opção. O backend durável, a prova física independente, testes CI da nova rotina e a ligação ao TRAIN seguem pendentes; não executar 100k nem mesclar antes dos gates. A autorização de merge do PO está registrada, mas condicionada à satisfação dos critérios técnicos.
+
+## Cobertura da admissão TRAIN e prova opt-in — 15/11/2026
+
+Commits `d983a4b0` e `2011b04f`: três testes unitários exercitam materialização íntegra para destino novo, rejeição de payload adulterado sem publicar destino e rejeição de symlink no destino. O job manual `train-handoff-probe` passa a invocar `--train-destination` para comprovar cópia validada em runner consumidor, mas continua **NONSCIENTIFIC**, não invoca TRAIN, não comprova retenção entre runs e não deve ser confundido com execução física já realizada (workflow manual não disparado). A CI deste HEAD ainda precisa ser observada. Nenhum novo custo, alteração do gerador congelado ou TEST independente.
+
+## Vinculação opcional de fingerprint na admissão — 15/11/2026
+
+Commits `a9a57bbf`, `9ebd9fd6`, `255aa371` e `12f861d2`: `materialize_train_input` aceita `expected_fingerprint` opcional e rejeita divergência antes de copiar; teste cobre rejeição e sucesso. O job manual consumidor calcula fingerprint da configuração recebida e o passa ao verificador; esse cálculo **não é uma âncora externa independente**, portanto não substitui a vinculação futura à receita esperada pelo TRAIN principal. A variável derivada no PREPARE não atravessa automaticamente jobs; o último commit corrige esse escopo. CI atualizada ainda não validada; sem backend durável, sem execução científica e sem merge.
+
+## Endurecimento de ancestral simbólico — 15/11/2026
+
+Commits `0a7cdf9c` e `8e9a2b7b`: a admissão do diretório TRAIN rejeita agora symlinks em **qualquer ancestral** do destino, além do destino e do pai imediato. Teste regressivo cria um alias simbólico intermediário e exige falha sem criação de diretório sob o alvo real. Esta defesa de caminhos não é prova de isolamento contra adversários concorrentes com controle do filesystem; uso produtivo exige diretórios/ACL controlados. CI do HEAD pendente. Sem alteração da ciência ou dos requisitos de armazenamento durável.
+
+## Admissão independente das entradas de geração no consumidor — 15/11/2026
+
+Commit `0836c4fc`: no workflow manual opt-in, o runner consumidor agora recalcula a configuração de geração usando o **checkout do SHA fixado**, o código do gerador e as referências IBGE/nascimentos presentes nesse checkout. Compara integralmente esse recibo esperado ao `config.json` recebido do produtor **antes** de admitir o corpus. Isso corrige o limite anterior em que o fingerprint era derivado apenas da configuração transportada pelo próprio produtor, sem âncora independente. O contrato permanece NONSCIENTIFIC e não comprova durabilidade entre execuções; o workflow manual ainda não foi executado fisicamente e a CI do novo HEAD está pendente. Sem alterar os geradores congelados, o TEST independente ou a política de autorização de 100k. A seleção de provedor/retention/ACL permanece pendente, portanto não declarar merge pronto.
+
+## Contrato de configuração independente centralizado — 15/11/2026
+
+Commits `0618696f`, `9a13d1e5` e `6ca4464b`: a API `verify_handoff` e a materialização TRAIN aceitam `expected_config_path` e rejeitam configuração divergente, ausente ou symlink antes de admitir arquivos. O workflow opt-in recalcula a receita de geração com fontes fixadas e passa `--expected-config` à API; a verificação deixa de depender de um trecho Python duplicado no YAML. Testes cobrem divergência, igualdade e symlink. Justificativa: centralizar a fronteira de confiança e reduzir risco de caminhos de execução sem verificação. Limites: o consumidor deve produzir a receita independente de fontes confiáveis; não comprova armazenamento durável, TRAIN real ou TEST; CI do novo HEAD ainda pendente. Sem custo ou execução científica.
+
+## Regressões obrigatórias da proveniência do consumidor — 15/11/2026
+
+Commits `e8b7c915` e `14af87b5`: o teste estático do workflow opt-in passa a exigir explicitamente `--expected-config`, código gerador e referência de nascimentos fixados; teste unitário garante que recibo independente ausente rejeite admissão e não crie destino. Justificativa: impedir regressão silenciosa da verificação independente recém-implementada. CI do novo HEAD pendente; persistência durável e TRAIN científico continuam bloqueados. Nenhuma autorização de custos ou nova execução científica inferida.
+
+## Proteção de caminhos também no PREPARE handoff — 15/11/2026
+
+Commits `318ac7c3` e `052eff0b`: `prepare.handoff` agora rejeita links simbólicos em todos os ancestrais do destino antes de criar o diretório, com teste regressivo para alias intermediário e ausência de efeitos no alvo real. Complementa a proteção já existente em `materialize_train_input`; não constitui garantia contra substituição concorrente de diretórios por agente com acesso de escrita. CI do novo HEAD pendente. Sem alteração de gerador congelado, TEST, custo ou decisão sobre backend durável.
+
+## Fingerprint esperado ancorado na receita independente — 15/11/2026
+
+Commit `82bf9d55`: no consumidor opt-in, `--expected-fingerprint` passa a ser derivado de `expected-config.json`, recalculado a partir de código e REF do checkout fixado, em vez de `config.json` transportado. A API já compara as duas configurações; a alteração elimina dependência redundante do valor não confiável no cálculo da expectativa. A CI do novo HEAD deve ser validada. Não modifica ciência, TEST, custos nem resolve armazenamento durável ou integração ao TRAIN real.
+
+## Guarda de regressão do fingerprint independente — 15/11/2026
+
+Commit `db813e6d`: teste estático do workflow passa a exigir que o fingerprint esperado derive explicitamente de `expected-config.json` e seja enviado a `--expected-fingerprint`. Evita regressão para a configuração recebida do produtor, preservando a âncora independente de proveniência. CI do novo HEAD pendente; sem alteração dos gates científicos, custos, armazenamento ou TEST.
+
+## Validação dos ancestrais do armazenamento PREPARE — 15/11/2026
+
+Commits `1f3dfb0c` e `8125ea65`: tanto `prepare` quanto `handoff` recusam armazenamento cujo caminho contenha symlink em qualquer ancestral; teste comprova recusa antes de executar gerador ou criar o armazenamento por alias. Justificativa: impedir redirecionamento acidental/malicioso de corpus e efeitos fora da raiz pretendida. Limite: não impede substituição concorrente de diretórios por processos com permissão de escrita. CI do novo HEAD pendente; provider durável e TRAIN científico permanecem bloqueios independentes.
+
+## Publisher independente com mesma política de caminhos — 15/11/2026
+
+Commits `dda72108` e `ed509212`: `v9-corpus-snapshot.publish` rejeita symlink em qualquer ancestral da raiz do armazenamento, mesmo quando chamado diretamente fora de `v9-corpus-prepare.py`; teste confirma que nenhum diretório de armazenamento é criado por alias. Contexto: impedir bypass da proteção PREPARE pela API de publicação isolada. Impacto: caminhos intencionalmente montados via symlink precisam ser substituídos por caminho canônico sem alias; não resolve corrida de diretórios nem storage durável. CI do novo HEAD pendente; sem mudança de ciência, TEST ou custos.
+
+## Preflight explícito para montagem POSIX externa — 15/11/2026
+
+Commits `914547bc` e `f232aa9e`: novo script `v9-corpus-external-store-preflight.py` exige caminho absoluto, montagem POSIX externa já provisionada, ausência de symlinks, permissões e declaração de evidências de pelo menos dois runs distintos vinculados ao repositório. Testes negativos recusam diretório local e declaração incompleta. **Limite importante:** a declaração é fornecida pelo operador, não constitui prova criptográfica nem verificação automática da durabilidade; `ismount` sozinho não distingue disco local montado de serviço externo. Portanto, o preflight é apenas um gate preparatório, **não** certificação de cross-run, nem integração ao workflow científico. Antes de promover, implementar verificação independente dos runs, identidade/autenticidade das evidências e provider real, além de aprovar retenção e custos. Nenhum fornecedor contratado e nenhuma campanha 100k disparada.
+
+## Correção do shell do consumidor opt-in — 15/11/2026
+
+Commit `73ca5934`: corrigidas quatro continuações de linha com barras invertidas duplicadas no passo `Verify exact config/manifest SHA and complete file hashes` de `.github/workflows/v9-corpus-prepare-opt-in.yml`. Com duas barras, o Bash não escapava a quebra de linha e podia executar opções `--generator-source`, `--ibge-names` e outras como comandos separados, interrompendo o consumidor antes da verificação. Agora cada continuação usa uma única barra. Esta correção não comprova execução física do workflow manual, não habilita TRAIN 100k nem resolve persistência durável; CI e ensaio operacional continuam necessários.
+
+## Regressão do Bash no consumidor opt-in — 15/11/2026
+
+Commit `e071cffd`: teste `test_v9_corpus_opt_in_shell_safety.py` verifica que as opções do recibo de entrada existem no job consumidor e que cada linha continuada termina em exatamente uma barra invertida, impedindo reintrodução da falha corrigida em `73ca5934`. É teste estático; não substitui execução física do workflow manual nem certifica persistência cross-run. CI do novo commit pendente.
+
+## Negativa de raiz do filesystem no preflight — 15/11/2026
+
+Commits `d2c446a4` e `4c17ea22`: o preflight de storage externo recusa explicitamente `/`, que satisfaz `os.path.ismount` em runners comuns, mas não é evidência de armazenamento externo. Teste negativo incluído. Esta proteção não certifica que outras montagens sejam remotas nem autentica as declarações do operador; a persistência cross-run continua não comprovada. Sem mudança científica e sem autorização de campanha 100k.
+
+## Tipagem estrita da evidência cross-run — 15/11/2026
+
+Commits `8ed3eb04` e `56dd7d8c`: IDs de execução na declaração de persistência exigem `int` exato positivo; `True` e `False` não são aceitos como inteiros por herança de tipo Python. Incluído teste negativo. Não equivale a verificação independente da autenticidade dos IDs ou da durabilidade do provedor; não libera merge, campanha 100k ou TEST. CI do novo HEAD deve ser conferida.
+
+## Ligação PREPARE → plano científico no probe opt-in — 15/11/2026
+
+Commits `7944fa4e` e `5ea8e5a5`: após a validação independente do snapshot no runner consumidor, o workflow manual opt-in obtém o artefato histórico oficial por ID e SHA-256 fixos e passa o diretório materializado do PREPARE ao mesmo planejador `v9-scale-100k-technical-plan.py` e ao planejador V3 `v9-v3-four-name-100k-plan.py` usados no TRAIN. O download recebe somente o token Actions de leitura no passo consumidor. Isso é **prova de binding do plano, não execução das 324 hipóteses**; não modifica o workflow científico principal, não usa TEST, não demonstra armazenamento externo durável. Execução manual opt-in não disparada; aprovação CI do commit ainda pendente. O merge permanece bloqueado pelas evidências operacionais e integração física aprovadas.
+
+## Regressão do binding do plano V3 — 15/11/2026
+
+Commit `9f7c452c`: teste estático do workflow opt-in exige que o diretório materializado pelo verificador de handoff seja exatamente o `--corpus-root` do planejador técnico, seguido do planejador V3; exige SHA fixo do artefato histórico e token de leitura, e impede inclusão de calibração física ou preparação de TEST nesse job. A verificação estática não prova execução do probe manual, persistência durável nem TRAIN físico. A aprovação da CI deve ser verificada após o commit.
+
+## Correção de falha CI do contrato de segurança — 15/11/2026
+
+O job `corpus-contract` da execução `43784104143` falhou em `test_corpus_prepare_cannot_dispatch_scientific_train` porque o novo marcador de binding substituíra indevidamente o marcador exigido `TRANSFER_PROBE_ONLY`. Commit `5ca8cfb1` restaura explicitamente `V9_CORPUS_TRANSFER_PROBE_ONLY` preservando o novo `V9_CORPUS_PLAN_BINDING_PROBE_ONLY`. Impacto: preserva o controle de não execução científica; sem alteração dos dados, das 324 hipóteses ou do TEST. A aprovação CI do novo SHA segue necessária.
+
+## Isolamento do armazenamento sintético na camada REF — 15/11/2026
+
+Após aprovação do PO para priorizar a camada REF, commits `c71ef584` e `c725f761` introduzem `v9-corpus-ref-store-path.py` e teste de isolamento. O validador exige raiz REF e diretório de referências oficiais existentes, caminhos absolutos e sem ancestrais simbólicos, namespace sintético contido na raiz REF mas disjunto das referências oficiais; não cria nem altera dados oficiais. A validação é **apenas de topologia e segurança de caminho**: não comprova que a REF seja mount durável, nem provisiona ACL, retenção ou cross-run. Antes de ligar o TRAIN, o operador deve fornecer a localização real do volume REF compartilhado, comprovar durabilidade com duas execuções distintas e executar os preflights de mount e SHA. Nenhum custo ou campanha 100k foi autorizado por esta implementação. CI do novo HEAD pendente.
+
+## Admissão conjunta REF + volume durável — 15/11/2026
+
+Commits `c4943424`, `b7746eb0`, `dd1c3a45`: rejeição explícita de `/` como raiz REF; novo `v9-corpus-ref-store-admission.py` combina a prova de isolamento de namespace com o preflight de mount POSIX externo já existente e atestado pelo operador; teste negativo garante que um diretório REF local comum não seja aceito como volume durável, mesmo com atestado declaratório. **Não foi provisionado volume REF nem executada prova cross-run**; o atestado continua sujeito a auditoria independente. Sem execução do TRAIN científico ou TEST, sem autorização de gastos, e sem alteração das 324 hipóteses. A CI do HEAD ainda precisa ser confirmada antes de considerar este incremento validado.
+
+## Planejamento de retenção fail-closed — 15/11/2026
+
+Commits `68b6bc5e` e `2227afe5`: criado `v9-corpus-retention-plan.py` como **planejador somente leitura**, com teste de exatamente um corpus `CURRENT` aprovado e validado por configuração, fingerprints únicos e reconhecimento de leitores ativos e dependências protegidas. Todas as versões recebem `RETAIN`: **não há exclusão automática** porque ausência de dependências científicas e capacidade de replay não foram comprovadas. O mecanismo implementa validação inicial da política aprovada, mas **não** promoção atômica, leases duráveis, rollback ou coleta segura; não declarar política integralmente entregue. CI do novo HEAD pendente. Não toca no TEST ou nas 324 hipóteses.
+
+## Promoção atômica do índice REF — 15/11/2026
+
+Commits `c0caf828` e `bdadc0b1`: `v9-corpus-ref-promote.py` altera **somente o índice** de retenção sob lock POSIX, com gravação em arquivo temporário, `fsync`, `os.replace` e sincronização do diretório. Exige aprovação explícita e entrada-alvo já marcada validada/aprovada, preserva o corpus anterior como `PREVIOUS` e não remove bytes. Testes verificam promoção, idempotência, ausência de alteração sem aprovação e rejeição de alvo inválido. **Limite importante:** o script não prova a existência nem a integridade dos arquivos do corpus apontado; deve ser chamado somente após verificação independente dos snapshots, admissão do volume REF durável e ausência de leitores não coordenados. Não está ligado ao workflow físico; rollback e coleta segura seguem pendentes. CI do novo HEAD pendente. Nenhum TEST foi acessado.
+
+## Verificação física obrigatória antes da promoção — 15/11/2026
+
+Commits `068120bf`, `869ae454`, `e22940aa`: o promotor do índice REF agora exige `--store` e `--generation-config` e verifica o fingerprint calculado e todos os hashes do snapshot físico **sob o lock do índice**, antes de marcar a versão `CURRENT`. Testes de promoção usam snapshots reais de fixture, não apenas declarações no índice. A verificação física local **não comprova durabilidade cross-run, isolamento de volume ou ausência de concorrência com escritores externos**; integração com preflight REF e com o workflow TRAIN continua pendente. Não houve merge nem execução científica.
+
+## Revisão de automação do PO — 15/11/2026
+
+Commits `1bd4dd07`, `eab3ab69`, `654d2c20`, `cc6ec1a0`: decisão aprovada e indexada; retirada a exigência de `--approved` por promoção rotineira do índice REF. O alvo continua obrigado a estar **previamente validado e aprovado no índice** e a passar verificação física SHA-256. **Não foi habilitada exclusão automática:** falta prova independente de ausência de leitores ativos e dependências de reprodutibilidade, além da durabilidade real do backend REF. A automação end-to-end por alteração de parâmetros e CI do HEAD seguem pendentes; nenhum corpus foi excluído.
+
+## Correção da CI e bloqueio técnico de promoção produtiva — 15/11/2026
+
+Run `43785788817` identificou duas chamadas obsoletas `approved=True` nos testes após revisão da interface. Commit `9ba60ef9` removeu esses argumentos e forneceu os parâmetros de verificação física. Commits `463af1a9` e `95a144dd` exigem `--environment experimental|production` na CLI do promotor e **rejeitam `production` antes de qualquer operação**, com teste negativo. A ferramenta é exclusivamente de ciclo interno experimental; autorização manual de produção continua externa a ela, conforme decisão do PO/DT-15. Este bloqueio não implementa pipeline produtivo de aprovação nem prova REF cross-run. Nova CI pendente.
+
+## CI — correção de chamada residual (16/11/2026)
+
+O run `43785880946` falhou em **um** teste (`test_unvalidated_target_rejected_without_mutation`), ainda chamando `promote(..., approved=True)` após remoção deliberada desse argumento. Commit `1acc458c` corrige a última chamada residual e passa `store` e `generation` para a validação física; demais 51 testes desse job passaram. A CI do novo HEAD precisa confirmar a correção. Não altera produção, TEST ou os critérios científicos.
+
+## Testes negativos de promoção REF — 16/11/2026
+
+Commit `7dcefd7a`: inicializa o armazenamento de snapshots no teste de rejeição de alvo não validado (evita `NameError` de variável `store` não definida após migração da API) e adiciona teste de adulteração de `observacoes.csv`, que exige rejeição por SHA e índice inalterado. A CI do novo HEAD é necessária para atestar os resultados. A PR continua DRAFT; não há backend REF durável cross-run comprovado nem autorização de promoção produtiva.
+
+## CI verde e contexto experimental explícito — 16/11/2026
+
+No SHA `ffa0e4e9`, os checks `v9-corpus-persistence-contract`, `v9-experimental-fast-pr` e `V9 corpus cross-runner transport PR probe (NONSCIENTIFIC)` concluíram com **SUCCESS**; `jornada-pr-required-fast` ainda aparecia `pending` na consulta. Commits `991920d7` e `90ea0977` removem o default implícito `experimental` da API Python de promoção e exigem contexto experimental expresso também nos testes; ausência de contexto e `production` falham fechados. A CI deve ser reavaliada no HEAD. A prova cross-run de armazenamento REF persistente e integração TRAIN real continuam pendentes, portanto sem merge ou ativação produtiva.
+
+## CI 43786123043 — ambiente experimental nos testes (16/11/2026)
+
+O contrato de persistência falhou no SHA `9bddfb1a` por **três chamadas de teste** que não informavam `environment="experimental"` após o bloqueio fail-closed da API. Commit `d7b3de76` passa o contexto explícito nos casos de promoção, idempotência, alvo não validado e snapshot adulterado, mantendo testes negativos separados para ausência de ambiente e `production`. Não foi relaxado o bloqueio produtivo. A CI do HEAD deve confirmar. A integração REF durável cross-run e PREPARE→TRAIN permanece pendente; PR DRAFT sem merge.
+
+## CI 43786215815 — duas chamadas negativas remanescentes (16/11/2026)
+
+A CI de persistência ainda falhou em dois testes negativos porque as chamadas de alvo não validado e snapshot adulterado omitiam `environment="experimental"`. O commit `f0970aec` altera explicitamente ambas, preservando os testes que rejeitam ambiente omitido ou `production`. A correção foi verificada pela leitura do arquivo na branch; confirmação da nova CI ainda pendente. Sem alteração de critérios de produção, REF durável ou merge.
+
+## Auditoria de observações entre execuções — 16/11/2026
+
+No SHA `44e26ba8`, todos os quatro workflows da PR concluíram com **SUCCESS**, inclusive `jornada-pr-required-fast`. Commits `0c36404b` e `762e4ae3` adicionam `v9-corpus-cross-run-proof.py` e testes negativos para comparar observações de duas execuções distintas (run IDs, tentativas únicas, fingerprint, hashes de arquivos e identidade declarada do armazenamento). A saída é explicitamente `TWO_OBSERVATIONS_CONSISTENT_NOT_DURABILITY_CERTIFIED`: igualdade de recibos **não comprova** que o armazenamento REF é realmente compartilhado; exige atestado independente de montagem e execução real em runners distintos. A CI do novo HEAD está pendente. Sem autorização de calibração 100k, sem alteração produtiva e sem merge até comprovar REF persistente e PREPARE→TRAIN científico.
+
+## Evidência física REF — observador (16/11/2026)
+
+Após sucesso dos quatro workflows no HEAD `22b8d4f5`, os commits `84257e7b` e `6364374e` estendem a auditoria: o modo `--corpus --config --repository --run-id --run-attempt --store-identity` produz observação diretamente de arquivos físicos verificados com `snapshot.verify`, não de hashes fornecidos pelo operador; rejeita caminho de corpus com symlink, configuração inválida, fingerprint não hexadecimal e metadados incompletos. A identidade do mount ainda é declaração do operador; recibos não equivalem a prova de persistência ou atestado independente. Não houve execução 100k, implantação em produção ou autorização de merge. Nova CI pendente.
+
+## Falha de sintaxe no observador REF — CI 43786788804
+
+A CI de contrato de persistência falhou com `SyntaxError` no arquivo `v9-corpus-cross-run-proof.py`, pois uma atualização introduziu sequências literais `\\n` na linha de validação do repositório. O commit `47b4cadf` substituiu os escapes literais por quebras de linha reais. A CI subsequente deve validar o reparo. Não há evidência nova de durabilidade REF ou integração PREPARE→TRAIN e o merge permanece bloqueado pelos critérios científicos e revisão final do PO.
+
+## Teste físico do observador REF — 16/11/2026
+
+CI do commit `11b81dec`: contrato de persistência e testes experimentais concluídos com sucesso; workflows geral e transporte ainda em execução na consulta. Commit `a8228af2` acrescenta teste com snapshot físico e SHA calculado sobre arquivos, e verifica rejeição após adulteração de `observacoes.csv`. O teste é local e não comprova persistência entre execuções independentes nem execução científica PREPARE→TRAIN. Nova CI deve confirmar a cobertura. Merge continua sujeito aos critérios de aceite e revisão final do PO.
+
+## Separação entre validação de observação e comparação independente (16/11/2026)
+
+O commit `63c4fbe` remove a chamada que fabricava um segundo `run_id + 1` apenas para validar metadados do observador físico. A nova `validate_observation` verifica uma única observação; somente `audit` compara duas observações realmente fornecidas. O commit `b13a32f5` acrescenta teste negativo para tentativa de reexecução. Isso evita qualquer aparência de evidência de segunda execução inexistente. CI do novo HEAD ainda pendente; persistência externa e PREPARE→TRAIN científico continuam sem comprovação, sem merge.
+
+## Contrato de hashes do recibo REF — 16/11/2026
+
+No HEAD `f120e4bc`, os workflows `v9-corpus-persistence-contract` e `v9-experimental-fast-pr` concluíram com sucesso; CI obrigatória e transporte não científico ainda pendentes na consulta. O commit `38eecdaf` exige exatamente os quatro arquivos físicos esperados, com SHA-256 hexadecimal e tamanho inteiro não negativo em cada recibo; o commit `13b00276` atualiza fixtures e adiciona testes negativos para ausência de arquivo e hash inválido. Esta validação protege a forma das evidências, não substitui verificação independente do mount externo, prova entre execuções ou integração científica PREPARE→TRAIN. Sem merge enquanto critérios pendentes.
+
+## Correção de fixture REF na CI 43787075692 (16/11/2026)
+
+A CI de contrato de persistência falhou com `SyntaxError` em `test_v9_corpus_cross_run_proof.py` linha 17: caracteres literais `\\n` foram introduzidos na expressão de construção dos quatro metadados físicos. Commit `d3cd62e0` substitui esses caracteres por quebras de linha Python válidas. Nova CI pendente. Nenhuma evidência real de REF compartilhado foi obtida; integração científica PREPARE→TRAIN e aceite permanecem pendentes, sem autorização para merge.
+
+## Procedimento de aceite externo REF (16/11/2026)
+
+**Dependência operacional ainda não satisfeita:** não há, nos resultados verificados desta PR, identificação de um volume POSIX externo compartilhado montado nos runners de PREPARE e TRAIN. É proibido declarar persistência a partir de cache ou artifact do GitHub Actions. Nenhum serviço pago deve ser provisionado sem autorização.
+
+Para comprovar a persistência, o operador deve: (1) disponibilizar o mesmo mount POSIX externo em duas execuções GitHub Actions independentes; (2) em PREPARE, executar a verificação física `v9-corpus-snapshot.py lookup` contra a configuração de geração fixada e emitir observação com `v9-corpus-cross-run-proof.py --corpus ... --config ... --repository lucianox777/Jornada --run-id <id> --store-identity <identidade-do-volume>`; (3) em outra execução, em runner independente, verificar novamente os mesmos bytes e produzir segundo recibo; (4) comparar os recibos com `--first` e `--second`; (5) auditar independentemente a identidade real do mount e registrar o atestado `v9-external-store-attestation-v1`, vinculando os IDs reais. A comparação dos recibos isoladamente não certifica durabilidade.
+
+**Aceite científico separado:** integrar o snapshot REF validado ao job `physical-100k` de `.github/workflows/v9-v3-four-name-100k.yml` sem alterar seed, fonte de referência, isolamento VALIDATION/TEST, controles de acesso ou gatilhos de autorização. Um teste não científico ou cópia local não substitui a execução científica. A aprovação final dos critérios pelo PO deve ser registrada antes de retirar DRAFT e mesclar. Esta seção documenta passos operacionais e não aprova nova decisão, contratação ou execução 100k.
+
+## Mudança aprovada pelo PO — ZIP versionado em REF (15/11/2026)
+
+A decisão [DC-V9-CORPUS-100K-ZIP-REF](Decisao_V9_Corpus_100K_ZIP_REF_20261115.md) aprova avaliar e implementar corpus físico 100k em ZIP versionado na camada REF, sujeito a tamanho real, verificação de hashes, isolamento de TEST e testes de reuso. O procedimento de mount externo acima permanece histórico e deixa de ser pré-requisito quando a alternativa ZIP for comprovada. A CI verde anterior não certifica a nova arquitetura; PR continua em DRAFT até implementação e aceite.
+
+## Implementação incremental ZIP REF (16/11/2026)
+
+Commits `162e2069` e `e3815f01` adicionam ferramenta create-only `v9-corpus-ref-zip.py` e testes de empacotamento/verificação, alteração de bytes, entrada extra e fonte incompleta. A ferramenta verifica hashes físicos e allowlist, mas **ainda não é integração PREPARE→TRAIN**, não mede ZIP 100k real, não versiona o corpus, não prova reuso entre execuções independentes nem executa experimento científico. Não confundir os testes de unidade com aceite final; PR permanece DRAFT até esses requisitos e CI.
+
+## Extração física verificada ZIP REF (16/11/2026)
+
+Commits `937fc39a` e `020a66af` adicionam `unpack` com verificação integral prévia do ZIP, extração em diretório temporário isolado, comparação de SHA-256 dos bytes extraídos, publicação por rename e rejeição de destino preexistente; testes cobrem reuso local e rejeição de adulteração sem expor diretório parcial. Ainda não há ZIP físico 100k versionado, medição de tamanho, integração ao workflow científico ou comprovação cross-run do mesmo objeto Git. A aprovação da CI não equivale a aceite científico nem autoriza merge.
+
+## Prova de transporte ZIP entre runners (16/11/2026)
+
+Commit `87d564c2` amplia a CI PR de **duas linhas não científicas**: PREPARE cria e verifica ZIP REF; consumidor em outro runner valida, extrai e compara fisicamente os quatro arquivos com o handoff original. Evidência restrita à mesma execução GitHub Actions via artifact efêmero; **não demonstra** corpus 100k versionado, persistência cross-run nem aceitação científica. Aguardar resultados da CI deste HEAD.
+
+## Integração condicional no TRAIN científico (16/11/2026)
+
+Commit `7617ada8` altera o job `physical-100k`: se ZIP e manifesto REF existirem no checkout, descompacta com verificação SHA; se apenas um existir, aborta; se nenhum existir, preserva o gerador legado e emite marcador explícito `LEGACY_GENERATION_NO_PERSISTENT_REF`. **Pendente antes do merge:** gerar/medir e versionar o ZIP 100k verdadeiro, vincular manifesto à configuração científica exata (100k, seed42, gerador e referências), comprovar consumo cross-run pelo checkout e eliminar/justificar o fallback legado conforme critério de aceite. Nenhuma execução científica foi disparada. PR segue DRAFT.
+
+## Preparação e medição do ZIP real 100k (16/11/2026)
+
+Commits `9daf2853` e `9399f03b` adicionam ao PREPARE opt-in owner-only o empacotamento físico dos quatro arquivos do handoff 100k já verificado, inclusive no caso de cache hit, com manifesto SHA-256, medição do ZIP e aviso se >95 MB. O ZIP candidato é artifact temporário de sete dias, **não está versionado na REF**; não confundir artifact com persistência. O workflow manual ainda precisa ser disparado e validado; se o tamanho inviabilizar Git regular, consultar PO antes de LFS/custos. Não há campanha científica nem merge autorizado apenas por essa medição.
+
+## Desbloqueio do registro de workflow no GitHub Actions (15/11/2026)
+
+A tentativa de criar diretamente o workflow de bootstrap na `master` foi recusada pela proteção do repositório (`409`, alterações obrigatoriamente por PR e três checks). Foi criada a branch `fix/v9-corpus-bootstrap-master-20261115`, commit `18921be245400c972d81141a10164042e9bc8ba2`, e a PR auxiliar **#1573**. Ela registra o `workflow_dispatch` na branch padrão sem antecipar o merge da #1567, executa geração 100k seed42 em checkout do SHA exato da feature, mede ZIP e publica artifact temporário (sete dias). A PR auxiliar deve passar pelos checks obrigatórios e ser incorporada antes de a interface oferecer o disparo; sua aprovação não equivale a comprovação da REF persistente nem autoriza merge da #1567. Justificativa: GitHub não lista workflow novo apenas em feature; precedência: decisão de ZIP REF 20261115 e GOV-DOC-01. Impacto: alteração isolada de CI, sem calibração física.
+
+## Evidência física do bootstrap 100k — run 43789530462 (16/11/2026)
+
+O workflow na `master` terminou com **success** em todos os passos (job 133044568041), incluindo 8 testes unitários, build .NET, geração física seed42 de **100000** pessoas, empacotamento e verificação. ZIP `corpus-seed42.zip`: **7.697.354 bytes**, SHA-256 `d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d`. Artifact temporário `v9-100k-ref-zip-43789530462`, ID **14192006434**, 7.700.245 bytes incluindo manifesto/embalagem, expira em **2026-11-23 02:01 UTC**. A diferença de tamanho é esperada porque artifact não é o ZIP interno sozinho. Fonte: GitHub Actions run https://github.com/lucianox777/Jornada/actions/runs/43789530462. Abaixo de 95 MB: Git normal é tecnicamente viável. **Ainda não existe comprovação de arquivo ZIP persistido no caminho REF da branch, nem teste científico real com essa REF; NÃO autoriza merge da PR #1567.** Próxima ação: obter bytes do artifact e publicar o ZIP e manifesto no repositório, verificar SHA e realizar cross-run de consumo. A API de contents textual usada pelo conector não é adequada para publicar bytes binários do ZIP; não falsificar persistência com hashes ou placeholders. Rastreabilidade: GOV-DOC-01 e decisão ZIP REF de 2026-11-15.
+
+## Publicação binária controlada — PR auxiliar #1574 (16/11/2026)
+
+A interface de conteúdo GitHub disponível para o assistente só aceita UTF-8, não permitindo gravar com fidelidade os **7.697.354 bytes binários** do ZIP. Para não publicar placeholder, foi criada a PR auxiliar **#1574**, branch `fix/v9-ref-zip-publisher-20261116`, workflow manual `v9-ref-zip-publish-opt-in.yml`. Após merge na `master`, somente o proprietário pode acioná-lo informando SHA atual da feature e run `43789530462`; o workflow baixa o artifact original, exige sucesso da execução, confere SHA-256 e tamanho conhecidos, verifica manifesto com `v9-corpus-ref-zip.py`, recusa REF já existente e envia commit binário real à feature. A PR auxiliar **não** implica merge da #1567. Risco residual: o token de Actions pode não ter permissão para push na feature, caso em que falha sem desabilitar proteção. Artefato expira 23/11/2026 UTC. GOV-DOC-01: medida operacional para implementar a decisão REF ZIP já aprovada, sem alterar seus critérios científicos.
