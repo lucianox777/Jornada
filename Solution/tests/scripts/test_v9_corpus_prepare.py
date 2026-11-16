@@ -163,5 +163,23 @@ class CorpusPrepareTests(unittest.TestCase):
                 prepare.handoff(store, config, alias / "nested" / "corpus")
             self.assertFalse((real / "nested").exists())
 
+    def test_prepare_rejects_symlink_store_ancestor_before_generation(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            real = root / "real"
+            real.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            marker = root / "generator-ran"
+            import sys
+            with self.assertRaisesRegex(ValueError, "ancestor"):
+                prepare.prepare(alias / "store", {"seed": 42},
+                    [sys.executable, "-c", "from pathlib import Path; import sys; Path(sys.argv[1]).touch()", str(marker)],
+                    root / "out")
+            self.assertFalse(marker.exists())
+            self.assertFalse((real / "store").exists())
+            with self.assertRaisesRegex(ValueError, "unsafe corpus store"):
+                prepare.handoff(alias / "store", {"seed": 42}, root / "consumer")
+
 if __name__ == "__main__":
     unittest.main()
