@@ -221,3 +221,7 @@ Commits `c0caf828` e `bdadc0b1`: `v9-corpus-ref-promote.py` altera **somente o �
 ## Verificação física obrigatória antes da promoção — 15/11/2026
 
 Commits `068120bf`, `869ae454`, `e22940aa`: o promotor do índice REF agora exige `--store` e `--generation-config` e verifica o fingerprint calculado e todos os hashes do snapshot físico **sob o lock do índice**, antes de marcar a versão `CURRENT`. Testes de promoção usam snapshots reais de fixture, não apenas declarações no índice. A verificação física local **não comprova durabilidade cross-run, isolamento de volume ou ausência de concorrência com escritores externos**; integração com preflight REF e com o workflow TRAIN continua pendente. Não houve merge nem execução científica.
+
+## Revisão de automação do PO — 15/11/2026
+
+Commits `1bd4dd07`, `eab3ab69`, `654d2c20`, `cc6ec1a0`: decisão aprovada e indexada; retirada a exigência de `--approved` por promoção rotineira do índice REF. O alvo continua obrigado a estar **previamente validado e aprovado no índice** e a passar verificação física SHA-256. **Não foi habilitada exclusão automática:** falta prova independente de ausência de leitores ativos e dependências de reprodutibilidade, além da durabilidade real do backend REF. A automação end-to-end por alteração de parâmetros e CI do HEAD seguem pendentes; nenhum corpus foi excluído.
