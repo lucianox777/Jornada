@@ -133,12 +133,7 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             connection, pinnedModelId, pinnedWinnerSha, ct);
         var winner = pinned.FrozenWinner;
         pinned.RequireSupportedFrozenExecutionPlan();
-        if (winner.Payload.CandidateGrouping is not { CandidateGrouping: "BLIND_FS_COMPLETE_LINK_CANDIDATES",
-                MaximumObservationsPerIdentity: > 0 } plan
-            || plan.MinimumPairPosterior is < 0m or > 1m
-            || string.IsNullOrWhiteSpace(winner.Payload.ProjectionSchemaVersion)
-            || winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 }
-            || model.Threshold != winner.Payload.Threshold
+        if (model.Threshold != winner.Payload.Threshold
             || model.ConflictMargin != winner.Payload.ConflictMargin
             || model.BlockingContract?.ProjectionSchemaVersion != winner.Payload.ProjectionSchemaVersion
             || model.BlockingContract?.ProjectionFingerprintSha256 != winner.Payload.ProjectionFingerprintSha256)
