@@ -237,3 +237,7 @@ O run `43785880946` falhou em **um** teste (`test_unvalidated_target_rejected_wi
 ## Testes negativos de promoção REF — 16/11/2026
 
 Commit `7dcefd7a`: inicializa o armazenamento de snapshots no teste de rejeição de alvo não validado (evita `NameError` de variável `store` não definida após migração da API) e adiciona teste de adulteração de `observacoes.csv`, que exige rejeição por SHA e índice inalterado. A CI do novo HEAD é necessária para atestar os resultados. A PR continua DRAFT; não há backend REF durável cross-run comprovado nem autorização de promoção produtiva.
+
+## CI verde e contexto experimental explícito — 16/11/2026
+
+No SHA `ffa0e4e9`, os checks `v9-corpus-persistence-contract`, `v9-experimental-fast-pr` e `V9 corpus cross-runner transport PR probe (NONSCIENTIFIC)` concluíram com **SUCCESS**; `jornada-pr-required-fast` ainda aparecia `pending` na consulta. Commits `991920d7` e `90ea0977` removem o default implícito `experimental` da API Python de promoção e exigem contexto experimental expresso também nos testes; ausência de contexto e `production` falham fechados. A CI deve ser reavaliada no HEAD. A prova cross-run de armazenamento REF persistente e integração TRAIN real continuam pendentes, portanto sem merge ou ativação produtiva.
