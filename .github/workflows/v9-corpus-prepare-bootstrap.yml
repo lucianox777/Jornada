@@ -1,0 +1,63 @@
+name: V9 100k REF ZIP bootstrap
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact HEAD SHA of feature/v9-persistent-synthetic-corpus-20261115"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: ${{ github.actor == github.repository_owner }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact current feature SHA and owner
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXPECTED_SHA"
+          git -C .. fetch --no-tags origin refs/heads/feature/v9-persistent-synthetic-corpus-20261115
+          test "$(git -C .. rev-parse FETCH_HEAD)" = "$EXPECTED_SHA"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Generate and verify 100k ZIP candidate
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/scripts -p test_v9_corpus_ref_zip.py -v
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          mkdir -p .local/v9-bootstrap
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root data/reference/ibge-nomes-2022 \
+            --population-profile demographic-primary \
+            --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json \
+            --error-profile clean --people 100000 --seed 42 --out .local/v9-bootstrap/physical
+          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-bootstrap/physical --zip .local/v9-bootstrap/corpus-seed42.zip --manifest .local/v9-bootstrap/manifest.json
+          python3 scripts/v9-corpus-ref-zip.py verify --zip .local/v9-bootstrap/corpus-seed42.zip --manifest .local/v9-bootstrap/manifest.json
+          echo "V9_REF_ZIP_BYTES=$(stat -c %s .local/v9-bootstrap/corpus-seed42.zip)"
+          sha256sum .local/v9-bootstrap/corpus-seed42.zip
+      - name: Upload temporary candidate (not durable REF)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-100k-ref-zip-${{ github.run_id }}
+          path: |
+            Solution/.local/v9-bootstrap/corpus-seed42.zip
+            Solution/.local/v9-bootstrap/manifest.json
+          retention-days: 7
+          if-no-files-found: error
