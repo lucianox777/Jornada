@@ -163,6 +163,14 @@ jobs:
         with:
           name: v9-prepared-corpus-${{ github.run_id }}
           path: Solution/.local/v9-handoff-received
+      - name: Verify physical 100k REF ZIP candidate on independent consumer runner
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-corpus-ref-zip.py unpack --zip .local/v9-handoff-received/ref-zip-candidate/corpus-seed42.zip --manifest .local/v9-handoff-received/ref-zip-candidate/manifest.json --destination .local/v9-handoff-received/ref-zip-verified
+          for name in pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json; do
+            cmp ".local/v9-handoff-received/ref-zip-verified/$name" ".local/v9-handoff-received/train-handoff/$name"
+          done
+          echo "V9_100K_REF_ZIP_CROSS_RUNNER_SAME_RUN_PHYSICAL_BYTES_PASS"
       - name: Verify exact config/manifest SHA and complete file hashes
         env:
           GH_TOKEN: ${{ github.token }}
