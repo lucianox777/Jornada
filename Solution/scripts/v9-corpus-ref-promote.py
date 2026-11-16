@@ -13,7 +13,7 @@ from pathlib import Path
 import tempfile
 
 
-def promote(index_path: Path, fingerprint: str, configuration: str, *, store: Path = None, generation: dict = None, environment: str = "experimental"):
+def promote(index_path: Path, fingerprint: str, configuration: str, *, store: Path = None, generation: dict = None, environment: str = None):
     if environment != "experimental":
         raise ValueError("REF corpus auto-promotion forbidden outside experimental environment; production requires manual PO approval")
     if store is None or not isinstance(generation, dict) or not generation:
