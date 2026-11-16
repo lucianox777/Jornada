@@ -128,7 +128,7 @@ jobs:
               "files": {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files},
           }
           Path("Solution/.local/v9-prepare/receipt.json").write_text(
-              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n",
+              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
           PY
