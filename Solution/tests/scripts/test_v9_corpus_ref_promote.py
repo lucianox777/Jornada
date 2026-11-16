@@ -65,7 +65,7 @@ class RefPromotionTests(unittest.TestCase):
             ]}
             path.write_text(json.dumps(initial))
             with self.assertRaisesRegex(ValueError, "validated and approved"):
-                module.promote(path, B, "seed42", store=store, generation=CONFIG_B)
+                module.promote(path, B, "seed42", store=store, generation=CONFIG_B, environment="experimental")
             self.assertEqual(json.loads(path.read_text()), initial)
 
     def test_tampered_snapshot_rejected_without_mutation(self):
@@ -80,7 +80,7 @@ class RefPromotionTests(unittest.TestCase):
             path.write_text(json.dumps(initial))
             (store / B / "observacoes.csv").write_text("tampered")
             with self.assertRaisesRegex(ValueError, "mismatch"):
-                module.promote(path, B, "seed42", store=store, generation=CONFIG_B)
+                module.promote(path, B, "seed42", store=store, generation=CONFIG_B, environment="experimental")
             self.assertEqual(json.loads(path.read_text()), initial)
 
 
