@@ -151,10 +151,21 @@ jobs:
       - name: Verify exact config/manifest SHA and complete file hashes
         run: |
           set -euo pipefail
+          expected_fingerprint="$(python3 - <<'PY'
+          import importlib.util, json
+          from pathlib import Path
+          module = Path("scripts/v9-corpus-snapshot.py")
+          spec = importlib.util.spec_from_file_location("snapshot", module)
+          obj = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(obj)
+          config = json.loads(Path(".local/v9-handoff-received/config.json").read_text())
+          print(obj.identity(config))
+          PY
+          )"
           python3 scripts/v9-corpus-handoff-verify.py \
             --corpus .local/v9-handoff-received/train-handoff \
             --config .local/v9-handoff-received/config.json \
             --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
             --train-destination .local/v9-handoff-received/verified-train-input \
-            --expected-fingerprint "${{ env.V9_CORPUS_KEY }}"
+            --expected-fingerprint "$expected_fingerprint"
           echo "V9_CORPUS_TRANSFER_PROBE_ONLY: V9_CORPUS_TRAIN_INPUT_ADMITTED_ONLY; no calibration, no independent TEST"
