@@ -342,6 +342,8 @@ jobs:
           # No generator is invoked in scientific TRAIN. Fail closed on any drift.
           ref_commit=9058c5dfe9b7dd6b8e77827fbaa55e5dc4faca50
           ref_path=Solution/data/reference/v9-synthetic-corpus-100000
+          git -C .. fetch --no-tags origin refs/heads/feature/v9-persistent-synthetic-corpus-20261115
+          test "$(git -C .. rev-parse FETCH_HEAD)" = "$ref_commit"
           git -C .. cat-file -e "$ref_commit^{commit}"
           mkdir -p "$root/pinned-ref"
           git -C .. show "$ref_commit:$ref_path/corpus-seed42.zip" > "$root/pinned-ref/corpus-seed42.zip"
