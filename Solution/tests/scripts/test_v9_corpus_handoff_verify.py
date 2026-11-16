@@ -144,5 +144,18 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             evidence = verifier.materialize_train_input(corpus, config, receipt, target, actual)
             self.assertEqual(evidence["fingerprint"], actual)
 
+    def test_train_admission_rejects_symlink_intermediate_ancestor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            real_parent = root / "real-parent"
+            real_parent.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(real_parent, target_is_directory=True)
+            target = alias / "nested" / "people-100k"
+            with self.assertRaisesRegex(ValueError, "ancestor"):
+                verifier.materialize_train_input(corpus, config, receipt, target)
+            self.assertFalse((real_parent / "nested").exists())
+
 if __name__ == "__main__":
     unittest.main()
