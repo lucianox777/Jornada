@@ -132,8 +132,8 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         var pinned = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
             connection, pinnedModelId, pinnedWinnerSha, ct);
         var winner = pinned.FrozenWinner;
-        if (winner.Payload.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
-            || model.Threshold != winner.Payload.Threshold
+        pinned.RequireSupportedFrozenExecutionPlan();
+        if (model.Threshold != winner.Payload.Threshold
             || model.ConflictMargin != winner.Payload.ConflictMargin
             || model.BlockingContract?.ProjectionSchemaVersion != winner.Payload.ProjectionSchemaVersion
             || model.BlockingContract?.ProjectionFingerprintSha256 != winner.Payload.ProjectionFingerprintSha256)

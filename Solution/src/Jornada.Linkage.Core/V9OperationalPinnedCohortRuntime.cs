@@ -52,6 +52,24 @@ public sealed class V9OperationalPinnedCohortRuntime
     }
 
     /// <summary>
+    /// Common fail-closed execution-plan contract used by the TEST worker and
+    /// the SQL-backed nonpublishing batch scorer. This checks support, not
+    /// physical SQL candidate parity or permission to activate a model.
+    /// </summary>
+    public void RequireSupportedFrozenExecutionPlan()
+    {
+        var plan = winner.Payload.CandidateGrouping;
+        if (plan is null
+            || plan.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
+            || plan.MaximumObservationsPerIdentity <= 0
+            || plan.MinimumPairPosterior is < 0m or > 1m
+            || string.IsNullOrWhiteSpace(winner.Payload.ProjectionSchemaVersion)
+            || winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 })
+            throw new InvalidDataException(
+                "V9_TEST_EXECUTION_PLAN_UNSUPPORTED: plano do vencedor não compatível com o motor agrupado.");
+    }
+
+    /// <summary>
     /// The SAME complete-link/FS/Resolve executable shared by the physical
     /// independent TEST Worker. Caller must provide the complete physical SQL
     /// graph with a reconciled row count, never truncated or synthesized.

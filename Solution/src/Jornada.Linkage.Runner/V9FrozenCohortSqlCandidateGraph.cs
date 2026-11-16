@@ -95,17 +95,25 @@ public static class V9FrozenCohortSqlCandidateGraph
             }
         }
 
-        // Count ALL candidate incidences before any SQL materialization.
+        // Count ALL cross-manager incidences per signature without a quadratic
+        // nested pair scan. For each bucket, C(n,2) - sum(C(n_manager,2))
+        // counts precisely the cross-manager pairs, including repeated pairs
+        // across distinct passes. Never confuse incidences with DISTINCT edges.
         long incidences = 0;
         foreach (var group in signatures.GroupBy(row => (row.Pass, row.Hash)))
         {
-            var groupRows = group.ToArray();
-            for (var i = 0; i < groupRows.Length; i++)
-                for (var j = i + 1; j < groupRows.Length; j++)
-                    if (!string.Equals(groupRows[i].Manager, groupRows[j].Manager,
-                            StringComparison.Ordinal))
-                        if (++incidences > MaximumPairIncidences)
-                            throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
+            ct.ThrowIfCancellationRequested();
+            var n = (long)group.Count();
+            var sameManager = group.GroupBy(row => row.Manager, StringComparer.Ordinal)
+                .Sum(managerRows =>
+                {
+                    var count = (long)managerRows.Count();
+                    return checked(count * (count - 1) / 2);
+                });
+            var crossManager = checked(n * (n - 1) / 2 - sameManager);
+            incidences = checked(incidences + crossManager);
+            if (incidences > MaximumPairIncidences)
+                throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
         }
 
         // Tables are LOCAL SQL temp tables scoped to this disposable connection.
@@ -122,36 +130,88 @@ public static class V9FrozenCohortSqlCandidateGraph
             """, connection))
             await setup.ExecuteNonQueryAsync(ct);
 
-        var table = new DataTable();
-        table.Locale = CultureInfo.InvariantCulture;
+        // Keep SQL bulk transfer bounded independently of the total signature
+        // count. A SqlBulkCopy.BatchSize alone does NOT bound the DataTable
+        // retained in client memory.
+        const int SignatureTransferBatchSize = 2048;
+        var table = new DataTable { Locale = CultureInfo.InvariantCulture };
         table.Columns.Add("obs_id", typeof(int));
         table.Columns.Add("gestor", typeof(string));
         table.Columns.Add("pass_id", typeof(string));
         table.Columns.Add("assinatura", typeof(string));
-        foreach (var row in signatures)
-            table.Rows.Add(row.Observation, row.Manager, row.Pass, row.Hash);
         using (var bulk = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, null)
         {
             DestinationTableName = "#v9_run_sig",
-            BatchSize = 2048,
+            BatchSize = SignatureTransferBatchSize,
             BulkCopyTimeout = 60
         })
         {
             foreach (DataColumn col in table.Columns)
                 bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
-            await bulk.WriteToServerAsync(table, ct);
+            foreach (var row in signatures)
+            {
+                ct.ThrowIfCancellationRequested();
+                table.Rows.Add(row.Observation, row.Manager, row.Pass, row.Hash);
+                if (table.Rows.Count < SignatureTransferBatchSize)
+                    continue;
+                await bulk.WriteToServerAsync(table, ct);
+                table.Clear();
+            }
+            if (table.Rows.Count > 0)
+                await bulk.WriteToServerAsync(table, ct);
         }
 
-        var edges = new List<(int A, int B)>();
-        await using (var query = new SqlCommand("""
-            SELECT DISTINCT a.obs_id,b.obs_id
+        // Materialize the exact DISTINCT candidate graph ONCE in disposable
+        // SQL tempdb. The count and subsequent ordered reader now inspect
+        // the same immutable snapshot, rather than recomputing a costly join
+        // twice (which could otherwise diverge under concurrent writes).
+        // This is a bounded small-cohort bridge, NOT 100k certification.
+        await using (var materialize = new SqlCommand("""
+            IF OBJECT_ID('tempdb..#v9_run_edges') IS NOT NULL DROP TABLE #v9_run_edges;
+            SELECT DISTINCT a.obs_id AS a,b.obs_id AS b
+              INTO #v9_run_edges
               FROM #v9_run_sig a
               JOIN #v9_run_sig b
                 ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
-               AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
-             ORDER BY a.obs_id,b.obs_id;
+               AND a.obs_id<b.obs_id AND a.gestor<>b.gestor;
+            CREATE UNIQUE CLUSTERED INDEX IX_v9_run_edges ON #v9_run_edges(a,b);
             """, connection) { CommandTimeout = 120 })
+            await materialize.ExecuteNonQueryAsync(ct);
+
+        long distinctEdgeCount;
+        await using (var countQuery = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM #v9_run_edges;", connection)
+            { CommandTimeout = 120 })
         {
+            distinctEdgeCount = Convert.ToInt64(
+                await countQuery.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+            if (distinctEdgeCount > MaximumPairIncidences)
+                throw new InvalidDataException(
+                    "Grafo SQL V9 excedeu o limite antes da transferência de arestas.");
+        }
+
+        var edges = new List<(int A, int B)>();
+        // Keyset pagination over the one materialized DISTINCT snapshot.
+        // Unlike OFFSET, this avoids rescanning all prior pages. The global
+        // replay still consumes the entire bounded graph, never one page
+        // at a time; no cross-page identity edges can be discarded.
+        const int EdgePageSize = 2048;
+        using var edgeDigest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var previousA = 0;
+        var previousB = 0;
+        while (edges.Count < distinctEdgeCount)
+        {
+            ct.ThrowIfCancellationRequested();
+            var pageCount = 0;
+            await using var query = new SqlCommand("""
+                SELECT TOP (@page_size) a,b
+                  FROM #v9_run_edges
+                 WHERE a>@last_a OR (a=@last_a AND b>@last_b)
+                 ORDER BY a,b;
+                """, connection) { CommandTimeout = 120 };
+            query.Parameters.Add("@page_size", SqlDbType.Int).Value = EdgePageSize;
+            query.Parameters.Add("@last_a", SqlDbType.Int).Value = previousA;
+            query.Parameters.Add("@last_b", SqlDbType.Int).Value = previousB;
             await using var reader = await query.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -161,14 +221,37 @@ public static class V9FrozenCohortSqlCandidateGraph
                 var b = reader.GetInt32(1);
                 if (a < 1 || a >= b || b > frozenRows.Count)
                     throw new InvalidDataException("Aresta física V9 fora da coorte congelada.");
+                if (a < previousA || (a == previousA && b <= previousB))
+                    throw new InvalidDataException("Grafo SQL V9 não está estritamente ordenado e distinto.");
+                previousA = a;
+                previousB = b;
+                var line = a.ToString(CultureInfo.InvariantCulture) + ":" +
+                    b.ToString(CultureInfo.InvariantCulture) + "\n";
+                edgeDigest.AppendData(Encoding.UTF8.GetBytes(line));
                 edges.Add((a, b));
+                pageCount++;
             }
+            if (pageCount == 0)
+                throw new InvalidDataException(
+                    "Paginação SQL V9 terminou antes do censo integral de arestas.");
         }
-        var canonicalEdges = string.Concat(edges.Select(edge =>
-            edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
-            edge.B.ToString(CultureInfo.InvariantCulture) + "\n"));
-        var digest = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes(canonicalEdges))).ToLowerInvariant();
+        // Also reject unexpected rows beyond the census, including a changed
+        // temporary graph after the last page.
+        await using (var tail = new SqlCommand("""
+            SELECT TOP (1) a,b FROM #v9_run_edges
+             WHERE a>@last_a OR (a=@last_a AND b>@last_b)
+             ORDER BY a,b;
+            """, connection))
+        {
+            tail.Parameters.Add("@last_a", SqlDbType.Int).Value = previousA;
+            tail.Parameters.Add("@last_b", SqlDbType.Int).Value = previousB;
+            await using var reader = await tail.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+                throw new InvalidDataException("Paginação SQL V9 encontrou arestas além do censo.");
+        }
+        if (edges.Count != distinctEdgeCount)
+            throw new InvalidDataException("Transferência SQL V9 não corresponde ao censo DISTINCT integral.");
+        var digest = Convert.ToHexString(edgeDigest.GetHashAndReset()).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
             ProductionCandidateParityCertified: false);
     }

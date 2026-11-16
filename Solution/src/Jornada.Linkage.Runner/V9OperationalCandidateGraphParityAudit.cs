@@ -88,6 +88,7 @@ public static class V9OperationalCandidateGraphParityAudit
                     "Grafo físico TEST inválido, repetido ou intragestor.");
         }
 
+        operationalRuntime.RequireSupportedFrozenExecutionPlan();
         var frozen = operationalRuntime.FrozenWinner;
         if (operationalRuntime.ModelId
                 != V9OperationalSqlModelConverter.ModelIdFromWinnerSha(frozen.ContentSha256)
@@ -134,6 +135,11 @@ public static class V9OperationalCandidateGraphParityAudit
                 var a = Math.Min(row.ObservationId, candidate.ObservationId);
                 var b = Math.Max(row.ObservationId, candidate.ObservationId);
                 var key = (a, b);
+                // Reject an unexpected SQL edge immediately rather than
+                // retaining an unbounded divergent candidate graph.
+                if (!expected.Contains(key))
+                    throw new InvalidDataException(
+                        "SQL operacional retornou aresta ausente do grafo físico TEST.");
                 var direction = (byte)(row.ObservationId == a ? 1 : 2);
                 actualDirections.TryGetValue(key, out var prior);
                 if ((prior & direction) != 0)
@@ -153,10 +159,28 @@ public static class V9OperationalCandidateGraphParityAudit
             throw new InvalidDataException(
                 $"Paridade de candidatos V9 falhou: físico={expected.Count}, operacional={actual.Count}; diferença simétrica de {expected.Except(actual).Count() + actual.Except(expected).Count()} arestas.");
 
-        var canonical = string.Concat(actual.OrderBy(e => e.A).ThenBy(e => e.B)
-            .Select(e => FormattableString.Invariant($"{e.A}:{e.B}\n")));
-        var digest = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+        // Canonical digest must use the same byte protocol as the physical
+        // SQL signature graph, without allocating a second full graph string.
+        using var canonicalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var edge in actual.OrderBy(e => e.A).ThenBy(e => e.B))
+        {
+            ct.ThrowIfCancellationRequested();
+            canonicalHash.AppendData(Encoding.UTF8.GetBytes(
+                FormattableString.Invariant($"{edge.A}:{edge.B}\n")));
+        }
+        var digest = Convert.ToHexString(canonicalHash.GetHashAndReset()).ToLowerInvariant();
+        // Independent reference digest: a set equality alone must not mask
+        // a mismatch in canonical ordering/encoding between both paths.
+        using var referenceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var edge in expected.OrderBy(e => e.A).ThenBy(e => e.B))
+        {
+            ct.ThrowIfCancellationRequested();
+            referenceHash.AppendData(Encoding.UTF8.GetBytes(
+                FormattableString.Invariant($"{edge.A}:{edge.B}\n")));
+        }
+        var referenceDigest = Convert.ToHexString(referenceHash.GetHashAndReset()).ToLowerInvariant();
+        if (!string.Equals(digest, referenceDigest, StringComparison.Ordinal))
+            throw new InvalidDataException("Digest do grafo SQL operacional divergiu do grafo físico TEST.");
 
         // ONE global replay of the fully reassembled graph. Never run grouping
         // separately inside retrieval batches: edges may cross every boundary.

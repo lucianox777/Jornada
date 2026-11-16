@@ -76,6 +76,111 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-100k:
+    # Mandatory first campaign stage; independent of optional TEST sealing.
+    name: "V9 PREPARE mandatory: source, owner and campaign inputs"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit exact campaign source and mandatory inputs
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+          SECURITY_APPROVED: ${{ inputs.security_preflight_approved }}
+          TEST_REQUIRED: ${{ inputs.test_required }}
+          TEST_DATABASE: ${{ inputs.test_database }}
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$SECURITY_APPROVED" = "true"
+          if [[ "$TEST_REQUIRED" != "true" && -n "$TEST_DATABASE" ]]; then
+            echo "::error::V9_DATABASE_REQUIRES_TEST_CHECKBOX"
+            exit 1
+          fi
+          test -f Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json
+          test -f Solution/scripts/v9-v3-four-name-100k-plan.py
+          test -f Solution/scripts/v9-v3-four-name-100k-audit.py
+          echo "V9_PREPARE_ADMISSION=SUCCESS"
+          mkdir -p Solution/.local/v9-prepare
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          files = [
+              "Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json",
+              "Solution/scripts/v9-v3-four-name-100k-plan.py",
+              "Solution/scripts/v9-v3-four-name-100k-audit.py",
+          ]
+          receipt = {
+              "schema": "V9_PREPARE_ADMISSION_V1",
+              "commitSha": os.environ["EXACT_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "files": {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files},
+          }
+          Path("Solution/.local/v9-prepare/receipt.json").write_text(
+              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload immutable PREPARE admission receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-prepare-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Solution/.local/v9-prepare/receipt.json
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Generate mandatory TRAIN 100k once in PREPARE
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          root="$PWD/.local/v9-prepare"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 42 --out "$root/people-100k" \
+            > "$root/generation.log"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(".local/v9-prepare")
+          files = sorted(p for p in (root / "people-100k").rglob("*") if p.is_file())
+          assert files and (root / "people-100k/observacoes.csv").is_file()
+          receipt = {
+              "schema": "V9_PREPARE_TRAIN_CORPUS_V1",
+              "commitSha": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "files": {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
+          }
+          (root / "corpus-receipt.json").write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          print("V9_PREPARE_TRAIN_CORPUS_SEALED", len(files))
+          PY
+      - name: Upload mandatory TRAIN corpus with pinned manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-prepare-train-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            Solution/.local/v9-prepare/people-100k/
+            Solution/.local/v9-prepare/corpus-receipt.json
   # An explicitly named existing database must be admitted BEFORE the 324
   # expensive physical hypotheses. Only a SELECT-only SQL secret is exposed
   # here, never to TRAIN/VALIDATION. No citizen rows are read in preflight.
@@ -231,10 +336,10 @@ jobs:
             "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/public.pem" \
             "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/generation.log"
   physical-100k:
-    needs: [prepare-test-100k, test-database-preflight]
+    needs: [prepare-100k, prepare-test-100k, test-database-preflight]
     # TRAIN can start without TEST preparation, but cannot ignore a failed
     # requested seal. With TEST sealed, TRAIN still has no decryption key.
-    if: ${{ always() && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.test_required != true || (inputs.test_database == '' && needs.prepare-test-100k.result == 'success') || (inputs.test_database != '' && needs.test-database-preflight.result == 'success')) }}
+    if: ${{ always() && needs.prepare-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.test_required != true || (inputs.test_database == '' && needs.prepare-test-100k.result == 'success') || (inputs.test_database != '' && needs.test-database-preflight.result == 'success')) }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -272,6 +377,62 @@ jobs:
           ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Download PREPARE admission receipt from same campaign
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-prepare-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-prepare
+      - name: Verify PREPARE receipt against exact code and campaign
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          receipt = json.loads(Path(".local/v9-prepare/receipt.json").read_text(encoding="utf-8"))
+          assert receipt["schema"] == "V9_PREPARE_ADMISSION_V1"
+          assert receipt["commitSha"] == os.environ["EXACT_SHA"] == os.environ["GITHUB_SHA"]
+          assert receipt["runId"] == os.environ["GITHUB_RUN_ID"]
+          assert receipt["runAttempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
+          expected = {
+              "Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json",
+              "Solution/scripts/v9-v3-four-name-100k-plan.py",
+              "Solution/scripts/v9-v3-four-name-100k-audit.py",
+          }
+          assert set(receipt["files"]) == expected
+          for file, digest in receipt["files"].items():
+              assert hashlib.sha256(Path("..", file).read_bytes()).hexdigest() == digest, file
+          print("V9_PREPARE_RECEIPT_VERIFIED")
+          PY
+      - name: Download TRAIN corpus prepared in mandatory PREPARE
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-prepare-train-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-prepare
+      - name: Verify prepared TRAIN corpus hashes and bind into TRAIN workspace
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(".local/v9-prepare")
+          receipt = json.loads((root / "corpus-receipt.json").read_text(encoding="utf-8"))
+          assert receipt["schema"] == "V9_PREPARE_TRAIN_CORPUS_V1"
+          assert receipt["commitSha"] == os.environ["GITHUB_SHA"]
+          assert receipt["runId"] == os.environ["GITHUB_RUN_ID"]
+          assert receipt["runAttempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
+          actual = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in (root / "people-100k").rglob("*") if p.is_file()}
+          assert actual and actual == receipt["files"], "V9_PREPARE_TRAIN_CORPUS_HASH_MISMATCH"
+          assert "people-100k/observacoes.csv" in actual
+          target = Path(".local/v9-100k-technical/people-100k")
+          assert not target.exists(), "V9_TRAIN_CORPUS_MUST_NOT_BE_REGENERATED"
+          target.parent.mkdir(parents=True, exist_ok=True)
+          (root / "people-100k").rename(target)
+          print("V9_PREPARE_TRAIN_CORPUS_VERIFIED")
+          PY
       - name: Assert and report safe diagnostic environment
         run: |
           set -euo pipefail
@@ -319,6 +480,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_test_global_one_use.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_test_production_model_format.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_test_mode_contract_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_operational_converter.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
@@ -334,11 +496,12 @@ jobs:
           set -euo pipefail
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+      # Mandatory PREPARE phase of the same TRAIN → AUDIT → VALIDATION campaign.\n      # This is NOT prepare-test-100k, which remains TEST-only and optional.\n      - name: "TRAIN: bind TF4 plan using verified PREPARE corpus"
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          # Corpus comes from mandatory PREPARE; never regenerate in TRAIN.
+          test -f "$root/people-100k/observacoes.csv"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound" "$root/base-bound"
           python3 scripts/v9-scale-100k-technical-plan.py \
@@ -348,9 +511,9 @@ jobs:
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
-      - name: Start masked disposable SQL Server
+      - name: "PREPARE mandatory campaign: start masked disposable SQL Server"
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
+      - name: "PREPARE mandatory campaign: rehydrate frozen IBGE with canonical hashes"
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"

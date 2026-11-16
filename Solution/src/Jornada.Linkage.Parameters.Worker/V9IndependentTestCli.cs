@@ -76,6 +76,10 @@ public static class V9IndependentTestCli
             || conversion.SourceSnapshotSha256 != winnerSha
             || !winner.SerializeUtf8().AsSpan().SequenceEqual(validatedFileWinner.SerializeUtf8()))
             throw new InvalidDataException("TEST exige JSON byte-exato: arquivo VALIDATION, SQL operacional e runtime não coincidem.");
+        // Reject a candidate plan unsupported by the shared V9 cohort engine
+        // BEFORE opening the sealed TEST corpus. Never silently fall back to
+        // the currently active production model or a different grouping plan.
+        runtime.RequireSupportedFrozenExecutionPlan();
         // The TEST corpus is opened only AFTER the operational winner passes
         // its SHA/round-trip check. No VALIDATION measurements are read.
         var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
@@ -99,6 +103,11 @@ public static class V9IndependentTestCli
             sameOperationalJsonBytesAsProductionSideSqlPayload = true,
             operationalModelContract = V9OperationalSqlModelConverter.ContractVersion,
             operationalModelId,
+            // Bind the evaluated candidate to the exact operational execution plan.
+            // A TEST result must never be mistaken for the currently active model.
+            candidateExecutionPlanSchemaVersion = winner.Payload.ProjectionSchemaVersion,
+            candidateExecutionPlanFingerprintSha256 = winner.Payload.ProjectionFingerprintSha256,
+            candidateGroupingAlgorithm = winner.Payload.CandidateGrouping?.CandidateGrouping,
             operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
             operationalModelActive = false,
             operationalModelPublished = false,

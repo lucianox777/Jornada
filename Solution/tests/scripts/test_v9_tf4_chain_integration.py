@@ -36,7 +36,8 @@ class MandatoryChainIntegrationContractTests(unittest.TestCase):
         )
 
     def test_mandatory_chain_never_has_optional_test_gate(self):
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight]", self.train)
+        self.assertIn("needs: [prepare-100k, prepare-test-100k, test-database-preflight]", self.train)
+        self.assertIn("needs.prepare-100k.result == 'success'", self.train)
         self.assertIn("always()", self.train)
         self.assertIn("inputs.test_required != true", self.train)
         self.assertIn("needs: physical-100k", self.audit)

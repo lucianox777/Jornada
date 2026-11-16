@@ -92,7 +92,7 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         fixture = TEST.read_text()
         self.assertIn("CREATE TABLE #v9_run_sig(", sql_graph)
         self.assertIn("SqlBulkCopy(", sql_graph)
-        self.assertIn("SELECT DISTINCT a.obs_id,b.obs_id", sql_graph)
+        self.assertIn("SELECT DISTINCT a.obs_id AS a,b.obs_id AS b", sql_graph)
         self.assertIn('pass.PassId + "\\u001e" + string.Join("\\u001f", values)', sql_graph)
         self.assertIn("MaximumPairIncidences = 25_000", sql_graph)
         self.assertIn("JornadaHarness", sql_graph)
