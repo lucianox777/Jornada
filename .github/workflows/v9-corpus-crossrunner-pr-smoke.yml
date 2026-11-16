@@ -52,6 +52,11 @@ jobs:
             python3 tests/scripts/v9_corpus_crossrunner_fixture.py \
             --out .local/v9-probe/generated
           cp .local/v9-probe/config.json .local/v9-probe/export/config.json
+      - name: Pack and verify tiny REF ZIP
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-corpus-ref-zip.py pack --source .local/v9-probe/generated --zip .local/v9-probe/export/ref-probe.zip --manifest .local/v9-probe/export/ref-probe-manifest.json
+          python3 scripts/v9-corpus-ref-zip.py verify --zip .local/v9-probe/export/ref-probe.zip --manifest .local/v9-probe/export/ref-probe-manifest.json
       - name: Upload exact same-run tiny probe only
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
@@ -98,4 +103,8 @@ jobs:
             --corpus .local/v9-probe-received/train-handoff \
             --config .local/v9-probe-received/config.json \
             --prepare-receipt .local/v9-probe-received/prepare-receipt.json
-          echo "V9_CROSSRUNNER_TWO_JOB_PHYSICAL_PROBE_PASS: two public rows, no TRAIN and no TEST"
+          python3 scripts/v9-corpus-ref-zip.py unpack --zip .local/v9-probe-received/ref-probe.zip --manifest .local/v9-probe-received/ref-probe-manifest.json --destination .local/v9-probe-unpacked
+          for file in pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json; do
+            cmp ".local/v9-probe-unpacked/$file" ".local/v9-probe-received/train-handoff/$file"
+          done
+          echo "V9_CROSSRUNNER_TWO_JOB_PHYSICAL_ZIP_PROBE_PASS: two public rows, no TRAIN and no TEST"
