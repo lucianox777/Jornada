@@ -157,3 +157,7 @@ Commits `318ac7c3` e `052eff0b`: `prepare.handoff` agora rejeita links simbólic
 ## Fingerprint esperado ancorado na receita independente — 15/11/2026
 
 Commit `82bf9d55`: no consumidor opt-in, `--expected-fingerprint` passa a ser derivado de `expected-config.json`, recalculado a partir de código e REF do checkout fixado, em vez de `config.json` transportado. A API já compara as duas configurações; a alteração elimina dependência redundante do valor não confiável no cálculo da expectativa. A CI do novo HEAD deve ser validada. Não modifica ciência, TEST, custos nem resolve armazenamento durável ou integração ao TRAIN real.
+
+## Guarda de regressão do fingerprint independente — 15/11/2026
+
+Commit `db813e6d`: teste estático do workflow passa a exigir que o fingerprint esperado derive explicitamente de `expected-config.json` e seja enviado a `--expected-fingerprint`. Evita regressão para a configuração recebida do produtor, preservando a âncora independente de proveniência. CI do novo HEAD pendente; sem alteração dos gates científicos, custos, armazenamento ou TEST.
