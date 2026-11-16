@@ -130,24 +130,35 @@ public static class V9FrozenCohortSqlCandidateGraph
             """, connection))
             await setup.ExecuteNonQueryAsync(ct);
 
-        var table = new DataTable();
-        table.Locale = CultureInfo.InvariantCulture;
+        // Keep SQL bulk transfer bounded independently of the total signature
+        // count. A SqlBulkCopy.BatchSize alone does NOT bound the DataTable
+        // retained in client memory.
+        const int SignatureTransferBatchSize = 2048;
+        var table = new DataTable { Locale = CultureInfo.InvariantCulture };
         table.Columns.Add("obs_id", typeof(int));
         table.Columns.Add("gestor", typeof(string));
         table.Columns.Add("pass_id", typeof(string));
         table.Columns.Add("assinatura", typeof(string));
-        foreach (var row in signatures)
-            table.Rows.Add(row.Observation, row.Manager, row.Pass, row.Hash);
         using (var bulk = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, null)
         {
             DestinationTableName = "#v9_run_sig",
-            BatchSize = 2048,
+            BatchSize = SignatureTransferBatchSize,
             BulkCopyTimeout = 60
         })
         {
             foreach (DataColumn col in table.Columns)
                 bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
-            await bulk.WriteToServerAsync(table, ct);
+            foreach (var row in signatures)
+            {
+                ct.ThrowIfCancellationRequested();
+                table.Rows.Add(row.Observation, row.Manager, row.Pass, row.Hash);
+                if (table.Rows.Count < SignatureTransferBatchSize)
+                    continue;
+                await bulk.WriteToServerAsync(table, ct);
+                table.Clear();
+            }
+            if (table.Rows.Count > 0)
+                await bulk.WriteToServerAsync(table, ct);
         }
 
         var edges = new List<(int A, int B)>();
