@@ -195,6 +195,8 @@ public static class V9SqlReplayDiagnosticCli
     private const string HistoricalCorpusSha =
         "6a2cb2ffd48d14b705faeb14ec4dd517bef94ced730e20a062e0dd5403c832b1";
     private const int Repetitions = 20;
+    private static readonly JsonSerializerOptions PlanJson = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions EvidenceJson = new() { WriteIndented = true };
 
     public static async Task RunAsync(string[] args)
     {
@@ -208,7 +210,7 @@ public static class V9SqlReplayDiagnosticCli
             throw new InvalidDataException("Corpus não corresponde ao SHA físico 15/11.");
         var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(
             await File.ReadAllBytesAsync(args[1]),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            PlanJson)
             ?? throw new InvalidDataException("Plano não disponível.");
         V9NestedCalibrationCoordinator.ValidatePlan(plan);
         var snapshotSha = Path.GetFileName(args[3]).Split('.', 2)[0];
@@ -284,7 +286,7 @@ public static class V9SqlReplayDiagnosticCli
         };
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         await File.WriteAllTextAsync(destination, JsonSerializer.Serialize(
-            output, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+            output, EvidenceJson) + "\n");
         Console.WriteLine($"V9_SQL_REPLAY_DIAGNOSTIC_PASS: isolated={isolated.TotalP95Milliseconds:F0}ms concurrent={concurrent.TotalP95Milliseconds:F0}ms; no TRAIN/TEST.");
     }
 }
