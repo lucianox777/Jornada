@@ -191,15 +191,27 @@ public static class V9FrozenCohortSqlCandidateGraph
         }
 
         var edges = new List<(int A, int B)>();
-        // Hash while reading the SQL-ordered DISTINCT stream. Retain edges
-        // only for the bounded complete-link replay; never scan them twice.
+        // Keyset pagination over the one materialized DISTINCT snapshot.
+        // Unlike OFFSET, this avoids rescanning all prior pages. The global
+        // replay still consumes the entire bounded graph, never one page
+        // at a time; no cross-page identity edges can be discarded.
+        const int EdgePageSize = 2048;
         using var edgeDigest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var previousA = 0;
         var previousB = 0;
-        await using (var query = new SqlCommand("""
-            SELECT a,b FROM #v9_run_edges ORDER BY a,b;
-            """, connection) { CommandTimeout = 120 })
+        while (edges.Count < distinctEdgeCount)
         {
+            ct.ThrowIfCancellationRequested();
+            var pageCount = 0;
+            await using var query = new SqlCommand("""
+                SELECT TOP (@page_size) a,b
+                  FROM #v9_run_edges
+                 WHERE a>@last_a OR (a=@last_a AND b>@last_b)
+                 ORDER BY a,b;
+                """, connection) { CommandTimeout = 120 };
+            query.Parameters.Add("@page_size", SqlDbType.Int).Value = EdgePageSize;
+            query.Parameters.Add("@last_a", SqlDbType.Int).Value = previousA;
+            query.Parameters.Add("@last_b", SqlDbType.Int).Value = previousB;
             await using var reader = await query.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -217,7 +229,25 @@ public static class V9FrozenCohortSqlCandidateGraph
                     b.ToString(CultureInfo.InvariantCulture) + "\n";
                 edgeDigest.AppendData(Encoding.UTF8.GetBytes(line));
                 edges.Add((a, b));
+                pageCount++;
             }
+            if (pageCount == 0)
+                throw new InvalidDataException(
+                    "Paginação SQL V9 terminou antes do censo integral de arestas.");
+        }
+        // Also reject unexpected rows beyond the census, including a changed
+        // temporary graph after the last page.
+        await using (var tail = new SqlCommand("""
+            SELECT TOP (1) a,b FROM #v9_run_edges
+             WHERE a>@last_a OR (a=@last_a AND b>@last_b)
+             ORDER BY a,b;
+            """, connection))
+        {
+            tail.Parameters.Add("@last_a", SqlDbType.Int).Value = previousA;
+            tail.Parameters.Add("@last_b", SqlDbType.Int).Value = previousB;
+            await using var reader = await tail.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+                throw new InvalidDataException("Paginação SQL V9 encontrou arestas além do censo.");
         }
         if (edges.Count != distinctEdgeCount)
             throw new InvalidDataException("Transferência SQL V9 não corresponde ao censo DISTINCT integral.");
