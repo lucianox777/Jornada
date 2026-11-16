@@ -209,3 +209,7 @@ Após aprovação do PO para priorizar a camada REF, commits `c71ef584` e `c725f
 ## Admissão conjunta REF + volume durável — 15/11/2026
 
 Commits `c4943424`, `b7746eb0`, `dd1c3a45`: rejeição explícita de `/` como raiz REF; novo `v9-corpus-ref-store-admission.py` combina a prova de isolamento de namespace com o preflight de mount POSIX externo já existente e atestado pelo operador; teste negativo garante que um diretório REF local comum não seja aceito como volume durável, mesmo com atestado declaratório. **Não foi provisionado volume REF nem executada prova cross-run**; o atestado continua sujeito a auditoria independente. Sem execução do TRAIN científico ou TEST, sem autorização de gastos, e sem alteração das 324 hipóteses. A CI do HEAD ainda precisa ser confirmada antes de considerar este incremento validado.
+
+## Planejamento de retenção fail-closed — 15/11/2026
+
+Commits `68b6bc5e` e `2227afe5`: criado `v9-corpus-retention-plan.py` como **planejador somente leitura**, com teste de exatamente um corpus `CURRENT` aprovado e validado por configuração, fingerprints únicos e reconhecimento de leitores ativos e dependências protegidas. Todas as versões recebem `RETAIN`: **não há exclusão automática** porque ausência de dependências científicas e capacidade de replay não foram comprovadas. O mecanismo implementa validação inicial da política aprovada, mas **não** promoção atômica, leases duráveis, rollback ou coleta segura; não declarar política integralmente entregue. CI do novo HEAD pendente. Não toca no TEST ou nas 324 hipóteses.
