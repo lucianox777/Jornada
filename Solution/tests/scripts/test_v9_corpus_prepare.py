@@ -144,5 +144,24 @@ class CorpusPrepareTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare.prepare(Path(d)/"store", {"seed": 42}, [], Path(d)/"out")
 
+    def test_handoff_rejects_symlink_intermediate_destination(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            prepare.snapshot.publish(store, config, source)
+            (store / ".prepare.lock").touch()
+            real = root / "real"
+            real.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "ancestor"):
+                prepare.handoff(store, config, alias / "nested" / "corpus")
+            self.assertFalse((real / "nested").exists())
+
 if __name__ == "__main__":
     unittest.main()
