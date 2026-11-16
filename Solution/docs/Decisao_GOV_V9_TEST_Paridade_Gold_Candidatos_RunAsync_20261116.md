@@ -64,3 +64,6 @@ PR #1598 foi substituída por PR #1601 devido a conflito com alterações poster
 
 ## Proposta de oráculo independente do agrupamento TEST — 16/11/2026
 Contexto: após PRs #1596, #1601 e #1602, a comparação RunAsync versus ReplayTest permanece circular. Decisão proposta: acrescentar teste C# exaustivo de 729 grafos possíveis (seis pares de quatro observações, cada par ausente/forte/assimétrico) e três limites de tamanho, totalizando 2.187 cenários, usando algoritmo de partições em listas de conjuntos independente do union-find produtivo. Justificativa: evidenciar falhas de complete-link, limiar bidirecional e limite de tamanho sem reaproveitar o kernel testado nem verdade Gold. Impacto: testes somente, sem alteração de runtime, TF4, dados TEST, publicação ou guard científico. Precedência: evidência parcial para issue #1584; NÃO certifica score, abstenção, desempate, RunAsync SQL ou paridade produtiva total. Aguardam CI e integração. GOV-DOC-01.
+
+## Integração do oráculo independente TEST — 16/11/2026
+PR #1603 integrada por squash `b8da454353fc0246732a3f3f8740248d74f1d673`, CI obrigatória #43934771240 3/3 SUCCESS. O teste de 729 grafos × 3 limites verifica somente semântica do agrupamento com oráculo separado; não constitui certificação do score TF4, abstenção, desempate, persistência SQL ou TEST 100k. Mantêm-se os bloqueios e a issue #1584. GOV-DOC-01.
