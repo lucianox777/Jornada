@@ -157,5 +157,23 @@ class CrossRunnerHandoffTests(unittest.TestCase):
                 verifier.materialize_train_input(corpus, config, receipt, target)
             self.assertFalse((real_parent / "nested").exists())
 
+    def test_independent_expected_config_is_required_to_match(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            expected = root / "expected-config.json"
+            expected.write_text(json.dumps({"seed": 43, "people": 100, "error_profile": "clean"}))
+            target = root / "train" / "people-100k"
+            with self.assertRaisesRegex(ValueError, "independently expected"):
+                verifier.materialize_train_input(corpus, config, receipt, target, expected_config_path=expected)
+            self.assertFalse(target.exists())
+            expected.write_text(config.read_text())
+            evidence = verifier.materialize_train_input(corpus, config, receipt, target, expected_config_path=expected)
+            self.assertEqual(evidence["status"], "TRAIN_INPUT_ADMITTED_NOT_EXECUTED")
+            alias = root / "expected-alias.json"
+            alias.symlink_to(expected)
+            with self.assertRaisesRegex(ValueError, "unsafe independently"):
+                verifier.verify_handoff(corpus, config, receipt, alias)
+
 if __name__ == "__main__":
     unittest.main()
