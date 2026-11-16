@@ -161,6 +161,28 @@ public static class V9FrozenCohortSqlCandidateGraph
                 await bulk.WriteToServerAsync(table, ct);
         }
 
+        // Preflight the SQL DISTINCT result itself before transferring any
+        // edges to the client. Signature incidence counts can exceed DISTINCT
+        // counts, but neither is a substitute for a hard output bound.
+        // COUNT_BIG is evaluated by SQL over the entire frozen graph.
+        await using (var countQuery = new SqlCommand("""
+            SELECT COUNT_BIG(*)
+              FROM (
+                SELECT DISTINCT a.obs_id,b.obs_id
+                  FROM #v9_run_sig a
+                  JOIN #v9_run_sig b
+                    ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
+                   AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
+              ) AS candidate_edges;
+            """, connection) { CommandTimeout = 120 })
+        {
+            var distinctEdgeCount = Convert.ToInt64(
+                await countQuery.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+            if (distinctEdgeCount > MaximumPairIncidences)
+                throw new InvalidDataException(
+                    "Grafo SQL V9 excedeu o limite antes da transferência de arestas.");
+        }
+
         var edges = new List<(int A, int B)>();
         // Hash while reading the SQL-ordered DISTINCT stream. Retain edges
         // only for the bounded complete-link replay; never scan them twice.
