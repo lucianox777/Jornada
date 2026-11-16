@@ -127,6 +127,27 @@ class CorpusSnapshotTests(unittest.TestCase):
                 [p.name for p in store.iterdir() if p.is_dir()],
                 [module.identity(config)])
 
+    def test_unexpected_snapshot_entries_fail_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source"
+            source.mkdir()
+            for name in module.REQUIRED:
+                (source / name).write_text("synthetic")
+            config = {"seed": 42}
+            store = root / "store"
+            module.publish(store, config, source)
+            target = store / module.identity(config)
+            (target / "untracked.txt").write_text("unexpected")
+            with self.assertRaisesRegex(ValueError, "Unexpected corpus snapshot entry"):
+                module.verify(target, config)
+            with self.assertRaisesRegex(ValueError, "Unexpected corpus snapshot entry"):
+                module.publish(store, config, source)
+            (target / "untracked.txt").unlink()
+            (target / "untracked-directory").mkdir()
+            with self.assertRaisesRegex(ValueError, "Unexpected corpus snapshot entry"):
+                module.verify(target, config)
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
