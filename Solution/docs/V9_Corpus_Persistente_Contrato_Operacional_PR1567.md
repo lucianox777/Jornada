@@ -249,3 +249,7 @@ O contrato de persistência falhou no SHA `9bddfb1a` por **três chamadas de tes
 ## CI 43786215815 — duas chamadas negativas remanescentes (16/11/2026)
 
 A CI de persistência ainda falhou em dois testes negativos porque as chamadas de alvo não validado e snapshot adulterado omitiam `environment="experimental"`. O commit `f0970aec` altera explicitamente ambas, preservando os testes que rejeitam ambiente omitido ou `production`. A correção foi verificada pela leitura do arquivo na branch; confirmação da nova CI ainda pendente. Sem alteração de critérios de produção, REF durável ou merge.
+
+## Auditoria de observações entre execuções — 16/11/2026
+
+No SHA `44e26ba8`, todos os quatro workflows da PR concluíram com **SUCCESS**, inclusive `jornada-pr-required-fast`. Commits `0c36404b` e `762e4ae3` adicionam `v9-corpus-cross-run-proof.py` e testes negativos para comparar observações de duas execuções distintas (run IDs, tentativas únicas, fingerprint, hashes de arquivos e identidade declarada do armazenamento). A saída é explicitamente `TWO_OBSERVATIONS_CONSISTENT_NOT_DURABILITY_CERTIFIED`: igualdade de recibos **não comprova** que o armazenamento REF é realmente compartilhado; exige atestado independente de montagem e execução real em runners distintos. A CI do novo HEAD está pendente. Sem autorização de calibração 100k, sem alteração produtiva e sem merge até comprovar REF persistente e PREPARE→TRAIN científico.
