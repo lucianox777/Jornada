@@ -39,6 +39,7 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("needs.prepare-100k.result == 'success'", train)
         prepare = wf.split("\n  prepare-100k:\n", 1)[1].split("\n  test-database-preflight:\n", 1)[0]
         self.assertIn("V9_PREPARE_ADMISSION=SUCCESS", prepare)
+        self.assertIn('json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\\n"', prepare)
         self.assertIn("Upload immutable PREPARE admission receipt", prepare)
         self.assertIn("v9-prepare-admission-", prepare)
         self.assertIn("Download PREPARE admission receipt from same campaign", train)
