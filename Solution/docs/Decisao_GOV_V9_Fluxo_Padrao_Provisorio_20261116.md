@@ -63,3 +63,7 @@ Novo workflow `.github/workflows/v9-standard-linear-100k.yml` com ADMISSION, PRE
 ## Hardening incremental PREPARE → TRAIN
 
 O job PREPARE recebeu `GH_TOKEN` com permissões `actions: read` para o download pinado de artefato histórico, preservando SHA esperado. O TRAIN deixou de compilar o gerador sintético, pois a geração passou a ocorrer exclusivamente no PREPARE. O handoff usa `scripts/v9-standard-prepare-handoff.py` com allowlist de diretórios, rejeição de symlinks, caminhos relativos perigosos e duplicatas, limite de arquivos e tamanho descompactado, além do checksum SHA-256 do pacote e vínculo SHA/run ID. Testes unitários cobrem roundtrip, traversal, symlink e arquivo obrigatório ausente. Esses controles não substituem a execução real nem a CI; PR permanece em draft.
+
+## CI de contrato sem execução física
+
+Adicionado `.github/workflows/v9-standard-linear-contract-ci.yml` para validar a sintaxe YAML dos dois workflows, executar `test_v9_standard_*.py` e compilar o script de handoff em PRs pertinentes. Não executa SQL, TRAIN 100k ou TEST científico. Resultado real de CI ainda deve ser verificado; o workflow novo não substitui os gates obrigatórios do repositório.
