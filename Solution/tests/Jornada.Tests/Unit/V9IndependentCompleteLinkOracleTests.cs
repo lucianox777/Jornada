@@ -36,7 +36,7 @@ public sealed class V9IndependentCompleteLinkOracleTests
             // Deliberately recompute every cross-product from the full
             // reference adjacency rather than using production roots.
             if (!left.All(a => right.All(b =>
-                    strong.Contains((Math.Min(a, b), Math.Max(a, b)))))
+                    strong.Contains((Math.Min(a, b), Math.Max(a, b))))))
                 continue;
             left.UnionWith(right);
             groups.Remove(right);
