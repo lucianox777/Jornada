@@ -47,6 +47,40 @@ class CorpusPrepareTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "preparation lock"):
                 prepare.handoff(store, config, root / "consumer")
 
+    def test_handoff_rejects_symlink_preparation_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            prepare.snapshot.publish(store, config, source)
+            (store / ".prepare.lock").symlink_to(root / "outside-lock")
+            with self.assertRaisesRegex(ValueError, "preparation lock"):
+                prepare.handoff(store, config, root / "consumer")
+            self.assertFalse((root / "consumer").exists())
+
+    def test_reused_corrupt_corpus_never_regenerates(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            prepare.snapshot.publish(store, config, source)
+            (store / prepare.snapshot.identity(config) / "observacoes.csv").write_text("tampered")
+            marker = root / "generator-was-run"
+            import sys
+            with self.assertRaises(ValueError):
+                prepare.prepare(store, config, [sys.executable, "-c",
+                    "from pathlib import Path; import sys; Path(sys.argv[1]).touch()",
+                    str(marker)], root / "fresh")
+            self.assertFalse(marker.exists())
+
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
