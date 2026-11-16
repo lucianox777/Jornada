@@ -297,3 +297,7 @@ Commits `162e2069` e `e3815f01` adicionam ferramenta create-only `v9-corpus-ref-
 ## Extração física verificada ZIP REF (16/11/2026)
 
 Commits `937fc39a` e `020a66af` adicionam `unpack` com verificação integral prévia do ZIP, extração em diretório temporário isolado, comparação de SHA-256 dos bytes extraídos, publicação por rename e rejeição de destino preexistente; testes cobrem reuso local e rejeição de adulteração sem expor diretório parcial. Ainda não há ZIP físico 100k versionado, medição de tamanho, integração ao workflow científico ou comprovação cross-run do mesmo objeto Git. A aprovação da CI não equivale a aceite científico nem autoriza merge.
+
+## Prova de transporte ZIP entre runners (16/11/2026)
+
+Commit `87d564c2` amplia a CI PR de **duas linhas não científicas**: PREPARE cria e verifica ZIP REF; consumidor em outro runner valida, extrai e compara fisicamente os quatro arquivos com o handoff original. Evidência restrita à mesma execução GitHub Actions via artifact efêmero; **não demonstra** corpus 100k versionado, persistência cross-run nem aceitação científica. Aguardar resultados da CI deste HEAD.
