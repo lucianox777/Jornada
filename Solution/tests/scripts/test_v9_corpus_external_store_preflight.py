@@ -43,5 +43,16 @@ class ExternalStorePreflightTests(unittest.TestCase):
                 preflight.validate(Path(temp), a, "lucianox777/Jornada")
 
 
+    def test_filesystem_root_cannot_be_claimed_as_external_store(self):
+        attestation = {
+            "schema": "v9-external-store-attestation-v1",
+            "repository": "lucianox777/Jornada",
+            "provider_type": "external-posix-shared",
+            "cross_run_persistence_verified": True,
+            "evidence_run_ids": [101, 102],
+        }
+        with self.assertRaisesRegex(ValueError, "Filesystem root"):
+            preflight.validate(Path("/"), attestation, "lucianox777/Jornada")
+
 if __name__ == "__main__":
     unittest.main()
