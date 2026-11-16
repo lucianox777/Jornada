@@ -52,6 +52,8 @@ def prepare(store, config, generator, output):
 
 def handoff(store, config, destination):
     """Materialize validated corpus on another runner; never trust a bare cache hit."""
+    if store.is_symlink() or not store.is_dir():
+        raise ValueError("Missing or unsafe corpus store")
     source = store / snapshot.identity(config)
     # Validate while holding the same lock as PREPARE: do not copy a corpus
     # concurrently with a writer on the shared POSIX volume.
