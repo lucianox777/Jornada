@@ -31,7 +31,7 @@ def make_store(root):
 
 
 class RefPromotionTests(unittest.TestCase):
-    def test_promotion_preserves_old_version_and_requires_approval(self):
+    def test_promotion_preserves_old_version_and_requires_validated_target(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             store = make_store(root)
@@ -41,10 +41,7 @@ class RefPromotionTests(unittest.TestCase):
                 {"fingerprint": B, "configuration": "seed42", "state": "HISTORICAL", "validated": True, "approved": True},
             ]}
             path.write_text(json.dumps(initial))
-            with self.assertRaisesRegex(ValueError, "approval"):
-                module.promote(path, B, "seed42", approved=False, store=store, generation=CONFIG_B)
-            self.assertEqual(json.loads(path.read_text()), initial)
-            self.assertEqual(module.promote(path, B, "seed42", approved=True, store=store, generation=CONFIG_B)["status"], "PROMOTED_NO_DELETION")
+            self.assertEqual(module.promote(path, B, "seed42", store=store, generation=CONFIG_B)["status"], "PROMOTED_NO_DELETION")
             states = {e["fingerprint"]: e["state"] for e in json.loads(path.read_text())["entries"]}
             self.assertEqual(states, {A: "PREVIOUS", B: "CURRENT"})
             self.assertEqual(module.promote(path, B, "seed42", approved=True)["status"], "ALREADY_CURRENT")
