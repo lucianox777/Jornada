@@ -10,22 +10,41 @@ spec = importlib.util.spec_from_file_location("ref_promote", script)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-A, B = "a" * 64, "b" * 64
+snapshot_spec = importlib.util.spec_from_file_location("v9_snapshot", script.with_name("v9-corpus-snapshot.py"))
+snapshot = importlib.util.module_from_spec(snapshot_spec)
+snapshot_spec.loader.exec_module(snapshot)
+CONFIG_A = {"seed": 42}
+CONFIG_B = {"seed": 43}
+A, B = snapshot.identity(CONFIG_A), snapshot.identity(CONFIG_B)
+
+
+def make_store(root):
+    store = root / "store"
+    store.mkdir()
+    for config in (CONFIG_A, CONFIG_B):
+        target = store / snapshot.identity(config)
+        target.mkdir()
+        for name in snapshot.REQUIRED:
+            (target / name).write_text("fixture:" + name)
+        (target / "snapshot.json").write_text(json.dumps(snapshot.snapshot(config, target)))
+    return store
 
 
 class RefPromotionTests(unittest.TestCase):
     def test_promotion_preserves_old_version_and_requires_approval(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "index.json"
+            root = Path(temp)
+            store = make_store(root)
+            path = root / "index.json"
             initial = {"schema": "v9-ref-retention-index-v1", "entries": [
                 {"fingerprint": A, "configuration": "seed42", "state": "CURRENT", "validated": True, "approved": True},
                 {"fingerprint": B, "configuration": "seed42", "state": "HISTORICAL", "validated": True, "approved": True},
             ]}
             path.write_text(json.dumps(initial))
             with self.assertRaisesRegex(ValueError, "approval"):
-                module.promote(path, B, "seed42", approved=False)
+                module.promote(path, B, "seed42", approved=False, store=store, generation=CONFIG_B)
             self.assertEqual(json.loads(path.read_text()), initial)
-            self.assertEqual(module.promote(path, B, "seed42", approved=True)["status"], "PROMOTED_NO_DELETION")
+            self.assertEqual(module.promote(path, B, "seed42", approved=True, store=store, generation=CONFIG_B)["status"], "PROMOTED_NO_DELETION")
             states = {e["fingerprint"]: e["state"] for e in json.loads(path.read_text())["entries"]}
             self.assertEqual(states, {A: "PREVIOUS", B: "CURRENT"})
             self.assertEqual(module.promote(path, B, "seed42", approved=True)["status"], "ALREADY_CURRENT")
