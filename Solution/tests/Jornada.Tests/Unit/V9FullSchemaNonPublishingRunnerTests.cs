@@ -269,13 +269,13 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(reference.Decisions, Has.Count.EqualTo(200));
             await AssertFrozenRunDecisionsAsync(connection, positive.RunId, reference);
             // Same physical SQL graph, same pinned winner, different actual
-            // RunAsync SQL pagination (50x4 instead of 100x2). Verify the
+            // RunAsync SQL pagination (200x1 instead of 100x2). Verify the
             // complete persisted per-observation decisions against the same
             // independent frozen reference, not merely summary counters.
             var alternateScorer = new V9PinnedSyntheticGraphCohortRunScorer(
                 sql, stored.ModelId, winner.ContentSha256);
             var alternate = await BuildRunner(alternateScorer)
-                .RunAsync(Request(batchSize: 50), CancellationToken.None);
+                .RunAsync(Request(batchSize: 200), CancellationToken.None);
             Assert.That(alternate.Status, Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
             Assert.That(alternate.Elegiveis, Is.EqualTo(200));
             Assert.That(alternate.Avaliados, Is.EqualTo(200));
