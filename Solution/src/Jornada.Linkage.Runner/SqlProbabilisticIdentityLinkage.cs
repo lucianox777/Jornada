@@ -160,8 +160,8 @@ public sealed class SqlProbabilisticIdentityLinkage(
         // model read. An edge must reference an exact, ordered observation ID,
         // never a page-local index, an intra-gestor pair or a duplicate.
         var rows = frozenTest.OrderBy(row => row?.ObservationId).ToArray();
-        if (rows.Any((row, index) => row is null || row.ObservationId != index + 1
-                || row.Partition != "TEST" || string.IsNullOrWhiteSpace(row.Gestor))
+        if (rows.Select((row, index) => row is null || row.ObservationId != index + 1
+                || row.Partition != "TEST" || string.IsNullOrWhiteSpace(row.Gestor)).Any(invalid => invalid)
             || rows.Select(row => row.ObservationId).Distinct().Count() != rows.Length)
             throw new InvalidDataException("Coorte V9 TEST deve ser integral, ordenada e sem IDs duplicados.");
         var managers = rows.ToDictionary(row => row.ObservationId, row => row.Gestor);
