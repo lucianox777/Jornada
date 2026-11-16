@@ -24,6 +24,19 @@ def validate_observation(receipt: dict) -> None:
         raise ValueError("Missing repository")
     if not isinstance(receipt["files"], dict) or not receipt["files"]:
         raise ValueError("Missing physical file hashes")
+    expected_files = {"pessoas_verdade.csv", "observacoes.csv",
+                      "gabarito.json", "generation-manifest.json"}
+    if set(receipt["files"]) != expected_files:
+        raise ValueError("REF observation file allowlist mismatch")
+    for name, metadata in receipt["files"].items():
+        if not isinstance(metadata, dict) or set(metadata) != {"sha256", "size"}:
+            raise ValueError("Invalid REF physical file metadata: " + name)
+        digest = metadata["sha256"]
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+                char not in "0123456789abcdef" for char in digest):
+            raise ValueError("Invalid REF physical SHA-256: " + name)
+        if type(metadata["size"]) is not int or metadata["size"] < 0:
+            raise ValueError("Invalid REF physical file size: " + name)
     if not isinstance(receipt["store_identity"], str) or not receipt["store_identity"]:
         raise ValueError("Missing external store identity")
     if not isinstance(receipt["fingerprint"], str) or len(receipt["fingerprint"]) != 64 or any(ch not in "0123456789abcdef" for ch in receipt["fingerprint"]):
