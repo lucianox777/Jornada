@@ -37,8 +37,8 @@ def open_preparation_lock(path, *, create=False):
 def prepare(store, config, generator, output):
     if not isinstance(config, dict) or not config:
         raise ValueError("Invalid generation configuration")
-    if store.is_symlink():
-        raise ValueError("Symlink store forbidden")
+    if any(ancestor.is_symlink() for ancestor in (store, *store.parents)):
+        raise ValueError("Symlink store or ancestor forbidden")
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink():
         raise ValueError("Symlink store forbidden")
@@ -67,7 +67,7 @@ def prepare(store, config, generator, output):
 
 def handoff(store, config, destination):
     """Materialize validated corpus on another runner; never trust a bare cache hit."""
-    if store.is_symlink() or not store.is_dir():
+    if any(ancestor.is_symlink() for ancestor in (store, *store.parents)) or not store.is_dir():
         raise ValueError("Missing or unsafe corpus store")
     source = store / snapshot.identity(config)
     # Validate while holding the same lock as PREPARE: do not copy a corpus
