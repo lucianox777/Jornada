@@ -334,11 +334,30 @@ jobs:
           set -euo pipefail
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+      - name: Admit pinned persistent REF 100k and bind V3-only TF4 plan
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          # Immutable published REF from the independently proven experimental commit.
+          # No generator is invoked in scientific TRAIN. Fail closed on any drift.
+          ref_commit=9058c5dfe9b7dd6b8e77827fbaa55e5dc4faca50
+          ref_path=Solution/data/reference/v9-synthetic-corpus-100000
+          git -C .. cat-file -e "$ref_commit^{commit}"
+          mkdir -p "$root/pinned-ref"
+          git -C .. show "$ref_commit:$ref_path/corpus-seed42.zip" > "$root/pinned-ref/corpus-seed42.zip"
+          git -C .. show "$ref_commit:$ref_path/manifest.json" > "$root/pinned-ref/manifest.json"
+          git -C .. show "$ref_commit:Solution/scripts/v9-corpus-ref-zip.py" > "$root/pinned-ref/v9-corpus-ref-zip.py"
+          python3 - "$root/pinned-ref/manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1], encoding='utf-8'))
+          assert m['schema']=='v9-ref-zip-v1'
+          assert m['zip_sha256']=='d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d'
+          assert m['zip_size']==7697354
+          assert set(m['files'])=={'pessoas_verdade.csv','observacoes.csv','gabarito.json','generation-manifest.json'}
+          PY
+          python3 "$root/pinned-ref/v9-corpus-ref-zip.py" verify --zip "$root/pinned-ref/corpus-seed42.zip" --manifest "$root/pinned-ref/manifest.json"
+          python3 "$root/pinned-ref/v9-corpus-ref-zip.py" unpack --zip "$root/pinned-ref/corpus-seed42.zip" --manifest "$root/pinned-ref/manifest.json" --destination "$root/people-100k"
+          printf 'V9_PERSISTED_REF_SHA256=d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d\\nV9_TRAIN_INPUT_FROM_PERSISTED_REF=1\\n' > "$root/generation.log"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound" "$root/base-bound"
           python3 scripts/v9-scale-100k-technical-plan.py \
