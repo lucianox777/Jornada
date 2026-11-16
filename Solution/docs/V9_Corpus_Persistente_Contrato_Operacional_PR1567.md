@@ -241,3 +241,7 @@ Commit `7dcefd7a`: inicializa o armazenamento de snapshots no teste de rejeiçã
 ## CI verde e contexto experimental explícito — 16/11/2026
 
 No SHA `ffa0e4e9`, os checks `v9-corpus-persistence-contract`, `v9-experimental-fast-pr` e `V9 corpus cross-runner transport PR probe (NONSCIENTIFIC)` concluíram com **SUCCESS**; `jornada-pr-required-fast` ainda aparecia `pending` na consulta. Commits `991920d7` e `90ea0977` removem o default implícito `experimental` da API Python de promoção e exigem contexto experimental expresso também nos testes; ausência de contexto e `production` falham fechados. A CI deve ser reavaliada no HEAD. A prova cross-run de armazenamento REF persistente e integração TRAIN real continuam pendentes, portanto sem merge ou ativação produtiva.
+
+## CI 43786123043 — ambiente experimental nos testes (16/11/2026)
+
+O contrato de persistência falhou no SHA `9bddfb1a` por **três chamadas de teste** que não informavam `environment="experimental"` após o bloqueio fail-closed da API. Commit `d7b3de76` passa o contexto explícito nos casos de promoção, idempotência, alvo não validado e snapshot adulterado, mantendo testes negativos separados para ausência de ambiente e `production`. Não foi relaxado o bloqueio produtivo. A CI do HEAD deve confirmar. A integração REF durável cross-run e PREPARE→TRAIN permanece pendente; PR DRAFT sem merge.
