@@ -109,6 +109,15 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("if (table.Rows.Count > 0)", graph)
         self.assertIn("public const int MaximumObservations = 512;", graph)
 
+    def test_operational_candidate_audit_rejects_unexpected_sql_edges_early(self):
+        audit = (ROOT / "src/Jornada.Linkage.Runner/V9OperationalCandidateGraphParityAudit.cs").read_text(encoding="utf-8")
+        self.assertIn("operationalRuntime.RequireSupportedFrozenExecutionPlan();", audit)
+        self.assertIn("if (!expected.Contains(key))", audit)
+        self.assertIn("SQL operacional retornou aresta ausente do grafo físico TEST.", audit)
+        self.assertIn("actualDirections.Values.Any(v => v != 3)", audit)
+        self.assertIn("expected.SetEquals(actual)", audit)
+        self.assertIn("ProductionBatchPipelineCertified: false", audit)
+
     def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
         runner = (ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
