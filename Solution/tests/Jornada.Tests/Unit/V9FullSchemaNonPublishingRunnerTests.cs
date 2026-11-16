@@ -254,7 +254,8 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(operational, Is.Not.Null);
             Assert.Multiple((Action)(() =>
             {
-                Assert.That(operational!.DirectedSqlEdges, Is.EqualTo(4));
+                Assert.That(operational!.GoldReferenceRows, Is.EqualTo(200));
+                Assert.That(operational.DirectedSqlEdges, Is.EqualTo(4));
                 Assert.That(operational.UndirectedSqlEdges, Is.EqualTo(2));
                 Assert.That(operational.CanonicalEdgesSha256, Is.EqualTo(physical.CanonicalEdgesSha256));
                 Assert.That(operational.ProductionGoldCertified, Is.False);
@@ -322,6 +323,46 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await AssertRunRowsAsync(connection, (Guid)failedId!, "FALHOU", 100);
             }
 
+            // Regression: blocking_chave can be valid while the backing Gold
+            // identity changes. The actual Runner MUST reject this stale
+            // reference before persisting any decisions, not score old keys.
+            var staleGoldUuid = V9OperationalBlockingChaveCohortParity.DiagnosticUuid(101);
+            await using (var stale = new SqlCommand("""
+                UPDATE gold.pessoa SET nome_mae=N'V9_STALE_GOLD_MOTHER'
+                 WHERE pessoa_uuid=@id;
+                """, connection))
+            {
+                stale.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = staleGoldUuid;
+                Assert.That(await stale.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            var staleGoldScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await BuildRunner(staleGoldScorer).RunAsync(Request(), CancellationToken.None)));
+            Assert.That(staleGoldScorer.BlockingChaveParityEvidence, Is.Null);
+            await using (var noStaleResults = new SqlCommand("""
+                SELECT COUNT_BIG(*) FROM identidade.linkage_resultado lr
+                JOIN identidade.linkage_run r ON r.linkage_run_id=lr.linkage_run_id
+                WHERE r.modelo_id=@id AND r.status=N'FALHOU'
+                  AND r.iniciado_em=(SELECT MAX(iniciado_em)
+                    FROM identidade.linkage_run
+                    WHERE modelo_id=@id AND status=N'FALHOU');
+                """, connection))
+            {
+                noStaleResults.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = stored.ModelId;
+                Assert.That(await noStaleResults.ExecuteScalarAsync(), Is.EqualTo(0L));
+            }
+            await using (var restoreGold = new SqlCommand("""
+                UPDATE gold.pessoa SET nome_mae=@original
+                 WHERE pessoa_uuid=@id;
+                """, connection))
+            {
+                restoreGold.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = staleGoldUuid;
+                restoreGold.Parameters.Add("@original", SqlDbType.NVarChar, 500).Value = SyntheticMotherName(101);
+                Assert.That(await restoreGold.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
+
             // Corrupt one physically persisted projection fingerprint. The next
             // grouped RunAsync must refuse the stale/tampered manifest BEFORE
             // persisting its first SQL result. Never silently fall back to
@@ -342,7 +383,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await BuildRunner(tamperedScorer).RunAsync(Request(), CancellationToken.None)));
             Assert.That(tamperedScorer.BlockingChaveParityEvidence, Is.Null);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore));
-            TestContext.WriteLine("V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full manifests; tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked");
+            TestContext.WriteLine("V9_FULL_SCHEMA_OPERATIONAL_BLOCKING_CHAVE_PARITY_PASS: two positive bidirectional pairs across batches; 200 full Gold/blocking manifests; stale Gold + projection tamper fail-closed; TF4 frozen; SQL Gold/Serving unchanged; scientific TEST 100k blocked");
         }
         finally
         {
