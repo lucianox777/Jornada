@@ -1,8 +1,8 @@
 # GOV-V9-CORPUS-PERSISTENTE-REF-FAMILIAR-20261115
 
-**Autoridade:** Product Owner, 15/11/2026: "Concordo, reavaliei toda a conversa que a gente teve, os pontos de convergência e pode implementar a mudança."
+> **PRECEDÊNCIA APROVADA PELO PO EM 16/11/2026:** [GOV-V9-TRAIN-100K-GERACAO-LOCAL-SEM-REF-CORPUS-20261116](Decisao_GOV_V9_TRAIN_100K_Geracao_Local_Sem_REF_Corpus_20261116.md) **substitui somente a persistência/reutilização do corpus sintético TRAIN 100k**. A evolução dos parâmetros e relações familiares, a REF estatística IBGE/SINASC e os gates científicos permanecem. Esta decisão histórica não autoriza reintroduzir REF sintética no TRAIN.\n\n**Autoridade:** Product Owner, 15/11/2026: "Concordo, reavaliei toda a conversa que a gente teve, os pontos de convergência e pode implementar a mudança."
 
-**Estado:** APROVADO; implementação em andamento, **não integrada**. GOV-DOC-01.
+**Estado histórico (15/11):** aprovação original parcialmente superada em 16/11; restante científico/familiar preservado. GOV-DOC-01.
 
 ## Contexto e decisão
 A população sintética operacional é descartável, mas regenerações podem desperdiçar tempo e dificultar comparações. O PO aprovou tornar o corpus sintético **persistente, versionado e reutilizável**, com preparação automática no workflow V9, preferencialmente em job PREPARE independente, antes do TRAIN físico. A decisão de 14/11 que dispensava PREPARE por ganho de ~4min10s permanece válida para o cenário anterior; esta decisão a supera **somente para a preparação de corpus persistente**, cuja economia e transferência devem ser medidas.
