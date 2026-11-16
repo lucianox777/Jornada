@@ -60,3 +60,7 @@ Precedência: complementa o contrato operacional da PR #1567, sem modificar a de
 No HEAD `6f97aa928758557abc665938c692cc0b452dd99c`, os quatro workflows de PR terminaram **SUCCESS**: [contrato #43779051691](https://github.com/lucianox777/Jornada/actions/runs/43779051691), [cross-runner #43779051798](https://github.com/lucianox777/Jornada/actions/runs/43779051798), [fast experimental #43779051701](https://github.com/lucianox777/Jornada/actions/runs/43779051701) e [required-fast #43779051694](https://github.com/lucianox777/Jornada/actions/runs/43779051694). Essa evidência resolve a regressão do fixture no SHA citado, **não** valida commits posteriores.
 
 O commit `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9` acrescenta dois cenários negativos: lock de preparação simbólico rejeitado no handoff e corpus reutilizado corrompido rejeitado sem executar gerador novamente. **Testes adicionados, CI deste novo HEAD ainda não confirmada.** Sem mudança de decisão do PO, sem ativação de armazenamento durável, TRAIN ou TEST científico.
+
+## Ampliação do contrato de admissão — 15/11/2026
+
+Commit `a61b1bd51fc65d609a0b31b85a32e6158faac0f7`: testes de consumidor para aceitar recibo `REUSED` íntegro, rejeitar estados inesperados e recusar arquivo de corpus substituído por symlink. São **testes adicionados**, não evidência de validação até a CI correspondente passar. Complementam os negativos de lock e corrupção de `e79df6bcbc6a221e06dd86c5d1a3dd0edd1e21e9`. Não alteram a arquitetura de persistência nem os gates científicos.
