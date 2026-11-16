@@ -48,7 +48,7 @@ class DiagnosticContract(unittest.TestCase):
         self.assertIn('6a2cb2ffd48d14b705faeb14ec4dd517bef94ced730e20a062e0dd5403c832b1', WORKFLOW)
         self.assertIn('82f348b7eafdd82cbcaa6055832838089d1adaf0c3be8d7fe7624d5104914555', WORKFLOW)
         self.assertIn('24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208', WORKFLOW)
-        self.assertIn('14180809696', WORKFLOW)
+        self.assertIn('14181765642', WORKFLOW)
         self.assertIn('mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89', BOOT)
         self.assertIn('v9-tf-start-disposable-sql.sh', WORKFLOW)
         self.assertIn('ReplaysMeasured', WORKFLOW)
