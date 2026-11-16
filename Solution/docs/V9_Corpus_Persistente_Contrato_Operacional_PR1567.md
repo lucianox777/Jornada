@@ -277,3 +277,11 @@ No HEAD `f120e4bc`, os workflows `v9-corpus-persistence-contract` e `v9-experime
 ## Correção de fixture REF na CI 43787075692 (16/11/2026)
 
 A CI de contrato de persistência falhou com `SyntaxError` em `test_v9_corpus_cross_run_proof.py` linha 17: caracteres literais `\\n` foram introduzidos na expressão de construção dos quatro metadados físicos. Commit `d3cd62e0` substitui esses caracteres por quebras de linha Python válidas. Nova CI pendente. Nenhuma evidência real de REF compartilhado foi obtida; integração científica PREPARE→TRAIN e aceite permanecem pendentes, sem autorização para merge.
+
+## Procedimento de aceite externo REF (16/11/2026)
+
+**Dependência operacional ainda não satisfeita:** não há, nos resultados verificados desta PR, identificação de um volume POSIX externo compartilhado montado nos runners de PREPARE e TRAIN. É proibido declarar persistência a partir de cache ou artifact do GitHub Actions. Nenhum serviço pago deve ser provisionado sem autorização.
+
+Para comprovar a persistência, o operador deve: (1) disponibilizar o mesmo mount POSIX externo em duas execuções GitHub Actions independentes; (2) em PREPARE, executar a verificação física `v9-corpus-snapshot.py lookup` contra a configuração de geração fixada e emitir observação com `v9-corpus-cross-run-proof.py --corpus ... --config ... --repository lucianox777/Jornada --run-id <id> --store-identity <identidade-do-volume>`; (3) em outra execução, em runner independente, verificar novamente os mesmos bytes e produzir segundo recibo; (4) comparar os recibos com `--first` e `--second`; (5) auditar independentemente a identidade real do mount e registrar o atestado `v9-external-store-attestation-v1`, vinculando os IDs reais. A comparação dos recibos isoladamente não certifica durabilidade.
+
+**Aceite científico separado:** integrar o snapshot REF validado ao job `physical-100k` de `.github/workflows/v9-v3-four-name-100k.yml` sem alterar seed, fonte de referência, isolamento VALIDATION/TEST, controles de acesso ou gatilhos de autorização. Um teste não científico ou cópia local não substitui a execução científica. A aprovação final dos critérios pelo PO deve ser registrada antes de retirar DRAFT e mesclar. Esta seção documenta passos operacionais e não aprova nova decisão, contratação ou execução 100k.
