@@ -273,3 +273,7 @@ O commit `63c4fbe` remove a chamada que fabricava um segundo `run_id + 1` apenas
 ## Contrato de hashes do recibo REF — 16/11/2026
 
 No HEAD `f120e4bc`, os workflows `v9-corpus-persistence-contract` e `v9-experimental-fast-pr` concluíram com sucesso; CI obrigatória e transporte não científico ainda pendentes na consulta. O commit `38eecdaf` exige exatamente os quatro arquivos físicos esperados, com SHA-256 hexadecimal e tamanho inteiro não negativo em cada recibo; o commit `13b00276` atualiza fixtures e adiciona testes negativos para ausência de arquivo e hash inválido. Esta validação protege a forma das evidências, não substitui verificação independente do mount externo, prova entre execuções ou integração científica PREPARE→TRAIN. Sem merge enquanto critérios pendentes.
+
+## Correção de fixture REF na CI 43787075692 (16/11/2026)
+
+A CI de contrato de persistência falhou com `SyntaxError` em `test_v9_corpus_cross_run_proof.py` linha 17: caracteres literais `\\n` foram introduzidos na expressão de construção dos quatro metadados físicos. Commit `d3cd62e0` substitui esses caracteres por quebras de linha Python válidas. Nova CI pendente. Nenhuma evidência real de REF compartilhado foi obtida; integração científica PREPARE→TRAIN e aceite permanecem pendentes, sem autorização para merge.
