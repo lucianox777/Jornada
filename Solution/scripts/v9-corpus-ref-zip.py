@@ -6,6 +6,8 @@ import importlib.util
 import json
 from pathlib import Path
 import stat
+import shutil
+import tempfile
 import zipfile
 
 REQUIRED = ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json", "generation-manifest.json")
@@ -71,10 +73,33 @@ def pack(source, archive, manifest):
     manifest.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return inspect(archive, manifest)
 
+def unpack(archive, manifest, destination):
+    """Verify before extraction; publish only complete verified directory."""
+    record = inspect(archive, manifest)
+    if any(p.is_symlink() for p in (destination, *destination.parents)):
+        raise ValueError("Unsafe REF extraction path")
+    if destination.exists():
+        raise ValueError("REF extraction destination already exists")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".ref-zip-staging-", dir=destination.parent))
+    try:
+        with zipfile.ZipFile(archive) as z:
+            for name in sorted(REQUIRED):
+                with z.open(name) as src, (staging / name).open("xb") as out:
+                    shutil.copyfileobj(src, out, length=1024 * 1024)
+                if sha(staging / name) != record["files"][name]["sha256"]:
+                    raise ValueError("REF extraction integrity mismatch")
+        staging.rename(destination)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    return record
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("command", choices=("pack", "verify"))
+    p.add_argument("command", choices=("pack", "verify", "unpack"))
     p.add_argument("--source", type=Path)
+    p.add_argument("--destination", type=Path)
     p.add_argument("--zip", type=Path, required=True)
     p.add_argument("--manifest", type=Path, required=True)
     args = p.parse_args()
@@ -82,6 +107,10 @@ def main():
         if args.source is None:
             p.error("pack requires --source")
         result = pack(args.source, args.zip, args.manifest)
+    elif args.command == "unpack":
+        if args.destination is None:
+            p.error("unpack requires --destination")
+        result = unpack(args.zip, args.manifest, args.destination)
     else:
         result = inspect(args.zip, args.manifest)
     print(json.dumps({"status": "VALIDATED", "zip_size": result["zip_size"],
