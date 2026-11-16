@@ -133,3 +133,7 @@ Commits `d983a4b0` e `2011b04f`: três testes unitários exercitam materializaç
 ## Vinculação opcional de fingerprint na admissão — 15/11/2026
 
 Commits `a9a57bbf`, `9ebd9fd6`, `255aa371` e `12f861d2`: `materialize_train_input` aceita `expected_fingerprint` opcional e rejeita divergência antes de copiar; teste cobre rejeição e sucesso. O job manual consumidor calcula fingerprint da configuração recebida e o passa ao verificador; esse cálculo **não é uma âncora externa independente**, portanto não substitui a vinculação futura à receita esperada pelo TRAIN principal. A variável derivada no PREPARE não atravessa automaticamente jobs; o último commit corrige esse escopo. CI atualizada ainda não validada; sem backend durável, sem execução científica e sem merge.
+
+## Endurecimento de ancestral simbólico — 15/11/2026
+
+Commits `0a7cdf9c` e `8e9a2b7b`: a admissão do diretório TRAIN rejeita agora symlinks em **qualquer ancestral** do destino, além do destino e do pai imediato. Teste regressivo cria um alias simbólico intermediário e exige falha sem criação de diretório sob o alvo real. Esta defesa de caminhos não é prova de isolamento contra adversários concorrentes com controle do filesystem; uso produtivo exige diretórios/ACL controlados. CI do HEAD pendente. Sem alteração da ciência ou dos requisitos de armazenamento durável.
