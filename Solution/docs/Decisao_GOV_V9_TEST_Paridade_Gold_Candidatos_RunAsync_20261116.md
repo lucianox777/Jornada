@@ -1,6 +1,6 @@
 # GOV-V9-TEST-PARIDADE-GOLD-CANDIDATOS-RUNASYNC-20261116
 
-**Autoridade:** continuidade técnica solicitada pelo Product Owner em 16/11/2026. **Estado:** proposta em PR (não vigente até CI e merge). **Política:** GOV-DOC-01. **Issue:** #1584.
+**Autoridade:** continuidade técnica solicitada pelo Product Owner em 16/11/2026. **Estado:** integrado à master pela PR #1589 (squash `d571262edc6f9d1e8686874f7cab7abe33dbd2ee`). CI obrigatória `43884370292` (3/3), SQL físico `43884370284` (2/2) e pré-voo `43884370283` SUCCESS. TEST científico permanece bloqueado. **Política:** GOV-DOC-01. **Issue:** #1584.
 
 ## Contexto e problema
 A PR #1588 (squash `8768de08546cbd297092a14f5c82547d8a52cb14`; CI `43805277204` e SQL físico `43805277246` verdes) comprovou, em SQL descartável, o mesmo grafo e decisões persistidas com 200 observações e páginas 100×2 versus 200×1. Contudo, a checagem operacional de `identidade.blocking_chave` lia somente UUIDs, não conferia a integridade do registro correspondente de `gold.pessoa`. Um índice válido e um Gold alterado poderiam produzir candidato aparentemente válido sem igualdade de dados.
@@ -24,4 +24,7 @@ Complementa `GOV-V9-RUNASYNC-PARIDADE-FISICA-LOTES-100-200-20261116` e não revo
 ## Evidências e rastreabilidade
 - Base integrada: PR #1588, SHA `8768de08546cbd297092a14f5c82547d8a52cb14`.
 - Implementação nova: branch `test/v9-gold-candidate-parity-runasync-20261116`.
-- Provas da nova PR: **pendentes de CI física**, a registrar após execução.
+- PR #1589, squash `d571262edc6f9d1e8686874f7cab7abe33dbd2ee`.
+- CI obrigatória #43884370292: `unit-runtime`, `security-guards`, `deterministic-build` SUCCESS.
+- SQL físico #43884370284: `one-winner-sql-smoke` e `full-schema-runasync-nonpublish` SUCCESS.
+- Pré-voo de compilação #43884370283: SUCCESS; matriz física Gold holdout omitida por escopo (skipped), não considerar como ensaio Gold holdout completo.
