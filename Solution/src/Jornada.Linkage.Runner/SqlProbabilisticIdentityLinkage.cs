@@ -156,6 +156,20 @@ public sealed class SqlProbabilisticIdentityLinkage(
         if (modelId == Guid.Empty || winnerSha256 is not { Length: 64 }
             || frozenTest.Count is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
             throw new InvalidDataException("Coorte TEST V9 ou modelo pinado inválido.");
+        // Reject malformed/unsealed TEST inputs before any SQL connection or
+        // model read. An edge must reference an exact, ordered observation ID,
+        // never a page-local index, an intra-gestor pair or a duplicate.
+        var rows = frozenTest.OrderBy(row => row?.ObservationId).ToArray();
+        if (rows.Select((row, index) => row is null || row.ObservationId != index + 1
+                || row.Partition != "TEST" || string.IsNullOrWhiteSpace(row.Gestor)).Any(invalid => invalid)
+            || rows.Select(row => row.ObservationId).Distinct().Count() != rows.Length)
+            throw new InvalidDataException("Coorte V9 TEST deve ser integral, ordenada e sem IDs duplicados.");
+        var managers = rows.ToDictionary(row => row.ObservationId, row => row.Gestor);
+        var seenEdges = new HashSet<(int A, int B)>();
+        foreach (var (a, b) in completeSqlEdges)
+            if (a <= 0 || a >= b || b > rows.Length || !seenEdges.Add((a, b))
+                || string.Equals(managers[a], managers[b], StringComparison.Ordinal))
+                throw new InvalidDataException("Grafo V9 TEST possui aresta inválida, duplicada ou intra-gestor.");
         cancellationToken.ThrowIfCancellationRequested();
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         await using (var guard = new SqlCommand("SELECT DB_NAME();", connection))
