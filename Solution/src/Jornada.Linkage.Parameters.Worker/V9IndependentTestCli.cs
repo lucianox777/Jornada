@@ -79,15 +79,7 @@ public static class V9IndependentTestCli
         // Reject a candidate plan unsupported by the shared V9 cohort engine
         // BEFORE opening the sealed TEST corpus. Never silently fall back to
         // the currently active production model or a different grouping plan.
-        var plan = winner.Payload.CandidateGrouping;
-        if (plan is null
-            || plan.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
-            || plan.MaximumObservationsPerIdentity <= 0
-            || plan.MinimumPairPosterior is < 0m or > 1m
-            || string.IsNullOrWhiteSpace(winner.Payload.ProjectionSchemaVersion)
-            || winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 })
-            throw new InvalidDataException(
-                "V9_TEST_EXECUTION_PLAN_UNSUPPORTED: plano do vencedor não compatível com o motor agrupado.");
+        runtime.RequireSupportedFrozenExecutionPlan();
         // The TEST corpus is opened only AFTER the operational winner passes
         // its SHA/round-trip check. No VALIDATION measurements are read.
         var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
