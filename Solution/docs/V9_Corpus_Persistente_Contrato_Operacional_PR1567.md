@@ -201,3 +201,7 @@ Commit `9f7c452c`: teste estático do workflow opt-in exige que o diretório mat
 ## Correção de falha CI do contrato de segurança — 15/11/2026
 
 O job `corpus-contract` da execução `43784104143` falhou em `test_corpus_prepare_cannot_dispatch_scientific_train` porque o novo marcador de binding substituíra indevidamente o marcador exigido `TRANSFER_PROBE_ONLY`. Commit `5ca8cfb1` restaura explicitamente `V9_CORPUS_TRANSFER_PROBE_ONLY` preservando o novo `V9_CORPUS_PLAN_BINDING_PROBE_ONLY`. Impacto: preserva o controle de não execução científica; sem alteração dos dados, das 324 hipóteses ou do TEST. A aprovação CI do novo SHA segue necessária.
+
+## Isolamento do armazenamento sintético na camada REF — 15/11/2026
+
+Após aprovação do PO para priorizar a camada REF, commits `c71ef584` e `c725f761` introduzem `v9-corpus-ref-store-path.py` e teste de isolamento. O validador exige raiz REF e diretório de referências oficiais existentes, caminhos absolutos e sem ancestrais simbólicos, namespace sintético contido na raiz REF mas disjunto das referências oficiais; não cria nem altera dados oficiais. A validação é **apenas de topologia e segurança de caminho**: não comprova que a REF seja mount durável, nem provisiona ACL, retenção ou cross-run. Antes de ligar o TRAIN, o operador deve fornecer a localização real do volume REF compartilhado, comprovar durabilidade com duas execuções distintas e executar os preflights de mount e SHA. Nenhum custo ou campanha 100k foi autorizado por esta implementação. CI do novo HEAD pendente.
