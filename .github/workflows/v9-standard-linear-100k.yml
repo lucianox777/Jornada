@@ -94,6 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
+          mkdir -p "$root"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound" "$root/base-bound"

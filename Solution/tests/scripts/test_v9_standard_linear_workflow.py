@@ -40,6 +40,12 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn("test -s \"$root/people-100k/observacoes.csv\"", text)
         self.assertIn("--people 100000 --seed 42", text)
 
+    def test_prepare_creates_generation_log_parent_before_redirect(self):
+        prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        generation = prepare.split("      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan\n", 1)[1].split("      - name: ", 1)[0]
+        self.assertIn('mkdir -p "$root"', generation)
+        self.assertLess(generation.index('mkdir -p "$root"'), generation.index('> "$root/generation.log"'))
+
     def test_only_train_executes_physical_hypotheses_after_handoff(self):
         text = self.workflow
         prepare = text.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
@@ -64,7 +70,9 @@ class StandardLinearWorkflowTests(unittest.TestCase):
             start = text.index(marker)
             end = text.index(ending, start + len(marker))
             return text[start:end]
-        self.assertEqual(extract(legacy), extract(self.workflow))
+        # The only intentional orchestration difference is creating the log directory.
+        standard = extract(self.workflow).replace('          mkdir -p "$root"\n', '')
+        self.assertEqual(extract(legacy), standard)
 
     def test_audit_validation_jobs_are_identical_to_legacy(self):
         legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
