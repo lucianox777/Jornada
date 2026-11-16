@@ -76,6 +76,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-100k:
+    # Mandatory first campaign stage; independent of optional TEST sealing.
+    name: "V9 PREPARE mandatory: source, owner and campaign inputs"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Admit exact campaign source and mandatory inputs
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+          SECURITY_APPROVED: ${{ inputs.security_preflight_approved }}
+          TEST_REQUIRED: ${{ inputs.test_required }}
+          TEST_DATABASE: ${{ inputs.test_database }}
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$SECURITY_APPROVED" = "true"
+          if [[ "$TEST_REQUIRED" != "true" && -n "$TEST_DATABASE" ]]; then
+            echo "::error::V9_DATABASE_REQUIRES_TEST_CHECKBOX"
+            exit 1
+          fi
+          test -f Solution/config/calibration/v9-tf4-100k-test-preparation-lock.json
+          test -f Solution/scripts/v9-v3-four-name-100k-plan.py
+          test -f Solution/scripts/v9-v3-four-name-100k-audit.py
+          echo "V9_PREPARE_ADMISSION=SUCCESS"
   # An explicitly named existing database must be admitted BEFORE the 324
   # expensive physical hypotheses. Only a SELECT-only SQL secret is exposed
   # here, never to TRAIN/VALIDATION. No citizen rows are read in preflight.
@@ -231,10 +266,10 @@ jobs:
             "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/public.pem" \
             "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/generation.log"
   physical-100k:
-    needs: [prepare-test-100k, test-database-preflight]
+    needs: [prepare-100k, prepare-test-100k, test-database-preflight]
     # TRAIN can start without TEST preparation, but cannot ignore a failed
     # requested seal. With TEST sealed, TRAIN still has no decryption key.
-    if: ${{ always() && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.test_required != true || (inputs.test_database == '' && needs.prepare-test-100k.result == 'success') || (inputs.test_database != '' && needs.test-database-preflight.result == 'success')) }}
+    if: ${{ always() && needs.prepare-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.test_required != true || (inputs.test_database == '' && needs.prepare-test-100k.result == 'success') || (inputs.test_database != '' && needs.test-database-preflight.result == 'success')) }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
