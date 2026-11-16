@@ -81,6 +81,23 @@ class CorpusPrepareTests(unittest.TestCase):
                     str(marker)], root / "fresh")
             self.assertFalse(marker.exists())
 
+    def test_handoff_rejects_symlinked_store(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            config = {"seed": 42}
+            source = root / "source"
+            source.mkdir()
+            for name in prepare.snapshot.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "real-store"
+            prepare.snapshot.publish(store, config, source)
+            (store / ".prepare.lock").touch()
+            alias = root / "alias-store"
+            alias.symlink_to(store, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "corpus store"):
+                prepare.handoff(alias, config, root / "consumer")
+            self.assertFalse((root / "consumer").exists())
+
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
