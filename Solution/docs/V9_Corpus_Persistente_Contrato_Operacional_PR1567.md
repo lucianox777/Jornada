@@ -261,3 +261,7 @@ Após sucesso dos quatro workflows no HEAD `22b8d4f5`, os commits `84257e7b` e `
 ## Falha de sintaxe no observador REF — CI 43786788804
 
 A CI de contrato de persistência falhou com `SyntaxError` no arquivo `v9-corpus-cross-run-proof.py`, pois uma atualização introduziu sequências literais `\\n` na linha de validação do repositório. O commit `47b4cadf` substituiu os escapes literais por quebras de linha reais. A CI subsequente deve validar o reparo. Não há evidência nova de durabilidade REF ou integração PREPARE→TRAIN e o merge permanece bloqueado pelos critérios científicos e revisão final do PO.
+
+## Teste físico do observador REF — 16/11/2026
+
+CI do commit `11b81dec`: contrato de persistência e testes experimentais concluídos com sucesso; workflows geral e transporte ainda em execução na consulta. Commit `a8228af2` acrescenta teste com snapshot físico e SHA calculado sobre arquivos, e verifica rejeição após adulteração de `observacoes.csv`. O teste é local e não comprova persistência entre execuções independentes nem execução científica PREPARE→TRAIN. Nova CI deve confirmar a cobertura. Merge continua sujeito aos critérios de aceite e revisão final do PO.
