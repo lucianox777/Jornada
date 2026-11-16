@@ -64,6 +64,24 @@ class RefZipTest(unittest.TestCase):
             module.unpack(self.archive, self.manifest, dest)
         self.assertFalse(dest.exists())
 
+    def test_reject_symlinked_output_parent(self):
+        actual = self.root / "actual"
+        actual.mkdir()
+        alias = self.root / "alias"
+        alias.symlink_to(actual, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            module.pack(self.source, alias / "ref.zip", alias / "manifest.json")
+
+    def test_reject_archive_over_safety_limit(self):
+        module.pack(self.source, self.archive, self.manifest)
+        old = module.MAX_ZIP_BYTES
+        try:
+            module.MAX_ZIP_BYTES = 1
+            with self.assertRaises(ValueError):
+                module.inspect(self.archive, self.manifest)
+        finally:
+            module.MAX_ZIP_BYTES = old
+
     def test_missing_source_fails(self):
         (self.source / module.REQUIRED[0]).unlink()
         with self.assertRaises(ValueError):
