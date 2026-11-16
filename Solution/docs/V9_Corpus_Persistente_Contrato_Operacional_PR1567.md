@@ -301,3 +301,7 @@ Commits `937fc39a` e `020a66af` adicionam `unpack` com verificação integral pr
 ## Prova de transporte ZIP entre runners (16/11/2026)
 
 Commit `87d564c2` amplia a CI PR de **duas linhas não científicas**: PREPARE cria e verifica ZIP REF; consumidor em outro runner valida, extrai e compara fisicamente os quatro arquivos com o handoff original. Evidência restrita à mesma execução GitHub Actions via artifact efêmero; **não demonstra** corpus 100k versionado, persistência cross-run nem aceitação científica. Aguardar resultados da CI deste HEAD.
+
+## Integração condicional no TRAIN científico (16/11/2026)
+
+Commit `7617ada8` altera o job `physical-100k`: se ZIP e manifesto REF existirem no checkout, descompacta com verificação SHA; se apenas um existir, aborta; se nenhum existir, preserva o gerador legado e emite marcador explícito `LEGACY_GENERATION_NO_PERSISTENT_REF`. **Pendente antes do merge:** gerar/medir e versionar o ZIP 100k verdadeiro, vincular manifesto à configuração científica exata (100k, seed42, gerador e referências), comprovar consumo cross-run pelo checkout e eliminar/justificar o fallback legado conforme critério de aceite. Nenhuma execução científica foi disparada. PR segue DRAFT.
