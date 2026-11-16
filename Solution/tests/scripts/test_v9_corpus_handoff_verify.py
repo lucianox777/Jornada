@@ -69,6 +69,29 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verifier.verify_handoff(dest, config, receipt_path)
 
+    def test_reused_receipt_accepted_but_invalid_status_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            dest, config, receipt_path, receipt = self.setup_corpus(Path(temp))
+            receipt["status"] = "REUSED"
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertEqual(verifier.verify_handoff(dest, config, receipt_path)["file_count"], 4)
+            for invalid in ("UNKNOWN", "TEST", None):
+                with self.subTest(status=invalid):
+                    receipt["status"] = invalid
+                    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        verifier.verify_handoff(dest, config, receipt_path)
+
+    def test_symlink_corpus_payload_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            dest, config, receipt_path, _ = self.setup_corpus(root)
+            payload = dest / "observacoes.csv"
+            payload.unlink()
+            payload.symlink_to(dest / "gabarito.json")
+            with self.assertRaises(ValueError):
+                verifier.verify_handoff(dest, config, receipt_path)
+
     def test_symlink_artifact_metadata_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
