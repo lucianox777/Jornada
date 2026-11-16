@@ -81,3 +81,7 @@ A CI de contrato passou a incluir `prepare-transfer-smoke` e `train-transfer-smo
 ## Evidência de execução de CI — smoke entre runners
 
 GitHub Actions run **43980185751** (`v9-standard-linear-contract-ci`): os três jobs `contract-tests`, `prepare-transfer-smoke` e `train-transfer-smoke` concluíram com **success**, demonstrando upload/download e validação de fixture entre runners distintos. Referência: https://github.com/lucianox777/Jornada/actions/runs/43980185751 . A evidência é limitada à fixture pequena, não à base 100k. Após esse run, adicionou-se uma asserção de equivalência textual dos jobs AUDIT e VALIDATION com o workflow legado; sua CI precisa ser verificada separadamente. A PR continua draft até revisão dos gates obrigatórios e prova física controlada de 100k.
+
+## Revalidação após asserções de retrocompatibilidade
+
+GitHub Actions run **43980339761** (`v9-standard-linear-contract-ci`) concluiu **success** nos três jobs: contrato e YAML, PREPARE smoke upload e TRAIN smoke download/verify. Essa execução já inclui a comparação textual dos jobs AUDIT e VALIDATION e do bloco de geração sintética com o workflow legado. O run **43980339787** (`v9-experimental-fast-pr`) também concluiu **success**. Na consulta, `jornada-pr-required-fast` run **43980339851** ainda estava **pending**; não inferir aprovação de todos os checks obrigatórios. A prova de transporte é de fixture mínima, não da base 100k; execução física e integração seguem pendentes.
