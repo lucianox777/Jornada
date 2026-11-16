@@ -117,9 +117,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                     new Dt05HistoricalBlockingProjectionVerifier(root),
                     NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
 
-            static ProbabilisticLinkageRunRequest Request() =>
+            static ProbabilisticLinkageRunRequest Request(int batchSize = 100) =>
                 new(LinkageRunType.MODEL_VALIDATION, 1, null, null, null,
-                    100, 1, null, "V9_HARNESS", "NO_PUBLISH_FULL_SCHEMA_E2E",
+                    batchSize, 1, null, "V9_HARNESS", "NO_PUBLISH_FULL_SCHEMA_E2E",
                     Guid.NewGuid(), false);
 
             Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
@@ -268,6 +268,24 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             var reference = pinned.ReplayTest(cohort, physical.Edges);
             Assert.That(reference.Decisions, Has.Count.EqualTo(200));
             await AssertFrozenRunDecisionsAsync(connection, positive.RunId, reference);
+            // Same physical SQL graph, same pinned winner, different actual
+            // RunAsync SQL pagination (200x1 instead of 100x2). Verify the
+            // complete persisted per-observation decisions against the same
+            // independent frozen reference, not merely summary counters.
+            var alternateScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            var alternate = await BuildRunner(alternateScorer)
+                .RunAsync(Request(batchSize: 200), CancellationToken.None);
+            Assert.That(alternate.Status, Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
+            Assert.That(alternate.Elegiveis, Is.EqualTo(200));
+            Assert.That(alternate.Avaliados, Is.EqualTo(200));
+            Assert.That(alternate.PublicadoEm, Is.Null);
+            Assert.That(alternateScorer.SqlGraphEvidence?.CanonicalEdgesSha256,
+                Is.EqualTo(physical.CanonicalEdgesSha256));
+            Assert.That(alternateScorer.BlockingChaveParityEvidence?.CanonicalEdgesSha256,
+                Is.EqualTo(operational!.CanonicalEdgesSha256));
+            await AssertRunRowsAsync(connection, alternate.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
+            await AssertFrozenRunDecisionsAsync(connection, alternate.RunId, reference);
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
                 "Gold/Serving não podem ser alterados nem com candidatos TF positivos.");
 
