@@ -233,3 +233,7 @@ Run `43785788817` identificou duas chamadas obsoletas `approved=True` nos testes
 ## CI — correção de chamada residual (16/11/2026)
 
 O run `43785880946` falhou em **um** teste (`test_unvalidated_target_rejected_without_mutation`), ainda chamando `promote(..., approved=True)` após remoção deliberada desse argumento. Commit `1acc458c` corrige a última chamada residual e passa `store` e `generation` para a validação física; demais 51 testes desse job passaram. A CI do novo HEAD precisa confirmar a correção. Não altera produção, TEST ou os critérios científicos.
+
+## Testes negativos de promoção REF — 16/11/2026
+
+Commit `7dcefd7a`: inicializa o armazenamento de snapshots no teste de rejeição de alvo não validado (evita `NameError` de variável `store` não definida após migração da API) e adiciona teste de adulteração de `observacoes.csv`, que exige rejeição por SHA e índice inalterado. A CI do novo HEAD é necessária para atestar os resultados. A PR continua DRAFT; não há backend REF durável cross-run comprovado nem autorização de promoção produtiva.
