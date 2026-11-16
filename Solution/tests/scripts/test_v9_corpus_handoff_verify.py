@@ -101,5 +101,36 @@ class CrossRunnerHandoffTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verifier.verify_handoff(dest, symlink, receipt_path)
 
+    def test_materialize_train_input_validates_and_copies_only_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            target = root / "train" / "people-100k"
+            evidence = verifier.materialize_train_input(corpus, config, receipt, target)
+            self.assertEqual(evidence["status"], "TRAIN_INPUT_ADMITTED_NOT_EXECUTED")
+            self.assertEqual({p.name for p in target.iterdir()}, set(snapshot.REQUIRED) | {"snapshot.json"})
+            self.assertEqual(snapshot.verify(target, json.loads(config.read_text()))["fingerprint"], evidence["fingerprint"])
+            with self.assertRaises(ValueError):
+                verifier.materialize_train_input(corpus, config, receipt, target)
+
+    def test_materialize_train_input_rejects_corruption_without_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            (corpus / "observacoes.csv").write_text("tampered", encoding="utf-8")
+            target = root / "train" / "people-100k"
+            with self.assertRaises(ValueError):
+                verifier.materialize_train_input(corpus, config, receipt, target)
+            self.assertFalse(target.exists())
+
+    def test_materialize_train_input_rejects_symlink_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            corpus, config, receipt, _ = self.setup_corpus(root)
+            target = root / "train-link"
+            target.symlink_to(corpus, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                verifier.materialize_train_input(corpus, config, receipt, target)
+
 if __name__ == "__main__":
     unittest.main()
