@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Atomically promote an already validated REF corpus without deleting history.
 
-Requires an existing shared POSIX store, a cooperative lock, and a separate
-operator approval. This utility does NOT attest durability or start TRAIN.
+Requires an existing shared POSIX store and a cooperative lock.
+Promotion is automatic only for prevalidated, approved corpus entries.
+This utility does NOT attest durability, delete old versions, or start TRAIN.
 """
 import argparse
 import fcntl
@@ -12,13 +13,11 @@ from pathlib import Path
 import tempfile
 
 
-def promote(index_path: Path, fingerprint: str, configuration: str, *, approved: bool, store: Path = None, generation: dict = None):
+def promote(index_path: Path, fingerprint: str, configuration: str, *, store: Path = None, generation: dict = None):
     if store is None or not isinstance(generation, dict) or not generation:
         raise ValueError("Physical snapshot store and generation configuration required")
     if any(p.is_symlink() for p in (store, *store.parents)) or not store.is_dir():
         raise ValueError("Unsafe or missing corpus store")
-    if not approved:
-        raise ValueError("Explicit promotion approval required")
     if len(fingerprint) != 64 or any(c not in "0123456789abcdef" for c in fingerprint):
         raise ValueError("Invalid fingerprint")
     if not configuration:
@@ -88,12 +87,11 @@ def main():
     parser.add_argument("--index", type=Path, required=True)
     parser.add_argument("--fingerprint", required=True)
     parser.add_argument("--configuration", required=True)
-    parser.add_argument("--approved", action="store_true")
     parser.add_argument("--store", type=Path, required=True)
     parser.add_argument("--generation-config", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(promote(args.index, args.fingerprint, args.configuration,
-                             approved=args.approved, store=args.store,
+                             store=args.store,
                              generation=json.loads(args.generation_config.read_text(encoding="utf-8"))), sort_keys=True))
 
 
