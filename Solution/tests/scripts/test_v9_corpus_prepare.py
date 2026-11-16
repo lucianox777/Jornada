@@ -127,6 +127,18 @@ class CorpusPrepareTests(unittest.TestCase):
                 prepare.snapshot.verify(root / "consumer", config)["fingerprint"],
                 prepare.snapshot.identity(config))
 
+    def test_preparation_lock_rejects_nonregular_inode(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            store = root / "store"
+            store.mkdir()
+            import os
+            os.mkfifo(store / ".prepare.lock")
+            with self.assertRaisesRegex(ValueError, "preparation lock"):
+                prepare.prepare(store, {"seed": 42}, [], root / "out")
+            with self.assertRaisesRegex(ValueError, "preparation lock"):
+                prepare.handoff(store, {"seed": 42}, root / "consumer")
+
     def test_cache_miss_without_generator_fails(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
