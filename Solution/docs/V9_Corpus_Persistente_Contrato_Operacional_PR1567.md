@@ -293,3 +293,7 @@ A decisão [DC-V9-CORPUS-100K-ZIP-REF](Decisao_V9_Corpus_100K_ZIP_REF_20261115.m
 ## Implementação incremental ZIP REF (16/11/2026)
 
 Commits `162e2069` e `e3815f01` adicionam ferramenta create-only `v9-corpus-ref-zip.py` e testes de empacotamento/verificação, alteração de bytes, entrada extra e fonte incompleta. A ferramenta verifica hashes físicos e allowlist, mas **ainda não é integração PREPARE→TRAIN**, não mede ZIP 100k real, não versiona o corpus, não prova reuso entre execuções independentes nem executa experimento científico. Não confundir os testes de unidade com aceite final; PR permanece DRAFT até esses requisitos e CI.
+
+## Extração física verificada ZIP REF (16/11/2026)
+
+Commits `937fc39a` e `020a66af` adicionam `unpack` com verificação integral prévia do ZIP, extração em diretório temporário isolado, comparação de SHA-256 dos bytes extraídos, publicação por rename e rejeição de destino preexistente; testes cobrem reuso local e rejeição de adulteração sem expor diretório parcial. Ainda não há ZIP físico 100k versionado, medição de tamanho, integração ao workflow científico ou comprovação cross-run do mesmo objeto Git. A aprovação da CI não equivale a aceite científico nem autoriza merge.
