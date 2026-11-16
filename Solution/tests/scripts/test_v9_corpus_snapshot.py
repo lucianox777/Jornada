@@ -75,6 +75,21 @@ class CorpusSnapshotTests(unittest.TestCase):
             self.assertEqual((store / module.identity(config) / "observacoes.csv").read_text(),
                              "original-observacoes.csv")
 
+    def test_publish_rejects_special_lock_without_hanging(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source"
+            source.mkdir()
+            for name in module.REQUIRED:
+                (source / name).write_text("synthetic")
+            store = root / "store"
+            store.mkdir()
+            import os
+            os.mkfifo(store / ".publish.lock")
+            with self.assertRaisesRegex(ValueError, "publish lock"):
+                module.publish(store, {"seed": 42}, source)
+            self.assertFalse((store / module.identity({"seed": 42})).exists())
+
     def test_missing_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
