@@ -58,3 +58,6 @@ PR #1596 integrada à master no squash `4e2a4c105a4b2c1d8152331ad34f3c041914e6d4
 
 ## Proposta de preflight operacional fail-closed — 16/11/2026
 Contexto: PR #1596 introduziu entrada operacional para coorte TF4 TEST_ONLY, mas validações de IDs/partição/arestas eram feitas apenas no kernel posterior ao acesso SQL. Decisão proposta: rejeitar antes de abrir SQL coortes com IDs não contíguos, partição distinta de TEST, gestor ausente e arestas fora do universo, duplicadas, não ordenadas ou intra-gestor. Justificativa: impedir que entradas adulteradas alcancem o modelo SQL pinado; reforçar isolamento e rastreabilidade. Impacto: somente preflight da entrada opt-in em JornadaHarness; sem modificar scoring TF4, treino, validação, Gold, publicação ou guards do TEST científico. Precedência: complementa #1596 e #1597; não substitui paridade independente de scores/decisões requerida na #1584. CI e SQL pendentes. GOV-DOC-01.
+
+## Resultado da integração do preflight — 16/11/2026
+PR #1598 foi substituída por PR #1601 devido a conflito com alterações posteriores da master. PR #1601 integrada à master por squash `981402eb783a8c9eb4c7132490f30b27680c7f2f`. CI #43907343167 3/3 SUCCESS, SQL físico #43907343551 2/2 SUCCESS, shared policy #43907343180 SUCCESS. O TEST 100k continua fail-closed; não houve certificação de scoring independente. Issue #1584. GOV-DOC-01.
