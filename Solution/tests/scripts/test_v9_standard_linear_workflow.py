@@ -70,7 +70,9 @@ class StandardLinearWorkflowTests(unittest.TestCase):
             start = text.index(marker)
             end = text.index(ending, start + len(marker))
             return text[start:end]
-        self.assertEqual(extract(legacy), extract(self.workflow))
+        # The only intentional orchestration difference is creating the log directory.
+        standard = extract(self.workflow).replace('          mkdir -p "$root"\n', '')
+        self.assertEqual(extract(legacy), standard)
 
     def test_audit_validation_jobs_are_identical_to_legacy(self):
         legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
