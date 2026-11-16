@@ -99,7 +99,7 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("SELECT COUNT_BIG(*)", graph)
         self.assertIn("INTO #v9_run_edges", graph)
         self.assertIn("CREATE UNIQUE CLUSTERED INDEX IX_v9_run_edges", graph)
-        self.assertIn("SELECT a,b FROM #v9_run_edges ORDER BY a,b", graph)
+        self.assertIn("SELECT TOP (@page_size) a,b", graph)\n        self.assertIn("const int EdgePageSize = 2048;", graph)\n        self.assertIn("while (edges.Count < distinctEdgeCount)", graph)\n        self.assertIn("WHERE a>@last_a OR (a=@last_a AND b>@last_b)", graph)\n        self.assertIn("if (pageCount == 0)", graph)\n        self.assertIn("Paginação SQL V9 encontrou arestas além do censo.", graph)
         self.assertIn("SELECT COUNT_BIG(*) FROM #v9_run_edges", graph)
         self.assertIn("distinctEdgeCount > MaximumPairIncidences", graph)
         self.assertIn("if (edges.Count != distinctEdgeCount)", graph)
