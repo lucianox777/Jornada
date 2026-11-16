@@ -118,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
           name: v9-standard-train-prepared-${{ github.run_id }}-${{ github.run_attempt }}
-          retention-days: 7
+          retention-days: 30
           if-no-files-found: error
           path: Solution/.local/v9-100k-technical/prepare-transfer/
       - name: Erase transient PREPARE plaintext after upload
@@ -915,6 +915,40 @@ jobs:
             --validation-file "$RUNNER_TEMP/v9-e2e-closeout/validation/validation-e2e-status.json" \
             "${extra[@]}" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
             --out "$RUNNER_TEMP/v9-e2e-closeout/e2e-status.json"
+      - name: Record immutable PREPARE artifact reference in final evidence
+        if: ${{ always() && needs.prepare-100k.result == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v9-e2e-closeout"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          artifact_name = f"v9-standard-train-prepared-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          record = {
+              "schema": "v9-standard-prepared-evidence-reference-v1",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "codeSha": os.environ["EXACT_SHA"],
+              "artifactName": artifact_name,
+              "artifactContents": ["train-inputs.tar.gz", "SHA256SUMS", "code-sha.txt", "run-id.txt"],
+              "integrity": "Verify SHA256SUMS inside original PREPARE artifact; no duplicate corpus stored in closeout",
+              "retentionDays": 30,
+              "validationResult": os.environ["VALIDATION_RESULT"],
+          }
+          output = Path(os.environ["RUNNER_TEMP"]) / "v9-e2e-closeout" / "prepare-evidence-reference.json"
+          output.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+      - name: Upload PREPARE provenance reference with final scientific evidence
+        if: ${{ always() && needs.prepare-100k.result == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-standard-prepare-evidence-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/prepare-evidence-reference.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload sanitized E2E completion or failure receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
