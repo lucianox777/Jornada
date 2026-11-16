@@ -145,3 +145,7 @@ Commit `0836c4fc`: no workflow manual opt-in, o runner consumidor agora recalcul
 ## Contrato de configuração independente centralizado — 15/11/2026
 
 Commits `0618696f`, `9a13d1e5` e `6ca4464b`: a API `verify_handoff` e a materialização TRAIN aceitam `expected_config_path` e rejeitam configuração divergente, ausente ou symlink antes de admitir arquivos. O workflow opt-in recalcula a receita de geração com fontes fixadas e passa `--expected-config` à API; a verificação deixa de depender de um trecho Python duplicado no YAML. Testes cobrem divergência, igualdade e symlink. Justificativa: centralizar a fronteira de confiança e reduzir risco de caminhos de execução sem verificação. Limites: o consumidor deve produzir a receita independente de fontes confiáveis; não comprova armazenamento durável, TRAIN real ou TEST; CI do novo HEAD ainda pendente. Sem custo ou execução científica.
+
+## Regressões obrigatórias da proveniência do consumidor — 15/11/2026
+
+Commits `e8b7c915` e `14af87b5`: o teste estático do workflow opt-in passa a exigir explicitamente `--expected-config`, código gerador e referência de nascimentos fixados; teste unitário garante que recibo independente ausente rejeite admissão e não crie destino. Justificativa: impedir regressão silenciosa da verificação independente recém-implementada. CI do novo HEAD pendente; persistência durável e TRAIN científico continuam bloqueados. Nenhuma autorização de custos ou nova execução científica inferida.
