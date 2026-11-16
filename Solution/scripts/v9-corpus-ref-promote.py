@@ -12,7 +12,11 @@ from pathlib import Path
 import tempfile
 
 
-def promote(index_path: Path, fingerprint: str, configuration: str, *, approved: bool):
+def promote(index_path: Path, fingerprint: str, configuration: str, *, approved: bool, store: Path = None, generation: dict = None):
+    if store is None or not isinstance(generation, dict) or not generation:
+        raise ValueError("Physical snapshot store and generation configuration required")
+    if any(p.is_symlink() for p in (store, *store.parents)) or not store.is_dir():
+        raise ValueError("Unsafe or missing corpus store")
     if not approved:
         raise ValueError("Explicit promotion approval required")
     if len(fingerprint) != 64 or any(c not in "0123456789abcdef" for c in fingerprint):
@@ -42,6 +46,12 @@ def promote(index_path: Path, fingerprint: str, configuration: str, *, approved:
             module = module_from_spec(spec)
             spec.loader.exec_module(module)
             module.plan(data, active_fingerprints=set(), protected_fingerprints=set())
+            snapshot_spec = spec_from_file_location("snapshot_verify", Path(__file__).with_name("v9-corpus-snapshot.py"))
+            snapshot_module = module_from_spec(snapshot_spec)
+            snapshot_spec.loader.exec_module(snapshot_module)
+            if snapshot_module.identity(generation) != fingerprint:
+                raise ValueError("Generation configuration does not match target fingerprint")
+            snapshot_module.verify(store / fingerprint, generation)
             if matches[0]["state"] == "CURRENT":
                 return {"status": "ALREADY_CURRENT", "fingerprint": fingerprint}
             for entry in data["entries"]:
@@ -79,9 +89,12 @@ def main():
     parser.add_argument("--fingerprint", required=True)
     parser.add_argument("--configuration", required=True)
     parser.add_argument("--approved", action="store_true")
+    parser.add_argument("--store", type=Path, required=True)
+    parser.add_argument("--generation-config", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(promote(args.index, args.fingerprint, args.configuration,
-                             approved=args.approved), sort_keys=True))
+                             approved=args.approved, store=args.store,
+                             generation=json.loads(args.generation_config.read_text(encoding="utf-8"))), sort_keys=True))
 
 
 if __name__ == "__main__":
