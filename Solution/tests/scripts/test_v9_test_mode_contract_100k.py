@@ -62,6 +62,15 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn('report["inputReadOnly"] is True', external)
         self.assertIn("V9ExternalDatabaseReadOnlyTest.RunAsync", self.test_cli)
 
+    def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
+        scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
+        runner = (ROOT / "src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
+        self.assertIn("public const int MaximumSyntheticObservations = 512;", scorer)
+        self.assertIn("frozenRows.Count is < 2 or > MaximumSyntheticObservations", scorer)
+        self.assertIn("V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations", runner)
+        self.assertIn("IV9NonPublishingFrozenCohortScorer", runner)
+        self.assertIn("JornadaHarness", runner)
+
     def test_fail_closed_parity_gate_remains_until_end_to_end_proof(self):
         wf = self.workflow
         self.assertGreaterEqual(wf.count("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), 2)
