@@ -36,6 +36,12 @@ class TestV9TestModeContract(unittest.TestCase):
         validation = wf.split("\n  validation-100k:\n", 1)[1].split("\n  test-100k:\n", 1)[0]
         closeout = wf.split("\n  e2e-closeout:\n", 1)[1]
         self.assertIn("needs: [prepare-test-100k, test-database-preflight]", train)
+        self.assertIn("PREPARE mandatory campaign: generate frozen TRAIN corpus", train)
+        self.assertIn("PREPARE mandatory campaign: start masked disposable SQL Server", train)
+        self.assertIn("PREPARE mandatory campaign: rehydrate frozen IBGE", train)
+        self.assertLess(train.index("PREPARE mandatory campaign: generate frozen TRAIN corpus"),
+                        train.index("Run physical V9 CSharp on 324"))
+        self.assertNotIn("needs.prepare-test-100k.result == 'success' && inputs.test_required != true", train)
         self.assertIn("inputs.test_required != true", train)
         self.assertIn("needs: physical-100k", audit)
         self.assertIn("needs.physical-100k.result == 'success'", audit)
