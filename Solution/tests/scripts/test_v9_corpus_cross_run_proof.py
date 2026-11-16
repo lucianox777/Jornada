@@ -1,5 +1,7 @@
 import importlib.util
 import unittest
+import json
+import tempfile
 from pathlib import Path
 
 script = Path(__file__).resolve().parents[2] / "scripts" / "v9-corpus-cross-run-proof.py"
@@ -21,6 +23,31 @@ class CrossRunProofTests(unittest.TestCase):
         result = module.audit(observation(101), observation(102))
         self.assertTrue(result["requires_independent_mount_attestation"])
         self.assertIn("NOT_DURABILITY_CERTIFIED", result["status"])
+
+    def test_observe_reads_verified_physical_snapshot(self):
+        snapshot_script = script.with_name("v9-corpus-snapshot.py")
+        snapshot_spec = importlib.util.spec_from_file_location("ref_snapshot_test", snapshot_script)
+        snapshot = importlib.util.module_from_spec(snapshot_spec)
+        snapshot_spec.loader.exec_module(snapshot)
+        with tempfile.TemporaryDirectory() as root:
+            base = Path(root)
+            config = {"seed": 42, "people": 2}
+            config_path = base / "config.json"
+            config_path.write_text(json.dumps(config))
+            corpus = base / "corpus"
+            corpus.mkdir()
+            for name in snapshot.REQUIRED:
+                (corpus / name).write_text("test-data", encoding="utf-8")
+            manifest = snapshot.snapshot(config, corpus)
+            (corpus / "snapshot.json").write_text(json.dumps(manifest))
+            result = module.observe(corpus, config_path, repository="lucianox777/Jornada",
+                                    run_id=101, store_identity="mounted-ref")
+            self.assertEqual(result["files"], manifest["files"])
+            self.assertEqual(result["fingerprint"], manifest["fingerprint"])
+            (corpus / "observacoes.csv").write_text("tampered", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "mismatch"):
+                module.observe(corpus, config_path, repository="lucianox777/Jornada",
+                               run_id=102, store_identity="mounted-ref")
 
     def test_same_run_rejected(self):
         with self.assertRaisesRegex(ValueError, "distinct"):
