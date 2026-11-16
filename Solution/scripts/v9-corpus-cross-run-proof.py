@@ -21,7 +21,9 @@ def audit(first: dict, second: dict) -> dict:
             raise ValueError("Invalid run ID")
         if type(receipt["run_attempt"]) is not int or receipt["run_attempt"] != 1:
             raise ValueError("Rerun is not independent evidence")
-        if not isinstance(receipt["repository"], str) or not receipt["repository"]:\n            raise ValueError("Missing repository")\n        if not isinstance(receipt["files"], dict) or not receipt["files"]:
+        if not isinstance(receipt["repository"], str) or not receipt["repository"]:
+            raise ValueError("Missing repository")
+        if not isinstance(receipt["files"], dict) or not receipt["files"]:
             raise ValueError("Missing physical file hashes")
         if not isinstance(receipt["store_identity"], str) or not receipt["store_identity"]:
             raise ValueError("Missing external store identity")
