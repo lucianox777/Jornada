@@ -156,4 +156,4 @@ jobs:
             --config .local/v9-handoff-received/config.json \
             --prepare-receipt .local/v9-handoff-received/prepare-receipt.json \
             --train-destination .local/v9-handoff-received/verified-train-input
-          echo "V9_CORPUS_TRAIN_INPUT_ADMITTED_ONLY: no calibration, no independent TEST"
+          echo "V9_CORPUS_TRANSFER_PROBE_ONLY: V9_CORPUS_TRAIN_INPUT_ADMITTED_ONLY; no calibration, no independent TEST"
