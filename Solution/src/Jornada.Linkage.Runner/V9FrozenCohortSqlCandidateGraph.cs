@@ -95,17 +95,25 @@ public static class V9FrozenCohortSqlCandidateGraph
             }
         }
 
-        // Count ALL candidate incidences before any SQL materialization.
+        // Count ALL cross-manager incidences per signature without a quadratic
+        // nested pair scan. For each bucket, C(n,2) - sum(C(n_manager,2))
+        // counts precisely the cross-manager pairs, including repeated pairs
+        // across distinct passes. Never confuse incidences with DISTINCT edges.
         long incidences = 0;
         foreach (var group in signatures.GroupBy(row => (row.Pass, row.Hash)))
         {
-            var groupRows = group.ToArray();
-            for (var i = 0; i < groupRows.Length; i++)
-                for (var j = i + 1; j < groupRows.Length; j++)
-                    if (!string.Equals(groupRows[i].Manager, groupRows[j].Manager,
-                            StringComparison.Ordinal))
-                        if (++incidences > MaximumPairIncidences)
-                            throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
+            ct.ThrowIfCancellationRequested();
+            var n = (long)group.Count();
+            var sameManager = group.GroupBy(row => row.Manager, StringComparer.Ordinal)
+                .Sum(managerRows =>
+                {
+                    var count = (long)managerRows.Count();
+                    return checked(count * (count - 1) / 2);
+                });
+            var crossManager = checked(n * (n - 1) / 2 - sameManager);
+            incidences = checked(incidences + crossManager);
+            if (incidences > MaximumPairIncidences)
+                throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
         }
 
         // Tables are LOCAL SQL temp tables scoped to this disposable connection.
