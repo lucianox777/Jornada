@@ -287,6 +287,18 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 Is.EqualTo(operational!.CanonicalEdgesSha256));
             await AssertRunRowsAsync(connection, alternate.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
             await AssertFrozenRunDecisionsAsync(connection, alternate.RunId, reference);
+            // The real Runner enforces a minimum BatchSize of 100. Reject
+            // an undersized request BEFORE creating a SQL run, without
+            // weakening production validation to accommodate the fixture.
+            var undersizedScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256);
+            Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+                await BuildRunner(undersizedScorer)
+                    .RunAsync(Request(batchSize: 50), CancellationToken.None)));
+            Assert.That(undersizedScorer.SqlGraphEvidence, Is.Null);
+            Assert.That(undersizedScorer.BlockingChaveParityEvidence, Is.Null);
+            Assert.That(await ReadPublicationFingerprintAsync(connection),
+                Is.EqualTo(positiveBefore));
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(positiveBefore),
                 "Gold/Serving não podem ser alterados nem com candidatos TF positivos.");
 
