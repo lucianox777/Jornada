@@ -1,0 +1,23 @@
+{
+  "files": {
+    "gabarito.json": {
+      "sha256": "428160c59e4afc0753b1115bd7858b0852f0435a7ac3aa092d26a426bd137b7a",
+      "size": 63731
+    },
+    "generation-manifest.json": {
+      "sha256": "9ec7666eee35a47ed0f487ead6b13b6f73d30b16470132bdeb17c6a9f99eb20e",
+      "size": 3284
+    },
+    "observacoes.csv": {
+      "sha256": "6a2cb2ffd48d14b705faeb14ec4dd517bef94ced730e20a062e0dd5403c832b1",
+      "size": 19462022
+    },
+    "pessoas_verdade.csv": {
+      "sha256": "81a2f559f7a1d9b42fb693b708958f0ff1b320da062898a83366768e6c238ec0",
+      "size": 9026226
+    }
+  },
+  "schema": "v9-ref-zip-v1",
+  "zip_sha256": "d62ceaff27361591243c4625d9c9415bd342085ce517a71ba28598a8c79a298d",
+  "zip_size": 7697354
+}
