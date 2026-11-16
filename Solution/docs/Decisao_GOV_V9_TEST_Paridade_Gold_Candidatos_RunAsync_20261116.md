@@ -70,3 +70,6 @@ PR #1603 integrada por squash `b8da454353fc0246732a3f3f8740248d74f1d673`, CI obr
 
 ## Proposta de oráculo independente de decisão ranqueada — 16/11/2026
 Contexto: após integração das PRs #1603/#1605, o oráculo independente abrange agrupamento, não decisão. Decisão proposta: teste de tabela-verdade sem reutilizar o kernel para calcular status esperado, cobrindo limiar de posterior, margem em log-odds, guarda demográfica, dois candidatos acima do limiar e abstenção quando ranking vazio. Justificativa: detectar regressões em decisão de candidato TF4 ranqueado sem circularidade ReplayTest. Impactos: somente teste, nenhuma alteração de runtime, SQL, publicação ou gates científicos. Precedência: evidência parcial, NÃO demonstra cálculo TF4 independente nem paridade SQL RunAsync; issue #1584 permanece aberta. GOV-DOC-01.
+
+## Integração do oráculo independente de decisão ranqueada — 16/11/2026
+PR #1606 integrada por squash `2f9b8b8aad2295e403ef7953b51dab63ccde0a9b`; CI obrigatória #43942647018 3/3 SUCCESS. A tabela-verdade independente cobre decisão sobre scores fornecidos, incluindo limiar, margem, colisão demográfica, guarda de dois candidatos e abstenção de ranking vazio. Não valida cálculo das quatro TFs, cobertura de termos IBGE, SQL RunAsync ou TEST 100k. Issue #1584 permanece aberta. GOV-DOC-01.
