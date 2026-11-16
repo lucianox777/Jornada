@@ -7,6 +7,9 @@ It never opens independent sealed TEST data and never accepts a bare cache hit.
 import argparse
 import importlib.util
 import json
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 module_path = Path(__file__).with_name("v9-corpus-snapshot.py")
@@ -42,13 +45,42 @@ def verify_handoff(corpus: Path, config_path: Path, receipt_path: Path) -> dict:
         "scientific_test_used": False,
     }
 
+def materialize_train_input(corpus: Path, config_path: Path, receipt_path: Path, destination: Path) -> dict:
+    """Copy only an authenticated PREPARE snapshot to a fresh TRAIN input directory.
+
+    This is an admission primitive, NOT authorization to execute scientific TRAIN.
+    Never overwrite a generated corpus or accept a partial destination.
+    """
+    evidence = verify_handoff(corpus, config_path, receipt_path)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("TRAIN destination must be absent")
+    if destination.parent.is_symlink():
+        raise ValueError("Unsafe TRAIN destination parent")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=".v9-train-admit-", dir=destination.parent))
+    try:
+        for name in (*snapshot.REQUIRED, "snapshot.json"):
+            shutil.copyfile(corpus / name, temporary / name)
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        snapshot.verify(temporary, config)
+        if destination.exists() or destination.is_symlink():
+            raise ValueError("TRAIN destination appeared during admission")
+        os.rename(temporary, destination)
+        return {**evidence, "status": "TRAIN_INPUT_ADMITTED_NOT_EXECUTED", "destination": str(destination)}
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--prepare-receipt", type=Path, required=True)
+    parser.add_argument("--train-destination", type=Path, help="Opt-in verified copy only; does not execute TRAIN")
     args = parser.parse_args()
-    evidence = verify_handoff(args.corpus, args.config, args.prepare_receipt)
+    evidence = (materialize_train_input(args.corpus, args.config, args.prepare_receipt, args.train_destination)
+                if args.train_destination is not None else
+                verify_handoff(args.corpus, args.config, args.prepare_receipt))
     print("V9_CORPUS_CROSS_RUNNER_HANDOFF_PASS " + json.dumps(evidence, sort_keys=True))
 
 if __name__ == "__main__":
