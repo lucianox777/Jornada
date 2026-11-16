@@ -53,7 +53,8 @@ def prepare(store, config, generator, output):
 def handoff(store, config, destination):
     """Materialize validated corpus on another runner; never trust a bare cache hit."""
     source = store / snapshot.identity(config)
-    snapshot.verify(source, config)
+    # Validate while holding the same lock as PREPARE: do not copy a corpus
+    # concurrently with a writer on the shared POSIX volume.
     if destination.exists() or destination.is_symlink():
         raise ValueError("Handoff destination must not exist")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -61,9 +62,15 @@ def handoff(store, config, destination):
         raise ValueError("Unsafe handoff parent")
     temporary = Path(tempfile.mkdtemp(prefix=".handoff-", dir=destination.parent))
     try:
-        for name in snapshot.REQUIRED:
-            shutil.copyfile(source / name, temporary / name)
-        shutil.copyfile(source / "snapshot.json", temporary / "snapshot.json")
+        lock_path = store / ".prepare.lock"
+        if lock_path.is_symlink() or not lock_path.is_file():
+            raise ValueError("Missing or unsafe preparation lock")
+        with lock_path.open("rb") as lock:
+            fcntl.flock(lock, fcntl.LOCK_SH)
+            snapshot.verify(source, config)
+            for name in snapshot.REQUIRED:
+                shutil.copyfile(source / name, temporary / name)
+            shutil.copyfile(source / "snapshot.json", temporary / "snapshot.json")
         snapshot.verify(temporary, config)
         os.rename(temporary, destination)
         return {"status": "HANDOFF_VERIFIED", "corpus": str(destination),
