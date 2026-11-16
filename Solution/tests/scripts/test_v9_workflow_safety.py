@@ -57,6 +57,9 @@ class V9WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', text)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/feature/v9-persistent-synthetic-corpus-20261115"', text)
         self.assertIn("TRANSFER_PROBE_ONLY", text)
+        self.assertIn("--expected-config .local/v9-handoff-received/expected-config.json", text)
+        self.assertIn("--generator-source src/Jornada.Linkage.SyntheticCorpus", text)
+        self.assertIn("--birth-daily data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json", text)
         self.assertNotIn("v9-v3-four-name-100k.yml@", text)
 
 if __name__ == "__main__":
