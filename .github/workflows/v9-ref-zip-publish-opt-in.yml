@@ -69,6 +69,7 @@ jobs:
           python3 Solution/scripts/v9-corpus-ref-zip.py verify --zip "$root/corpus-seed42.zip" --manifest "$root/manifest.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$root/corpus-seed42.zip" "$root/manifest.json"
+          # The reference ZIP is intentionally ignored globally; explicitly stage only these verified files.
+          git add -f -- "$root/corpus-seed42.zip" "$root/manifest.json"
           git commit -m "data(v9): persist verified physical seed42 100k REF ZIP"
           git push origin HEAD:refs/heads/feature/v9-persistent-synthetic-corpus-20261115
