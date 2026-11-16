@@ -37,6 +37,9 @@ class ExternalStorePreflightTests(unittest.TestCase):
             a["evidence_run_ids"] = [101, 101]
             with self.assertRaisesRegex(ValueError, "distinct run IDs"):
                 preflight.validate(Path(temp), a, "lucianox777/Jornada")
+            a["evidence_run_ids"] = [True, 102]
+            with self.assertRaisesRegex(ValueError, "Invalid cross-run evidence IDs"):
+                preflight.validate(Path(temp), a, "lucianox777/Jornada")
             a["evidence_run_ids"] = [101, 102]
             a["repository"] = "other/repo"
             with self.assertRaisesRegex(ValueError, "repository binding"):
