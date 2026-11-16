@@ -84,7 +84,11 @@ class TestV9TestModeContract(unittest.TestCase):
         self.assertIn("MaximumObservationsPerIdentity: > 0", scorer)
         self.assertIn("plan.MinimumPairPosterior is < 0m or > 1m", scorer)
         self.assertIn("winner.Payload.ProjectionFingerprintSha256 is not { Length: 64 }", scorer)
-        self.assertIn("V9_TEST_EXECUTION_PLAN_UNSUPPORTED", cli)
+        runtime = (ROOT / "src/Jornada.Linkage.Core/V9OperationalPinnedCohortRuntime.cs").read_text(encoding="utf-8")
+        self.assertIn("runtime.RequireSupportedFrozenExecutionPlan();", cli)
+        self.assertIn("pinned.RequireSupportedFrozenExecutionPlan();", scorer)
+        self.assertIn("V9_TEST_EXECUTION_PLAN_UNSUPPORTED", runtime)
+        self.assertIn("plan.MaximumObservationsPerIdentity <= 0", runtime)
 
     def test_runner_capacity_limit_cannot_be_silently_bypassed(self):
         scorer = (ROOT / "src/Jornada.Linkage.Runner/V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
