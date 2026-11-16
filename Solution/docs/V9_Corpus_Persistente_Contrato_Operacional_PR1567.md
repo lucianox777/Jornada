@@ -68,3 +68,7 @@ Commit `a61b1bd51fc65d609a0b31b85a32e6158faac0f7`: testes de consumidor para ace
 ## Recusa de store simbólico no consumidor — 15/11/2026
 
 No handoff, a verificação anterior rejeitava symlink do diretório de corpus final e do lock, mas não rejeitava explicitamente um **symlink no diretório raiz do store**. O commit `b4a79a9d8e35c05c9f074c8d47f995888c7e1d56` acrescenta recusa antecipada para store ausente ou simbólico; o commit `d9f25b0af1933171cacd98b8244c7d9c303489e1` introduz regressão negativa específica. **Implementado na branch, CI do novo HEAD pendente**. Impacto: reduz aceitação acidental de caminhos indiretos no consumidor; não substitui ACL/imutabilidade de um backend durável. Precedência: complementa o contrato da PR #1567, sem decisão nova sobre provedor, retenção ou ativação científica.
+
+## Contrato de não sobrescrita do snapshot — 15/11/2026
+
+Commit `deefe4a5a9cb3b2c63be1afb6a926322cc1ba8d9`: teste de regressão para a semântica existente de `publish`: quando o corpus identificado pela mesma configuração já existe e é íntegro, uma segunda fonte com bytes diferentes **não substitui** os arquivos publicados; o recibo e os bytes originais permanecem. Este é um teste de imutabilidade **lógica sob a API cooperativa**, não prova de armazenamento WORM, ACL ou proteção contra alterações externas. CI do HEAD com este teste ainda pendente. A escolha de provedor e política de retenção continuam pendentes de aprovação/implementação; TEST 100k lacrado e PR DRAFT.
