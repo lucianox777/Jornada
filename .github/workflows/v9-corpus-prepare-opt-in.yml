@@ -165,7 +165,7 @@ jobs:
           spec = importlib.util.spec_from_file_location("snapshot", module)
           obj = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(obj)
-          config = json.loads(Path(".local/v9-handoff-received/config.json").read_text())
+          config = json.loads(Path(".local/v9-handoff-received/expected-config.json").read_text())
           print(obj.identity(config))
           PY
           )"
