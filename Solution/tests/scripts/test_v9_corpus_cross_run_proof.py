@@ -49,6 +49,12 @@ class CrossRunProofTests(unittest.TestCase):
                 module.observe(corpus, config_path, repository="lucianox777/Jornada",
                                run_id=102, store_identity="mounted-ref")
 
+    def test_observation_metadata_rejected_without_synthetic_second_run(self):
+        receipt = observation(101)
+        receipt["run_attempt"] = 2
+        with self.assertRaisesRegex(ValueError, "Rerun"):
+            module.validate_observation(receipt)
+
     def test_same_run_rejected(self):
         with self.assertRaisesRegex(ValueError, "distinct"):
             module.audit(observation(101), observation(101))
