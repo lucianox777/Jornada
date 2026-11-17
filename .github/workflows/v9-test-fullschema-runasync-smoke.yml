@@ -3,6 +3,13 @@ name: V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)
 # Independent disposable harness, not invoked by the calibration workflow.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/src/Jornada.Linkage.Core/**'
+      - 'Solution/tests/Jornada.Tests/**'
+      - 'Solution/tests/scripts/test_v9_*'
+      - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
 
 permissions:
   contents: read
