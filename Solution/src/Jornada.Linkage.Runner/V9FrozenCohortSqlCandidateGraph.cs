@@ -142,6 +142,22 @@ public static class V9FrozenCohortSqlCandidateGraph
             await bulk.WriteToServerAsync(table, ct);
         }
 
+        // Reconcile an independent SQL census against every streamed edge.
+        // Never accept a silently incomplete graph.
+        long expectedEdges;
+        await using (var census = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM (
+                SELECT DISTINCT a.obs_id,b.obs_id
+                  FROM #v9_run_sig a JOIN #v9_run_sig b
+                    ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
+                   AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
+            ) complete_graph;
+            """, connection) { CommandTimeout = 120 })
+            expectedEdges = Convert.ToInt64(
+                await census.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        if (expectedEdges > MaximumPairIncidences)
+            throw new InvalidDataException("Censo SQL V9 excedeu capacidade: grafo não pode ser truncado.");
+
         var edges = new List<(int A, int B)>();
         await using (var query = new SqlCommand("""
             SELECT DISTINCT a.obs_id,b.obs_id
@@ -164,6 +180,12 @@ public static class V9FrozenCohortSqlCandidateGraph
                 edges.Add((a, b));
             }
         }
+        if (edges.Count != expectedEdges)
+            throw new InvalidDataException("Leitura do grafo SQL V9 incompleta: contagem difere do censo.");
+        for (var i = 1; i < edges.Count; i++)
+            if (edges[i - 1].A > edges[i].A
+                || (edges[i - 1].A == edges[i].A && edges[i - 1].B >= edges[i].B))
+                throw new InvalidDataException("Grafo SQL V9 duplicado ou fora de ordem.");
         var canonicalEdges = string.Concat(edges.Select(edge =>
             edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
             edge.B.ToString(CultureInfo.InvariantCulture) + "\n"));
