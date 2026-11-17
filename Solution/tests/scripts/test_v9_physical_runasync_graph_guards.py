@@ -25,7 +25,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertLess(s.index("V9FrozenCohortSqlCandidateGraph.ReadAsync("),
                         s.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("))
         self.assertLess(s.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("),
-                        s.index("var global = pinned.ReplayTest(cohort, edges);"))
+                        s.index("var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync("))
 
     def test_exact_graph_parity_required_before_global_scoring(self):
         s = self.scorer
@@ -34,7 +34,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertIn("physical.CanonicalEdgesSha256", s)
         self.assertIn("edges = physical.Edges.ToList();", s)
         self.assertLess(s.index("edges = physical.Edges.ToList();"),
-                        s.index("var global = pinned.ReplayTest(cohort, edges);"))
+                        s.index("var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync("))
         self.assertIn("global.SnapshotSha256 != pinnedWinnerSha", s)
         self.assertIn("global.Decisions.Count != cohort.Length", s)
 
@@ -45,6 +45,59 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertLess(s.index("v9Grouped.PrepareAsync(runId, model, frozen, workCt)"),
                         s.index("await PersistBatchAsync("))
         self.assertIn("request.Publish || request.Mode != LinkageRunType.MODEL_VALIDATION", s)
+
+
+    def test_physical_sql_graph_rejects_capacity_excess_and_invalid_edges(self):
+        graph = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text(encoding="utf-8")
+        for guard in ("if (signatures.Count >= MaximumSignatures)",
+                      "if (++incidences > MaximumPairIncidences)",
+                      "if (edges.Count >= MaximumPairIncidences)",
+                      "if (a < 1 || a >= b || b > frozenRows.Count)",
+                      "SELECT COUNT_BIG(*) FROM #v9_run_sig;",
+                      "materializedSignatures != signatures.Count",
+                      "CREATE UNIQUE INDEX UX_v9_run_sig",
+                      "gestor nvarchar(120) COLLATE Latin1_General_100_BIN2",
+                      "pass_id nvarchar(120) COLLATE Latin1_General_100_BIN2",
+                      "assinatura char(64) COLLATE Latin1_General_100_BIN2",
+                      "manager.Length > 120",
+                      "manager.EndsWith(' ')",
+                      "pass.PassId.Length > 120",
+                      "pass.PassId.EndsWith(' ')",
+                      "expectedSignatures.SetEquals(observedSignatures)",
+                      "CanonicalSignaturesSha256: signaturesDigest",
+                      "OrderBy(s => s.Obs)",
+                      "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;",
+                      "SELECT COUNT_BIG(*) FROM (",
+                      "a.obs_id AS source_obs_id,b.obs_id AS target_obs_id",
+                      "if (edges.Count != expectedEdges)",
+                      "var expectedPairs = new HashSet<(int A, int B)>()",
+                      "expectedPairs.SetEquals(edges)",
+                      "expectedPairs.Count > MaximumPairIncidences",
+                      "edges[i - 1].B >= edges[i].B"):
+            self.assertIn(guard, graph)
+
+    def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
+        program = (ROOT / "Program.cs").read_text(encoding="utf-8")
+        loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
+        self.assertIn("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)", program)
+        self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", program)
+        self.assertIn("RUNNER_V9_SELECTION_MISSING", program)
+        self.assertLess(
+            program.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)"),
+            program.index("pinnedLinkage.GetModelByVersionAsync(configuredVersion.Value"))
+        self.assertIn("options.Mode != LinkageRunType.REPLAY", program)
+        self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", loader)
+        self.assertIn("FromVerifiedFileSnapshot(loaded.Snapshot)", loader)
+        self.assertNotIn("SqlConnection", loader)
+
+    def test_operational_graph_checks_full_manifest_and_bidirectional_edges(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text(encoding="utf-8")
+        for guard in ("expectedManifest.SetEquals(seen)",
+                      "goldCount != frozenRows.Count",
+                      "directions.Values.Any(value => value != 3)",
+                      "expected.SetEquals(directions.Keys)",
+                      "BuildCandidateUuidQuery(cmd,"):
+            self.assertIn(guard, parity)
 
 
 if __name__ == "__main__":

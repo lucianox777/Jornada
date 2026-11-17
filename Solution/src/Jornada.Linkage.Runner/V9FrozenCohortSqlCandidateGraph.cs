@@ -23,7 +23,8 @@ public static class V9FrozenCohortSqlCandidateGraph
         IReadOnlyList<(int A, int B)> Edges,
         int SignatureRows,
         string CanonicalEdgesSha256,
-        bool ProductionCandidateParityCertified = false);
+        bool ProductionCandidateParityCertified = false,
+        string CanonicalSignaturesSha256 = "");
 
     private sealed record Signature(int Observation, string Manager, string Pass, string Hash);
 
@@ -59,6 +60,15 @@ public static class V9FrozenCohortSqlCandidateGraph
             || planner.ProjectionFingerprintSha256 != winner.Payload.ProjectionFingerprintSha256)
             throw new InvalidDataException("Grafo SQL V9 exige a mesma projeção prefixada imutável.");
 
+        // SQL uses nvarchar(120) for both manager and pass identifiers.
+        // Reject lossy SQL normalization/truncation before materializing any row.
+        // Trailing U+0020 is ignored by SQL Server string equality and would
+        // make the operational join differ from the ordinal C# identity.
+        foreach (var manager in managers.Values)
+            if (manager.Length > 120 || manager.EndsWith(' '))
+                throw new InvalidDataException(
+                    "Identificador de gestor V9 incompatível com nvarchar(120)/comparação SQL.");
+
         var signatures = new List<Signature>();
         var unique = new HashSet<(int Obs, string Pass, string Sha)>();
         for (var i = 0; i < frozenRows.Count; i++)
@@ -68,6 +78,10 @@ public static class V9FrozenCohortSqlCandidateGraph
             var manager = managers[row.PessoaObservacaoId];
             foreach (var pass in planner.Plan(row.Observation))
             {
+                if (string.IsNullOrWhiteSpace(pass.PassId) ||
+                    pass.PassId.Length > 120 || pass.PassId.EndsWith(' '))
+                    throw new InvalidDataException(
+                        "Identificador de passe V9 incompatível com nvarchar(120)/comparação SQL.");
                 if (pass.Clauses.Any(clause => clause.Values.Count == 0))
                     throw new InvalidDataException("Plano de blocking possui cláusula vazia.");
                 var values = new string[pass.Clauses.Count];
@@ -108,17 +122,35 @@ public static class V9FrozenCohortSqlCandidateGraph
                             throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
         }
 
+        // Independent in-memory oracle: SQL census and SQL stream can agree
+        // with each other while both omitting the same edges. Derive the exact
+        // deduplicated cross-manager graph from the frozen signatures first.
+        var expectedPairs = new HashSet<(int A, int B)>();
+        foreach (var group in signatures.GroupBy(row => (row.Pass, row.Hash)))
+        {
+            var rows = group.OrderBy(row => row.Observation).ToArray();
+            for (var i = 0; i < rows.Length; i++)
+                for (var j = i + 1; j < rows.Length; j++)
+                    if (!string.Equals(rows[i].Manager, rows[j].Manager,
+                            StringComparison.Ordinal)
+                        && expectedPairs.Add((rows[i].Observation, rows[j].Observation))
+                        && expectedPairs.Count > MaximumPairIncidences)
+                        throw new InvalidDataException(
+                            "Oráculo independente V9 excedeu a capacidade: grafo não pode ser truncado.");
+        }
+
         // Tables are LOCAL SQL temp tables scoped to this disposable connection.
         // Never INSERT/UPDATE any operational, Gold or Serving table.
         await using (var setup = new SqlCommand("""
             IF OBJECT_ID('tempdb..#v9_run_sig') IS NOT NULL DROP TABLE #v9_run_sig;
             CREATE TABLE #v9_run_sig(
                 obs_id int NOT NULL,
-                gestor nvarchar(120) NOT NULL,
-                pass_id nvarchar(120) NOT NULL,
-                assinatura char(64) NOT NULL
+                gestor nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                pass_id nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                assinatura char(64) COLLATE Latin1_General_100_BIN2 NOT NULL
             );
-            CREATE INDEX IX_v9_run_sig ON #v9_run_sig(pass_id,assinatura,obs_id);
+            CREATE UNIQUE INDEX UX_v9_run_sig ON #v9_run_sig(obs_id,pass_id,assinatura);
+            CREATE INDEX IX_v9_run_sig_join ON #v9_run_sig(pass_id,assinatura,obs_id);
             """, connection))
             await setup.ExecuteNonQueryAsync(ct);
 
@@ -142,6 +174,70 @@ public static class V9FrozenCohortSqlCandidateGraph
             await bulk.WriteToServerAsync(table, ct);
         }
 
+        // SqlBulkCopy may return without a complete logical signature universe.
+        // A missing signature can silently remove candidate edges, so fail closed.
+        long materializedSignatures;
+        await using (var signatureCensus = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM #v9_run_sig;", connection) { CommandTimeout = 120 })
+            materializedSignatures = Convert.ToInt64(
+                await signatureCensus.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        if (materializedSignatures != signatures.Count)
+            throw new InvalidDataException(
+                "Assinaturas SQL V9 incompletas: censo materializado divergiu do universo planejado.");
+
+        // A matching row count alone cannot detect substitutions or stale
+        // signatures. Verify the complete materialized signature set, including
+        // manager and pass, before deriving any candidate edge.
+        var expectedSignatures = new HashSet<(int Obs, string Manager, string Pass, string Hash)>(
+            signatures.Select(s => (s.Observation, s.Manager, s.Pass, s.Hash)));
+        var observedSignatures = new HashSet<(int Obs, string Manager, string Pass, string Hash)>();
+        await using (var verify = new SqlCommand(
+            "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;", connection)
+            { CommandTimeout = 120 })
+        {
+            await using var reader = await verify.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var signature = (reader.GetInt32(0), reader.GetString(1),
+                    reader.GetString(2), reader.GetString(3));
+                if (!observedSignatures.Add(signature)
+                    || !expectedSignatures.Contains(signature))
+                    throw new InvalidDataException(
+                        "Manifesto SQL V9 contém assinatura duplicada ou adulterada.");
+            }
+        }
+        if (!expectedSignatures.SetEquals(observedSignatures))
+            throw new InvalidDataException(
+                "Manifesto SQL V9 incompleto: assinaturas divergem do plano congelado.");
+
+        // Deterministic signature fingerprint for run/cohort evidence. Only
+        // verified SQL rows contribute; no personal names or raw values.
+        var canonicalSignatures = string.Concat(observedSignatures
+            .OrderBy(s => s.Obs).ThenBy(s => s.Manager, StringComparer.Ordinal)
+            .ThenBy(s => s.Pass, StringComparer.Ordinal)
+            .ThenBy(s => s.Hash, StringComparer.Ordinal)
+            .Select(s => s.Obs.ToString(CultureInfo.InvariantCulture) + ":" +
+                s.Manager.Length.ToString(CultureInfo.InvariantCulture) + ":" +
+                s.Manager + ":" + s.Pass + ":" + s.Hash + "\n"));
+        var signaturesDigest = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(canonicalSignatures))).ToLowerInvariant();
+
+        // Reconcile an independent SQL census against every streamed edge.
+        // Never accept a silently incomplete graph.
+        long expectedEdges;
+        await using (var census = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM (
+                SELECT DISTINCT a.obs_id AS source_obs_id,b.obs_id AS target_obs_id
+                  FROM #v9_run_sig a JOIN #v9_run_sig b
+                    ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
+                   AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
+            ) complete_graph;
+            """, connection) { CommandTimeout = 120 })
+            expectedEdges = Convert.ToInt64(
+                await census.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        if (expectedEdges > MaximumPairIncidences)
+            throw new InvalidDataException("Censo SQL V9 excedeu capacidade: grafo não pode ser truncado.");
+
         var edges = new List<(int A, int B)>();
         await using (var query = new SqlCommand("""
             SELECT DISTINCT a.obs_id,b.obs_id
@@ -164,12 +260,22 @@ public static class V9FrozenCohortSqlCandidateGraph
                 edges.Add((a, b));
             }
         }
+        if (edges.Count != expectedEdges)
+            throw new InvalidDataException("Leitura do grafo SQL V9 incompleta: contagem difere do censo.");
+        if (edges.Count != expectedPairs.Count || !expectedPairs.SetEquals(edges))
+            throw new InvalidDataException(
+                "Grafo SQL V9 divergiu do oráculo independente de assinaturas C#.");
+        for (var i = 1; i < edges.Count; i++)
+            if (edges[i - 1].A > edges[i].A
+                || (edges[i - 1].A == edges[i].A && edges[i - 1].B >= edges[i].B))
+                throw new InvalidDataException("Grafo SQL V9 duplicado ou fora de ordem.");
         var canonicalEdges = string.Concat(edges.Select(edge =>
             edge.A.ToString(CultureInfo.InvariantCulture) + ":" +
             edge.B.ToString(CultureInfo.InvariantCulture) + "\n"));
         var digest = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(canonicalEdges))).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
-            ProductionCandidateParityCertified: false);
+            ProductionCandidateParityCertified: false,
+            CanonicalSignaturesSha256: signaturesDigest);
     }
 }

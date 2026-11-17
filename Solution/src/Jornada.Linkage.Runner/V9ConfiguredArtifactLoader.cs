@@ -32,6 +32,10 @@ public static class V9ConfiguredArtifactLoader
         var selectionPath = Path.GetFullPath(selectionFile);
         if (!File.Exists(selectionPath) || new FileInfo(selectionPath).LinkTarget is not null)
             throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
+        // Bound allocation before reading operator-controlled selection bytes.
+        // The post-read check also detects growth during the read.
+        if (new FileInfo(selectionPath).Length is 0 or > 65536)
+            throw new InvalidDataException("RUNNER_V9_SELECTION_SIZE_INVALID");
         var bytes = await File.ReadAllBytesAsync(selectionPath, ct);
         if (bytes.Length is 0 or > 65536)
             throw new InvalidDataException("RUNNER_V9_SELECTION_SIZE_INVALID");
@@ -39,7 +43,17 @@ public static class V9ConfiguredArtifactLoader
             ?? throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
         if (string.IsNullOrWhiteSpace(selection.ArtifactPath) || string.IsNullOrWhiteSpace(selection.WinnerSha256))
             throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
+        // Reject malformed digests before resolving artifact names or accessing the filesystem.
+        // The immutable package contract uses exactly 64 lowercase hexadecimal SHA-256 digits.
+        if (selection.WinnerSha256.Length != 64
+            || selection.WinnerSha256.Any(ch => !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))))
+            throw new InvalidDataException("RUNNER_V9_ARTIFACT_SHA_INVALID");
         var artifact = Path.GetFullPath(selection.ArtifactPath, Path.GetDirectoryName(selectionPath)!);
+        // Reject a link at the selected artifact path before opening it.
+        // The pinned reader verifies bytes/SHA, but the selected path itself
+        // must not be a mutable symlink controlled outside the package.
+        if (!File.Exists(artifact) || new FileInfo(artifact).LinkTarget is not null)
+            throw new InvalidDataException("RUNNER_V9_ARTIFACT_INVALID");
         var expectedName = V9ValidatedOperationalModelFile.FileName(selection.WinnerSha256);
         if (!string.Equals(Path.GetFileName(artifact), expectedName, StringComparison.Ordinal))
             throw new InvalidDataException("RUNNER_V9_ARTIFACT_SHA_MISMATCH");

@@ -3,6 +3,19 @@ name: V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)
 # Independent disposable harness, not invoked by the calibration workflow.
 on:
   workflow_dispatch:
+  # A new workflow introduced only on a PR branch may not be eligible for
+  # pull_request execution until it exists on the default branch. Validate
+  # the exact feature branch on push as well; do not wait for merge.
+  push:
+    branches:
+      - docs/gov-v9-grafo-operacional-coorte-20261117
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/src/Jornada.Linkage.Core/**'
+      - 'Solution/tests/Jornada.Tests/**'
+      - 'Solution/tests/scripts/test_v9_*'
+      - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
 
 permissions:
   contents: read
@@ -27,7 +40,7 @@ jobs:
       - name: Validate TEST guards and fixture isolation
         run: |
           set -euo pipefail
-          python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py -v
+          python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py Solution/tests/scripts/test_v9_physical_runasync_graph_guards.py Solution/tests/scripts/test_v9_configured_artifact_loader.py -v
           git diff --check
       - name: Build real Runner and SQL fixture
         working-directory: Solution
