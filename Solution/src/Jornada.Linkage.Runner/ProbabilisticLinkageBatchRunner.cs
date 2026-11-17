@@ -112,6 +112,16 @@ public sealed class ProbabilisticLinkageBatchRunner(
         CancellationToken ct)
     {
         ValidateRequest(request);
+        // Defense in depth: RunAsync is also callable outside Program.cs.
+        // Until the productive V9 adapter is certified, do not let an explicit
+        // V9 selection enter the legacy SQL model loader or acquire a pipeline lock.
+        // Historical DT-05 REPLAY retains its separate source-run contract.
+        if (request.Mode != LinkageRunType.REPLAY
+            && (request.ModelVersion == 9
+                || configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9
+                || !string.IsNullOrWhiteSpace(configuration["Linkage:V9SelectionFile"])))
+            throw new InvalidOperationException(
+                "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: RunAsync V9 exige adaptador de coorte certificado; fallback SQL proibido.");
         if (linkage is IV9NonPublishingFrozenCohortScorer)
         {
             // This is an opt-in, bounded TEST fixture, never the productive
