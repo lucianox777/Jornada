@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-WF = ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml"
+WF = ROOT.parent / ".github/workflows/v9-standard-linear-100k.yml"
 SCRIPT = ROOT / "scripts/v9-tf4-e2e-closeout.py"
 spec = importlib.util.spec_from_file_location("tf4_e2e_closeout", SCRIPT)
 mod = importlib.util.module_from_spec(spec)
@@ -72,13 +72,13 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         source = WF.read_text(encoding="utf-8")
         self.assertIn("\n  e2e-closeout:\n", source)
         block = source.split("\n  e2e-closeout:\n", 1)[1]
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight, physical-100k, audit-100k, validation-100k, test-100k, test-database-readonly]", block)
+        self.assertIn("needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("v9-tf4-e2e-closeout.py", block)
         self.assertIn("validation-e2e-status.json", block)
         self.assertIn("independent-test.json", block)
         self.assertIn("github.repository_owner", source)
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", source)
+        self.assertNotIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", source)
         self.assertNotIn("timeout-minutes:", source)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", block)
         self.assertNotIn("test-corpus.cms", block)
@@ -92,7 +92,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
                          "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
         self.assertFalse(result["certified"])
         self.assertFalse(result["productionPublication"])
-        self.assertEqual(result["winnerSha256"], W)
+        self.assertIsNone(result["winnerSha256"])
 
     def test_missing_or_skipped_mandatory_stage_cannot_be_success(self):
         for fields, reason in [
