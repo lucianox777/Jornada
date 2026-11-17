@@ -180,6 +180,53 @@ var options = LinkageRunOptions.Parse(args);
 var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+ 
+// Snapshot the effective host configuration once: no reload during this run.
+// Do not log or persist the full configuration (it can contain secrets).
+var frozenConfiguration = new ConfigurationBuilder()
+    .AddInMemoryCollection(builder.Configuration.AsEnumerable()
+        .Where(entry => entry.Value is not null)
+        .ToDictionary(entry => entry.Key, entry => entry.Value,
+            StringComparer.OrdinalIgnoreCase))
+    .Build();
+SqlProbabilisticIdentityLinkage? pinnedLinkage = null;
+// The Operator Master changes configuration only while the run-once Runner is stopped.
+if (options.Mode != LinkageRunType.REPLAY)
+{
+    var configuredVersion = frozenConfiguration.GetValue<int?>("Linkage:SelectedModelVersion");
+    if (configuredVersion is not > 0)
+        throw new InvalidOperationException(
+            "RUNNER_MODEL_CONFIGURATION_MISSING: Linkage:SelectedModelVersion deve ser definido pelo Operador Master.");
+    if (options.ModelVersion is int requestedVersion && requestedVersion != configuredVersion)
+        throw new InvalidOperationException(
+            "RUNNER_MODEL_CONFIGURATION_MISMATCH: argumento --model-version diverge da configuração do Operador Master.");
+
+    var preflightSql = new OperationalSqlAdapter(jornadaConnectionString);
+    pinnedLinkage = new SqlProbabilisticIdentityLinkage(
+        frozenConfiguration, preflightSql,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
+    // Load the model AND its mandatory ruleset into the same cache later used by the worker.
+    var selectedModel = await pinnedLinkage.GetModelByVersionAsync(configuredVersion.Value, CancellationToken.None);
+    if (selectedModel.Version != configuredVersion.Value || selectedModel.BlockingContract is null)
+        throw new InvalidOperationException("RUNNER_MODEL_CONTRACT_INCOMPATIBLE: modelo sem contrato operacional compatível.");
+
+    pinnedLinkage.PinStartupModel(selectedModel);
+
+    var fingerprintInput = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+    {
+        selectedModel.ModelId, selectedModel.Version, selectedModel.AlgorithmVersion,
+        selectedModel.Threshold, selectedModel.ConflictMargin,
+        selectedModel.BlockingContract.RuleSetVersion,
+        selectedModel.BlockingContract.RuleSetFingerprintSha256,
+        selectedModel.BlockingContract.ProjectionSchemaVersion,
+        selectedModel.BlockingContract.ProjectionFingerprintSha256
+    });
+    var fingerprint = Convert.ToHexString(
+        System.Security.Cryptography.SHA256.HashData(fingerprintInput)).ToLowerInvariant();
+    Console.WriteLine($"RUNNER_MODEL_PINNED modelId={selectedModel.ModelId} version={selectedModel.Version} contractSha256={fingerprint}");
+    options = options with { ModelVersion = configuredVersion.Value };
+}
+builder.Services.AddSingleton<IConfiguration>(frozenConfiguration);
 builder.Services.AddSingleton(options);
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
@@ -204,7 +251,10 @@ builder.Services.AddSingleton(sp => new Dt05BlockingProjectionSnapshotPublisher(
 builder.Services.AddSingleton<Dt05ReplaySql>();
 builder.Services.AddSingleton(_ => new Dt05HistoricalCandidateStateVerifier(bronzeRoot));
 builder.Services.AddSingleton(_ => new Dt05HistoricalBlockingProjectionVerifier(bronzeRoot));
-builder.Services.AddSingleton<IProbabilisticIdentityLinkage, SqlProbabilisticIdentityLinkage>();
+if (pinnedLinkage is not null)
+    builder.Services.AddSingleton<IProbabilisticIdentityLinkage>(pinnedLinkage);
+else
+    builder.Services.AddSingleton<IProbabilisticIdentityLinkage, SqlProbabilisticIdentityLinkage>();
 builder.Services.AddSingleton<IProbabilisticLinkageBatchRunner, ProbabilisticLinkageBatchRunner>();
 builder.Services.AddHostedService<LinkageRunnerWorker>();
 
