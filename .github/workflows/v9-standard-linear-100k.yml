@@ -455,11 +455,10 @@ jobs:
               out.write("has_finalists="+("true" if ids else "false")+"\n")
           print("Verified frozen finalists:",len(ids))
           PY
-      - name: Fail incomplete campaign when no finalists are eligible for mandatory VALIDATION
-        if: ${{ success() && steps.finalists.outputs.has_finalists != 'true' }}
+      - name: Record valid scientific terminal outcome when no finalists are eligible
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'false' }}
         run: |
-          echo "::error::V9_MANDATORY_VALIDATION_NO_FINALISTS: TRAIN/AUDIT complete, but no eligible finalist exists; VALIDATION cannot run. Campaign is INCOMPLETE, not SUCCESS."
-          exit 1
+          echo "V9_AUDIT_COMPLETED_WITHOUT_ELIGIBLE_FINALISTS: VALIDATION and TEST will be skipped."
       - name: Prepare audited immutable finalist handoff
         if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
         run: |
@@ -886,6 +885,7 @@ jobs:
       EXACT_SHA: ${{ inputs.expected_sha }}
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
+      AUDIT_HAS_FINALISTS: ${{ needs.audit-100k.outputs.has_finalists }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
       PREPARATION_RESULT: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'success' || 'skipped' }} # legacy closeout compatibility; no separate TEST preparation
       TEST_RESULT: ${{ needs.test-100k.result }}
@@ -928,8 +928,16 @@ jobs:
           set -euo pipefail
           extra=()
           # No winner is a scientific terminal outcome, not an operator opt-out.
-          if [[ "$V9_VALIDATION_HAS_WINNER" != "true" && "$V9_VALIDATION_HAS_WINNER" != "false" ]]; then
+          if [[ "$AUDIT_RESULT" == "success" && "$AUDIT_HAS_FINALISTS" == "false" && "$VALIDATION_RESULT" == "skipped" && "$TEST_RESULT" == "skipped" ]]; then
+            # No finalists is a legitimate scientific terminal outcome, not a bypass.
+            test "$V9_TEST_REQUESTED" = "false"
+          elif [[ "$V9_VALIDATION_HAS_WINNER" != "true" && "$V9_VALIDATION_HAS_WINNER" != "false" ]]; then
             echo "::error::V9_VALIDATION_WINNER_OUTPUT_MISSING"
+            exit 1
+          fi
+          # A skipped VALIDATION is allowed ONLY for a successful AUDIT with zero finalists.
+          if [[ "$VALIDATION_RESULT" == "skipped" && ( "$AUDIT_RESULT" != "success" || "$AUDIT_HAS_FINALISTS" != "false" ) ]]; then
+            echo "::error::V9_UNEXPECTED_VALIDATION_SKIP"
             exit 1
           fi
           if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then

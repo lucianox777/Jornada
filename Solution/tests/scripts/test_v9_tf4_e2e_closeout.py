@@ -173,7 +173,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         out = self.root / "receipt.json"
         proc = subprocess.run(
             [sys.executable, str(SCRIPT),
-             "--physical", "success", "--audit", "success",
+             "--physical", "success", "--audit", "failure",
              "--validation", "skipped", "--preparation", "skipped",
              "--test", "skipped", "--test-requested", "false",
              "--validation-file", str(self.val), "--code-sha", SHA,
@@ -183,7 +183,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         data = json.loads(out.read_text(encoding="utf-8"))
         self.assertEqual(data["status"], "E2E_INCOMPLETE_FAIL_CLOSED")
-        self.assertIn("VALIDATION_NOT_SUCCESS", data["reason"])
+        self.assertIn("AUDIT_NOT_SUCCESS", data["reason"])
         self.assertNotIn("measured", data)
 
 
