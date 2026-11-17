@@ -517,15 +517,17 @@ public sealed class SqlProbabilisticIdentityLinkage(
         var ruleSet = await LinkageRuleSetReader.TryLoadAsync(connection, modelId, ct);
         var loaded = new LinkageRuntimeSnapshot(model, ruleSet);
         var snapshot = runtimeCache.GetOrAdd(modelId, loaded);
+        var mandatoryRuleSet = snapshot.RuleSet
+            ?? throw new InvalidOperationException($"Modelo {modelId} sem ruleset persistido no cache.");
 
         logger.LogInformation(
             "Snapshot probabilístico congelado. ModeloId={ModelId}; Versão={Version}; RuleSet={RuleSet}; RuleSetFingerprint={RuleSetFingerprint}; Projection={Projection}; ProjectionFingerprint={ProjectionFingerprint}",
             snapshot.Model.ModelId,
             snapshot.Model.Version,
-            snapshot.RuleSet.RuleSetVersion,
-            snapshot.RuleSet.FingerprintSha256,
-            snapshot.RuleSet.ProjectionSchemaVersion,
-            snapshot.RuleSet.ProjectionFingerprintSha256);
+            mandatoryRuleSet.RuleSetVersion,
+            mandatoryRuleSet.FingerprintSha256,
+            mandatoryRuleSet.ProjectionSchemaVersion,
+            mandatoryRuleSet.ProjectionFingerprintSha256);
 
         return snapshot;
     }
