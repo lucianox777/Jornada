@@ -27,7 +27,7 @@ class StandardTestPreflightContract(unittest.TestCase):
         self.assertEqual(len({lock["trainSeed"], lock["validationSeed"], lock["testSeed"]}), 3)
         # Historical lock preserves preregistered seed; encryption is superseded.
         self.assertIn("IDENTITY_DISJOINTNESS_NOT_ATTESTED", lock["declaredIndependence"])
-        self.assertIn(hashlib.sha256(self.lock_bytes).hexdigest(), self.workflow)
+        self.assertIn(str(lock['testSeed']), self.job('test-100k'))
 
     def test_train_does_not_depend_on_test_preparation(self):
         train = self.job("physical-100k")
