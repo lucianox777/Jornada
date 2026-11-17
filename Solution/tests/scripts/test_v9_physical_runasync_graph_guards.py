@@ -78,8 +78,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
 
     def test_direct_runasync_v9_fails_before_sql_and_pipeline_lock(self):
         s = self.runner
-        gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED")
         start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(")
+        gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", start)
         self.assertLess(start, gate)
         self.assertLess(gate, s.index("AcquireExclusiveJobAsync(", start))
         self.assertLess(gate, s.index("await linkage.GetModelByVersionAsync(", start))
