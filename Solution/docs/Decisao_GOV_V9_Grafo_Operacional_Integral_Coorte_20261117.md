@@ -33,3 +33,6 @@ O censo de linhas e o índice único, isoladamente, não detectam substituiçõe
 
 ### Evidência canônica do manifesto (17/11/2026)
 O recibo de leitura SQL agora expõe `CanonicalSignaturesSha256`, calculado a partir das tuplas de assinaturas SQL efetivamente verificadas e ordenadas de forma determinística; complementa `CanonicalEdgesSha256`. Commits `73f93d4` e `886dd07`. O digest identifica o manifesto do harness, mas **não substitui** a prova de completude operacional, testes físicos, vinculação imutável a run/coorte ou certificação de publicação. A assinatura inclui identificador do gestor e hashes, não nomes brutos.
+
+### Revisão de digest e validação (17/11/2026)
+Corrigido o delimitador de linhas do manifesto SHA-256 para LF efetivo, evitando codificação literal de barra invertida + n (commit `3caf0db`). Consulta de workflow runs associadas ao commit não retornou execução; logo não há evidência de build ou teste físico. A PR continua sem certificação e o caminho de parâmetros científicos SQL não foi alterado por este commit. A decisão separada GOV-V9-DESATIVACAO-PARAMETROS-CIENTIFICOS-SQL-20261117 exige inventário e migração não destrutiva.
