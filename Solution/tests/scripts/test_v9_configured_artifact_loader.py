@@ -14,6 +14,14 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertLess(program.index('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)'),
                         program.index('GetModelByVersionAsync(configuredVersion.Value'))
 
+    def test_file_snapshot_connects_to_shared_nonpublishing_cohort_runtime(self):
+        loader = LOADER.read_text(encoding="utf-8")
+        cohort = (ROOT / "src/Jornada.Linkage.Core/V9OperationalPinnedCohortRuntime.cs").read_text(encoding="utf-8")
+        self.assertIn("FromVerifiedFileSnapshot(loaded.Snapshot)", loader)
+        self.assertIn("V9OperationalSqlModelConverter.VerifyConversion(snapshot)", cohort)
+        self.assertIn("new V9OperationalPinnedCohortRuntime(snapshot, verified.ModelId)", cohort)
+        self.assertIn("V9FrozenSourceResolveReplay.ReplayTest(winner, test, completePhysicalSqlEdges)", cohort)
+
     def test_file_only_sha_pinned_no_sql_fallback(self):
         source = LOADER.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", source)
