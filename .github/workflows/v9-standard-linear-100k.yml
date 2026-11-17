@@ -14,6 +14,11 @@ on:
         description: Confirm one-use SQL, historical credentials not reused, private runner
         required: true
         type: boolean
+      test_database:
+        description: "Optional external statistical reference database for PREPARE synthetic generation (currently blocked until safe statistical adapter is implemented)"
+        required: false
+        default: ""
+        type: string
       test_required:
         description: "Execute scientific TEST after VALIDATION (currently fail-closed pending parity)"
         required: true
@@ -88,6 +93,20 @@ jobs:
           dotnet-version: "10.0.113"
           cache: true
           cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Admit statistical source selection before synthetic generation
+        env:
+          TEST_DATABASE: ${{ inputs.test_database }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$TEST_DATABASE" ]]; then
+            if [[ ! "$TEST_DATABASE" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]]; then
+              echo "::error::V9_PREPARE_EXTERNAL_REFERENCE_INVALID_DATABASE_NAME"
+              exit 1
+            fi
+            echo "::error::V9_PREPARE_EXTERNAL_STATISTICAL_ADAPTER_NOT_IMPLEMENTED: test_database is reserved for PREPARE; external statistical generation is not yet implemented. No corpus or TRAIN will run."
+            exit 1
+          fi
+          echo "V9_PREPARE_STATISTICAL_REFERENCE=IBGE_DEFAULT"
       - name: Build unchanged synthetic corpus generator
         run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
       - name: Generate known-seed 100k clean raw TRAIN corpus
