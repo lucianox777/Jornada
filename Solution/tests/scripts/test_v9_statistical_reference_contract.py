@@ -47,7 +47,7 @@ class StatisticalReferenceContractTests(unittest.TestCase):
 
     def test_control_characters(self):
         obj = valid()
-        obj["distributions"]["person_first"][0]["bucket"] = "A\\nB"
+        obj["distributions"]["person_first"][0]["bucket"] = "A\nB"
         with self.assertRaises(ValueError):
             module.validate(obj)
 
