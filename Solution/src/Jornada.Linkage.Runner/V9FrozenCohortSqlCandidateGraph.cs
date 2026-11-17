@@ -128,9 +128,9 @@ public static class V9FrozenCohortSqlCandidateGraph
             IF OBJECT_ID('tempdb..#v9_run_sig') IS NOT NULL DROP TABLE #v9_run_sig;
             CREATE TABLE #v9_run_sig(
                 obs_id int NOT NULL,
-                gestor nvarchar(120) NOT NULL,
-                pass_id nvarchar(120) NOT NULL,
-                assinatura char(64) NOT NULL
+                gestor nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                pass_id nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                assinatura char(64) COLLATE Latin1_General_100_BIN2 NOT NULL
             );
             CREATE UNIQUE INDEX UX_v9_run_sig ON #v9_run_sig(obs_id,pass_id,assinatura);
             CREATE INDEX IX_v9_run_sig_join ON #v9_run_sig(pass_id,assinatura,obs_id);
