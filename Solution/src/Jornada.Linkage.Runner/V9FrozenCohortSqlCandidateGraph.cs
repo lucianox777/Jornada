@@ -142,6 +142,17 @@ public static class V9FrozenCohortSqlCandidateGraph
             await bulk.WriteToServerAsync(table, ct);
         }
 
+        // SqlBulkCopy may return without a complete logical signature universe.
+        // A missing signature can silently remove candidate edges, so fail closed.
+        long materializedSignatures;
+        await using (var signatureCensus = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM #v9_run_sig;", connection) { CommandTimeout = 120 })
+            materializedSignatures = Convert.ToInt64(
+                await signatureCensus.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        if (materializedSignatures != signatures.Count)
+            throw new InvalidDataException(
+                "Assinaturas SQL V9 incompletas: censo materializado divergiu do universo planejado.");
+
         // Reconcile an independent SQL census against every streamed edge.
         // Never accept a silently incomplete graph.
         long expectedEdges;
