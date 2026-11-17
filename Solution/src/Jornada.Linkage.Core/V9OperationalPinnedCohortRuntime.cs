@@ -90,9 +90,9 @@ public sealed class V9OperationalPinnedCohortRuntime
         if (test.Any(x => x is null || x.Partition != "TEST"
             || x.ObservationId <= 0 || string.IsNullOrWhiteSpace(x.Gestor)))
             throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_OBSERVATION");
-        var byId = test.ToDictionary(x => x.ObservationId, x => x);
-        if (byId.Count != test.Count)
+        if (test.Select(x => x.ObservationId).Distinct().Count() != test.Count)
             throw new InvalidDataException("V9_OPERATIONAL_GRAPH_DUPLICATE_OBSERVATION");
+        var byId = test.ToDictionary(x => x.ObservationId, x => x);
 
         HashSet<(int A, int B)> Validate(IReadOnlyList<(int A, int B)> edges)
         {
