@@ -23,6 +23,7 @@ jobs:
           python-version: '3.12'
       - name: Essential V9 contract tests
         run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_independent_cohort_artifacts.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py'
           # Offline 100k adaptive-runner checks only: never run SQL or a calibration on PR.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_execution_resource_budget.py'
