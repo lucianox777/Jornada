@@ -57,7 +57,7 @@ jobs:
             exit 1
           fi
   prepare-100k:
-    name: "V9 PREPARE: synthetic TRAIN 100k and frozen TF4 plan"
+    name: "V9 PREPARE: raw synthetic TRAIN 100k"
     needs: admission
     runs-on: ubuntu-24.04
     permissions:
@@ -90,21 +90,12 @@ jobs:
           cache-dependency-path: "Solution/**/packages.lock.json"
       - name: Build unchanged synthetic corpus generator
         run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
-      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+      - name: Generate known-seed 100k clean raw TRAIN corpus
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
-          python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
-          mkdir -p "$root/bound" "$root/base-bound"
-          python3 scripts/v9-scale-100k-technical-plan.py \
-            --artifact-zip "$root/historical-official.zip" \
-            --corpus-root "$root/people-100k" \
-            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
-          python3 scripts/v9-v3-four-name-100k-plan.py \
-            --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
-            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
       - name: Package and checksum immutable PREPARE transfer
         run: |
           set -euo pipefail
@@ -206,7 +197,7 @@ jobs:
           cache-dependency-path: "Solution/**/packages.lock.json"
       - name: Build existing CSharp V9 calibrator (synthetic generation already completed in PREPARE)
         run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Download prepared synthetic TRAIN and immutable TF4 plan
+      - name: Download raw synthetic TRAIN corpus
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
           name: v9-standard-train-prepared-${{ github.run_id }}-${{ github.run_attempt }}
@@ -219,12 +210,27 @@ jobs:
           (cd "$transfer" && sha256sum -c SHA256SUMS)
           test "$(cat "$transfer/code-sha.txt")" = "$EXACT_SHA"
           test "$(cat "$transfer/run-id.txt")" = "$GITHUB_RUN_ID"
-          mkdir -p "$root/people-100k" "$root/bound" "$root/base-bound"
+          mkdir -p "$root/people-100k"
           python3 scripts/v9-standard-prepare-handoff.py unpack --root "$root" --archive "$transfer/train-inputs.tar.gz"
           test -s "$root/people-100k/observacoes.csv"
+          python3 -m unittest discover -s tests/scripts -p test_v9_standard_prepare_handoff.py -v
+      - name: Build immutable technical and TF4 plans in TRAIN from verified raw corpus
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
+          mkdir -p "$root/bound" "$root/base-bound"
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip "$root/historical-official.zip" \
+            --corpus-root "$root/people-100k" \
+            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
+          python3 scripts/v9-v3-four-name-100k-plan.py \
+            --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
+            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+          test -s "$root/base-bound/plan.json"
+          test -s "$root/base-bound/binding-receipt.json"
           test -s "$root/bound/plan.json"
           test -s "$root/bound/binding-receipt.json"
-          python3 -m unittest discover -s tests/scripts -p test_v9_standard_prepare_handoff.py -v
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
       - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
