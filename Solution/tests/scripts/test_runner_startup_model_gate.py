@@ -19,6 +19,11 @@ class RunnerStartupModelGateTests(unittest.TestCase):
         self.assertIn('builder.Services.AddSingleton<IConfiguration>(frozenConfiguration)', source)
         self.assertIn('builder.Services.AddSingleton<IProbabilisticIdentityLinkage>(pinnedLinkage)', source)
         self.assertIn('SHA256.HashData(fingerprintInput)', source)
+        self.assertIn('pinnedLinkage.PinStartupModel(selectedModel)', source)
+        linkage = (ROOT / 'src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs').read_text(encoding='utf-8')
+        self.assertIn('RUNNER_MODEL_PINNED_VERSION_MISMATCH', linkage)
+        self.assertIn('return pinned;', linkage)
+        self.assertIn('runtimeCache.ContainsKey(selected.ModelId)', linkage)
         self.assertNotIn('reloadOnChange: true', source)
         self.assertLess(source.index('GetModelByVersionAsync(configuredVersion.Value'),
                         source.index('AddHostedService<LinkageRunnerWorker>'))
