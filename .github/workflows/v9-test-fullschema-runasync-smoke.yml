@@ -34,7 +34,7 @@ jobs:
       - name: Validate TEST guards and fixture isolation
         run: |
           set -euo pipefail
-          python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py -v
+          python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py Solution/tests/scripts/test_v9_physical_runasync_graph_guards.py Solution/tests/scripts/test_v9_configured_artifact_loader.py -v
           git diff --check
       - name: Build real Runner and SQL fixture
         working-directory: Solution
