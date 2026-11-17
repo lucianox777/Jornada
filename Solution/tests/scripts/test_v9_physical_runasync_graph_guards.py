@@ -87,6 +87,23 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9', s[start:gate])
         self.assertIn("request.Mode != LinkageRunType.REPLAY", s[start:gate])
 
+    def test_verified_runtime_boundary_is_fail_closed_and_file_only(self):
+        boundary = (ROOT / "V9OperationalRunBoundary.cs").read_text(encoding="utf-8")
+        program = (ROOT / "Program.cs").read_text(encoding="utf-8")
+        self.assertIn("V9OperationalPinnedCohortRuntime Runtime", boundary)
+        self.assertIn("V9OperationalRunBoundary(V9OperationalPinnedCohortRuntime runtime)", boundary)
+        self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", boundary)
+        self.assertNotIn("GetModelByVersionAsync", boundary)
+        self.assertNotIn("LoadPinnedAsync(", boundary)
+        self.assertIn("new V9OperationalRunBoundary(frozenV9)", program)
+        self.assertIn("v9Boundary.EnsureProductiveCertified();", program)
+        self.assertLess(
+            program.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)"),
+            program.index("new V9OperationalRunBoundary(frozenV9)"))
+        self.assertLess(
+            program.index("v9Boundary.EnsureProductiveCertified();"),
+            program.index("pinnedLinkage.GetModelByVersionAsync(configuredVersion.Value)"))
+
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
         loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
