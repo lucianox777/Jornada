@@ -6,26 +6,27 @@ import os
 from pathlib import Path, PurePosixPath
 import tarfile
 
-ALLOWED = ("people-100k/",)
-REQUIRED = ("people-100k/observacoes.csv",)
+COHORT_DIRS = ("people-100k", "validation-people", "corpus")
 MAX_UNCOMPRESSED = 4 * 1024**3
 MAX_FILES = 1000
 
 
-def safe_name(name: str) -> bool:
+def safe_name(name: str, cohort: str = "people-100k") -> bool:
     p = PurePosixPath(name)
     return (not p.is_absolute() and not any(x in ("..", ".", "") for x in p.parts)
-            and (name.rstrip("/") in ("people-100k",)
-                 or any(name.startswith(prefix) for prefix in ALLOWED)))
+            and (name.rstrip("/") == cohort
+                 or name.startswith(cohort + "/")))
 
 
-def validate_members(members: list[tarfile.TarInfo]) -> None:
+def validate_members(members: list[tarfile.TarInfo], cohort: str = "people-100k") -> None:
+    if cohort not in COHORT_DIRS:
+        raise ValueError("V9_PREPARE_UNSUPPORTED_COHORT")
     if len(members) > MAX_FILES:
         raise ValueError("V9_PREPARE_TOO_MANY_FILES")
     names = set()
     size = 0
     for m in members:
-        if not safe_name(m.name) or not (m.isfile() or m.isdir()):
+        if not safe_name(m.name, cohort) or not (m.isfile() or m.isdir()):
             raise ValueError("V9_PREPARE_UNSAFE_MEMBER")
         if m.name in names:
             raise ValueError("V9_PREPARE_DUPLICATE_MEMBER")
@@ -33,14 +34,16 @@ def validate_members(members: list[tarfile.TarInfo]) -> None:
         size += m.size
         if size > MAX_UNCOMPRESSED:
             raise ValueError("V9_PREPARE_UNCOMPRESSED_SIZE_LIMIT")
-    if not all(name in names for name in REQUIRED):
+    if cohort + "/observacoes.csv" not in names:
         raise ValueError("V9_PREPARE_MISSING_REQUIRED_FILE")
 
 
-def pack(root: Path, archive: Path) -> None:
+def pack(root: Path, archive: Path, cohort: str = "people-100k") -> None:
+    if cohort not in COHORT_DIRS:
+        raise ValueError("V9_PREPARE_UNSUPPORTED_COHORT")
     root = root.resolve(strict=True)
     files = []
-    for dirname in ("people-100k",):
+    for dirname in (cohort,):
         folder = root / dirname
         if not folder.is_dir() or folder.is_symlink():
             raise ValueError("V9_PREPARE_MISSING_DIRECTORY")
@@ -48,7 +51,7 @@ def pack(root: Path, archive: Path) -> None:
             if item.is_symlink() or not (item.is_file() or item.is_dir()):
                 raise ValueError("V9_PREPARE_UNSAFE_SOURCE")
             files.append(item)
-    if not all((root / name).is_file() for name in REQUIRED):
+    if not (root / cohort / "observacoes.csv").is_file():
         raise ValueError("V9_PREPARE_MISSING_REQUIRED_FILE")
     members = []
     for item in files:
@@ -56,18 +59,20 @@ def pack(root: Path, archive: Path) -> None:
         info.size = item.stat().st_size if item.is_file() else 0
         info.type = tarfile.REGTYPE if item.is_file() else tarfile.DIRTYPE
         members.append(info)
-    validate_members(members)
+    validate_members(members, cohort)
     archive.parent.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "w:gz") as tar:
         for item in files:
             tar.add(item, arcname=item.relative_to(root).as_posix(), recursive=False)
 
 
-def unpack(root: Path, archive: Path) -> None:
+def unpack(root: Path, archive: Path, cohort: str = "people-100k") -> None:
+    if cohort not in COHORT_DIRS:
+        raise ValueError("V9_PREPARE_UNSUPPORTED_COHORT")
     root = root.resolve(strict=True)
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
-        validate_members(members)
+        validate_members(members, cohort)
         for member in members:
             target = root / member.name
             if target.is_symlink() or any(parent.is_symlink()
@@ -93,15 +98,16 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--cohort-dir", choices=COHORT_DIRS, default="people-100k")
     args = parser.parse_args()
     if args.action == "pack":
         if args.out is None:
             parser.error("pack requires --out")
-        pack(args.root, args.out)
+        pack(args.root, args.out, args.cohort_dir)
     else:
         if args.archive is None:
             parser.error("unpack requires --archive")
-        unpack(args.root, args.archive)
+        unpack(args.root, args.archive, args.cohort_dir)
 
 
 if __name__ == "__main__":
