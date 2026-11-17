@@ -6,10 +6,8 @@ import os
 from pathlib import Path, PurePosixPath
 import tarfile
 
-ALLOWED = ("people-100k/", "bound/", "base-bound/")
-REQUIRED = ("people-100k/observacoes.csv", "bound/plan.json",
-            "bound/binding-receipt.json", "base-bound/plan.json",
-            "base-bound/binding-receipt.json")
+ALLOWED = ("people-100k/",)
+REQUIRED = ("people-100k/observacoes.csv",)
 MAX_UNCOMPRESSED = 4 * 1024**3
 MAX_FILES = 1000
 
@@ -17,7 +15,7 @@ MAX_FILES = 1000
 def safe_name(name: str) -> bool:
     p = PurePosixPath(name)
     return (not p.is_absolute() and not any(x in ("..", ".", "") for x in p.parts)
-            and (name.rstrip("/") in ("people-100k", "bound", "base-bound")
+            and (name.rstrip("/") in ("people-100k",)
                  or any(name.startswith(prefix) for prefix in ALLOWED)))
 
 
@@ -42,7 +40,7 @@ def validate_members(members: list[tarfile.TarInfo]) -> None:
 def pack(root: Path, archive: Path) -> None:
     root = root.resolve(strict=True)
     files = []
-    for dirname in ("people-100k", "bound", "base-bound"):
+    for dirname in ("people-100k",):
         folder = root / dirname
         if not folder.is_dir() or folder.is_symlink():
             raise ValueError("V9_PREPARE_MISSING_DIRECTORY")

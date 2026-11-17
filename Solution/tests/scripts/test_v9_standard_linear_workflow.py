@@ -42,7 +42,7 @@ class StandardLinearWorkflowTests(unittest.TestCase):
 
     def test_prepare_creates_generation_log_parent_before_redirect(self):
         prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
-        generation = prepare.split("      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan\n", 1)[1].split("      - name: ", 1)[0]
+        generation = prepare.split("      - name: Generate known-seed 100k clean raw TRAIN corpus\n", 1)[1].split("      - name: ", 1)[0]
         self.assertIn('mkdir -p "$root"', generation)
         self.assertLess(generation.index('mkdir -p "$root"'), generation.index('> "$root/generation.log"'))
 
@@ -73,17 +73,18 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertLess(train.index("sha256sum -c SHA256SUMS"), train.index("Start masked disposable SQL Server"))
         self.assertLess(train.index("v9-standard-prepare-handoff.py unpack"), train.index("--v9-calibrate"))
 
-    def test_scientific_generation_is_byte_identical_to_legacy(self):
-        legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
-        marker = "      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan"
-        ending = "      - name: "
-        def extract(text):
-            start = text.index(marker)
-            end = text.index(ending, start + len(marker))
-            return text[start:end]
-        # The only intentional orchestration difference is creating the log directory.
-        standard = extract(self.workflow).replace('          mkdir -p "$root"\n', '')
-        self.assertEqual(extract(legacy), standard)
+    def test_plan_binding_occurs_in_train_after_verified_handoff(self):
+        prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        train = self.workflow.split("  physical-100k:\n", 1)[1].split("  audit-100k:\n", 1)[0]
+        for script in ("v9-j-download-pinned-artifact.py", "v9-scale-100k-technical-plan.py",
+                       "v9-v3-four-name-100k-plan.py"):
+            self.assertNotIn("python3 scripts/" + script, prepare)
+            self.assertIn("python3 scripts/" + script, train)
+        self.assertLess(train.index("v9-standard-prepare-handoff.py unpack"),
+                        train.index("python3 scripts/v9-scale-100k-technical-plan.py"))
+        self.assertLess(train.index("python3 scripts/v9-v3-four-name-100k-plan.py"),
+                        train.index("Start masked disposable SQL Server"))
+        self.assertIn("--people 100000 --seed 42", prepare)
 
     def test_audit_validation_jobs_are_identical_to_legacy(self):
         legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
