@@ -38,7 +38,7 @@ def validate_jobs(
         require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
         require(test == "success", "TEST_NOT_SUCCESS")
     else:
-        require(preparation == "skipped", "UNREQUESTED_TEST_PREPARATION")
+        require(preparation in {"success", "skipped"}, "UNREQUESTED_TEST_PREPARATION")
         require(test == "skipped", "UNREQUESTED_TEST_EXPOSURE")
 
 
@@ -221,7 +221,10 @@ def closeout(
     validate_jobs(physical, audit, validation, preparation, test,
                   test_requested)
     info = validate_scientific_validation(validation_file)
+    require(test_requested == (info["winnerSha256"] is not None),
+            "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER")
     if test_requested:
+        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
         require(test_file is not None, "TEST_RECEIPT_NOT_GIVEN")
         validate_optional_test(test_file, info["winnerSha256"])
         status = "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE"
