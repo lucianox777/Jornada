@@ -64,10 +64,6 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     int? PredeclaredCandidateCpMultiplicity = null);
 
-/// <summary>Heuristic progress-only forecast. Never a scientific result or a deadline guarantee.</summary>
-public sealed record V9PhysicalProgressForecast(double? EtaMinutes, double? MarginMinutes,
-    string Status);
-
 public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
     IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
     bool IndependentlyCertified = false,
@@ -111,44 +107,6 @@ public static class V9NestedCalibrationCoordinator
 
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
 
-    /// <summary>
-    /// Informational global-throughput ETA: all completed hypotheses since the
-    /// first physical SQL group. Native GitHub job budget is observational
-    /// only and never aborts execution or influences scientific selection.
-    /// </summary>
-    public static V9PhysicalProgressForecast ForecastPhysicalProgress(
-        int completed, int total, DateTimeOffset physicalStartUtc, DateTimeOffset nowUtc,
-        double? remainingJobMinutes = null)
-    {
-        const int MinimumSample = 8;
-        const double RiskReserveMinutes = 15d;
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(total);
-        ArgumentOutOfRangeException.ThrowIfNegative(completed);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(completed, total);
-        ArgumentOutOfRangeException.ThrowIfLessThan(nowUtc, physicalStartUtc);
-
-        var elapsedMinutes = (nowUtc - physicalStartUtc).TotalMinutes;
-        double? eta = completed == 0 ? null
-            : Math.Max(0d, elapsedMinutes / completed * (total - completed));
-        if (remainingJobMinutes is not { } remaining)
-        {
-            var informationalStatus = completed == total ? "CONCLUIDO"
-                : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
-                : "ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT";
-            return new(eta, null, informationalStatus);
-        }
-
-        if (!double.IsFinite(remaining) || remaining < 0d)
-            throw new ArgumentOutOfRangeException(nameof(remainingJobMinutes));
-
-        double? margin = eta is { } estimate ? remaining - estimate : null;
-        var status = completed == total ? "CONCLUIDO"
-            : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
-            : remaining <= 0d || margin is < 0d ? "PRAZO_INSUFICIENTE"
-            : margin is <= RiskReserveMinutes ? "RISCO_TIMEOUT"
-            : "DENTRO_DA_PREVISAO";
-        return new(eta, margin, status);
-    }
     /// <summary>
     /// A conservative, predeclared upper bound on the number of SELECTABLE
     /// hypotheses across every adaptive batch. Physical witnesses are run but
