@@ -1472,6 +1472,23 @@ public sealed class V9FittedSnapshotTests
             Assert.That(parity.ProductionBatchPipelineCertified, Is.False);
             Assert.That(parity.CanonicalEdgesSha256, Has.Length.EqualTo(64));
         }));
+        // The scientific runtime must reject incomplete, duplicate and
+        // cross-cohort graphs BEFORE any global Resolve/grouping is attempted.
+        var completeOperationalEdges = physicalSqlEdges.ToArray();
+        Assert.That(groupedRuntime.ReplayOperationalGraph(
+            cohort, completeOperationalEdges, physicalSqlEdges), Is.Not.Null);
+        Assert.Throws<InvalidDataException>(() =>
+            groupedRuntime.ReplayOperationalGraph(
+                cohort, completeOperationalEdges.Skip(1).ToArray(), physicalSqlEdges));
+        Assert.Throws<InvalidDataException>(() =>
+            groupedRuntime.ReplayOperationalGraph(
+                cohort, completeOperationalEdges.Concat(completeOperationalEdges.Take(1))
+                    .ToArray(), physicalSqlEdges));
+        Assert.Throws<InvalidDataException>(() =>
+            groupedRuntime.ReplayOperationalGraph(
+                cohort, completeOperationalEdges.Append((1, int.MaxValue)).ToArray(),
+                physicalSqlEdges));
+
         // Read-only rehearsal of the operational SQL retrieval loop in
         // differently-sized batches. Every size MUST recover the same complete
         // cross-batch graph and call FS/Resolve once globally; no per-page groups.
