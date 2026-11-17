@@ -193,6 +193,17 @@ SqlProbabilisticIdentityLinkage? pinnedLinkage = null;
 // The Operator Master changes configuration only while the run-once Runner is stopped.
 if (options.Mode != LinkageRunType.REPLAY)
 {
+    // V9 file-only selection is intentionally fail-closed until the productive
+    // cohort/batch adapter is certified. Never silently execute the legacy SQL model.
+    var v9SelectionFile = frozenConfiguration["Linkage:V9SelectionFile"];
+    if (!string.IsNullOrWhiteSpace(v9SelectionFile))
+    {
+        var selectedV9 = await V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile);
+        Console.WriteLine($"RUNNER_V9_ARTIFACT_VERIFIED sha256={selectedV9.WinnerSha256}");
+        throw new InvalidOperationException(
+            "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: artefato validado, execução produtiva V9 ainda bloqueada; não utilizar fallback SQL.");
+    }
+
     var configuredVersion = frozenConfiguration.GetValue<int?>("Linkage:SelectedModelVersion");
     if (configuredVersion is not > 0)
         throw new InvalidOperationException(
