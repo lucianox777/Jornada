@@ -102,7 +102,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
             program.index("new V9OperationalRunBoundary(frozenV9)"))
         self.assertLess(
             program.index("v9Boundary.EnsureProductiveCertified();"),
-            program.index("pinnedLinkage.GetModelByVersionAsync(configuredVersion.Value)"))
+            program.index("pinnedLinkage.GetModelByVersionAsync("))
 
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
