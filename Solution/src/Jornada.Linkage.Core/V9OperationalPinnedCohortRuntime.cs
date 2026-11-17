@@ -87,15 +87,19 @@ public sealed class V9OperationalPinnedCohortRuntime
         ArgumentNullException.ThrowIfNull(physicalSqlEdges);
         if (test.Count is < 2 or > MaximumAuditObservations)
             throw new InvalidDataException("V9_OPERATIONAL_GRAPH_COHORT_INVALID");
-        var ids = test.Select(x => x.ObservationId).ToHashSet();
-        if (ids.Count != test.Count)
+        if (test.Any(x => x is null || x.Partition != "TEST"
+            || x.ObservationId <= 0 || string.IsNullOrWhiteSpace(x.Gestor)))
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_OBSERVATION");
+        var byId = test.ToDictionary(x => x.ObservationId, x => x);
+        if (byId.Count != test.Count)
             throw new InvalidDataException("V9_OPERATIONAL_GRAPH_DUPLICATE_OBSERVATION");
 
         HashSet<(int A, int B)> Validate(IReadOnlyList<(int A, int B)> edges)
         {
             var result = new HashSet<(int A, int B)>();
             foreach (var edge in edges)
-                if (edge.A >= edge.B || !ids.Contains(edge.A) || !ids.Contains(edge.B)
+                if (edge.A >= edge.B || !byId.TryGetValue(edge.A, out var left) || !byId.TryGetValue(edge.B, out var right)
+                    || string.Equals(left.Gestor, right.Gestor, StringComparison.Ordinal)
                     || !result.Add(edge))
                     throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_EDGE");
             return result;
