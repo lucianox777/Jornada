@@ -6,15 +6,15 @@ namespace Jornada.Linkage.Runner;
 
 /// <summary>
 /// Leitura provider-neutral do ruleset associado a um modelo.
-/// Modelos legados podem não ter ruleset persistido e retornam null; quando existe,
-/// o conteúdo é reconstruído canonicamente e seu fingerprint é obrigatoriamente revalidado.
+/// A ausência de ruleset persistido é incompatibilidade fatal; o conteúdo
+/// é reconstruído canonicamente e seu fingerprint é obrigatoriamente revalidado.
 /// Rulesets modernos também precisam carregar a identidade exata da projeção física.
 /// </summary>
 public static class LinkageRuleSetReader
 {
     public const string MethodVersion = "LINKAGE_RULESET_READER_V2";
 
-    public static async Task<LinkageDynamicRuleSet?> TryLoadAsync(
+    public static async Task<LinkageDynamicRuleSet> TryLoadAsync(
         DbConnection connection,
         Guid modelId,
         CancellationToken ct,
@@ -46,7 +46,7 @@ public static class LinkageRuleSetReader
             Add(header, "@modelo_id", DbType.Guid, modelId);
             await using var reader = await header.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
-                return null;
+                throw new InvalidOperationException($"Modelo {modelId} sem ruleset persistido: execução produtiva recusada.");
 
             ruleSetVersion = reader.GetString(0);
             ruleSetAlgorithm = reader.GetString(1);
