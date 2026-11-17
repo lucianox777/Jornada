@@ -103,9 +103,14 @@ class StandardLinearWorkflowTests(unittest.TestCase):
             first = text.index("  " + start + ":\n")
             last = text.index("  " + end + ":\n", first)
             return text[first:last]
-        self.assertEqual(
-            extract(legacy, "audit-100k", "validation-100k"),
-            extract(self.workflow, "audit-100k", "validation-100k"))
+        legacy_audit = extract(legacy, "audit-100k", "validation-100k")
+        standard_audit = extract(self.workflow, "audit-100k", "validation-100k")
+        # The legacy comment describes an optional TEST; the new workflow
+        # deliberately supersedes that wording without changing AUDIT behavior.
+        legacy_audit = legacy_audit.replace(
+            "# Skip of optional TEST preparation must never suppress a successful audit.",
+            "# TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.")
+        self.assertEqual(legacy_audit, standard_audit)
         validation = extract(self.workflow, "validation-100k", "test-100k")
         self.assertIn("has_winner: ${{ steps.operational_file.outputs.has_model }}", validation)
         self.assertIn("needs: audit-100k", validation)
