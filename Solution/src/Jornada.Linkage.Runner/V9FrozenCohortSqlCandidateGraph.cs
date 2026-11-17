@@ -23,7 +23,8 @@ public static class V9FrozenCohortSqlCandidateGraph
         IReadOnlyList<(int A, int B)> Edges,
         int SignatureRows,
         string CanonicalEdgesSha256,
-        bool ProductionCandidateParityCertified = false);
+        bool ProductionCandidateParityCertified = false,
+        string CanonicalSignaturesSha256 = "");
 
     private sealed record Signature(int Observation, string Manager, string Pass, string Hash);
 
@@ -179,6 +180,18 @@ public static class V9FrozenCohortSqlCandidateGraph
             throw new InvalidDataException(
                 "Manifesto SQL V9 incompleto: assinaturas divergem do plano congelado.");
 
+        // Deterministic signature fingerprint for run/cohort evidence. Only
+        // verified SQL rows contribute; no personal names or raw values.
+        var canonicalSignatures = string.Concat(observedSignatures
+            .OrderBy(s => s.Obs).ThenBy(s => s.Manager, StringComparer.Ordinal)
+            .ThenBy(s => s.Pass, StringComparer.Ordinal)
+            .ThenBy(s => s.Hash, StringComparer.Ordinal)
+            .Select(s => s.Obs.ToString(CultureInfo.InvariantCulture) + ":" +
+                s.Manager.Length.ToString(CultureInfo.InvariantCulture) + ":" +
+                s.Manager + ":" + s.Pass + ":" + s.Hash + "\\n"));
+        var signaturesDigest = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(canonicalSignatures))).ToLowerInvariant();
+
         // Reconcile an independent SQL census against every streamed edge.
         // Never accept a silently incomplete graph.
         long expectedEdges;
@@ -229,6 +242,7 @@ public static class V9FrozenCohortSqlCandidateGraph
         var digest = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(canonicalEdges))).ToLowerInvariant();
         return new(edges.AsReadOnly(), signatures.Count, digest,
-            ProductionCandidateParityCertified: false);
+            ProductionCandidateParityCertified: false,
+            CanonicalSignaturesSha256: signaturesDigest);
     }
 }
