@@ -132,8 +132,11 @@ public static class V9FrozenCohortSqlCandidateGraph
             for (var i = 0; i < rows.Length; i++)
                 for (var j = i + 1; j < rows.Length; j++)
                     if (!string.Equals(rows[i].Manager, rows[j].Manager,
-                            StringComparison.Ordinal))
-                        expectedPairs.Add((rows[i].Observation, rows[j].Observation));
+                            StringComparison.Ordinal)
+                        && expectedPairs.Add((rows[i].Observation, rows[j].Observation))
+                        && expectedPairs.Count > MaximumPairIncidences)
+                        throw new InvalidDataException(
+                            "Oráculo independente V9 excedeu a capacidade: grafo não pode ser truncado.");
         }
 
         // Tables are LOCAL SQL temp tables scoped to this disposable connection.
