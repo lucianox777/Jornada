@@ -12,6 +12,9 @@ class OperationalGraphRuntimeContract(unittest.TestCase):
         source = CORE.read_text(encoding="utf-8")
         self.assertIn("ReplayOperationalGraph(", source)
         self.assertIn("actual.SetEquals(expected)", source)
+        self.assertIn("V9_OPERATIONAL_GRAPH_INVALID_OBSERVATION", source)
+        self.assertIn("V9_OPERATIONAL_GRAPH_DUPLICATE_OBSERVATION", source)
+        self.assertIn("string.Equals(left.Gestor, right.Gestor, StringComparison.Ordinal)", source)
         self.assertIn("V9_OPERATIONAL_GRAPH_INCOMPLETE_OR_DRIFTED", source)
         self.assertIn("return ReplayTest(test, ordered)", source)
 
