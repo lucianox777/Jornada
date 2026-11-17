@@ -57,10 +57,8 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: scientific TEST remains blocked; no TRAIN or TEST starts."
-            exit 1
-          fi
+          # TEST is opt-in and independently sealed before TRAIN; never uses production RunAsync.
+          # Missing encryption credentials fail in prepare-test-sealed before TRAIN.
   prepare-test-sealed:
     name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
     needs: admission
@@ -752,8 +750,8 @@ jobs:
   # TEST owns the corpus, protocol, SQL and metric computation.
   # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
   test-100k:
-    needs: [validation-100k]
-    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.validation-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    needs: [validation-100k, prepare-test-sealed]
+    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.prepare-test-sealed.result == 'success' && needs.validation-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
 
@@ -948,7 +946,7 @@ jobs:
   # SELECT-only and is exposed only to preflight and this opt-in runner.
   # No TEST truth, gabarito, Gold, Serving, SQL model conversion or DB writes.
   e2e-closeout:
-    needs: [prepare-100k, physical-100k, audit-100k, validation-100k, test-100k]
+    needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]
     if: ${{ always() }}
     name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
     runs-on: ubuntu-24.04
@@ -960,7 +958,7 @@ jobs:
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
-      PREPARATION_RESULT: ${{ inputs.test_required && 'failure' || 'skipped' }} # TEST stays fail-closed until sealed preparation is integrated
+      PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }} # actual independent sealed preparation status
       TEST_RESULT: ${{ needs.test-100k.result }}
       EXTERNAL_PREFLIGHT_RESULT: skipped
       EXTERNAL_TEST_RESULT: skipped
@@ -993,7 +991,7 @@ jobs:
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/test
-      - name: Fail closed on missing physical job, incomplete audit/validation or unproven TEST parity
+      - name: Fail closed on incomplete science, missing TEST preparation or invalid winner contract
         if: ${{ always() }}
         shell: bash
         run: |
