@@ -457,7 +457,8 @@ jobs:
           PY
       - name: Record valid scientific terminal outcome when no finalists are eligible
         if: ${{ success() && steps.finalists.outputs.has_finalists == 'false' }}
-        run: echo "V9_AUDIT_COMPLETED_WITHOUT_ELIGIBLE_FINALISTS: VALIDATION and TEST will be skipped."
+        run: |
+          echo "V9_AUDIT_COMPLETED_WITHOUT_ELIGIBLE_FINALISTS: VALIDATION and TEST will be skipped."
       - name: Prepare audited immutable finalist handoff
         if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
         run: |
