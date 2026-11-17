@@ -27,3 +27,6 @@ A ponte sintética descartável `V9FrozenCohortSqlCandidateGraph` passou a exigi
 
 ### Proteção adicional de integridade SQL (17/11/2026)
 A tabela temporária de assinaturas passou a exigir índice SQL único por `(obs_id, pass_id, assinatura)`, impedindo duplicações físicas mesmo quando a contagem total coincidir. Commit `4933039`; guarda estrutural `7f638b5`. A PR está à frente da `master`, mas as verificações de build/SQL físico ainda precisam ser executadas; não há autorização de produção, TEST científico ou publicação.
+
+### Reconciliação de conteúdo das assinaturas (17/11/2026)
+O censo de linhas e o índice único, isoladamente, não detectam substituições de conteúdo que preservem a contagem. O componente passou a ler e comparar integralmente o conjunto de tuplas `(obs_id, gestor, pass_id, assinatura)` materializado no SQL com o conjunto planejado em memória, recusando registros estranhos, duplicações e ausências antes da consulta de arestas. Commits `f1cad2e` e `b67e0d6`. A comparação é limitada ao harness atual; a solução para escala operacional, testes físicos e evidência de execução continuam pendentes.
