@@ -27,7 +27,9 @@ class StandardTestPreflightContract(unittest.TestCase):
         self.assertEqual(len({lock["trainSeed"], lock["validationSeed"], lock["testSeed"]}), 3)
         # Historical lock preserves preregistered seed; encryption is superseded.
         self.assertIn("IDENTITY_DISJOINTNESS_NOT_ATTESTED", lock["declaredIndependence"])
-        self.assertIn(str(lock['testSeed']), self.job('test-100k'))
+        # The historical lock is not the active Standard Linear TEST seed.
+        self.assertNotIn('--seed ' + str(lock['testSeed']), self.job('test-100k'))
+        self.assertIn('steps.test_seed.outputs.test_seed', self.job('test-100k'))
 
     def test_train_does_not_depend_on_test_preparation(self):
         train = self.job("physical-100k")
@@ -43,10 +45,9 @@ class StandardTestPreflightContract(unittest.TestCase):
         validation = self.job("validation-100k")
         self.assertIn("needs: validation-100k", test)
         self.assertIn("needs.validation-100k.outputs.has_winner == 'true'", test)
-        self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', test)
-        self.assertIn("refs/tags/v9-tf4-test-seed-20261113001-exposed", test)
-        self.assertLess(test.index('gh api "repos/$GITHUB_REPOSITORY/git/refs"'), test.index("Generate fresh independent TEST 100k"))
-        self.assertIn("--seed 20261113001", test)
+        self.assertIn("python3 scripts/v9-reserve-test-seed.py", test)
+        self.assertLess(test.index("python3 scripts/v9-reserve-test-seed.py"), test.index("Generate fresh independent TEST 100k"))
+        self.assertIn("--seed \"${{ steps.test_seed.outputs.test_seed }}\"", test)
         self.assertIn("--seed 20261112001", validation)
         self.assertNotIn("contents: write", validation)
         self.assertIn("contents: write", test)
