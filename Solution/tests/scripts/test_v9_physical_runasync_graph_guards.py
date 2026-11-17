@@ -69,6 +69,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;",
                       "SELECT COUNT_BIG(*) FROM (",
                       "if (edges.Count != expectedEdges)",
+                      "var expectedPairs = new HashSet<(int A, int B)>()",
+                      "expectedPairs.SetEquals(edges)",
                       "edges[i - 1].B >= edges[i].B"):
             self.assertIn(guard, graph)
 
