@@ -118,7 +118,8 @@ public static class V9FrozenCohortSqlCandidateGraph
                 pass_id nvarchar(120) NOT NULL,
                 assinatura char(64) NOT NULL
             );
-            CREATE INDEX IX_v9_run_sig ON #v9_run_sig(pass_id,assinatura,obs_id);
+            CREATE UNIQUE INDEX UX_v9_run_sig ON #v9_run_sig(obs_id,pass_id,assinatura);
+            CREATE INDEX IX_v9_run_sig_join ON #v9_run_sig(pass_id,assinatura,obs_id);
             """, connection))
             await setup.ExecuteNonQueryAsync(ct);
 
