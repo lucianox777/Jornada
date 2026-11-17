@@ -8,7 +8,7 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public static class V9ConfiguredArtifactLoader
 {
-    public sealed record Selection(string ArtifactPath, string WinnerSha256);
+    private static readonly JsonSerializerOptions SelectionJsonOptions = new()\n    {\n        PropertyNameCaseInsensitive = true,\n        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow\n    };\n\n    public sealed record Selection(string ArtifactPath, string WinnerSha256);
     public sealed record Loaded(string ArtifactPath, string WinnerSha256, V9FittedSnapshot Snapshot);
 
     public static async Task<Loaded> LoadAsync(string selectionFile, CancellationToken ct = default)
@@ -21,8 +21,7 @@ public static class V9ConfiguredArtifactLoader
         var bytes = await File.ReadAllBytesAsync(selectionPath, ct);
         if (bytes.Length is 0 or > 65536)
             throw new InvalidDataException("RUNNER_V9_SELECTION_SIZE_INVALID");
-        var selection = JsonSerializer.Deserialize<Selection>(bytes,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true, UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
+        var selection = JsonSerializer.Deserialize<Selection>(bytes, SelectionJsonOptions)
             ?? throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
         if (string.IsNullOrWhiteSpace(selection.ArtifactPath) || string.IsNullOrWhiteSpace(selection.WinnerSha256))
             throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
