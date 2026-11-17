@@ -17,9 +17,20 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         text = self.workflow
         self.assertIn("test_required:", text)
         self.assertNotIn("test_mode:", text)
-        self.assertNotIn("test_database:", text)
+        self.assertIn("test_database:", text)
+        self.assertIn("V9_PREPARE_EXTERNAL_STATISTICAL_ADAPTER_NOT_IMPLEMENTED", text)
+        self.assertIn("V9_PREPARE_STATISTICAL_REFERENCE=IBGE_DEFAULT", text)
         self.assertNotIn("test-database-readonly:", text)
         self.assertNotIn("test-database-preflight:", text)
+
+    def test_external_statistical_reference_fails_closed_before_generation(self):
+        prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        self.assertIn("TEST_DATABASE: ${{ inputs.test_database }}", prepare)
+        self.assertIn("V9_PREPARE_EXTERNAL_REFERENCE_INVALID_DATABASE_NAME", prepare)
+        self.assertLess(prepare.index("Admit statistical source selection"),
+                        prepare.index("Build unchanged synthetic corpus generator"))
+        self.assertLess(prepare.index("V9_PREPARE_EXTERNAL_STATISTICAL_ADAPTER_NOT_IMPLEMENTED"),
+                        prepare.index("Generate known-seed 100k clean raw TRAIN corpus"))
 
     def test_linear_mandatory_jobs(self):
         text = self.workflow
