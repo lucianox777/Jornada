@@ -20,3 +20,9 @@ Complementa GOV-V9-GRAFO-OPERACIONAL-INTEGRAL-COORTE-20261117 e operacionaliza G
 
 ## Rastreabilidade
 PO, conversa de 17/11/2026: continuar PR #1655, concluir integração e retirar propriedades científicas SQL anteriormente gravadas pelo calibrador e usadas pelo seletor, substituindo-as pela configuração por pacote. Evidências e testes pendentes; documentação não implica implementação concluída.
+
+## Inventário inicial confirmado no código (17/11/2026)
+- **Já implementado no ramo principal:** `V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync` lê `Linkage:V9SelectionFile`, valida o pacote via `V9ValidatedOperationalModelFile.ReadPinnedAsync` e instancia `V9OperationalPinnedCohortRuntime.FromVerifiedFileSnapshot` sem SQL. O `Program.cs` congela a configuração de startup e rejeita explicitamente a ativação produtiva V9 com `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`; sem arquivo, V9 falha com `RUNNER_V9_SELECTION_MISSING`, antes da busca do modelo SQL.
+- **Caminho legado preservado:** `ProbabilisticLinkageBatchRunner.RunAsync` ainda usa `GetModelByVersionAsync` ou `GetActiveModelAsync` para o seletor SQL tradicional; `Program.cs` mantém o preflight de modelo/ruleset legado e exclui REPLAY da seleção de startup. Não remover essas consultas indiscriminadamente.
+- **Lacuna real:** ligar o runtime V9 já carregado por arquivo ao executor operacional de coorte/batches, comprovar paridade produtiva e só então remover a dependência dos parâmetros científicos SQL específicos de V9. Não afirmar que o carregador de pacote ainda precisa ser criado.
+- **Regressão adicionada:** `test_v9_physical_runasync_graph_guards.py` verifica estruturalmente a separação arquivo V9/SQL legado e o bloqueio fail-closed (commit `6594057`). Testes não executados nesta etapa.
