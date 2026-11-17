@@ -25,7 +25,7 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertIn('Linkage:V9SelectionFile', program)
         self.assertIn('V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)', program)
         self.assertIn('RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED', program)
-        self.assertLess(program.index('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)'),
+        self.assertLess(program.index('V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)'),
                         program.index('GetModelByVersionAsync(configuredVersion.Value'))
 
     def test_file_snapshot_connects_to_shared_nonpublishing_cohort_runtime(self):
