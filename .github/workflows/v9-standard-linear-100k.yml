@@ -1,8 +1,7 @@
-name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION optional TEST
+name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION TEST on winner
 
 # STRICTLY MANUAL. Standard synthetic TRAIN-only chain is enabled.
-# Scientific TEST remains fail-closed until sealed independent preparation
-# and full production RunAsync parity are integrated and certified.
+# TEST is mandatory after successful VALIDATION with winner; no winner skips TEST.
 on:
   workflow_dispatch:
     inputs:
@@ -19,11 +18,6 @@ on:
         required: false
         default: ""
         type: string
-      test_required:
-        description: "Execute scientific TEST after VALIDATION (currently fail-closed pending parity)"
-        required: true
-        default: false
-        type: boolean
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
@@ -62,7 +56,7 @@ jobs:
   prepare-test-sealed:
     name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
     needs: admission
-    if: ${{ inputs.test_required == true && needs.admission.result == 'success' }}
+    if: ${{ needs.admission.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -206,8 +200,8 @@ jobs:
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
   physical-100k:
     needs: [prepare-100k, prepare-test-sealed]
-    # PREPARE is mandatory. TEST remains blocked by ADMISSION until parity.
-    if: ${{ needs.prepare-100k.result == 'success' && (inputs.test_required == false || needs.prepare-test-sealed.result == 'success') }}
+    # Both PREPARE and independently sealed TEST preparation precede TRAIN.
+    if: ${{ needs.prepare-100k.result == 'success' && needs.prepare-test-sealed.result == 'success' }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -576,8 +570,10 @@ jobs:
 
   validation-100k:
     needs: audit-100k
-    # TEST preparation is optional and normally skipped. GitHub's implicit
-    # success() may propagate that ancestor skip even after TRAIN succeeds.
+    outputs:
+      has_winner: ${{ steps.operational_file.outputs.has_model }}
+    # Independent TEST preparation is mandatory before TRAIN; explicit dependency
+    # evaluation avoids implicit ancestor-skip propagation.
     # Evaluate the dependency explicitly, but never bypass TRAIN success,
     # audited finalists, owner/preflight checks or workflow cancellation.
     if: ${{ always() && !cancelled() && needs.audit-100k.result == 'success' && needs.audit-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
@@ -751,7 +747,7 @@ jobs:
   # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
   test-100k:
     needs: [validation-100k, prepare-test-sealed]
-    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.prepare-test-sealed.result == 'success' && needs.validation-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    if: ${{ always() && !cancelled() && needs.prepare-test-sealed.result == 'success' && needs.validation-100k.result == 'success' && needs.validation-100k.outputs.has_winner == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
 
@@ -958,12 +954,13 @@ jobs:
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
-      PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }} # actual independent sealed preparation status
+      PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }} # sealed before TRAIN, including no-winner campaigns
       TEST_RESULT: ${{ needs.test-100k.result }}
       EXTERNAL_PREFLIGHT_RESULT: skipped
       EXTERNAL_TEST_RESULT: skipped
       V9_EXTERNAL_DATABASE: ''
-      V9_TEST_REQUESTED: ${{ inputs.test_required && 'true' || 'false' }}
+      V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}
+      V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # SHA pinned
         with:
@@ -986,7 +983,7 @@ jobs:
           name: v9-tf4-validation-e2e-status-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/validation
       - name: Download independent TEST result only when TEST was explicitly requested and successful
-        if: ${{ always() && inputs.test_required == true && needs.test-100k.result == 'success' }}
+        if: ${{ always() && needs.validation-100k.outputs.has_winner == 'true' && needs.test-100k.result == 'success' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
@@ -997,6 +994,11 @@ jobs:
         run: |
           set -euo pipefail
           extra=()
+          # No winner is a scientific terminal outcome, not an operator opt-out.
+          if [[ "$V9_VALIDATION_HAS_WINNER" != "true" && "$V9_VALIDATION_HAS_WINNER" != "false" ]]; then
+            echo "::error::V9_VALIDATION_WINNER_OUTPUT_MISSING"
+            exit 1
+          fi
           if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
             extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
           fi
