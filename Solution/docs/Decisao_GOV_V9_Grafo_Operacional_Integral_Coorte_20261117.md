@@ -30,3 +30,6 @@ A tabela temporária de assinaturas passou a exigir índice SQL único por `(obs
 
 ### Reconciliação de conteúdo das assinaturas (17/11/2026)
 O censo de linhas e o índice único, isoladamente, não detectam substituições de conteúdo que preservem a contagem. O componente passou a ler e comparar integralmente o conjunto de tuplas `(obs_id, gestor, pass_id, assinatura)` materializado no SQL com o conjunto planejado em memória, recusando registros estranhos, duplicações e ausências antes da consulta de arestas. Commits `f1cad2e` e `b67e0d6`. A comparação é limitada ao harness atual; a solução para escala operacional, testes físicos e evidência de execução continuam pendentes.
+
+### Evidência canônica do manifesto (17/11/2026)
+O recibo de leitura SQL agora expõe `CanonicalSignaturesSha256`, calculado a partir das tuplas de assinaturas SQL efetivamente verificadas e ordenadas de forma determinística; complementa `CanonicalEdgesSha256`. Commits `73f93d4` e `886dd07`. O digest identifica o manifesto do harness, mas **não substitui** a prova de completude operacional, testes físicos, vinculação imutável a run/coorte ou certificação de publicação. A assinatura inclui identificador do gestor e hashes, não nomes brutos.
