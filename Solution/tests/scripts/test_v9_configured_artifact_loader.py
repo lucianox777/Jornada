@@ -12,6 +12,14 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertIn('SelectedModelVersion") == 9', program)
         self.assertLess(program.index("RUNNER_V9_SELECTION_MISSING"), program.index("GetModelByVersionAsync"))
 
+    def test_v9_package_requires_explicit_version_nine(self):
+        program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
+        self.assertIn('RUNNER_V9_SELECTION_VERSION_MISMATCH', program)
+        self.assertIn('GetValue<int?>("Linkage:SelectedModelVersion") != 9', program)
+        self.assertIn('options.ModelVersion is int requestedV9Version && requestedV9Version != 9', program)
+        self.assertLess(program.index('RUNNER_V9_SELECTION_VERSION_MISMATCH'),
+                        program.index('V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)'))
+
     def test_runner_startup_rejects_uncertified_v9_without_sql_fallback(self):
         program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
         self.assertIn('Linkage:V9SelectionFile', program)
