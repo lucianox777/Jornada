@@ -3,7 +3,8 @@
 import argparse
 import hashlib
 import json
-import math
+import datetime
+import re
 from pathlib import Path
 
 SCHEMA = "v9-statistical-reference-v1"
@@ -35,6 +36,15 @@ def validate(payload):
             bucket, count = row["bucket"], row["count"]
             if not isinstance(bucket, str) or not bucket or len(bucket) > 128:
                 raise ValueError("invalid bucket")
+            if any(ord(ch) < 32 or ord(ch) == 127 for ch in bucket):
+                raise ValueError("control characters in bucket")
+            if category == "birth_day":
+                if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", bucket):
+                    raise ValueError("birth day must be ISO YYYY-MM-DD")
+                try:
+                    datetime.date.fromisoformat(bucket)
+                except ValueError as exc:
+                    raise ValueError("invalid birth day") from exc
             if previous is not None and bucket <= previous:
                 raise ValueError("buckets must be sorted and unique")
             previous = bucket
@@ -44,11 +54,20 @@ def validate(payload):
     return hashlib.sha256(canonical).hexdigest()
 
 
+def reject_duplicate_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
     args = parser.parse_args()
-    data = json.loads(args.manifest.read_text(encoding="utf-8"))
+    data = json.loads(args.manifest.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys)
     print(json.dumps({"schema": SCHEMA, "manifest_sha256": validate(data), "status": "CONTRACT_VALID_ONLY_NOT_APPROVED_FOR_GENERATION"}))
 
 
