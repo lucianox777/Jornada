@@ -40,6 +40,11 @@ public static class V9ConfiguredArtifactLoader
         if (string.IsNullOrWhiteSpace(selection.ArtifactPath) || string.IsNullOrWhiteSpace(selection.WinnerSha256))
             throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
         var artifact = Path.GetFullPath(selection.ArtifactPath, Path.GetDirectoryName(selectionPath)!);
+        // Reject a link at the selected artifact path before opening it.
+        // The pinned reader verifies bytes/SHA, but the selected path itself
+        // must not be a mutable symlink controlled outside the package.
+        if (!File.Exists(artifact) || new FileInfo(artifact).LinkTarget is not null)
+            throw new InvalidDataException("RUNNER_V9_ARTIFACT_INVALID");
         var expectedName = V9ValidatedOperationalModelFile.FileName(selection.WinnerSha256);
         if (!string.Equals(Path.GetFileName(artifact), expectedName, StringComparison.Ordinal))
             throw new InvalidDataException("RUNNER_V9_ARTIFACT_SHA_MISMATCH");
