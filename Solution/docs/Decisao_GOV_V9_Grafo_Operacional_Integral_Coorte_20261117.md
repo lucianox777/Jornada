@@ -39,3 +39,6 @@ Corrigido o delimitador de linhas do manifesto SHA-256 para LF efetivo, evitando
 
 ### Compatibilidade dos identificadores com SQL Server (17/11/2026)
 O censo de assinaturas rejeita antes do `SqlBulkCopy` gestores e identificadores de passes com mais de 120 caracteres ou espaço U+0020 final, evitando truncamento/igualdade SQL divergente da identidade ordinal C#. Commits `af3a34c` e `1de08ad`. A verificação é estrutural, sem execução física confirmada; não habilita o runtime produtivo e não altera o carregamento de parâmetros V9 por pacote.
+
+### Igualdade SQL e identidade ordinal (17/11/2026)
+As colunas `gestor`, `pass_id` e `assinatura` da tabela temporária de assinaturas receberam `COLLATE Latin1_General_100_BIN2`, para evitar que a collation padrão do SQL Server una candidatos por equivalência insensível a maiúsculas/acentos que não corresponde ao comparador ordinal do planejador .NET. Commits `3ce7b0f` e `52b3258`. A alteração vale apenas para a tabela temporária do harness; não certifica paridade com `identidade.blocking_chave`, nem substitui execução física. A integração operacional e a fonte única de parâmetros por pacote continuam como critérios de conclusão.
