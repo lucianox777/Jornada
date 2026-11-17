@@ -1,6 +1,8 @@
-# GOV-V9-TEST-DATABASE-EXISTENTE-OPCIONAL-20261114
+# GOV-V9-TEST-DATABASE-EXISTENTE-OPCIONAL-20261114 — OBSOLETA / REVOGADA
 
-**Aprovação do Product Owner em 14/11/2026:** após avaliar a proposta, o PO confirmou **“Sim”** à interpretação: quando um database for informado na etapa TEST, utilizar exclusivamente os **dados já existentes nesse banco**, sem gerar novos dados sintéticos. **Padrão, sem database:** preservar a criação de uma coorte sintética independente de **100 mil identidades** no protocolo TEST. Separar o local de execução do conteúdo científico de `<winnerSha>.operational.json`. Política vinculante **GOV-DOC-01**.
+**STATUS ATUAL: OBSOLETA, SUBSTITUÍDA POR DECISÃO DO PO DE 17/11/2026.** O uso de `test_database` para diagnóstico de banco existente na etapa TEST deixou de ser regra vigente. Prevalece [GOV-V9-PREPARE-BRUTO-TRAIN-PLANOS-20261117](Decisao_GOV_V9_PREPARE_Bruto_TRAIN_Planos_20261117.md): `test_database` é entrada opcional do PREPARE como referência estatística para geração de 100 mil registros sintéticos brutos. O texto abaixo é mantido exclusivamente como histórico e não autoriza o caminho antigo. A implementação anterior, caso ainda presente no workflow legado ou seletor, é dívida de migração e não representa decisão vigente. Não interpretar esta revogação como autorização para habilitar TEST científico bloqueado ou usar dados reais em artifacts.
+
+**Registro histórico — aprovação do Product Owner em 14/11/2026:** após avaliar a proposta, o PO confirmou **“Sim”** à interpretação: quando um database for informado na etapa TEST, utilizar exclusivamente os **dados já existentes nesse banco**, sem gerar novos dados sintéticos. **Padrão, sem database:** preservar a criação de uma coorte sintética independente de **100 mil identidades** no protocolo TEST. Separar o local de execução do conteúdo científico de `<winnerSha>.operational.json`. Política vinculante **GOV-DOC-01**.
 
 **Estado:** aprovado; implementação proposta na branch `feat/v9-test-optional-existing-database-readonly-20261114`, sem execução E2E física 100K nesta mudança. PR/CI/merge/execução real deverão ser reconciliados mediante recibos.
 
