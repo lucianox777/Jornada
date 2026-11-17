@@ -22,6 +22,12 @@ class V9TestExecutorBoundaryContract(unittest.TestCase):
         self.assertIn('has_winner: ${{ steps.operational_file.outputs.has_model }}', wf)
         self.assertIn('needs.validation-100k.result == \'success\'', wf)
         self.assertIn('test-100k:', wf)
+        self.assertNotIn('      test_required:', wf)
+        self.assertIn("if: ${{ needs.admission.result == 'success' }}", wf)
+        self.assertIn("V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}", wf)
+        self.assertIn('V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}', wf)
+        self.assertIn('V9_VALIDATION_WINNER_OUTPUT_MISSING', wf)
+        self.assertIn('needs: [validation-100k, prepare-test-sealed]', wf)
 
     def test_test_consumes_validation_winner_without_refitting(self):
         cli = (ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs").read_text(encoding="utf-8")
