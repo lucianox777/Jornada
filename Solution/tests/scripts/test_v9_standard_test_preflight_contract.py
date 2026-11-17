@@ -18,7 +18,7 @@ class StandardTestPreflightContract(unittest.TestCase):
         cls.lock = json.loads(cls.lock_bytes)
 
     def job(self, name):
-        return re.split(r"(?m)^  [a-z][a-z0-9-]*:\\s*$", self.workflow.split("\\n  " + name + ":\\n", 1)[1], maxsplit=1)[0]
+        return re.split(r"(?m)^  [a-z][a-z0-9-]*:\s*$", self.workflow.split("\n  " + name + ":\n", 1)[1], maxsplit=1)[0]
 
     def test_three_distinct_preregistered_seeds_and_locked_hash(self):
         lock = self.lock
