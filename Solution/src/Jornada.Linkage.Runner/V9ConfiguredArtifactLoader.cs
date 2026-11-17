@@ -32,6 +32,10 @@ public static class V9ConfiguredArtifactLoader
         var selectionPath = Path.GetFullPath(selectionFile);
         if (!File.Exists(selectionPath) || new FileInfo(selectionPath).LinkTarget is not null)
             throw new InvalidDataException("RUNNER_V9_SELECTION_INVALID");
+        // Bound allocation before reading operator-controlled selection bytes.
+        // The post-read check also detects growth during the read.
+        if (new FileInfo(selectionPath).Length is 0 or > 65536)
+            throw new InvalidDataException("RUNNER_V9_SELECTION_SIZE_INVALID");
         var bytes = await File.ReadAllBytesAsync(selectionPath, ct);
         if (bytes.Length is 0 or > 65536)
             throw new InvalidDataException("RUNNER_V9_SELECTION_SIZE_INVALID");
