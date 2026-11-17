@@ -83,7 +83,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertNotIn("TEST_PRIVATE_KEY_B64", block)
         self.assertNotIn("test-corpus.cms", block)
 
-    def test_mandatory_chain_with_test_off_is_complete_but_not_certified(self):
+    def test_no_winner_skips_test_but_winner_requires_test(self):
         with self.assertRaisesRegex(ValueError, "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER"):
             self.call()
         self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
@@ -132,7 +132,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
                 r[field] = value
                 self.val.write_text(json.dumps(r), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "VALIDATION_"):
-                    self.call()
+                    self.call(requested=True, prep="success", test="success")
         self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
         result = self.call(prep="success")
         self.assertEqual(result["status"],
