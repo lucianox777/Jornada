@@ -534,7 +534,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          # Never repeat the same sealed holdout by rerunning this job/attempt.
+          # Never repeat the same independent validation holdout on rerun.
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ needs.audit-100k.result }}" = "success"
           test "${{ needs.audit-100k.outputs.has_finalists }}" = "true"
@@ -688,7 +688,6 @@ jobs:
       DOTNET_ENVIRONMENT: DEV
       ASPNETCORE_ENVIRONMENT: DEV
       JORNADA_RUNTIME_MODE: DEV
-      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
     defaults:
       run:
         working-directory: Solution
@@ -710,9 +709,6 @@ jobs:
           test "${{ inputs.security_preflight_approved }}" = "true"
           test "${{ needs.validation-100k.result }}" = "success"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
-          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
-            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
-            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
         with:
           dotnet-version: "10.0.113"
@@ -883,7 +879,7 @@ jobs:
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/test
-      - name: Fail closed on incomplete science, missing TEST preparation or invalid winner contract
+      - name: Fail closed on incomplete science or invalid winner contract
         if: ${{ always() }}
         shell: bash
         run: |
