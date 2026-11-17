@@ -54,3 +54,6 @@ A materialização do conjunto C# de arestas esperado também falha explicitamen
 
 ### Disparo da CI antes da integração na master (17/11/2026)
 Para não depender exclusivamente do evento `pull_request` quando o próprio workflow foi introduzido na branch, foi adicionado o gatilho `push` restrito a `docs/gov-v9-grafo-operacional-coorte-20261117` (commit `dcfceaf`). O disparo mantém o mesmo job descartável, sem publicação e sem certificação científica. Não constitui evidência de sucesso até haver run e recibo verificados. Após integração, o gatilho temporário específico da branch deverá ser retirado ou substituído por política permanente aprovada.
+
+### Falha física confirmada na CI e correção (17/11/2026)
+Run GitHub Actions `44171877566`, job `134352842979`: guards, build .NET, bootstrap SQL Server e schema/preflight passaram; a execução real `RunAsync` falhou com SQL Server erro 8156 (`The column 'obs_id' was specified multiple times for 'complete_graph'`) no censo de `V9FrozenCohortSqlCandidateGraph.ReadAsync`. Causa: subconsulta derivada projetava `a.obs_id,b.obs_id` com nomes iguais. Correção: aliases `source_obs_id` e `target_obs_id` somente no subselect do censo (commit `e1ced69`), com guarda estrutural (commit `dfe5f5c`). Reexecução física ainda necessária; não há aprovação ou certificação científica decorrente desta correção.
