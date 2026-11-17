@@ -17,7 +17,9 @@ class V9TestExecutorBoundaryContract(unittest.TestCase):
         self.assertIn("needs: [prepare-100k, prepare-test-sealed]", wf)
         self.assertIn("needs.prepare-test-sealed.result == 'success'", wf)
         self.assertIn("PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }}", wf)
-        self.assertIn('inputs.test_required == true', wf)
+        self.assertNotIn('inputs.test_required', wf)
+        self.assertIn("needs.validation-100k.outputs.has_winner == 'true'", wf)
+        self.assertIn('has_winner: ${{ steps.operational_file.outputs.has_model }}', wf)
         self.assertIn('needs.validation-100k.result == \'success\'', wf)
         self.assertIn('test-100k:', wf)
 
