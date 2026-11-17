@@ -12,7 +12,7 @@ def valid():
     return {
         "schema": "v9-statistical-reference-v1",
         "source": {"database_fingerprint_sha256": "a" * 64, "snapshot_sha256": "b" * 64},
-        "distributions": {name: [{"bucket": "A", "count": 20}] for name in module.CATEGORIES},
+        "distributions": {name: [{"bucket": "2026-01-01" if name == "birth_day" else "A", "count": 20}] for name in module.CATEGORIES},
     }
 
 
@@ -38,6 +38,23 @@ class StatisticalReferenceContractTests(unittest.TestCase):
         obj["distributions"]["person_first"].append({"bucket": "A", "count": 30})
         with self.assertRaises(ValueError):
             module.validate(obj)
+
+    def test_invalid_birth_day(self):
+        obj = valid()
+        obj["distributions"]["birth_day"][0]["bucket"] = "2026-02-30"
+        with self.assertRaises(ValueError):
+            module.validate(obj)
+
+    def test_control_characters(self):
+        obj = valid()
+        obj["distributions"]["person_first"][0]["bucket"] = "A\nB"
+        with self.assertRaises(ValueError):
+            module.validate(obj)
+
+    def test_duplicate_json_keys(self):
+        import json
+        with self.assertRaises(ValueError):
+            json.loads('{"schema":"a","schema":"b"}', object_pairs_hook=module.reject_duplicate_keys)
 
     def test_incomplete_distribution(self):
         obj = valid()
