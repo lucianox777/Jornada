@@ -71,6 +71,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "if (edges.Count != expectedEdges)",
                       "var expectedPairs = new HashSet<(int A, int B)>()",
                       "expectedPairs.SetEquals(edges)",
+                      "expectedPairs.Count > MaximumPairIncidences",
                       "edges[i - 1].B >= edges[i].B"):
             self.assertIn(guard, graph)
 
