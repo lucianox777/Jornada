@@ -10,9 +10,13 @@ REPO = ROOT.parent
 
 
 class V9TestExecutorBoundaryContract(unittest.TestCase):
-    def test_standard_workflow_stays_fail_closed_until_certification(self):
+    def test_standard_workflow_requires_sealed_test_preparation_before_train(self):
         wf = (REPO / ".github/workflows/v9-standard-linear-100k.yml").read_text(encoding="utf-8")
-        self.assertIn('V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED', wf)
+        self.assertNotIn('V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED', wf)
+        self.assertIn('prepare-test-sealed:', wf)
+        self.assertIn("needs: [prepare-100k, prepare-test-sealed]", wf)
+        self.assertIn("needs.prepare-test-sealed.result == 'success'", wf)
+        self.assertIn("PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }}", wf)
         self.assertIn('inputs.test_required == true', wf)
         self.assertIn('needs.validation-100k.result == \'success\'', wf)
         self.assertIn('test-100k:', wf)
