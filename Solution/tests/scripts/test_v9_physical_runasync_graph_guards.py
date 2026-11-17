@@ -25,7 +25,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertLess(s.index("V9FrozenCohortSqlCandidateGraph.ReadAsync("),
                         s.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("))
         self.assertLess(s.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("),
-                        s.index("var global = pinned.ReplayTest(cohort, edges);"))
+                        s.index("var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync("))
 
     def test_exact_graph_parity_required_before_global_scoring(self):
         s = self.scorer
@@ -34,7 +34,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertIn("physical.CanonicalEdgesSha256", s)
         self.assertIn("edges = physical.Edges.ToList();", s)
         self.assertLess(s.index("edges = physical.Edges.ToList();"),
-                        s.index("var global = pinned.ReplayTest(cohort, edges);"))
+                        s.index("var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync("))
         self.assertIn("global.SnapshotSha256 != pinnedWinnerSha", s)
         self.assertIn("global.Decisions.Count != cohort.Length", s)
 
@@ -45,6 +45,24 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertLess(s.index("v9Grouped.PrepareAsync(runId, model, frozen, workCt)"),
                         s.index("await PersistBatchAsync("))
         self.assertIn("request.Publish || request.Mode != LinkageRunType.MODEL_VALIDATION", s)
+
+
+    def test_physical_sql_graph_rejects_capacity_excess_and_invalid_edges(self):
+        graph = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text(encoding="utf-8")
+        for guard in ("if (signatures.Count >= MaximumSignatures)",
+                      "if (++incidences > MaximumPairIncidences)",
+                      "if (edges.Count >= MaximumPairIncidences)",
+                      "if (a < 1 || a >= b || b > frozenRows.Count)"):
+            self.assertIn(guard, graph)
+
+    def test_operational_graph_checks_full_manifest_and_bidirectional_edges(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text(encoding="utf-8")
+        for guard in ("expectedManifest.SetEquals(seen)",
+                      "goldCount != frozenRows.Count",
+                      "directions.Values.Any(value => value != 3)",
+                      "expected.SetEquals(directions.Keys)",
+                      "BuildCandidateUuidQuery(cmd,"):
+            self.assertIn(guard, parity)
 
 
 if __name__ == "__main__":
