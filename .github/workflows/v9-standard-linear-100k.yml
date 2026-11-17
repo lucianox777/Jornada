@@ -61,6 +61,77 @@ jobs:
             echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: scientific TEST remains blocked; no TRAIN or TEST starts."
             exit 1
           fi
+  prepare-test-sealed:
+    name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
+    needs: admission
+    if: ${{ inputs.test_required == true && needs.admission.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
+      TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
+      TEST_PUBLIC_CERT_SHA: ${{ vars.V9_TF4_TEST_PUBLIC_CERT_SHA256 }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Check immutable TEST preparation prerequisites before generating
+        run: |
+          set -euo pipefail
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test -n "$TEST_PUBLIC_CERT_B64"
+          [[ "$TEST_PUBLIC_CERT_SHA" =~ ^[a-f0-9]{64}$ ]]
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build independent TEST synthetic generator
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Generate independent raw TEST and seal before TRAIN
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$PWD/.local/v9-independent-test-preparation"
+          mkdir -p "$root"
+          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
+          test "$(sha256sum "$root/recipient.pem" | cut -d' ' -f1)" = "$TEST_PUBLIC_CERT_SHA"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261113001 --out "$root/raw"
+          python3 scripts/v9-tf4-sealed-test-preparation.py seal \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --raw "$root/raw" --certificate "$root/recipient.pem" \
+            --expected-cert-sha "$TEST_PUBLIC_CERT_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+          rm -rf -- "$root/raw" "$root/recipient.pem"
+      - name: Upload encrypted TEST corpus only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Solution/.local/v9-independent-test-preparation/sealed/
+      - name: Erase TEST preparation data even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test-preparation"
   prepare-100k:
     name: "V9 PREPARE: raw synthetic TRAIN 100k"
     needs: admission
@@ -136,9 +207,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
   physical-100k:
-    needs: [prepare-100k]
+    needs: [prepare-100k, prepare-test-sealed]
     # PREPARE is mandatory. TEST remains blocked by ADMISSION until parity.
-    if: ${{ needs.prepare-100k.result == 'success' }}
+    if: ${{ needs.prepare-100k.result == 'success' && (inputs.test_required == false || needs.prepare-test-sealed.result == 'success') }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
