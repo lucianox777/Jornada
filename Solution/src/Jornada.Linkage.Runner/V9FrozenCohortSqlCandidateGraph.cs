@@ -227,7 +227,7 @@ public static class V9FrozenCohortSqlCandidateGraph
         long expectedEdges;
         await using (var census = new SqlCommand("""
             SELECT COUNT_BIG(*) FROM (
-                SELECT DISTINCT a.obs_id,b.obs_id
+                SELECT DISTINCT a.obs_id AS source_obs_id,b.obs_id AS target_obs_id
                   FROM #v9_run_sig a JOIN #v9_run_sig b
                     ON a.pass_id=b.pass_id AND a.assinatura=b.assinatura
                    AND a.obs_id<b.obs_id AND a.gestor<>b.gestor
