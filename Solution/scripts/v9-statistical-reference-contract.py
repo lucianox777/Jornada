@@ -39,7 +39,7 @@ def validate(payload):
             if any(ord(ch) < 32 or ord(ch) == 127 for ch in bucket):
                 raise ValueError("control characters in bucket")
             if category == "birth_day":
-                if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", bucket):
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", bucket):
                     raise ValueError("birth day must be ISO YYYY-MM-DD")
                 try:
                     datetime.date.fromisoformat(bucket)
