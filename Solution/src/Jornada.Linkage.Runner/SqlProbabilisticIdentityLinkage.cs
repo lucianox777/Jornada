@@ -522,10 +522,10 @@ public sealed class SqlProbabilisticIdentityLinkage(
             "Snapshot probabilístico congelado. ModeloId={ModelId}; Versão={Version}; RuleSet={RuleSet}; RuleSetFingerprint={RuleSetFingerprint}; Projection={Projection}; ProjectionFingerprint={ProjectionFingerprint}",
             snapshot.Model.ModelId,
             snapshot.Model.Version,
-            snapshot.RuleSet?.RuleSetVersion ?? "LEGACY",
-            snapshot.RuleSet?.FingerprintSha256 ?? "NONE",
-            snapshot.RuleSet?.ProjectionSchemaVersion ?? "NONE",
-            snapshot.RuleSet?.ProjectionFingerprintSha256 ?? "NONE");
+            snapshot.RuleSet.RuleSetVersion,
+            snapshot.RuleSet.FingerprintSha256,
+            snapshot.RuleSet.ProjectionSchemaVersion,
+            snapshot.RuleSet.ProjectionFingerprintSha256);
 
         return snapshot;
     }
