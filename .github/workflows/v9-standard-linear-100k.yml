@@ -780,19 +780,13 @@ jobs:
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-convert-winner-operational "$model"
           # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
-      - name: Reserve single-use TEST seed before generating fresh independent corpus
+      - name: Reserve unique GUID-derived TEST seed in global GitHub ledger
+        id: test_seed
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$GITHUB_RUN_ATTEMPT" = "1"
-          exposure_ref="refs/tags/v9-tf4-test-seed-20261113001-exposed"
-          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \
-            -f ref="$exposure_ref" -f sha="$GITHUB_SHA" --silent >/dev/null || {
-              echo "::error::V9_TEST_EXPOSURE_ALREADY_RESERVED_OR_GITHUB_TAG_DENIED"
-              exit 1
-            }
-          echo "V9_TEST_ONE_USE_EXPOSURE_RESERVED=$exposure_ref"
+          python3 scripts/v9-reserve-test-seed.py --out "$PWD/.local/v9-independent-test/test-seed-reservation.json"
       - name: Generate fresh independent TEST 100k after winner is frozen
         run: |
           set -euo pipefail
@@ -802,7 +796,7 @@ jobs:
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --people 100000 --seed 20261113001 \
+            --error-profile clean --people 100000 --seed "${{ steps.test_seed.outputs.test_seed }}" \
             --out "$root/corpus" > "$root/test-generation.log"
           test -s "$root/corpus/observacoes.csv"
       - name: Apply one frozen winner to TEST, no refit and no winner selection
@@ -854,7 +848,8 @@ jobs:
           python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --cohort-dir corpus --out "$root/test-corpus-transfer/test-inputs.tar.gz"
           printf '%s' "$EXACT_SHA" > "$root/test-corpus-transfer/code-sha.txt"
           printf '%s' "$GITHUB_RUN_ID" > "$root/test-corpus-transfer/run-id.txt"
-          (cd "$root/test-corpus-transfer" && sha256sum test-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
+          cp "$root/test-seed-reservation.json" "$root/test-corpus-transfer/test-seed-reservation.json"
+          (cd "$root/test-corpus-transfer" && sha256sum test-inputs.tar.gz code-sha.txt run-id.txt test-seed-reservation.json > SHA256SUMS)
       - name: Upload independent TEST synthetic corpus
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
