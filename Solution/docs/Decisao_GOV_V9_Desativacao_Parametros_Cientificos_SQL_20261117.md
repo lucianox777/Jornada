@@ -52,3 +52,8 @@ A fronteira `ProbabilisticLinkageBatchRunner.RunAsync` é invocável independent
 
 ## Compatibilidade de smoke do cluster legado (17/11/2026)
 O wrapper DEV `Solution/scripts/local-cluster.sh linkage` verificava o modelo legado calibrado ativo, mas iniciava o Runner sem `Linkage:SelectedModelVersion`, violando a exigência do Operador Master e causando `RUNNER_MODEL_CONFIGURATION_MISSING` na CI de topologia. Correção operacional: fornecer somente à invocação isolada `compose exec` a variável `Linkage__SelectedModelVersion` com a versão já lida/validada e o argumento concordante `--model-version`. Não altera configuração persistente, seleção V9, SQL científico ou REPLAY; preserva a proteção de startup. Evidência anterior: workflow de topologia #44185385301, falha no wrapper; nova CI pendente. Rastreabilidade: branch `fix/local-cluster-runner-model-pin-20261117`.
+
+
+### Evidência CI de correção do wrapper DEV (2026-11-17)
+
+A execução de topologia da PR #1662 (run `44187121231`) falhou na etapa de diagnóstico porque nenhum `linkage_run` ON_DEMAND `PUBLICADO` existia para o modelo ativo, embora o wrapper retornasse sucesso. A inspeção do script identificou uma falha concreta de serialização: sequências literais `\\n` haviam sido inseridas na linha de comentário anterior ao comando `compose exec`, fazendo o shell interpretar o comando como parte do comentário. O commit `e936ed8` restaura quebras de linha reais; o teste de regressão verifica a separação do comando e impede a reintrodução desse defeito. A certificação depende de nova CI aprovada; não altera o gate produtivo V9 nem a seleção do Operador Master.
