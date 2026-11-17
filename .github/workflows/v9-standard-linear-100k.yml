@@ -659,6 +659,27 @@ jobs:
           if-no-files-found: warn
           path: |
             Solution/.local/v9-100k-technical/validation-results/*.json
+      - name: Package independent VALIDATION synthetic corpus using PREPARE format
+        if: always()
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          if [[ ! -f "$root/validation-people/observacoes.csv" ]]; then
+            echo "VALIDATION_CORPUS_NOT_GENERATED"; exit 0
+          fi
+          mkdir -p "$root/validation-corpus-transfer"
+          python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --cohort-dir validation-people --out "$root/validation-corpus-transfer/validation-inputs.tar.gz"
+          printf '%s' "$EXACT_SHA" > "$root/validation-corpus-transfer/code-sha.txt"
+          printf '%s' "$GITHUB_RUN_ID" > "$root/validation-corpus-transfer/run-id.txt"
+          (cd "$root/validation-corpus-transfer" && sha256sum validation-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
+      - name: Upload independent VALIDATION synthetic corpus
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-standard-validation-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: Solution/.local/v9-100k-technical/validation-corpus-transfer/
       - name: Dispose all temporary VALIDATION data and transferred finalist copies
         if: always()
         working-directory: ${{ github.workspace }}
@@ -821,6 +842,27 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
           path: Solution/.local/v9-independent-test/results/independent-test.json
+      - name: Package independent TEST synthetic corpus using PREPARE format
+        if: always()
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          if [[ ! -f "$root/corpus/observacoes.csv" ]]; then
+            echo "TEST_CORPUS_NOT_GENERATED"; exit 0
+          fi
+          mkdir -p "$root/test-corpus-transfer"
+          python3 scripts/v9-standard-prepare-handoff.py pack --root "$root" --cohort-dir corpus --out "$root/test-corpus-transfer/test-inputs.tar.gz"
+          printf '%s' "$EXACT_SHA" > "$root/test-corpus-transfer/code-sha.txt"
+          printf '%s' "$GITHUB_RUN_ID" > "$root/test-corpus-transfer/run-id.txt"
+          (cd "$root/test-corpus-transfer" && sha256sum test-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
+      - name: Upload independent TEST synthetic corpus
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-standard-test-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: Solution/.local/v9-independent-test/test-corpus-transfer/
       - name: Dispose entire TEST corpus after run or failure
         if: always()
         working-directory: ${{ github.workspace }}
