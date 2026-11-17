@@ -18,3 +18,8 @@ Revisa parcialmente `Decisao_GOV_V9_Fluxo_Padrao_Provisorio_20261116.md` apenas 
 
 ## Aceite e rastreabilidade
 Origem: aprovação expressa do PO em 17/11/2026. Evidência de referência: run #43989180083, SHA 37c90820969577c912e5a5c48db9aeaabd98c4b1. Exigir CI de contrato verde, smoke entre runners, parâmetros do gerador preservados, geração dos planos somente após validação do corpus, e execução física controlada autorizada antes de declarar implementação integral comprovada. A fase 2 não integra esta primeira PR.
+
+## Complemento operacional — workflow padrão e parâmetro (PO, 17/11/2026)
+O PO confirmou que o **workflow V9 Standard Linear atualmente utilizado** é o padrão único para esta evolução, com entrada opcional `test_database` no `workflow_dispatch`. Não reutilizar a semântica obsoleta de TEST de 14/11 nem manter exceção decisória para o legado. O campo vazio mantém o gerador IBGE atual. O campo preenchido destina-se exclusivamente à referência estatística externa no PREPARE, **independentemente de `test_required`**.
+
+**Implantação incremental e segura:** a primeira PR desta etapa expõe a entrada e aplica validação fail-closed antes de qualquer geração quando não vazia, com `V9_PREPARE_EXTERNAL_STATISTICAL_ADAPTER_NOT_IMPLEMENTED`. Isso **não** implementa a extração de estatísticas nem habilita o caminho externo; a futura implementação exige runner privado com acesso SELECT-only, contrato de agregados sem PII, proveniência/fingerprint, verificação de suporte e independência TRAIN/TEST. O caminho vazio permanece inalterado. O bloqueio do TEST científico continua vigente. A documentação não deve declarar o modo externo operacional antes de CI e prova física específicas.
