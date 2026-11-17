@@ -84,9 +84,12 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertNotIn("test-corpus.cms", block)
 
     def test_mandatory_chain_with_test_off_is_complete_but_not_certified(self):
-        result = self.call()
+        with self.assertRaisesRegex(ValueError, "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER"):
+            self.call()
+        self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
+        result = self.call(prep="success")
         self.assertEqual(result["status"],
-                         "E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED")
+                         "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
         self.assertFalse(result["certified"])
         self.assertFalse(result["productionPublication"])
         self.assertEqual(result["winnerSha256"], W)
@@ -99,7 +102,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
              "AUDIT_NOT_SUCCESS"),
             (("success", "success", "skipped", "skipped", "skipped", False),
              "VALIDATION_NOT_SUCCESS"),
-            (("success", "success", "success", "success", "skipped", False),
+            (("success", "success", "success", "failure", "skipped", False),
              "UNREQUESTED_TEST_PREPARATION"),
             (("success", "success", "success", "skipped", "failure", False),
              "UNREQUESTED_TEST_EXPOSURE"),
@@ -131,11 +134,11 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "VALIDATION_"):
                     self.call()
         self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
-        result = self.call()
+        result = self.call(prep="success")
         self.assertEqual(result["status"],
                          "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
         with self.assertRaisesRegex(ValueError, "TEST_"):
-            self.test.write_text(json.dumps(test_doc(full_parity=True)))
+            self.test.write_text(json.dumps(test_doc(full_parity=False)))
             self.call(requested=True, prep="success", test="success")
 
     def test_test_requires_same_sha_canonical_model_and_independent_execution(self):
