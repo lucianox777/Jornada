@@ -51,7 +51,9 @@ class CohortArtifacts(unittest.TestCase):
         self.assertIn("v9-standard-test-corpus-", workflow)
         self.assertIn("--cohort-dir validation-people", workflow)
         self.assertIn("--cohort-dir corpus", workflow)
-        self.assertIn("v9-tf4-test-seed-20261113001-exposed", workflow)
+        self.assertIn("python3 scripts/v9-reserve-test-seed.py", workflow)
+        self.assertIn("steps.test_seed.outputs.test_seed", workflow)
+        self.assertIn("test-seed-reservation.json", workflow)
         self.assertIn("retention-days: 30", workflow)
 
 
