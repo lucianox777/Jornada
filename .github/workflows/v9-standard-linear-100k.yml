@@ -51,8 +51,8 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          # TEST is mandatory with a VALIDATION winner and independently sealed before TRAIN.
-          # Missing encryption credentials fail in prepare-test-sealed before TRAIN.
+          # TEST is mandatory with a VALIDATION winner; TEST generates its own cohort.
+          # No TEST encryption credentials are required for on-demand generation.
   prepare-100k:
     name: "V9 PREPARE: raw synthetic TRAIN 100k"
     needs: admission
@@ -837,7 +837,7 @@ jobs:
   # External statistical reference via test_database remains disabled until
   # a separate safe adapter is implemented; scientific TEST generates its own fresh cohort after VALIDATION.
   e2e-closeout:
-    needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]
+    needs: [prepare-100k, physical-100k, audit-100k, validation-100k, test-100k]
     if: ${{ always() }}
     name: "V9 E2E closeout: require TEST if VALIDATION selects winner"
     runs-on: ubuntu-24.04
@@ -849,7 +849,7 @@ jobs:
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
-      PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }} # sealed before TRAIN, including no-winner campaigns
+      PREPARATION_RESULT: ${{ needs.prepare-100k.result }} # TRAIN preparation only
       TEST_RESULT: ${{ needs.test-100k.result }}
       EXTERNAL_PREFLIGHT_RESULT: skipped
       EXTERNAL_TEST_RESULT: skipped
