@@ -41,6 +41,8 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", source)
         self.assertIn("V9ValidatedOperationalModelFile.FileName(selection.WinnerSha256)", source)
         self.assertIn("RUNNER_V9_ARTIFACT_SHA_MISMATCH", source)
+        self.assertIn("new FileInfo(artifact).LinkTarget is not null", source)
+        self.assertIn("RUNNER_V9_ARTIFACT_INVALID", source)
         self.assertIn("UnmappedMemberHandling.Disallow", source)
         self.assertNotIn("GetModelByVersionAsync", source)
         self.assertNotIn("SqlConnection", source)
