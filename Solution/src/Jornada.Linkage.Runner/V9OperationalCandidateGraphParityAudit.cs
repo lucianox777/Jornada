@@ -163,8 +163,9 @@ public static class V9OperationalCandidateGraphParityAudit
         // Compare both decisions AND identity partitions, not only counts.
         var reference = operationalRuntime.ReplayTest(test,
             expected.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
-        var operational = operationalRuntime.ReplayTest(test,
-            actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
+        var operational = operationalRuntime.ReplayOperationalGraph(test,
+            actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray(),
+            expected.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
         if (!reference.Decisions.SequenceEqual(operational.Decisions)
             || reference.IdentityByObservation.Count != operational.IdentityByObservation.Count
             || reference.IdentityByObservation.Any(x =>
