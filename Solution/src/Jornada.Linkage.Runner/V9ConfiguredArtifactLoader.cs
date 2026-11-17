@@ -8,7 +8,13 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public static class V9ConfiguredArtifactLoader
 {
-    private static readonly JsonSerializerOptions SelectionJsonOptions = new()\n    {\n        PropertyNameCaseInsensitive = true,\n        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow\n    };\n\n    public sealed record Selection(string ArtifactPath, string WinnerSha256);
+    private static readonly JsonSerializerOptions SelectionJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
+
+    public sealed record Selection(string ArtifactPath, string WinnerSha256);
     public sealed record Loaded(string ArtifactPath, string WinnerSha256, V9FittedSnapshot Snapshot);
 
     public static async Task<Loaded> LoadAsync(string selectionFile, CancellationToken ct = default)
