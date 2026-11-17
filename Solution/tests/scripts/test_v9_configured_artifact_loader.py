@@ -36,6 +36,14 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertIn("new V9OperationalPinnedCohortRuntime(snapshot, verified.ModelId)", cohort)
         self.assertIn("V9FrozenSourceResolveReplay.ReplayTest(winner, test, completePhysicalSqlEdges)", cohort)
 
+    def test_selection_rejects_noncanonical_sha_before_artifact_path(self):
+        source = LOADER.read_text(encoding="utf-8")
+        self.assertIn("RUNNER_V9_ARTIFACT_SHA_INVALID", source)
+        self.assertIn("selection.WinnerSha256.Length != 64", source)
+        self.assertIn("ch >= 'a' && ch <= 'f'", source)
+        self.assertLess(source.index("RUNNER_V9_ARTIFACT_SHA_INVALID"),
+                        source.index("Path.GetFullPath(selection.ArtifactPath"))
+
     def test_file_only_sha_pinned_no_sql_fallback(self):
         source = LOADER.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", source)
