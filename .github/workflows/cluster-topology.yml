@@ -13,6 +13,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/tests/scripts/test_runner_startup_model_gate.py'
       - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
       - 'Solution/scripts/local_env_bootstrap.py'
@@ -33,6 +34,7 @@ on:
       - 'Solution/install/windows-production/Install-JornadaCluster.ps1'
       - 'Solution/install/windows-production/Invoke-JornadaLinkage*.ps1'
       - 'Solution/scripts/local-cluster.*'
+      - 'Solution/tests/scripts/test_runner_startup_model_gate.py'
       - 'Solution/scripts/local-clean-test.ps1'
       - 'Solution/scripts/local-db.*'
       - 'Solution/scripts/local_env_bootstrap.py'
@@ -148,6 +150,12 @@ jobs:
           running=$(docker compose --env-file .env exec -T jornada-node2 sh -lc "ps -ef | grep -E 'Jornada.Linkage.(Parameters.Worker|Runner)|Jornada.Bronze.Verify|Jornada.Linkage.Evaluation' | grep -v grep || true")
           test -z "$running"
           echo 'ONE-SHOT TOOLS PRESENT, SUPPORT TRANSMITTER EXCLUDED, NOT RESIDENT: OK'
+
+      - name: Validate local Linkage wrapper syntax and Runner model gate regression
+        shell: bash
+        run: |
+          bash -n scripts/local-cluster.sh
+          python3 -m unittest discover -s tests/scripts -p test_runner_startup_model_gate.py
 
       - name: Prove Linkage is blocked before Calibrator
         shell: bash
