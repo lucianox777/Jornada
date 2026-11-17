@@ -53,77 +53,6 @@ jobs:
           test "$APPROVED" = "true"
           # TEST is mandatory with a VALIDATION winner and independently sealed before TRAIN.
           # Missing encryption credentials fail in prepare-test-sealed before TRAIN.
-  prepare-test-sealed:
-    name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
-    needs: admission
-    if: ${{ needs.admission.result == 'success' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    env:
-      EXACT_SHA: ${{ inputs.expected_sha }}
-      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
-      TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
-      TEST_PUBLIC_CERT_SHA: ${{ vars.V9_TF4_TEST_PUBLIC_CERT_SHA256 }}
-    defaults:
-      run:
-        working-directory: Solution
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
-        with:
-          ref: ${{ inputs.expected_sha }}
-          persist-credentials: false
-      - name: Check immutable TEST preparation prerequisites before generating
-        run: |
-          set -euo pipefail
-          test "$EXACT_SHA" = "$GITHUB_SHA"
-          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
-          test "$GITHUB_RUN_ATTEMPT" = "1"
-          test "$GITHUB_REF" = "refs/heads/master"
-          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
-          test -n "$TEST_PUBLIC_CERT_B64"
-          [[ "$TEST_PUBLIC_CERT_SHA" =~ ^[a-f0-9]{64}$ ]]
-          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
-            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
-            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
-        with:
-          dotnet-version: "10.0.113"
-          cache: true
-          cache-dependency-path: "Solution/**/packages.lock.json"
-      - name: Build independent TEST synthetic generator
-        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
-      - name: Generate independent raw TEST and seal before TRAIN
-        run: |
-          set -euo pipefail
-          umask 077
-          root="$PWD/.local/v9-independent-test-preparation"
-          mkdir -p "$root"
-          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
-          test "$(sha256sum "$root/recipient.pem" | cut -d' ' -f1)" = "$TEST_PUBLIC_CERT_SHA"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
-            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
-            --population-profile demographic-primary \
-            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --people 100000 --seed 20261113001 --out "$root/raw"
-          python3 scripts/v9-tf4-sealed-test-preparation.py seal \
-            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
-            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
-            --raw "$root/raw" --certificate "$root/recipient.pem" \
-            --expected-cert-sha "$TEST_PUBLIC_CERT_SHA" \
-            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
-          rm -rf -- "$root/raw" "$root/recipient.pem"
-      - name: Upload encrypted TEST corpus only
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
-        with:
-          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
-          retention-days: 30
-          if-no-files-found: error
-          path: Solution/.local/v9-independent-test-preparation/sealed/
-      - name: Erase TEST preparation data even on failure
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test-preparation"
   prepare-100k:
     name: "V9 PREPARE: raw synthetic TRAIN 100k"
     needs: admission
@@ -199,9 +128,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
   physical-100k:
-    needs: [prepare-100k, prepare-test-sealed]
-    # Both PREPARE and independently sealed TEST preparation precede TRAIN.
-    if: ${{ needs.prepare-100k.result == 'success' && needs.prepare-test-sealed.result == 'success' }}
+    needs: prepare-100k
+    if: ${{ needs.prepare-100k.result == 'success' }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -746,14 +674,12 @@ jobs:
   # TEST owns the corpus, protocol, SQL and metric computation.
   # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
   test-100k:
-    needs: [validation-100k, prepare-test-sealed]
-    if: ${{ always() && !cancelled() && needs.prepare-test-sealed.result == 'success' && needs.validation-100k.result == 'success' && needs.validation-100k.outputs.has_winner == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
-    name: "V9 independent TEST: one frozen winner, sealed 100k"
+    needs: validation-100k
+    if: ${{ always() && !cancelled() && needs.validation-100k.result == 'success' && needs.validation-100k.outputs.has_winner == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 independent TEST: one frozen winner, fresh 100k"
     runs-on: ubuntu-24.04
 
-    # Contents write is scoped ONLY to TEST to atomically reserve a unique
-    # one-use tag for this TEST seed before any decrypted data are opened.
-    # TRAIN, VALIDATION and preparation retain read-only credentials.
+    # Reserve the globally single-use seed before generating TEST observations.
     permissions:
       contents: write
       actions: read
@@ -792,19 +718,16 @@ jobs:
           dotnet-version: "10.0.113"
           cache: true
           cache-dependency-path: "Solution/**/packages.lock.json"
-      - name: Build independent physical TEST evaluator
-        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Build independent physical TEST evaluator and synthetic generator
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
       - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
           name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
           path: Solution/.local/v9-independent-test/winner
-      - name: Download TEST's own corpus sealed before TRAIN
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
-        with:
-          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
-          path: Solution/.local/v9-independent-test/sealed
-      - name: Verify one SHA-pinned winner and authenticated TEST ciphertext
+      - name: Verify one SHA-pinned frozen VALIDATION winner
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
@@ -812,15 +735,11 @@ jobs:
           import hashlib,pathlib,re,sys
           files=list(pathlib.Path(sys.argv[1]).iterdir())
           assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
-          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
+          assert re.fullmatch(r"[a-f0-9]{64}\\.operational\\.json",files[0].name)
           with files[0].open("rb") as stream:
               assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
           print("ONE_SHA_PINNED_WINNER_ONLY")
           PY
-          python3 scripts/v9-tf4-sealed-test-preparation.py verify \
-            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
-            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
-            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Start brand-new disposable SQL database only for TEST
         run: |
           set -euo pipefail
@@ -844,53 +763,31 @@ jobs:
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-convert-winner-operational "$model"
           # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
-      - name: Reserve single-use TEST seed atomically before opening its own corpus
+      - name: Reserve single-use TEST seed before generating fresh independent corpus
         env:
-          TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
-          TEST_PRIVATE_KEY_B64: ${{ secrets.V9_TF4_TEST_PRIVATE_KEY_B64 }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          umask 077
-          root="$PWD/.local/v9-independent-test"
-          test -n "$TEST_PUBLIC_CERT_B64" && test -n "$TEST_PRIVATE_KEY_B64" || {
-            echo "::error::TEST_ENCRYPTION_KEYS_NOT_CONFIGURED"
-            exit 1
-          }
-          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
-          printf '%s' "$TEST_PRIVATE_KEY_B64" | base64 -d > "$root/private.pem"
-          # Fail before consuming the one-use TEST exposure if credentials do not
-          # open the exact certificate used by the preparation job.
-          python3 - "$root/recipient.pem" "$root/private.pem" "$root/sealed/test-seal-receipt.json" <<'PY'
-          import hashlib,json,pathlib,subprocess,sys
-          cert,key,receipt=map(pathlib.Path,sys.argv[1:])
-          r=json.loads(receipt.read_text(encoding="utf-8"))
-          assert hashlib.sha256(cert.read_bytes()).hexdigest()==r["certificateSha256"]
-          expected=subprocess.run(["openssl","x509","-in",str(cert),"-pubkey","-noout"],
-                                  check=True,capture_output=True).stdout
-          actual=subprocess.run(["openssl","pkey","-in",str(key),"-pubout"],
-                                check=True,capture_output=True).stdout
-          assert expected==actual, "TEST private key does not match sealed recipient"
-          print("TEST_KEYS_MATCH_ENCRYPTED_CORPUS_RECIPIENT")
-          PY
-          # An immutable seed is a one-use scientific resource across ALL runs.
-          # Reserve a global, deterministic Git tag ATOMICALLY before exposure:
-          # GitHub returns 422 if it already exists; fail closed without opening.
-          # No rerun/re-dispatch gets a second look at the same 100k cohort.
           test "$GITHUB_RUN_ATTEMPT" = "1"
           exposure_ref="refs/tags/v9-tf4-test-seed-20261113001-exposed"
-          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \\
             -f ref="$exposure_ref" -f sha="$GITHUB_SHA" --silent >/dev/null || {
               echo "::error::V9_TEST_EXPOSURE_ALREADY_RESERVED_OR_GITHUB_TAG_DENIED"
               exit 1
             }
           echo "V9_TEST_ONE_USE_EXPOSURE_RESERVED=$exposure_ref"
-          python3 scripts/v9-tf4-sealed-test-preparation.py unseal \
-            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
-            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
-            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
-            --certificate "$root/recipient.pem" --key "$root/private.pem" --out "$root/corpus"
-          rm -f -- "$root/private.pem" "$root/recipient.pem"
+      - name: Generate fresh independent TEST 100k after winner is frozen
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          mkdir -p "$root/corpus"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \\
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \\
+            --population-profile demographic-primary \\
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \\
+            --error-profile clean --people 100000 --seed 20261113001 \\
+            --out "$root/corpus" > "$root/test-generation.log"
+          test -s "$root/corpus/observacoes.csv"
       - name: Apply one frozen winner to TEST, no refit and no winner selection
 
         env:
@@ -919,7 +816,7 @@ jobs:
           assert r["certified"] is False and r["activated"] is False
           print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",r["winnerSnapshotSha256"])
           PY
-      - name: Upload only aggregate TEST result, never base, keys or truth
+      - name: Upload only aggregate TEST result, never raw corpus or truth
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
@@ -928,7 +825,7 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
           path: Solution/.local/v9-independent-test/results/independent-test.json
-      - name: Dispose entire TEST corpus and keys after run or failure
+      - name: Dispose entire TEST corpus after run or failure
         if: always()
         working-directory: ${{ github.workspace }}
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test"
@@ -938,7 +835,7 @@ jobs:
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
   # External statistical reference via test_database remains disabled until
-  # a separate safe adapter is implemented; scientific TEST uses sealed cohort.
+  # a separate safe adapter is implemented; scientific TEST generates its own fresh cohort after VALIDATION.
   e2e-closeout:
     needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]
     if: ${{ always() }}
