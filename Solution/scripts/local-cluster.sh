@@ -161,7 +161,7 @@ run_linkage() {
   version="$(sql_scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
   model_id="$(sql_scalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO' ORDER BY versao DESC;")"
   echo "Executando linkage com modelo calibrado ATIVO v$version / ModeloId=$model_id."
-  compose exec -T jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll --mode ON_DEMAND --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
+  # Pin the already verified calibrated active model explicitly for this one-shot DEV invocation.\n  # Never change the global Operator Master configuration or infer an SQL fallback.\n  compose exec -T -e "Linkage__SelectedModelVersion=$version" jornada-node2 dotnet /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll --mode ON_DEMAND --model-version "$version" --publish true --requested-by LOCAL_CLUSTER --reason manual-local-cluster
 }
 
 diagnose_linkage() {
