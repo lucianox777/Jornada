@@ -188,7 +188,7 @@ public static class V9FrozenCohortSqlCandidateGraph
             .ThenBy(s => s.Hash, StringComparer.Ordinal)
             .Select(s => s.Obs.ToString(CultureInfo.InvariantCulture) + ":" +
                 s.Manager.Length.ToString(CultureInfo.InvariantCulture) + ":" +
-                s.Manager + ":" + s.Pass + ":" + s.Hash + "\\n"));
+                s.Manager + ":" + s.Pass + ":" + s.Hash + "\n"));
         var signaturesDigest = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(canonicalSignatures))).ToLowerInvariant();
 
