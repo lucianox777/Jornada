@@ -1,0 +1,15 @@
+# GOV-RUNNER-STARTUP-MODELO-OPERADOR-MASTER-20261117
+
+**Autoridade:** Product Owner, 17/11/2026. **Estado:** aprovado; implementação proposta, CI pendente. **Política:** GOV-DOC-01.
+
+## Contexto
+O Runner é executável run-once. O Operador Master escolhe o modelo enquanto o Runner está parado; o processo precisa consumir a configuração ao iniciar, não pesquisar alternativas durante o loop. A correção de ausência de ruleset da PR #1640 isoladamente não garantia verificação antecipada.
+
+## Decisão e precedência
+Para execuções operacionais não-REPLAY, exigir `Linkage:SelectedModelVersion` inteiro positivo na configuração lida pelo host no start. O argumento `--model-version`, se informado, deve coincidir com a versão configurada; nunca substitui a escolha do Operador Master. Antes de iniciar o hosted service, abrir SQL e carregar a versão selecionada por `GetModelByVersionAsync`; o leitor exige ruleset persistido e valida algoritmo, normalização, projeção e fingerprint. Qualquer falha interrompe o processo antes de obter lock de pipeline ou entrar no loop. Congelar a versão selecionada nas opções da execução. Não implementar polling, hot reload ou validação adicional de alteração de parâmetros em execução: a operação pressupõe Runner parado para mudança de modelo.
+
+## Exceções e limites
+REPLAY permanece vinculado ao modelo histórico do source run conforme DT-05, e não pode ser redirecionado para a escolha operacional atual. Esta implementação usa o provider de configuração existente do host (incluindo configuração por arquivo/ambiente); não implementa download remoto adicional nem interface do Operador Master. A versão configurada refere-se ao contrato atual de modelo SQL com ruleset; **não constitui prova de ativação do artefato científico V9 operacional**, que possui contrato próprio e segue pendente de integração ao seletor de produção. Não alterar matemática científica, nem disparar TRAIN/TEST.
+
+## Rastreabilidade
+Autorização do PO em conversa de 17/11/2026: verificar compatibilidade na partida, com Runner parado durante a troca; operador escolhe modelo, Runner apenas aceita ou falha fechado. Complementa GOV-V9-RUNNER-RULESET-OBRIGATORIO-20261117. Aceite depende de testes/CI, configuração real de implantação e validação do contrato V9.
