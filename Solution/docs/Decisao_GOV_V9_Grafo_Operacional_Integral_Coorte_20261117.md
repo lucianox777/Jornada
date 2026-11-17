@@ -51,3 +51,6 @@ Além de comparar o censo e o stream SQL, o componente agora constrói um conjun
 
 ### Limite do oráculo independente (17/11/2026)
 A materialização do conjunto C# de arestas esperado também falha explicitamente se exceder `MaximumPairIncidences`, sem truncamento ou comparação parcial (commits `975b5ae` e `b607635`). O limite continua exclusivo do smoke descartável; não é parâmetro de capacidade produtiva aprovado. A ativação do Runner V9 permanece bloqueada até integração e certificação próprias.
+
+### Disparo da CI antes da integração na master (17/11/2026)
+Para não depender exclusivamente do evento `pull_request` quando o próprio workflow foi introduzido na branch, foi adicionado o gatilho `push` restrito a `docs/gov-v9-grafo-operacional-coorte-20261117` (commit `dcfceaf`). O disparo mantém o mesmo job descartável, sem publicação e sem certificação científica. Não constitui evidência de sucesso até haver run e recibo verificados. Após integração, o gatilho temporário específico da branch deverá ser retirado ou substituído por política permanente aprovada.
