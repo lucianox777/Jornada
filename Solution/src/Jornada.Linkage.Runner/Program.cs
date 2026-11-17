@@ -198,6 +198,12 @@ if (options.Mode != LinkageRunType.REPLAY)
     var v9SelectionFile = frozenConfiguration["Linkage:V9SelectionFile"];
     if (!string.IsNullOrWhiteSpace(v9SelectionFile))
     {
+        // A V9 package must never silently override a different operator
+        // selection, or an explicit --model-version. Reject before file/SQL IO.
+        if (frozenConfiguration.GetValue<int?>("Linkage:SelectedModelVersion") != 9
+            || options.ModelVersion is int requestedV9Version && requestedV9Version != 9)
+            throw new InvalidOperationException(
+                "RUNNER_V9_SELECTION_VERSION_MISMATCH: pacote V9 exige versão 9 na configuração e no argumento opcional.");
         // Validate the same immutable snapshot AND construct the actual V9 cohort
         // scorer before failing closed. Never resolve the legacy SQL model here.
         var frozenV9 = await V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile);
