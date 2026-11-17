@@ -9,7 +9,7 @@ class V9FileSelectionContractTests(unittest.TestCase):
     def test_runner_startup_rejects_uncertified_v9_without_sql_fallback(self):
         program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
         self.assertIn('Linkage:V9SelectionFile', program)
-        self.assertIn('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)', program)
+        self.assertIn('V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)', program)
         self.assertIn('RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED', program)
         self.assertLess(program.index('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)'),
                         program.index('GetModelByVersionAsync(configuredVersion.Value'))
