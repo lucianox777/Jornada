@@ -735,7 +735,7 @@ jobs:
           import hashlib,pathlib,re,sys
           files=list(pathlib.Path(sys.argv[1]).iterdir())
           assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
-          assert re.fullmatch(r"[a-f0-9]{64}\\.operational\\.json",files[0].name)
+          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
           with files[0].open("rb") as stream:
               assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
           print("ONE_SHA_PINNED_WINNER_ONLY")
@@ -770,7 +770,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_RUN_ATTEMPT" = "1"
           exposure_ref="refs/tags/v9-tf4-test-seed-20261113001-exposed"
-          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \\
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \
             -f ref="$exposure_ref" -f sha="$GITHUB_SHA" --silent >/dev/null || {
               echo "::error::V9_TEST_EXPOSURE_ALREADY_RESERVED_OR_GITHUB_TAG_DENIED"
               exit 1
@@ -781,11 +781,11 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
           mkdir -p "$root/corpus"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \\
-            --reference-root "$PWD/data/reference/ibge-nomes-2022" \\
-            --population-profile demographic-primary \\
-            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \\
-            --error-profile clean --people 100000 --seed 20261113001 \\
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261113001 \
             --out "$root/corpus" > "$root/test-generation.log"
           test -s "$root/corpus/observacoes.csv"
       - name: Apply one frozen winner to TEST, no refit and no winner selection
