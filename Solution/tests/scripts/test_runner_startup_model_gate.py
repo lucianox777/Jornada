@@ -45,6 +45,10 @@ class RunnerStartupModelGateTests(unittest.TestCase):
         self.assertIn('\n  compose exec -T -e "Linkage__SelectedModelVersion=$version"', linkage)
         self.assertNotIn('compose up', linkage)
         self.assertNotIn('docker compose down', linkage)
+        # Check shell parsing as well as static command placement.
+        import subprocess
+        subprocess.run(['bash', '-n', str(ROOT / 'scripts/local-cluster.sh')], check=True)
+
 
     def test_replay_preserves_historical_model_binding(self):
         source = PROGRAM.read_text(encoding="utf-8")
