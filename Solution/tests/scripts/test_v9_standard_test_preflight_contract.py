@@ -25,29 +25,29 @@ class StandardTestPreflightContract(unittest.TestCase):
         self.assertEqual(lock["status"], "LOCKED")
         self.assertEqual(lock["people"], 100000)
         self.assertEqual(len({lock["trainSeed"], lock["validationSeed"], lock["testSeed"]}), 3)
-        self.assertEqual(lock["sealing"], "OPENSSL_CMS_AES_256_GCM_X509_RSA")
+        # Historical lock preserves preregistered seed; encryption is superseded.
         self.assertIn("IDENTITY_DISJOINTNESS_NOT_ATTESTED", lock["declaredIndependence"])
-        self.assertIn(hashlib.sha256(self.lock_bytes).hexdigest(), self.workflow)
+        self.assertIn(str(lock['testSeed']), self.job('test-100k'))
 
-    def test_test_preparation_blocks_train_and_requires_cert(self):
-        prep = self.job("prepare-test-sealed")
+    def test_train_does_not_depend_on_test_preparation(self):
         train = self.job("physical-100k")
-        self.assertIn("needs: admission", prep)
-        self.assertIn("V9_TF4_TEST_PUBLIC_CERT_B64", prep)
-        self.assertIn("V9_TF4_TEST_PUBLIC_CERT_SHA256", prep)
-        self.assertIn("prepare-test-sealed", train)
-        self.assertNotIn("V9_TF4_TEST_PRIVATE_KEY_B64", train)
+        prepare = self.job("prepare-100k")
+        self.assertIn("--seed 42", prepare)
+        self.assertIn("needs: prepare-100k", train)
+        self.assertNotIn("prepare-test-sealed", self.workflow)
+        self.assertNotIn("V9_TF4_TEST_PRIVATE_KEY_B64", self.workflow)
+        self.assertNotIn("V9_TF4_TEST_PUBLIC_CERT_B64", self.workflow)
 
-    def test_test_only_after_winner_and_one_use_before_unseal(self):
+    def test_test_only_after_winner_and_one_use_before_generation(self):
         test = self.job("test-100k")
         validation = self.job("validation-100k")
-        self.assertIn("needs: [validation-100k, prepare-test-sealed]", test)
+        self.assertIn("needs: validation-100k", test)
         self.assertIn("needs.validation-100k.outputs.has_winner == 'true'", test)
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', test)
         self.assertIn("refs/tags/v9-tf4-test-seed-20261113001-exposed", test)
-        self.assertLess(test.index('gh api "repos/$GITHUB_REPOSITORY/git/refs"'), test.index(" unseal \\"))
-        self.assertIn("V9_TF4_TEST_PRIVATE_KEY_B64", test)
-        self.assertNotIn("V9_TF4_TEST_PRIVATE_KEY_B64", validation)
+        self.assertLess(test.index('gh api "repos/$GITHUB_REPOSITORY/git/refs"'), test.index("Generate fresh independent TEST 100k"))
+        self.assertIn("--seed 20261113001", test)
+        self.assertIn("--seed 20261112001", validation)
         self.assertNotIn("contents: write", validation)
         self.assertIn("contents: write", test)
 

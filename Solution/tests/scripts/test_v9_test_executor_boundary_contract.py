@@ -10,24 +10,24 @@ REPO = ROOT.parent
 
 
 class V9TestExecutorBoundaryContract(unittest.TestCase):
-    def test_standard_workflow_requires_sealed_test_preparation_before_train(self):
+    def test_standard_workflow_generates_test_after_validation(self):
         wf = (REPO / ".github/workflows/v9-standard-linear-100k.yml").read_text(encoding="utf-8")
         self.assertNotIn('V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED', wf)
-        self.assertIn('prepare-test-sealed:', wf)
-        self.assertIn("needs: [prepare-100k, prepare-test-sealed]", wf)
-        self.assertIn("needs.prepare-test-sealed.result == 'success'", wf)
-        self.assertIn("PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }}", wf)
+        self.assertNotIn('prepare-test-sealed:', wf)
+        self.assertIn("needs: prepare-100k", wf)
+        self.assertNotIn("needs.prepare-test-sealed.result", wf)
+        self.assertIn("PREPARATION_RESULT:", wf)
         self.assertNotIn('inputs.test_required', wf)
         self.assertIn("needs.validation-100k.outputs.has_winner == 'true'", wf)
         self.assertIn('has_winner: ${{ steps.operational_file.outputs.has_model }}', wf)
         self.assertIn('needs.validation-100k.result == \'success\'', wf)
         self.assertIn('test-100k:', wf)
         self.assertNotIn('      test_required:', wf)
-        self.assertIn("if: ${{ needs.admission.result == 'success' }}", wf)
+        self.assertIn("needs: admission", wf)
         self.assertIn("V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}", wf)
         self.assertIn('V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}', wf)
         self.assertIn('V9_VALIDATION_WINNER_OUTPUT_MISSING', wf)
-        self.assertIn('needs: [validation-100k, prepare-test-sealed]', wf)
+        self.assertIn('needs: validation-100k', wf)
 
     def test_test_consumes_validation_winner_without_refitting(self):
         cli = (ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs").read_text(encoding="utf-8")
@@ -41,7 +41,7 @@ class V9TestExecutorBoundaryContract(unittest.TestCase):
         test_job = wf.split("\n  test-100k:", 1)[1].split("\n  closeout", 1)[0]
         self.assertIn('name: v9-tf4-validated-operational-model-', test_job)
         self.assertIn('Download ONLY the final JSON produced by VALIDATION', test_job)
-        self.assertIn("Download TEST's own corpus sealed before TRAIN", test_job)
+        self.assertIn("Generate fresh independent TEST 100k after winner is frozen", test_job)
         self.assertIn('Start brand-new disposable SQL database only for TEST', test_job)
         self.assertIn('--v9-independent-test "$model"', test_job)
         self.assertNotIn('v9-tf4-train-results-', test_job)

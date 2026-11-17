@@ -38,10 +38,10 @@ class StandardLinearWorkflowTests(unittest.TestCase):
                     "audit-100k", "validation-100k", "e2e-closeout"):
             self.assertIn(f"  {job}:\n", text)
         self.assertIn("needs: admission", text)
-        self.assertIn("needs: [prepare-100k, prepare-test-sealed]", text)
+        self.assertIn("needs: prepare-100k", text)
         self.assertIn("needs: physical-100k", text)
         self.assertIn("needs: audit-100k", text)
-        self.assertIn("needs: [validation-100k, prepare-test-sealed]", text)
+        self.assertIn("needs: validation-100k", text)
 
     def test_train_handoff_and_separate_runner(self):
         text = self.workflow
