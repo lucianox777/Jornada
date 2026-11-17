@@ -76,6 +76,17 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "edges[i - 1].B >= edges[i].B"):
             self.assertIn(guard, graph)
 
+    def test_direct_runasync_v9_fails_before_sql_and_pipeline_lock(self):
+        s = self.runner
+        gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED")
+        start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(")
+        self.assertLess(start, gate)
+        self.assertLess(gate, s.index("AcquireExclusiveJobAsync(", start))
+        self.assertLess(gate, s.index("await linkage.GetModelByVersionAsync(", start))
+        self.assertIn('configuration["Linkage:V9SelectionFile"]', s[start:gate])
+        self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9', s[start:gate])
+        self.assertIn("request.Mode != LinkageRunType.REPLAY", s[start:gate])
+
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
         loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
