@@ -29,3 +29,5 @@ Foi acrescentado o validador isolado `scripts/v9-statistical-reference-contract.
 
 ### Endurecimento do contrato preliminar
 O validador passa a rejeitar chaves JSON duplicadas, caracteres de controle nos buckets e datas de nascimento fora do padrão ISO `YYYY-MM-DD` ou inexistentes no calendário. Testes de regressão cobrem essas rejeições. A restrição de data é exclusiva da categoria `birth_day` e não altera o gerador IBGE. Não equivale a autorização de extração SQL nem de uso da base externa; a revisão de privacidade permanece pendente.
+
+**Cobertura CI:** o workflow `v9-experimental-fast-pr` passa a executar explicitamente `test_v9_statistical_reference_contract.py`, e a observar mudanças nesse arquivo, evitando que os testes do contrato fiquem apenas versionados sem execução. Evidência de aprovação depende do resultado da CI da PR correspondente.
