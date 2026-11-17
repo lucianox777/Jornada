@@ -154,6 +154,31 @@ public static class V9FrozenCohortSqlCandidateGraph
             throw new InvalidDataException(
                 "Assinaturas SQL V9 incompletas: censo materializado divergiu do universo planejado.");
 
+        // A matching row count alone cannot detect substitutions or stale
+        // signatures. Verify the complete materialized signature set, including
+        // manager and pass, before deriving any candidate edge.
+        var expectedSignatures = new HashSet<(int Obs, string Manager, string Pass, string Hash)>(
+            signatures.Select(s => (s.Observation, s.Manager, s.Pass, s.Hash)));
+        var observedSignatures = new HashSet<(int Obs, string Manager, string Pass, string Hash)>();
+        await using (var verify = new SqlCommand(
+            "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;", connection)
+            { CommandTimeout = 120 })
+        {
+            await using var reader = await verify.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var signature = (reader.GetInt32(0), reader.GetString(1),
+                    reader.GetString(2), reader.GetString(3));
+                if (!observedSignatures.Add(signature)
+                    || !expectedSignatures.Contains(signature))
+                    throw new InvalidDataException(
+                        "Manifesto SQL V9 contém assinatura duplicada ou adulterada.");
+            }
+        }
+        if (!expectedSignatures.SetEquals(observedSignatures))
+            throw new InvalidDataException(
+                "Manifesto SQL V9 incompleto: assinaturas divergem do plano congelado.");
+
         // Reconcile an independent SQL census against every streamed edge.
         // Never accept a silently incomplete graph.
         long expectedEdges;
