@@ -56,6 +56,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "SELECT COUNT_BIG(*) FROM #v9_run_sig;",
                       "materializedSignatures != signatures.Count",
                       "CREATE UNIQUE INDEX UX_v9_run_sig",
+                      "expectedSignatures.SetEquals(observedSignatures)",
+                      "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;",
                       "SELECT COUNT_BIG(*) FROM (",
                       "if (edges.Count != expectedEdges)",
                       "edges[i - 1].B >= edges[i].B"):
