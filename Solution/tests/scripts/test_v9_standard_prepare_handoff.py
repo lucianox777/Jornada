@@ -45,7 +45,7 @@ class PrepareHandoffTests(unittest.TestCase):
 
     def test_reject_missing_required(self):
         with self.assertRaisesRegex(ValueError, "MISSING_REQUIRED"):
-            mod.validate_members([tarfile.TarInfo("bound/plan.json")])
+            mod.validate_members([tarfile.TarInfo("people-100k/other.csv")])
 
     def test_reject_duplicate(self):
         entries = [tarfile.TarInfo(name) for name in mod.REQUIRED]
@@ -57,7 +57,7 @@ class PrepareHandoffTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             self.make_root(root)
-            (root / "bound" / "link").symlink_to(root / "bound" / "plan.json")
+            (root / "people-100k" / "link").symlink_to(root / "people-100k" / "observacoes.csv")
             with self.assertRaisesRegex(ValueError, "UNSAFE_SOURCE"):
                 mod.pack(root, root / "handoff.tar.gz")
 
