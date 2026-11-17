@@ -1477,6 +1477,20 @@ public sealed class V9FittedSnapshotTests
         var completeOperationalEdges = physicalSqlEdges.ToArray();
         Assert.That(groupedRuntime.ReplayOperationalGraph(
             cohort, completeOperationalEdges, physicalSqlEdges), Is.Not.Null);
+        // Graph order and TEST input enumeration must not change the frozen
+        // global decisions or identity partition.
+        var shuffledReplay = groupedRuntime.ReplayOperationalGraph(
+            cohort.Reverse().ToArray(), completeOperationalEdges.Reverse().ToArray(),
+            physicalSqlEdges.Reverse().ToArray());
+        var canonicalReplay = groupedRuntime.ReplayOperationalGraph(
+            cohort, completeOperationalEdges, physicalSqlEdges);
+        Assert.That(shuffledReplay.Decisions, Is.EqualTo(canonicalReplay.Decisions));
+        Assert.That(shuffledReplay.IdentityByObservation,
+            Is.EquivalentTo(canonicalReplay.IdentityByObservation));
+        Assert.Throws<InvalidDataException>(() =>
+            groupedRuntime.ReplayOperationalGraph(
+                cohort, completeOperationalEdges.Select(e => (e.B, e.A)).ToArray(),
+                physicalSqlEdges));
         Assert.Throws<InvalidDataException>(() =>
             groupedRuntime.ReplayOperationalGraph(
                 cohort, completeOperationalEdges.Skip(1).ToArray(), physicalSqlEdges));
