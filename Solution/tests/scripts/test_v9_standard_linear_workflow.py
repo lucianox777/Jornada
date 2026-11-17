@@ -110,11 +110,14 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         legacy_audit = legacy_audit.replace(
             "# Skip of optional TEST preparation must never suppress a successful audit.",
             "# TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.")
-        # Both workflows on this branch still use the historical fail-closed
-        # AUDIT outcome. This test only asserts unchanged AUDIT handoff.
+        # PO-approved standard linear terminal outcome: no eligible finalists
+        # is successful, unlike the legacy workflow.
         self.assertIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", legacy_audit)
-        self.assertIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", standard_audit)
-        self.assertEqual(legacy_audit, standard_audit)
+        self.assertIn("V9_AUDIT_COMPLETED_WITHOUT_ELIGIBLE_FINALISTS", standard_audit)
+        self.assertNotIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", standard_audit)
+        legacy_prefix = legacy_audit.split("      - name: Fail incomplete campaign", 1)[0]
+        standard_prefix = standard_audit.split("      - name: Record valid scientific terminal outcome", 1)[0]
+        self.assertEqual(legacy_prefix, standard_prefix)
         validation = extract(self.workflow, "validation-100k", "test-100k")
         self.assertIn("has_winner: ${{ steps.operational_file.outputs.has_model }}", validation)
         self.assertIn("needs: audit-100k", validation)
