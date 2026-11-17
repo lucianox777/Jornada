@@ -48,3 +48,6 @@ O workflow `.github/workflows/v9-test-fullschema-runasync-smoke.yml`, anteriorme
 
 ### Reconciliação independente das arestas (17/11/2026)
 Além de comparar o censo e o stream SQL, o componente agora constrói um conjunto independente de pares a partir das assinaturas C# congeladas, aplicando deduplicação entre passes e exclusão de pares do mesmo gestor. O grafo SQL somente é aceito se o conjunto de arestas for exatamente igual ao oráculo em memória (`expectedPairs.SetEquals(edges)`); contagens iguais isoladas não bastam. Commits `6678808` e `db711c5`. Escopo: até 512 observações no `JornadaHarness`, sem equivalência produtiva certificada. Requer execução de testes físicos antes de concluir a PR.
+
+### Limite do oráculo independente (17/11/2026)
+A materialização do conjunto C# de arestas esperado também falha explicitamente se exceder `MaximumPairIncidences`, sem truncamento ou comparação parcial (commits `975b5ae` e `b607635`). O limite continua exclusivo do smoke descartável; não é parâmetro de capacidade produtiva aprovado. A ativação do Runner V9 permanece bloqueada até integração e certificação próprias.
