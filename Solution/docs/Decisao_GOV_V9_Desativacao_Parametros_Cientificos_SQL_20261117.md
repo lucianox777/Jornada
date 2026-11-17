@@ -29,3 +29,6 @@ PO, conversa de 17/11/2026: continuar PR #1655, concluir integração e retirar 
 
 ## Coerência entre pacote e seleção do Operador Master (17/11/2026)
 A presença de `Linkage:V9SelectionFile` agora exige `Linkage:SelectedModelVersion=9` e, quando informado, `--model-version=9`. Divergências falham antes da leitura do artefato e antes do preflight SQL (`RUNNER_V9_SELECTION_VERSION_MISMATCH`), evitando que a presença acidental do pacote V9 se sobreponha a outra versão escolhida. Commits `e1dfa57` e `f727ec8`. O gate `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED` permanece ativo; a alteração não habilita produção nem remove parâmetros SQL legados. Teste estrutural adicionado, sem execução de CI confirmada.
+
+## Proteção da seleção física do pacote (17/11/2026)
+O loader V9 passa a recusar o caminho do artefato se inexistente ou se for link simbólico, antes da leitura imutável com verificação de SHA (commits `cd95c90`, `e53842a`). A seleção JSON já recusava links simbólicos. Essa defesa de caminho não resolve, isoladamente, substituição concorrente de arquivo nem certifica o adaptador produtivo. O gate de ativação permanece; o legado SQL não foi alterado.
