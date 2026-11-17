@@ -6,6 +6,14 @@ ROOT = Path(__file__).resolve().parents[2]
 LOADER = ROOT / "src/Jornada.Linkage.Runner/V9ConfiguredArtifactLoader.cs"
 
 class V9FileSelectionContractTests(unittest.TestCase):
+    def test_runner_startup_rejects_uncertified_v9_without_sql_fallback(self):
+        program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
+        self.assertIn('Linkage:V9SelectionFile', program)
+        self.assertIn('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)', program)
+        self.assertIn('RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED', program)
+        self.assertLess(program.index('V9ConfiguredArtifactLoader.LoadAsync(v9SelectionFile)'),
+                        program.index('GetModelByVersionAsync(configuredVersion.Value'))
+
     def test_file_only_sha_pinned_no_sql_fallback(self):
         source = LOADER.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", source)
