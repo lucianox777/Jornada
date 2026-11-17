@@ -31,6 +31,25 @@ class RunnerStartupModelGateTests(unittest.TestCase):
                         source.index('await builder.Build().RunAsync()'))
         self.assertIn('options = options with { ModelVersion = configuredVersion.Value };', source)
 
+    def test_local_cluster_pins_calibrated_model_only_for_one_shot(self):
+        wrapper = (ROOT / "scripts/local-cluster.sh").read_text(encoding="utf-8")
+        start = wrapper.index("run_linkage() {")
+        end = wrapper.index("\ndiagnose_linkage() {", start)
+        linkage = wrapper[start:end]
+        self.assertIn('active="$(sql_scalar', linkage)
+        self.assertIn('version="$(sql_scalar', linkage)
+        self.assertIn('model_id="$(sql_scalar', linkage)
+        self.assertIn('compose exec -T -e "Linkage__SelectedModelVersion=$version"', linkage)
+        self.assertIn('--model-version "$version"', linkage)
+        self.assertNotIn('invocation.\\n', linkage)
+        self.assertIn('\n  compose exec -T -e "Linkage__SelectedModelVersion=$version"', linkage)
+        self.assertNotIn('compose up', linkage)
+        self.assertNotIn('docker compose down', linkage)
+        # Check shell parsing as well as static command placement.
+        import subprocess
+        subprocess.run(['bash', '-n', str(ROOT / 'scripts/local-cluster.sh')], check=True)
+
+
     def test_replay_preserves_historical_model_binding(self):
         source = PROGRAM.read_text(encoding="utf-8")
         self.assertIn('options.Mode != LinkageRunType.REPLAY', source)
