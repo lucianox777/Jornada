@@ -193,6 +193,25 @@ def closeout(
     external_test: str = "skipped",
     external_file: Path | None = None,
 ) -> dict:
+    # A scientifically valid terminal outcome: TRAIN and AUDIT succeeded,
+    # but no finalist was eligible for independent VALIDATION.
+    # Never interpret an infrastructure failure as this outcome.
+    if (physical == "success" and audit == "success"
+            and validation == "skipped" and not test_requested
+            and preparation == "skipped" and test == "skipped"
+            and not external_database and external_preflight == "skipped"
+            and external_test == "skipped" and external_file is None
+            and test_file is None):
+        require(not validation_file.exists(), "UNEXPECTED_VALIDATION_RECEIPT")
+        return {"schema": "V9_TF4_E2E_CLOSEOUT_V1",
+                "status": "COMPLETED_WITHOUT_ELIGIBLE_FINALISTS",
+                "testRequested": False, "trainResult": physical,
+                "auditResult": audit, "validationResult": validation,
+                "testPreparationResult": preparation, "testResult": test,
+                "validationExecuted": False, "testUsed": False,
+                "validationFinalists": 0, "winnerSha256": None,
+                "certified": False, "activated": False,
+                "productionPublication": False}
     if external_database:
         require(test_requested, "EXTERNAL_DB_REQUIRES_TEST_TOGGLE")
         require(preparation == "skipped" and test == "skipped",
