@@ -206,6 +206,13 @@ if (options.Mode != LinkageRunType.REPLAY)
             "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: artefato validado, execução produtiva V9 ainda bloqueada; não utilizar fallback SQL.");
     }
 
+    // V9 must never fall through to the legacy SQL-model loader merely because
+    // the Operator Master omitted its file selector. Reject before opening SQL.
+    if (frozenConfiguration.GetValue<int?>("Linkage:SelectedModelVersion") == 9
+        || options.ModelVersion == 9)
+        throw new InvalidOperationException(
+            "RUNNER_V9_SELECTION_MISSING: modelo V9 exige Linkage:V9SelectionFile; fallback SQL proibido.");
+
     var configuredVersion = frozenConfiguration.GetValue<int?>("Linkage:SelectedModelVersion");
     if (configuredVersion is not > 0)
         throw new InvalidOperationException(

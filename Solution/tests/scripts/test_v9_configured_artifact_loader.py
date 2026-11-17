@@ -6,6 +6,12 @@ ROOT = Path(__file__).resolve().parents[2]
 LOADER = ROOT / "src/Jornada.Linkage.Runner/V9ConfiguredArtifactLoader.cs"
 
 class V9FileSelectionContractTests(unittest.TestCase):
+    def test_v9_without_selection_never_falls_back_to_sql(self):
+        program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
+        self.assertIn('RUNNER_V9_SELECTION_MISSING', program)
+        self.assertIn('SelectedModelVersion") == 9', program)
+        self.assertLess(program.index("RUNNER_V9_SELECTION_MISSING"), program.index("GetModelByVersionAsync"))
+
     def test_runner_startup_rejects_uncertified_v9_without_sql_fallback(self):
         program = (ROOT / "src/Jornada.Linkage.Runner/Program.cs").read_text(encoding="utf-8")
         self.assertIn('Linkage:V9SelectionFile', program)
