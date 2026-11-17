@@ -209,6 +209,7 @@ if (options.Mode != LinkageRunType.REPLAY)
         var frozenV9 = await V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile);
         var v9Boundary = new V9OperationalRunBoundary(frozenV9);
         Console.WriteLine($"RUNNER_V9_ARTIFACT_VERIFIED sha256={v9Boundary.Runtime.WinnerSha256}");
+        // RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED remains mandatory here.
         v9Boundary.EnsureProductiveCertified();
     }
 
