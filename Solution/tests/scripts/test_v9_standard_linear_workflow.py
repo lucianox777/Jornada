@@ -15,7 +15,7 @@ class StandardLinearWorkflowTests(unittest.TestCase):
 
     def test_only_scientific_test_option(self):
         text = self.workflow
-        self.assertIn("test_required:", text)
+        self.assertNotIn("test_required:", text)
         self.assertNotIn("test_mode:", text)
         self.assertIn("test_database:", text)
         self.assertIn("V9_PREPARE_EXTERNAL_STATISTICAL_ADAPTER_NOT_IMPLEMENTED", text)
@@ -38,10 +38,10 @@ class StandardLinearWorkflowTests(unittest.TestCase):
                     "audit-100k", "validation-100k", "e2e-closeout"):
             self.assertIn(f"  {job}:\n", text)
         self.assertIn("needs: admission", text)
-        self.assertIn("needs: [prepare-100k]", text)
+        self.assertIn("needs: [prepare-100k, prepare-test-sealed]", text)
         self.assertIn("needs: physical-100k", text)
         self.assertIn("needs: audit-100k", text)
-        self.assertIn("needs: [validation-100k]", text)
+        self.assertIn("needs: [validation-100k, prepare-test-sealed]", text)
 
     def test_train_handoff_and_separate_runner(self):
         text = self.workflow
@@ -103,20 +103,28 @@ class StandardLinearWorkflowTests(unittest.TestCase):
             first = text.index("  " + start + ":\n")
             last = text.index("  " + end + ":\n", first)
             return text[first:last]
-        self.assertEqual(
-            extract(legacy, "audit-100k", "validation-100k"),
-            extract(self.workflow, "audit-100k", "validation-100k"))
-        self.assertEqual(
-            extract(legacy, "validation-100k", "test-100k"),
-            extract(self.workflow, "validation-100k", "test-100k"))
+        legacy_audit = extract(legacy, "audit-100k", "validation-100k")
+        standard_audit = extract(self.workflow, "audit-100k", "validation-100k")
+        # The legacy comment describes an optional TEST; the new workflow
+        # deliberately supersedes that wording without changing AUDIT behavior.
+        legacy_audit = legacy_audit.replace(
+            "# Skip of optional TEST preparation must never suppress a successful audit.",
+            "# TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.")
+        self.assertEqual(legacy_audit, standard_audit)
+        validation = extract(self.workflow, "validation-100k", "test-100k")
+        self.assertIn("has_winner: ${{ steps.operational_file.outputs.has_model }}", validation)
+        self.assertIn("needs: audit-100k", validation)
+        self.assertIn("selectedValidationOperationalModelFileName", validation)
 
     def test_legacy_workflow_remains_present(self):
         self.assertTrue((WORKFLOW.parent / "v9-v3-four-name-100k.yml").is_file())
 
-    def test_test_remains_fail_closed(self):
+    def test_test_mandatory_on_validated_winner(self):
         text = self.workflow
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", text)
-        self.assertIn('if [[ "${{ inputs.test_required }}" == "true" ]]; then', text)
+        self.assertNotIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", text)
+        self.assertNotIn("inputs.test_required", text)
+        self.assertIn("needs.validation-100k.outputs.has_winner == 'true'", text)
+        self.assertIn("V9_VALIDATION_WINNER_OUTPUT_MISSING", text)
 
 
 if __name__ == "__main__":

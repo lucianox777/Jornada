@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed E2E status/test science/production parity; no 100k or TEST keys."""
+"""Fail closed E2E status/test science/operational file compatibility; no 100k or TEST keys."""
 import importlib.util
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-WF = ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml"
+WF = ROOT.parent / ".github/workflows/v9-standard-linear-100k.yml"
 SCRIPT = ROOT / "scripts/v9-tf4-e2e-closeout.py"
 spec = importlib.util.spec_from_file_location("tf4_e2e_closeout", SCRIPT)
 mod = importlib.util.module_from_spec(spec)
@@ -72,24 +72,27 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         source = WF.read_text(encoding="utf-8")
         self.assertIn("\n  e2e-closeout:\n", source)
         block = source.split("\n  e2e-closeout:\n", 1)[1]
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight, physical-100k, audit-100k, validation-100k, test-100k, test-database-readonly]", block)
+        self.assertIn("needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("v9-tf4-e2e-closeout.py", block)
         self.assertIn("validation-e2e-status.json", block)
         self.assertIn("independent-test.json", block)
         self.assertIn("github.repository_owner", source)
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", source)
+        self.assertNotIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", source)
         self.assertNotIn("timeout-minutes:", source)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", block)
         self.assertNotIn("test-corpus.cms", block)
 
-    def test_mandatory_chain_with_test_off_is_complete_but_not_certified(self):
-        result = self.call()
+    def test_no_winner_skips_test_but_winner_requires_test(self):
+        with self.assertRaisesRegex(ValueError, "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER"):
+            self.call()
+        self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
+        result = self.call(prep="success")
         self.assertEqual(result["status"],
-                         "E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED")
+                         "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
         self.assertFalse(result["certified"])
         self.assertFalse(result["productionPublication"])
-        self.assertEqual(result["winnerSha256"], W)
+        self.assertIsNone(result["winnerSha256"])
 
     def test_missing_or_skipped_mandatory_stage_cannot_be_success(self):
         for fields, reason in [
@@ -99,7 +102,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
              "AUDIT_NOT_SUCCESS"),
             (("success", "success", "skipped", "skipped", "skipped", False),
              "VALIDATION_NOT_SUCCESS"),
-            (("success", "success", "success", "success", "skipped", False),
+            (("success", "success", "success", "failure", "skipped", False),
              "UNREQUESTED_TEST_PREPARATION"),
             (("success", "success", "success", "skipped", "failure", False),
              "UNREQUESTED_TEST_EXPOSURE"),
@@ -129,19 +132,20 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
                 r[field] = value
                 self.val.write_text(json.dumps(r), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "VALIDATION_"):
-                    self.call()
+                    self.call(requested=True, prep="success", test="success")
         self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
-        result = self.call()
+        result = self.call(prep="success")
         self.assertEqual(result["status"],
                          "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
         with self.assertRaisesRegex(ValueError, "TEST_"):
-            self.test.write_text(json.dumps(test_doc(full_parity=True)))
+            self.test.write_text(json.dumps(test_doc(full_parity=False)))
             self.call(requested=True, prep="success", test="success")
 
-    def test_test_requires_same_sha_canonical_model_and_full_production_parity(self):
+    def test_test_requires_same_sha_canonical_model_and_independent_execution(self):
         self.test.write_text(json.dumps(test_doc()), encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "PRODUCTION_RUNASYNC_PARITY_UNPROVEN"):
-            self.call(requested=True, prep="success", test="success")
+        result = self.call(requested=True, prep="success", test="success")
+        self.assertEqual(result["status"],
+                         "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE")
         for field, value, message in [
             ("winnerSnapshotSha256", E, "TEST_WINNER_CONTRACT_DRIFT"),
             ("operationalModelByteExactRoundTrip", False, "TEST_MODEL_"),
@@ -150,16 +154,20 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
             ("configurationsEvaluated", 2, "TEST_INDEPENDENCE_"),
         ]:
             with self.subTest(field=field):
-                r = test_doc(full_parity=True)
+                r = test_doc(full_parity=False)
                 r[field] = value
                 self.test.write_text(json.dumps(r), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, message):
                     self.call(requested=True, prep="success", test="success")
-        self.test.write_text(json.dumps(test_doc(full_parity=True)), encoding="utf-8")
+        self.test.write_text(json.dumps(test_doc(full_parity=False)), encoding="utf-8")
         result = self.call(requested=True, prep="success", test="success")
         self.assertEqual(result["status"],
-                         "E2E_PHYSICAL_CHAIN_AND_PRODUCTION_EQUIVALENT_TEST_COMPLETE")
+                         "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE")
         self.assertFalse(result["certified"])
+        invalid = test_doc(full_parity=True)
+        self.test.write_text(json.dumps(invalid), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "TEST_MUST_NOT_CLAIM_PRODUCTION_RUNASYNC_CERTIFICATION"):
+            self.call(requested=True, prep="success", test="success")
 
     def test_cli_failure_emits_sanitized_receipt_even_after_missing_validation(self):
         out = self.root / "receipt.json"

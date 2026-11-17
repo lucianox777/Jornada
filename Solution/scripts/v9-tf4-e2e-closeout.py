@@ -2,8 +2,8 @@
 """Fail-closed physical E2E closeout for the manual V9 100k workflow.
 
 Runs only AFTER separate TRAIN/AUDIT/VALIDATION jobs. On an optional TEST
-request it requires a passing independent TEST with demonstrated full
-production-runner parity. This script never opens corpus, FIT or secrets.
+request it requires a passing independent TEST with verified operational
+winner-file compatibility and strict nonpublication, not production execution. This script never opens corpus, FIT or secrets.
 A skipped scientific stage is NEVER translated into scientific SUCCESS.
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ def validate_jobs(
         require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
         require(test == "success", "TEST_NOT_SUCCESS")
     else:
-        require(preparation == "skipped", "UNREQUESTED_TEST_PREPARATION")
+        require(preparation in {"success", "skipped"}, "UNREQUESTED_TEST_PREPARATION")
         require(test == "skipped", "UNREQUESTED_TEST_EXPOSURE")
 
 
@@ -123,10 +123,11 @@ def validate_optional_test(path: Path, winner_sha: str | None) -> None:
             and r.get("testUsed") is True
             and r.get("configurationsEvaluated") == 1,
             "TEST_INDEPENDENCE_INVARIANTS")
-    # False in the current V9IndependentTestCli: a SQL round-trip and a
-    # nonpublishing synthetic rehearsal are not full production RunAsync parity.
-    require(r.get("productionRunnerFullPipelineParityCertified") is True,
-            "PRODUCTION_RUNASYNC_PARITY_UNPROVEN")
+    # TEST is an independent scientific evaluation, never production RunAsync.
+    # This field must remain false; the byte-exact operational V9 contract
+    # above is the compatibility proof required at this boundary.
+    require(r.get("productionRunnerFullPipelineParityCertified") is False,
+            "TEST_MUST_NOT_CLAIM_PRODUCTION_RUNASYNC_CERTIFICATION")
 
 
 def validate_existing_database_diagnostic(
@@ -220,10 +221,13 @@ def closeout(
     validate_jobs(physical, audit, validation, preparation, test,
                   test_requested)
     info = validate_scientific_validation(validation_file)
+    require(test_requested == (info["winnerSha256"] is not None),
+            "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER")
     if test_requested:
+        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
         require(test_file is not None, "TEST_RECEIPT_NOT_GIVEN")
         validate_optional_test(test_file, info["winnerSha256"])
-        status = "E2E_PHYSICAL_CHAIN_AND_PRODUCTION_EQUIVALENT_TEST_COMPLETE"
+        status = "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE"
     else:
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
         status = ("E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"

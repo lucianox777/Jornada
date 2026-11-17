@@ -1,8 +1,7 @@
-name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION optional TEST
+name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION TEST on winner
 
 # STRICTLY MANUAL. Standard synthetic TRAIN-only chain is enabled.
-# Scientific TEST remains fail-closed until sealed independent preparation
-# and full production RunAsync parity are integrated and certified.
+# TEST is mandatory after successful VALIDATION with winner; no winner skips TEST.
 on:
   workflow_dispatch:
     inputs:
@@ -19,11 +18,6 @@ on:
         required: false
         default: ""
         type: string
-      test_required:
-        description: "Execute scientific TEST after VALIDATION (currently fail-closed pending parity)"
-        required: true
-        default: false
-        type: boolean
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
@@ -57,10 +51,79 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: scientific TEST remains blocked; no TRAIN or TEST starts."
-            exit 1
-          fi
+          # TEST is mandatory with a VALIDATION winner and independently sealed before TRAIN.
+          # Missing encryption credentials fail in prepare-test-sealed before TRAIN.
+  prepare-test-sealed:
+    name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
+    needs: admission
+    if: ${{ needs.admission.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
+      TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
+      TEST_PUBLIC_CERT_SHA: ${{ vars.V9_TF4_TEST_PUBLIC_CERT_SHA256 }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Check immutable TEST preparation prerequisites before generating
+        run: |
+          set -euo pipefail
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test -n "$TEST_PUBLIC_CERT_B64"
+          [[ "$TEST_PUBLIC_CERT_SHA" =~ ^[a-f0-9]{64}$ ]]
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build independent TEST synthetic generator
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Generate independent raw TEST and seal before TRAIN
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$PWD/.local/v9-independent-test-preparation"
+          mkdir -p "$root"
+          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
+          test "$(sha256sum "$root/recipient.pem" | cut -d' ' -f1)" = "$TEST_PUBLIC_CERT_SHA"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261113001 --out "$root/raw"
+          python3 scripts/v9-tf4-sealed-test-preparation.py seal \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --raw "$root/raw" --certificate "$root/recipient.pem" \
+            --expected-cert-sha "$TEST_PUBLIC_CERT_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+          rm -rf -- "$root/raw" "$root/recipient.pem"
+      - name: Upload encrypted TEST corpus only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Solution/.local/v9-independent-test-preparation/sealed/
+      - name: Erase TEST preparation data even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test-preparation"
   prepare-100k:
     name: "V9 PREPARE: raw synthetic TRAIN 100k"
     needs: admission
@@ -136,9 +199,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical/people-100k"
   physical-100k:
-    needs: [prepare-100k]
-    # PREPARE is mandatory. TEST remains blocked by ADMISSION until parity.
-    if: ${{ needs.prepare-100k.result == 'success' }}
+    needs: [prepare-100k, prepare-test-sealed]
+    # Both PREPARE and independently sealed TEST preparation precede TRAIN.
+    if: ${{ needs.prepare-100k.result == 'success' && needs.prepare-test-sealed.result == 'success' }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -377,7 +440,7 @@ jobs:
 
   audit-100k:
     needs: physical-100k
-    # Skip of optional TEST preparation must never suppress a successful audit.
+    # TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.
     # Fail closed on failed/cancelled TRAIN and on unapproved dispatch.
     if: ${{ always() && !cancelled() && needs.physical-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 AUDIT independent: 324 frozen TRAIN hypotheses"
@@ -507,8 +570,10 @@ jobs:
 
   validation-100k:
     needs: audit-100k
-    # TEST preparation is optional and normally skipped. GitHub's implicit
-    # success() may propagate that ancestor skip even after TRAIN succeeds.
+    outputs:
+      has_winner: ${{ steps.operational_file.outputs.has_model }}
+    # Independent TEST preparation is mandatory before TRAIN; explicit dependency
+    # evaluation avoids implicit ancestor-skip propagation.
     # Evaluate the dependency explicitly, but never bypass TRAIN success,
     # audited finalists, owner/preflight checks or workflow cancellation.
     if: ${{ always() && !cancelled() && needs.audit-100k.result == 'success' && needs.audit-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
@@ -681,8 +746,8 @@ jobs:
   # TEST owns the corpus, protocol, SQL and metric computation.
   # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
   test-100k:
-    needs: [validation-100k]
-    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.validation-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    needs: [validation-100k, prepare-test-sealed]
+    if: ${{ always() && !cancelled() && needs.prepare-test-sealed.result == 'success' && needs.validation-100k.result == 'success' && needs.validation-100k.outputs.has_winner == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
 
@@ -872,14 +937,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
-  # External TEST uses EXISTING rows in the named database, NEVER the
-  # independent synthetic scientific TEST cohort. The SQL login must be
-  # SELECT-only and is exposed only to preflight and this opt-in runner.
-  # No TEST truth, gabarito, Gold, Serving, SQL model conversion or DB writes.
+  # External statistical reference via test_database remains disabled until
+  # a separate safe adapter is implemented; scientific TEST uses sealed cohort.
   e2e-closeout:
-    needs: [prepare-100k, physical-100k, audit-100k, validation-100k, test-100k]
+    needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]
     if: ${{ always() }}
-    name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
+    name: "V9 E2E closeout: require TEST if VALIDATION selects winner"
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -889,12 +952,13 @@ jobs:
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
-      PREPARATION_RESULT: ${{ inputs.test_required && 'failure' || 'skipped' }} # TEST stays fail-closed until sealed preparation is integrated
+      PREPARATION_RESULT: ${{ needs.prepare-test-sealed.result }} # sealed before TRAIN, including no-winner campaigns
       TEST_RESULT: ${{ needs.test-100k.result }}
       EXTERNAL_PREFLIGHT_RESULT: skipped
       EXTERNAL_TEST_RESULT: skipped
       V9_EXTERNAL_DATABASE: ''
-      V9_TEST_REQUESTED: ${{ inputs.test_required && 'true' || 'false' }}
+      V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}
+      V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # SHA pinned
         with:
@@ -916,18 +980,23 @@ jobs:
         with:
           name: v9-tf4-validation-e2e-status-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/validation
-      - name: Download independent TEST result only when TEST was explicitly requested and successful
-        if: ${{ always() && inputs.test_required == true && needs.test-100k.result == 'success' }}
+      - name: Download independent TEST result when mandatory TEST succeeds
+        if: ${{ always() && needs.validation-100k.outputs.has_winner == 'true' && needs.test-100k.result == 'success' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/test
-      - name: Fail closed on missing physical job, incomplete audit/validation or unproven TEST parity
+      - name: Fail closed on incomplete science, missing TEST preparation or invalid winner contract
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           extra=()
+          # No winner is a scientific terminal outcome, not an operator opt-out.
+          if [[ "$V9_VALIDATION_HAS_WINNER" != "true" && "$V9_VALIDATION_HAS_WINNER" != "false" ]]; then
+            echo "::error::V9_VALIDATION_WINNER_OUTPUT_MISSING"
+            exit 1
+          fi
           if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
             extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
           fi
