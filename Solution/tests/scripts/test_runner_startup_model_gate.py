@@ -14,6 +14,12 @@ class RunnerStartupModelGateTests(unittest.TestCase):
         self.assertIn('GetModelByVersionAsync(configuredVersion.Value', source)
         self.assertIn('RUNNER_MODEL_CONFIGURATION_MISMATCH', source)
         self.assertIn('RUNNER_MODEL_CONFIGURATION_MISSING', source)
+        self.assertIn('RUNNER_MODEL_CONTRACT_INCOMPATIBLE', source)
+        self.assertIn('AddInMemoryCollection(builder.Configuration.AsEnumerable()', source)
+        self.assertIn('builder.Services.AddSingleton<IConfiguration>(frozenConfiguration)', source)
+        self.assertIn('builder.Services.AddSingleton<IProbabilisticIdentityLinkage>(pinnedLinkage)', source)
+        self.assertIn('SHA256.HashData(fingerprintInput)', source)
+        self.assertNotIn('reloadOnChange: true', source)
         self.assertLess(source.index('GetModelByVersionAsync(configuredVersion.Value'),
                         source.index('AddHostedService<LinkageRunnerWorker>'))
         self.assertLess(source.index('GetModelByVersionAsync(configuredVersion.Value'),
