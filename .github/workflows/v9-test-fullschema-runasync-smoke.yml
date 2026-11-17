@@ -3,6 +3,12 @@ name: V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)
 # Independent disposable harness, not invoked by the calibration workflow.
 on:
   workflow_dispatch:
+  # A new workflow introduced only on a PR branch may not be eligible for
+  # pull_request execution until it exists on the default branch. Validate
+  # the exact feature branch on push as well; do not wait for merge.
+  push:
+    branches:
+      - docs/gov-v9-grafo-operacional-coorte-20261117
   pull_request:
     paths:
       - 'Solution/src/Jornada.Linkage.Runner/**'
