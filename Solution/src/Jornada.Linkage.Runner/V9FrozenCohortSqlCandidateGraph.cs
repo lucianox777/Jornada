@@ -60,6 +60,15 @@ public static class V9FrozenCohortSqlCandidateGraph
             || planner.ProjectionFingerprintSha256 != winner.Payload.ProjectionFingerprintSha256)
             throw new InvalidDataException("Grafo SQL V9 exige a mesma projeção prefixada imutável.");
 
+        // SQL uses nvarchar(120) for both manager and pass identifiers.
+        // Reject lossy SQL normalization/truncation before materializing any row.
+        // Trailing U+0020 is ignored by SQL Server string equality and would
+        // make the operational join differ from the ordinal C# identity.
+        foreach (var manager in managers.Values)
+            if (manager.Length > 120 || manager.EndsWith(' '))
+                throw new InvalidDataException(
+                    "Identificador de gestor V9 incompatível com nvarchar(120)/comparação SQL.");
+
         var signatures = new List<Signature>();
         var unique = new HashSet<(int Obs, string Pass, string Sha)>();
         for (var i = 0; i < frozenRows.Count; i++)
@@ -69,6 +78,10 @@ public static class V9FrozenCohortSqlCandidateGraph
             var manager = managers[row.PessoaObservacaoId];
             foreach (var pass in planner.Plan(row.Observation))
             {
+                if (string.IsNullOrWhiteSpace(pass.PassId) ||
+                    pass.PassId.Length > 120 || pass.PassId.EndsWith(' '))
+                    throw new InvalidDataException(
+                        "Identificador de passe V9 incompatível com nvarchar(120)/comparação SQL.");
                 if (pass.Clauses.Any(clause => clause.Values.Count == 0))
                     throw new InvalidDataException("Plano de blocking possui cláusula vazia.");
                 var values = new string[pass.Clauses.Count];
