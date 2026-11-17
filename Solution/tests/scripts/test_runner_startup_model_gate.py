@@ -34,7 +34,7 @@ class RunnerStartupModelGateTests(unittest.TestCase):
     def test_local_cluster_pins_calibrated_model_only_for_one_shot(self):
         wrapper = (ROOT / "scripts/local-cluster.sh").read_text(encoding="utf-8")
         start = wrapper.index("run_linkage() {")
-        end = wrapper.index("\\ndiagnose_linkage() {", start)
+        end = wrapper.index("\ndiagnose_linkage() {", start)
         linkage = wrapper[start:end]
         self.assertIn('active="$(sql_scalar', linkage)
         self.assertIn('version="$(sql_scalar', linkage)
