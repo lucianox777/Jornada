@@ -68,6 +68,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "OrderBy(s => s.Obs)",
                       "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;",
                       "SELECT COUNT_BIG(*) FROM (",
+                      "a.obs_id AS source_obs_id,b.obs_id AS target_obs_id",
                       "if (edges.Count != expectedEdges)",
                       "var expectedPairs = new HashSet<(int A, int B)>()",
                       "expectedPairs.SetEquals(edges)",
