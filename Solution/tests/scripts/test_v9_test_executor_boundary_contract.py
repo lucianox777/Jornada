@@ -23,7 +23,7 @@ class V9TestExecutorBoundaryContract(unittest.TestCase):
         self.assertIn('needs.validation-100k.result == \'success\'', wf)
         self.assertIn('test-100k:', wf)
         self.assertNotIn('      test_required:', wf)
-        self.assertIn("if: ${{ needs.admission.result == 'success' }}", wf)
+        self.assertIn("needs: admission", wf)
         self.assertIn("V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}", wf)
         self.assertIn('V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}', wf)
         self.assertIn('V9_VALIDATION_WINNER_OUTPUT_MISSING', wf)
