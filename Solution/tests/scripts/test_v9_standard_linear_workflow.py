@@ -46,6 +46,17 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn('mkdir -p "$root"', generation)
         self.assertLess(generation.index('mkdir -p "$root"'), generation.index('> "$root/generation.log"'))
 
+    def test_prepare_evidence_retained_with_closeout_without_duplicate_corpus(self):
+        prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
+        closeout = self.workflow.split("  e2e-closeout:\n", 1)[1]
+        self.assertIn("name: v9-standard-train-prepared-", prepare)
+        self.assertIn("retention-days: 30", prepare)
+        self.assertIn("prepare-evidence-reference.json", closeout)
+        self.assertIn("SHA256SUMS", closeout)
+        self.assertIn("retentionDays", closeout)
+        self.assertIn("no duplicate corpus stored in closeout", closeout)
+        self.assertNotIn("train-inputs.tar.gz\n          path:", closeout)
+
     def test_only_train_executes_physical_hypotheses_after_handoff(self):
         text = self.workflow
         prepare = text.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
