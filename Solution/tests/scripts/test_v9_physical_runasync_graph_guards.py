@@ -52,7 +52,10 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         for guard in ("if (signatures.Count >= MaximumSignatures)",
                       "if (++incidences > MaximumPairIncidences)",
                       "if (edges.Count >= MaximumPairIncidences)",
-                      "if (a < 1 || a >= b || b > frozenRows.Count)"):
+                      "if (a < 1 || a >= b || b > frozenRows.Count)",
+                      "SELECT COUNT_BIG(*) FROM (",
+                      "if (edges.Count != expectedEdges)",
+                      "edges[i - 1].B >= edges[i].B"):
             self.assertIn(guard, graph)
 
     def test_operational_graph_checks_full_manifest_and_bidirectional_edges(self):
