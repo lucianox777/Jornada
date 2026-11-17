@@ -16,33 +16,26 @@ def method(text, start, end):
     return text.split(start, 1)[1].split(end, 1)[0]
 
 
-class V9SqlSignatureIndexAfterBulkTests(unittest.TestCase):
+class V9SqlSignatureIndexBeforeBulkTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.probe = PROBE.read_text(encoding="utf-8")
         cls.holdout = HOLDOUT.read_text(encoding="utf-8")
         cls.coord = COORD.read_text(encoding="utf-8")
 
-    def test_empty_signature_table_is_created_without_index(self):
-        create = method(self.probe, "private static async Task CreateTablesAsync(", 
+    def test_signature_index_created_with_table_before_bulk(self):
+        create = method(self.probe, "private static async Task CreateTablesAsync(",
                         "private static async Task BulkObservationsAsync(")
-        self.assertIn("CREATE TABLE #v9_cal_sig(", create)
-        self.assertNotIn("CREATE INDEX IX_v9_cal_sig", create)
-
-    def test_index_created_once_after_complete_bulk_copy_and_before_return(self):
         bulk = method(self.probe, "private static async Task BulkSignaturesAsync(",
                       "public static async Task<IReadOnlyList<double>> RepeatPhysicalMaterializationAsync(")
+        self.assertIn("CREATE TABLE #v9_cal_sig(", create)
+        self.assertIn("CREATE INDEX IX_v9_cal_sig", create)
         self.assertEqual(self.probe.count("CREATE INDEX IX_v9_cal_sig"), 1)
-        self.assertIn("DestinationTableName = \"#v9_cal_sig\"", bulk)
+        self.assertNotIn("CREATE INDEX IX_v9_cal_sig", bulk)
+        self.assertIn('DestinationTableName = "#v9_cal_sig"', bulk)
         self.assertIn("BatchSize = 25_000", bulk)
-        copy_at = bulk.index("await bulk.WriteToServerAsync(table, cancellationToken);")
-        dispose_at = bulk.index("await using var index")
-        index_at = bulk.index("CREATE INDEX IX_v9_cal_sig")
-        execute_at = bulk.index("await index.ExecuteNonQueryAsync(cancellationToken);")
-        self.assertLess(copy_at, dispose_at)
-        self.assertLess(dispose_at, index_at)
-        self.assertLess(index_at, execute_at)
-        self.assertIn("using (var bulk = new SqlBulkCopy(connection)", bulk)
+        self.assertIn("await bulk.WriteToServerAsync(table, cancellationToken);", bulk)
+        self.assertIn("using var bulk = new SqlBulkCopy(connection)", bulk)
 
     def test_all_current_materialization_paths_pass_via_bulk_signatures(self):
         self.assertIn("await BulkSignaturesAsync(connection, signatures, cancellationToken);", self.probe)

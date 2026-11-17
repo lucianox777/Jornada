@@ -995,6 +995,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 pass_id nvarchar(160) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 assinatura char(64) COLLATE Latin1_General_100_BIN2 NOT NULL
             );
+            CREATE INDEX IX_v9_cal_sig
+              ON #v9_cal_sig(part,pass_id,assinatura,obs_id);
             """,
             connection)
         {
@@ -1048,21 +1050,13 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         foreach (var x in signatures)
             table.Rows.Add(x.ObservationId, x.Partition, x.PassId, x.Signature);
 
-        using (var bulk = new SqlBulkCopy(connection)
+        using var bulk = new SqlBulkCopy(connection)
         {
             DestinationTableName = "#v9_cal_sig",
             BatchSize = 25_000,
             BulkCopyTimeout = 300
-        })
-            await bulk.WriteToServerAsync(table, cancellationToken);
-
-        // Build once per complete load, after all batches. Every caller of
-        // BulkSignaturesAsync now enters JOIN/materialization with this index.
-        // Do not remove any physical holdout repetition or change its P95 scope.
-        await using var index = new SqlCommand(
-            "CREATE INDEX IX_v9_cal_sig ON #v9_cal_sig(part,pass_id,assinatura,obs_id);",
-            connection) { CommandTimeout = 300 };
-        await index.ExecuteNonQueryAsync(cancellationToken);
+        };
+        await bulk.WriteToServerAsync(table, cancellationToken);
     }
 
     /// <summary>
