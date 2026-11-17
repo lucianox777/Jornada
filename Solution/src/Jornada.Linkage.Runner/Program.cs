@@ -180,6 +180,29 @@ var options = LinkageRunOptions.Parse(args);
 var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
+ 
+// Operator Master selects the model in configuration while the run-once Runner
+// is stopped. Fail closed at startup, before any pipeline lock or processing.
+if (options.Mode != LinkageRunType.REPLAY)
+{
+    var configuredVersion = builder.Configuration.GetValue<int?>("Linkage:SelectedModelVersion");
+    if (configuredVersion is not > 0)
+        throw new InvalidOperationException(
+            "RUNNER_MODEL_CONFIGURATION_MISSING: Linkage:SelectedModelVersion deve ser definido pelo Operador Master.");
+    if (options.ModelVersion is int requestedVersion && requestedVersion != configuredVersion)
+        throw new InvalidOperationException(
+            "RUNNER_MODEL_CONFIGURATION_MISMATCH: argumento --model-version diverge da configuração do Operador Master.");
+
+    var preflightSql = new OperationalSqlAdapter(jornadaConnectionString);
+    var preflightLinkage = new SqlProbabilisticIdentityLinkage(
+        builder.Configuration, preflightSql,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
+    var selectedModel = await preflightLinkage.GetModelByVersionAsync(configuredVersion.Value, CancellationToken.None);
+    if (selectedModel.ModelVersion != configuredVersion.Value)
+        throw new InvalidOperationException("RUNNER_MODEL_VERSION_MISMATCH: versão carregada diverge da configuração.");
+    options = options with { ModelVersion = configuredVersion.Value };
+}
+
 builder.Services.AddSingleton(options);
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
