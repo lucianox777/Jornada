@@ -71,6 +71,44 @@ public sealed class V9OperationalPinnedCohortRuntime
     /// independent TEST Worker. Caller must provide the complete physical SQL
     /// graph with a reconciled row count, never truncated or synthesized.
     /// </summary>
+    /// <summary>
+    /// Accept only the complete, reconciled operational candidate graph.
+    /// The independent physical SQL graph is a mandatory completeness oracle;
+    /// never replace missing edges, silently truncate, or score per batch.
+    /// This is diagnostic and does not certify the production RunAsync.
+    /// </summary>
+    public V9FrozenSourceReplayResult ReplayOperationalGraph(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
+        IReadOnlyList<(int A, int B)> operationalEdges,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+        ArgumentNullException.ThrowIfNull(operationalEdges);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        if (test.Count is < 2 or > MaximumAuditObservations)
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_COHORT_INVALID");
+        var ids = test.Select(x => x.ObservationId).ToHashSet();
+        if (ids.Count != test.Count)
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_DUPLICATE_OBSERVATION");
+
+        HashSet<(int A, int B)> Validate(IReadOnlyList<(int A, int B)> edges)
+        {
+            var result = new HashSet<(int A, int B)>();
+            foreach (var edge in edges)
+                if (edge.A >= edge.B || !ids.Contains(edge.A) || !ids.Contains(edge.B)
+                    || !result.Add(edge))
+                    throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_EDGE");
+            return result;
+        }
+
+        var actual = Validate(operationalEdges);
+        var expected = Validate(physicalSqlEdges);
+        if (!actual.SetEquals(expected))
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INCOMPLETE_OR_DRIFTED");
+        var ordered = actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray();
+        return ReplayTest(test, ordered);
+    }
+
     public V9FrozenSourceReplayResult ReplayTest(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
         IReadOnlyList<(int A, int B)> completePhysicalSqlEdges)
