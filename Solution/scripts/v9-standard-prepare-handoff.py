@@ -7,6 +7,9 @@ from pathlib import Path, PurePosixPath
 import tarfile
 
 COHORT_DIRS = ("people-100k", "validation-people", "corpus")
+# Preserve public TRAIN constants consumed by existing regression contracts.
+ALLOWED = ("people-100k/",)
+REQUIRED = ("people-100k/observacoes.csv",)
 MAX_UNCOMPRESSED = 4 * 1024**3
 MAX_FILES = 1000
 
