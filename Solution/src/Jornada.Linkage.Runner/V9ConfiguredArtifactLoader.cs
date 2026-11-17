@@ -17,6 +17,14 @@ public static class V9ConfiguredArtifactLoader
     public sealed record Selection(string ArtifactPath, string WinnerSha256);
     public sealed record Loaded(string ArtifactPath, string WinnerSha256, V9FittedSnapshot Snapshot);
 
+    /// <summary>Nonpublishing in-memory V9 cohort runtime; no SQL model persistence.</summary>
+    public static async Task<V9OperationalPinnedCohortRuntime> LoadCohortRuntimeAsync(
+        string selectionFile, CancellationToken ct = default)
+    {
+        var loaded = await LoadAsync(selectionFile, ct);
+        return V9OperationalPinnedCohortRuntime.FromVerifiedFileSnapshot(loaded.Snapshot);
+    }
+
     public static async Task<Loaded> LoadAsync(string selectionFile, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(selectionFile))

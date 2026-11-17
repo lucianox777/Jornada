@@ -52,6 +52,21 @@ public sealed class V9OperationalPinnedCohortRuntime
     }
 
     /// <summary>
+    /// Build the identical nonpublishing cohort scorer directly from a verified
+    /// immutable file snapshot. No SQL model lookup, staging or fallback.
+    /// This does not authorize production batch execution or publication.
+    /// </summary>
+    public static V9OperationalPinnedCohortRuntime FromVerifiedFileSnapshot(V9FittedSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var verified = V9OperationalSqlModelConverter.VerifyConversion(snapshot);
+        if (!verified.ByteExactRoundTrip || verified.Active || verified.Published
+            || !string.Equals(verified.SourceSnapshotSha256, snapshot.ContentSha256, StringComparison.Ordinal))
+            throw new InvalidDataException("V9: artefato não corresponde ao contrato imutável validado.");
+        return new V9OperationalPinnedCohortRuntime(snapshot, verified.ModelId);
+    }
+
+    /// <summary>
     /// The SAME complete-link/FS/Resolve executable shared by the physical
     /// independent TEST Worker. Caller must provide the complete physical SQL
     /// graph with a reconciled row count, never truncated or synthesized.
