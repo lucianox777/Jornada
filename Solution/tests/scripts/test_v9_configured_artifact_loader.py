@@ -44,6 +44,14 @@ class V9FileSelectionContractTests(unittest.TestCase):
         self.assertLess(source.index("RUNNER_V9_ARTIFACT_SHA_INVALID"),
                         source.index("Path.GetFullPath(selection.ArtifactPath"))
 
+    def test_selection_size_is_bounded_before_reading_bytes(self):
+        source = LOADER.read_text(encoding="utf-8")
+        self.assertIn("new FileInfo(selectionPath).Length is 0 or > 65536", source)
+        self.assertLess(source.index("new FileInfo(selectionPath).Length is 0 or > 65536"),
+                        source.index("File.ReadAllBytesAsync(selectionPath, ct)"))
+        self.assertLess(source.index("File.ReadAllBytesAsync(selectionPath, ct)"),
+                        source.index("if (bytes.Length is 0 or > 65536)"))
+
     def test_file_only_sha_pinned_no_sql_fallback(self):
         source = LOADER.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", source)
