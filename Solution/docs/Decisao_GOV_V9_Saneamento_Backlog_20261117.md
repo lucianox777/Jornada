@@ -25,3 +25,15 @@ Esta decisão de governança trata somente da classificação e rastreabilidade 
 4. Confirmar os gates do workflow atual antes de novo TRAIN; execução de TEST exige autorização separada.
 
 **Rastreabilidade:** PRs #1451, #1452, #1454, #1458, #1429, #1576, #1619, #1610, #1547, #1536, #1555, #1620, #1633, #1634; issues #1629, #1575, #1584, #1488, #1478.
+
+
+## Reconciliação semântica dos recibos históricos — 17/11/2026
+A inspeção dos patches das PRs documentais confirmou que seus acréscimos registram fatos históricos de integração que **não constam literalmente** nos documentos canônicos atuais. Para preservar a rastreabilidade sem reintroduzir estados antigos ou requisitos de TEST lacrado, os recibos são consolidados aqui, sem alterar a ciência:
+
+- **#1619 / #1611:** integração das fixtures independentes de cobertura TF4; squash `fa60330b861045304c71104151ad9c73dee3d5dd`; CI obrigatória `43965238095` (3/3 SUCCESS). Cobertura parcial de elegibilidade e frequências publicadas/ausentes nas quatro posições pessoa/mãe × prenome/sobrenome. **Não certifica** paridade numérica ou RunAsync.
+- **#1610 / #1608:** índice SQL de assinaturas pós-bulk; squash `9520bb66c8d47096dfe5dd19ec43338d352610ba`; CI `43946961266` (3/3 SUCCESS). **Não comprova** aceleração física SQL.
+- **#1547 / #1546:** observabilidade de timeout parcial; squash `4efd450b9b15b5caf145dc37db3ac9872d4e05f2`; CI `43717302364` (3/3 SUCCESS), testes focados `43717302345` e fixture `43717302357` reportados como SUCCESS na PR documental. **Não comprova** recuperação de performance.
+- **#1536 / #1535:** opção de banco externo de TEST; squash `814238795abccf5c8c64f61a83c871bd0374cc7b`; CI `43629701678`, smoke SQL `43629701627` e auditoria TF `43629701698` reportados como SUCCESS na PR documental. **Não comprova** ensaio com database externo privado.
+- **#1555 / #1554:** seletor manual TF4/100k com opção TEST; squash `7de4f3d5966ab0ccf6fb9801d748893667949d0e`; CI `43735403883` (3/3 SUCCESS), fixture `43735403970` reportada SUCCESS. A arquitetura de TEST foi **posteriormente substituída** pela PR #1634, portanto este é apenas recibo histórico, não especificação vigente.
+
+**Fonte dos recibos:** patches e descrições das PRs documentais #1619, #1610, #1547, #1536 e #1555. Os estados de CI acima foram transcritos dos registros dessas PRs, não revalidados nesta auditoria por consulta individual a cada execução. **Precedência:** #1634 para arquitetura TEST atual; não interpretar os recibos históricos como aprovação de execução científica.
