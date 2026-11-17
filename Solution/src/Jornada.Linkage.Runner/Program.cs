@@ -198,7 +198,7 @@ if (options.Mode != LinkageRunType.REPLAY)
         builder.Configuration, preflightSql,
         Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
     var selectedModel = await preflightLinkage.GetModelByVersionAsync(configuredVersion.Value, CancellationToken.None);
-    if (selectedModel.ModelVersion != configuredVersion.Value)
+    if (selectedModel.Version != configuredVersion.Value)
         throw new InvalidOperationException("RUNNER_MODEL_VERSION_MISMATCH: versão carregada diverge da configuração.");
     options = options with { ModelVersion = configuredVersion.Value };
 }
