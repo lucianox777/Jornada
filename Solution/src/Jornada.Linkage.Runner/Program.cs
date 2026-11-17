@@ -207,9 +207,10 @@ if (options.Mode != LinkageRunType.REPLAY)
         // Validate the same immutable snapshot AND construct the actual V9 cohort
         // scorer before failing closed. Never resolve the legacy SQL model here.
         var frozenV9 = await V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile);
-        Console.WriteLine($"RUNNER_V9_ARTIFACT_VERIFIED sha256={frozenV9.WinnerSha256}");
-        throw new InvalidOperationException(
-            "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: artefato validado, execução produtiva V9 ainda bloqueada; não utilizar fallback SQL.");
+        var v9Boundary = new V9OperationalRunBoundary(frozenV9);
+        Console.WriteLine($"RUNNER_V9_ARTIFACT_VERIFIED sha256={v9Boundary.Runtime.WinnerSha256}");
+        // RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED remains mandatory here.
+        v9Boundary.EnsureProductiveCertified();
     }
 
     // V9 must never fall through to the legacy SQL-model loader merely because
