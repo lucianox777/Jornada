@@ -76,3 +76,6 @@ PR #1606 integrada por squash `2f9b8b8aad2295e403ef7953b51dab63ccde0a9b`; CI obr
 
 ## Proposta de fixtures independentes de cobertura TF4 — 16/11/2026
 Contexto: oráculos independentes de agrupamento e decisão já integrados; cálculo numérico TF4 ainda não certificado. Decisão proposta: fixar exemplos literais de seleção exclusiva de unidade nominal e frequências publicadas/ausentes em quatro posições (pessoa/mãe × prenome/sobrenome). Justificativa: prevenir regressão de elegibilidade e abstenção sem gerar resultado esperado a partir do seletor operacional. Impacto: apenas testes; nenhuma mudança de score, SQL, release gate ou estatística calibrada. Precedência: evidência parcial; não certifica U_ref, peso, log-odds, desempate TF4 ou RunAsync; issue #1584 aberta. GOV-DOC-01.
+
+## Integração das fixtures independentes de cobertura TF4 — 16/11/2026
+PR #1611 integrada por squash `fa60330b861045304c71104151ad9c73dee3d5dd`; CI obrigatória #43965238095 3/3 SUCCESS. Cobertura: aplicabilidade exclusiva e frequência publicada/ausente nas quatro posições pessoa/mãe × prenome/sobrenome. Evidência parcial: não demonstra paridade numérica U_ref/pesos/log-odds TF4 nem paridade física SQL RunAsync; issue #1584 e bloqueio TEST 100k permanecem. GOV-DOC-01.
