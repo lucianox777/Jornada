@@ -7,6 +7,8 @@ O TEST científico do workflow do calibrador é uma execução **inteiramente is
 
 A **implantação** do pacote é uma operação administrativa **posterior, separada e explicitamente autorizada pelo operador MASTER**, sujeita à governança DT-15. Aprovação estatística não implica publicação automática.
 
+**Separação de escopos:** retrocompatibilidade é requisito **exclusivo do executor operacional**, não do TEST científico. O TEST não precisa executar modelos legados nem selecionar contratos anteriores: avalia somente a configuração vencedora produzida pela campanha TRAIN → AUDIT → VALIDATION do mesmo workflow. TRAIN avalia hipóteses; VALIDATION seleciona e exporta o único vencedor; TEST consome esse pacote congelado, sem recalibrar ou escolher outra configuração.
+
 O executor deve manter **compatibilidade retroativa com os contratos/modelos anteriores** ao incorporar V9: modelos legados continuam executando sob suas semânticas históricas; V9 exige versão e identidade explícitas. **Nunca** realizar fallback silencioso de V9 inválido para modelo legado, nem adaptar parcialmente TF4/81 a parâmetros antigos.
 
 ## Evidência documental e código observado
@@ -22,7 +24,7 @@ O executor deve manter **compatibilidade retroativa com os contratos/modelos ant
 2. **Isolamento e não publicação:** banco descartável, credenciais restritas, endpoint separado de produção, `Publish=false`; teste negativo para qualquer acesso/escrita a produção, Gold/Serving, ATIVO e DT-15; validar efeitos indiretos, falhas por lote e rollback.
 3. **Preparação independente TEST no Standard Linear:** criar e lacrar base e gabarito TEST pelo workflow, com seed/uso único e isolamento de TRAIN/VALIDATION; não usar `test_database` legado ou fonte externa como atalho. Conectar artifact, verificação de integridade e job TEST à saída VALIDATION.
 4. **Métricas e closeout:** gerar relatório independente com recall, FDR, FP/FN, conflitos, desempenho, identidade SHA do pacote e provas de isolamento; ajustar `PREPARATION_RESULT` e gate E2E somente após evidências reais, nunca alterar `productionRunnerFullPipelineParityCertified` por simples constante.
-5. **Regressão retrocompatível:** testes reais para modelos legados (blocking histórico/ruleset) e V9 pinado, garantindo que opt-in V9 não altera seleção do ATIVO, schema legado ou resultados antigos.
+5. **Regressão do executor (frente separada):** testes reais para modelos legados (blocking histórico/ruleset) e V9 pinado, garantindo que opt-in V9 não altera seleção do ATIVO, schema legado ou resultados antigos. **Não é etapa funcional do TEST científico**, que recebe somente o vencedor V9 do workflow.
 6. **Habilitação controlada:** somente após CI, SQL smoke, E2E isolado e auditoria, retirar o fail-closed `test_required` na ADMISSION. Não executar TEST selado para depuração nem autorizar implantação operacional.
 
 ## Precedência e rastreabilidade
