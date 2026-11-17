@@ -210,6 +210,8 @@ if (options.Mode != LinkageRunType.REPLAY)
     if (selectedModel.Version != configuredVersion.Value || selectedModel.BlockingContract is null)
         throw new InvalidOperationException("RUNNER_MODEL_CONTRACT_INCOMPATIBLE: modelo sem contrato operacional compatível.");
 
+    pinnedLinkage.PinStartupModel(selectedModel);
+
     var fingerprintInput = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
     {
         selectedModel.ModelId, selectedModel.Version, selectedModel.AlgorithmVersion,
