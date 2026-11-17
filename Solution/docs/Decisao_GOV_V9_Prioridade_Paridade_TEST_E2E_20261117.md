@@ -13,3 +13,15 @@ O workflow canônico `.github/workflows/v9-standard-linear-100k.yml` já contém
 
 ## Rastreabilidade
 Pedido do PO em conversa de 17/11/2026: implementar paridade como prioridade e executar workflow integral. Dependências: PR #1655; issues #1488, #1478, #1584; workflows `v9-standard-linear-100k.yml` e `v9-v3-four-name-100k.yml`. Documento criado em branch de trabalho, ainda não vigente na master.
+
+## Retificação expressa da precedência pelo PO — 17/11/2026
+
+O PO esclareceu que o objetivo prioritário **não é certificar todo o Runner produtivo antes de concluir o calibrador**. A ordem vinculante passa a ser:
+
+1. **P0 — concluir a PR #1655**, sem ampliar seu escopo nem relaxar verificações obrigatórias.
+2. **P0 — desacoplar calibrador e seletor:** o calibrador entrega vencedor como pacote/arquivo imutável; o seletor consome exclusivamente esse pacote para parâmetros científicos V9, sem leitura/gravação de parâmetros científicos SQL como interface entre ambos. Preservar SQL operacional, metadados, compatibilidade legada e rollback; remoção física de colunas requer inventário e aprovação específica.
+3. **P0 — concluir e executar o workflow científico E2E** ADMISSION → PREPARE → TRAIN → AUDIT → VALIDATION → TEST quando houver vencedor → CLOSEOUT, com evidências e SHA fixado.
+4. **P1 — implementar somente a paridade física necessária para o TEST científico E2E**. Certificação produtiva geral do Runner não é pré-requisito automático: qualquer dependência deve ser demonstrada por contrato/teste específico.
+5. **P2 — melhorias não bloqueantes** de robustez ficam fora do caminho crítico.
+
+**Justificativa:** evitar trabalho paralelo e bloqueio circular entre certificação produtiva ampla e validação científica do calibrador. **Segurança:** preservar reserva one-use, isolamento, gates de TEST, ausência de publicação e falha fechada; nenhuma permissão de bypass. **Impacto:** substitui a exigência genérica de “adaptador produtivo” do item (1) de Aceite acima pelo contrato mínimo comprovável necessário ao TEST científico; demais controles de integridade e rastreabilidade permanecem. **Precedência:** esta retificação expressa do PO prevalece sobre a ordem de implementação descrita anteriormente neste documento. **Rastreabilidade:** decisão do PO na conversa de 17/11/2026; PR #1655; GOV-V9-DESATIVACAO-PARAMETROS-CIENTIFICOS-SQL-20261117; issues #1488/#1478/#1584.
