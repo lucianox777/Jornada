@@ -53,6 +53,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "if (++incidences > MaximumPairIncidences)",
                       "if (edges.Count >= MaximumPairIncidences)",
                       "if (a < 1 || a >= b || b > frozenRows.Count)",
+                      "SELECT COUNT_BIG(*) FROM #v9_run_sig;",
+                      "materializedSignatures != signatures.Count",
                       "SELECT COUNT_BIG(*) FROM (",
                       "if (edges.Count != expectedEdges)",
                       "edges[i - 1].B >= edges[i].B"):
