@@ -64,12 +64,27 @@ public sealed class SqlProbabilisticIdentityLinkage(
     LinkageRunOptions? runOptions = null) : IProbabilisticIdentityLinkage, ISemiblindCandidateRetriever
 {
     private readonly ConcurrentDictionary<Guid, LinkageRuntimeSnapshot> runtimeCache = new();
+    private ProbabilisticLinkageModelRef? startupPinnedModel;
+
+    /// <summary>Bind operational execution to the exact model already validated at startup.</summary>
+    public void PinStartupModel(ProbabilisticLinkageModelRef selected)
+    {
+        if (startupPinnedModel is not null)
+            throw new InvalidOperationException("RUNNER_MODEL_ALREADY_PINNED");
+        if (!runtimeCache.ContainsKey(selected.ModelId) || selected.BlockingContract is null)
+            throw new InvalidOperationException("RUNNER_MODEL_NOT_PREFLIGHTED");
+        startupPinnedModel = selected;
+    }
+
     private IReadOnlyList<Dt05HistoricalCandidate>? historicalCandidates;
     private Guid? historicalCandidatesSourceRun;
     private IReadOnlyList<Dt05HistoricalBlockingProjectionRow>? historicalBlockingProjection;
 
     public async Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct)
     {
+        if (startupPinnedModel is { } pinned)
+            return pinned;
+
         await using var connection = await operationalSql.OpenAsync(ct);
         var idCommand = new SqlCommand(
             "SELECT modelo_id FROM identidade.modelo_linkage WHERE status='ATIVO'", connection);
@@ -83,6 +98,13 @@ public sealed class SqlProbabilisticIdentityLinkage(
 
     public async Task<ProbabilisticLinkageModelRef> GetModelByVersionAsync(int version, CancellationToken ct)
     {
+        if (startupPinnedModel is { } pinned)
+        {
+            if (pinned.Version != version)
+                throw new InvalidOperationException("RUNNER_MODEL_PINNED_VERSION_MISMATCH");
+            return pinned;
+        }
+
         await using var connection = await operationalSql.OpenAsync(ct);
         var command = new SqlCommand(
             """
