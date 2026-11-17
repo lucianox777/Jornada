@@ -60,3 +60,11 @@ Run GitHub Actions `44171877566`, job `134352842979`: guards, build .NET, bootst
 
 ## Continuidade — validação canônica do digest do pacote (17/11/2026)
 No carregador de seleção V9, exigir `WinnerSha256` com exatamente 64 caracteres hexadecimais minúsculos antes de resolver o caminho do artefato. A medida elimina representações ambíguas do identificador pinado e falha fechada com `RUNNER_V9_ARTIFACT_SHA_INVALID`. Teste estrutural cobre o formato e a ordem de validação. Impacto: rejeição de seleções malformadas; nenhum ajuste de TF4, score, SQL, modelo legado ou liberação de execução produtiva. Rastreabilidade: `V9ConfiguredArtifactLoader.cs`, `test_v9_configured_artifact_loader.py`, PR #1655; CI do novo HEAD pendente.
+
+## Continuidade do desacoplamento calibrador → Runner — 17/11/2026
+
+O PO reafirmou que o escopo prioritário é **separar o calibrador científico do Runner processador**. O contrato de fronteira é `<winnerSha>.operational.json` imutável, referenciado pelo envelope do seletor `Linkage:V9SelectionFile`. AUDIT entrega finalistas; VALIDATION escolhe o winner final por critérios científicos; TEST usa somente o winner congelado; essas responsabilidades não serão alteradas. O Runner não pode executar calibração, escolher winner ou buscar parâmetros científicos V9 no SQL. SQL de observações/processamento operacional não é proibido por essa decisão.
+
+**Implementação incremental nesta PR:** `V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync` já constrói runtime em memória a partir do snapshot validado e verifica SHA/contrato, sem modelo científico SQL. A leitura do envelope do seletor foi reforçada com limite de 64 KiB **antes** de `ReadAllBytesAsync` (e conferência posterior), com teste estrutural de regressão. Commits `d603b6e` e `79fef5d`.
+
+**Limite da entrega:** o `Program.cs` permanece com `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`; ainda falta conectar o runtime carregado por arquivo ao pipeline produtivo de lotes/coorte e comprovar paridade física, segurança e CI no SHA final. Não remover a trava nem afirmar desacoplamento produtivo completo com base apenas no carregador. A PR #1656 trata da precedência de prioridades, sem substituir esta implementação.
