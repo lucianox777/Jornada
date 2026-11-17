@@ -65,6 +65,20 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "edges[i - 1].B >= edges[i].B"):
             self.assertIn(guard, graph)
 
+    def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
+        program = (ROOT / "Program.cs").read_text(encoding="utf-8")
+        loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
+        self.assertIn("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)", program)
+        self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", program)
+        self.assertIn("RUNNER_V9_SELECTION_MISSING", program)
+        self.assertLess(
+            program.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)"),
+            program.index("pinnedLinkage.GetModelByVersionAsync(configuredVersion.Value"))
+        self.assertIn("options.Mode != LinkageRunType.REPLAY", program)
+        self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(artifact, ct)", loader)
+        self.assertIn("FromVerifiedFileSnapshot(loaded.Snapshot)", loader)
+        self.assertNotIn("SqlConnection", loader)
+
     def test_operational_graph_checks_full_manifest_and_bidirectional_edges(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text(encoding="utf-8")
         for guard in ("expectedManifest.SetEquals(seen)",
