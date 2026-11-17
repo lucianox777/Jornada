@@ -36,3 +36,6 @@ O recibo de leitura SQL agora expõe `CanonicalSignaturesSha256`, calculado a pa
 
 ### Revisão de digest e validação (17/11/2026)
 Corrigido o delimitador de linhas do manifesto SHA-256 para LF efetivo, evitando codificação literal de barra invertida + n (commit `3caf0db`). Consulta de workflow runs associadas ao commit não retornou execução; logo não há evidência de build ou teste físico. A PR continua sem certificação e o caminho de parâmetros científicos SQL não foi alterado por este commit. A decisão separada GOV-V9-DESATIVACAO-PARAMETROS-CIENTIFICOS-SQL-20261117 exige inventário e migração não destrutiva.
+
+### Compatibilidade dos identificadores com SQL Server (17/11/2026)
+O censo de assinaturas rejeita antes do `SqlBulkCopy` gestores e identificadores de passes com mais de 120 caracteres ou espaço U+0020 final, evitando truncamento/igualdade SQL divergente da identidade ordinal C#. Commits `af3a34c` e `1de08ad`. A verificação é estrutural, sem execução física confirmada; não habilita o runtime produtivo e não altera o carregamento de parâmetros V9 por pacote.
