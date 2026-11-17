@@ -51,7 +51,7 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          # TEST is opt-in and independently sealed before TRAIN; never uses production RunAsync.
+          # TEST is mandatory with a VALIDATION winner and independently sealed before TRAIN.
           # Missing encryption credentials fail in prepare-test-sealed before TRAIN.
   prepare-test-sealed:
     name: "V9 PREPARE TEST: generate and seal independent 100k before TRAIN"
@@ -440,7 +440,7 @@ jobs:
 
   audit-100k:
     needs: physical-100k
-    # Skip of optional TEST preparation must never suppress a successful audit.
+    # TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.
     # Fail closed on failed/cancelled TRAIN and on unapproved dispatch.
     if: ${{ always() && !cancelled() && needs.physical-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 AUDIT independent: 324 frozen TRAIN hypotheses"
@@ -937,14 +937,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
-  # External TEST uses EXISTING rows in the named database, NEVER the
-  # independent synthetic scientific TEST cohort. The SQL login must be
-  # SELECT-only and is exposed only to preflight and this opt-in runner.
-  # No TEST truth, gabarito, Gold, Serving, SQL model conversion or DB writes.
+  # External statistical reference via test_database remains disabled until
+  # a separate safe adapter is implemented; scientific TEST uses sealed cohort.
   e2e-closeout:
     needs: [prepare-100k, prepare-test-sealed, physical-100k, audit-100k, validation-100k, test-100k]
     if: ${{ always() }}
-    name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
+    name: "V9 E2E closeout: require TEST if VALIDATION selects winner"
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -982,7 +980,7 @@ jobs:
         with:
           name: v9-tf4-validation-e2e-status-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/validation
-      - name: Download independent TEST result only when TEST was explicitly requested and successful
+      - name: Download independent TEST result when mandatory TEST succeeds
         if: ${{ always() && needs.validation-100k.outputs.has_winner == 'true' && needs.test-100k.result == 'success' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
