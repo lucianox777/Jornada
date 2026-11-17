@@ -67,11 +67,6 @@ public sealed class V9OperationalPinnedCohortRuntime
     }
 
     /// <summary>
-    /// The SAME complete-link/FS/Resolve executable shared by the physical
-    /// independent TEST Worker. Caller must provide the complete physical SQL
-    /// graph with a reconciled row count, never truncated or synthesized.
-    /// </summary>
-    /// <summary>
     /// Accept only the complete, reconciled operational candidate graph.
     /// The independent physical SQL graph is a mandatory completeness oracle;
     /// never replace missing edges, silently truncate, or score per batch.
@@ -113,6 +108,11 @@ public sealed class V9OperationalPinnedCohortRuntime
         return ReplayTest(test, ordered);
     }
 
+    /// <summary>
+    /// The SAME complete-link/FS/Resolve executable shared by the physical
+    /// independent TEST Worker. Caller must supply a complete physical SQL
+    /// graph with reconciled row count; never truncated or synthesized.
+    /// </summary>
     public V9FrozenSourceReplayResult ReplayTest(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
         IReadOnlyList<(int A, int B)> completePhysicalSqlEdges)
