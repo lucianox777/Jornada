@@ -849,7 +849,7 @@ jobs:
       PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
       AUDIT_RESULT: ${{ needs.audit-100k.result }}
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
-      PREPARATION_RESULT: ${{ needs.prepare-100k.result }} # TRAIN preparation only
+      PREPARATION_RESULT: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'success' || 'skipped' }} # legacy closeout compatibility; no separate TEST preparation
       TEST_RESULT: ${{ needs.test-100k.result }}
       EXTERNAL_PREFLIGHT_RESULT: skipped
       EXTERNAL_TEST_RESULT: skipped
