@@ -122,6 +122,20 @@ public static class V9FrozenCohortSqlCandidateGraph
                             throw new InvalidDataException("Censo pré-SQL de pares V9 excedeu o limite.");
         }
 
+        // Independent in-memory oracle: SQL census and SQL stream can agree
+        // with each other while both omitting the same edges. Derive the exact
+        // deduplicated cross-manager graph from the frozen signatures first.
+        var expectedPairs = new HashSet<(int A, int B)>();
+        foreach (var group in signatures.GroupBy(row => (row.Pass, row.Hash)))
+        {
+            var rows = group.OrderBy(row => row.Observation).ToArray();
+            for (var i = 0; i < rows.Length; i++)
+                for (var j = i + 1; j < rows.Length; j++)
+                    if (!string.Equals(rows[i].Manager, rows[j].Manager,
+                            StringComparison.Ordinal))
+                        expectedPairs.Add((rows[i].Observation, rows[j].Observation));
+        }
+
         // Tables are LOCAL SQL temp tables scoped to this disposable connection.
         // Never INSERT/UPDATE any operational, Gold or Serving table.
         await using (var setup = new SqlCommand("""
@@ -245,6 +259,9 @@ public static class V9FrozenCohortSqlCandidateGraph
         }
         if (edges.Count != expectedEdges)
             throw new InvalidDataException("Leitura do grafo SQL V9 incompleta: contagem difere do censo.");
+        if (edges.Count != expectedPairs.Count || !expectedPairs.SetEquals(edges))
+            throw new InvalidDataException(
+                "Grafo SQL V9 divergiu do oráculo independente de assinaturas C#.");
         for (var i = 1; i < edges.Count; i++)
             if (edges[i - 1].A > edges[i].A
                 || (edges[i - 1].A == edges[i].A && edges[i - 1].B >= edges[i].B))
