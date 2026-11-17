@@ -32,3 +32,14 @@ A presença de `Linkage:V9SelectionFile` agora exige `Linkage:SelectedModelVersi
 
 ## Proteção da seleção física do pacote (17/11/2026)
 O loader V9 passa a recusar o caminho do artefato se inexistente ou se for link simbólico, antes da leitura imutável com verificação de SHA (commits `cd95c90`, `e53842a`). A seleção JSON já recusava links simbólicos. Essa defesa de caminho não resolve, isoladamente, substituição concorrente de arquivo nem certifica o adaptador produtivo. O gate de ativação permanece; o legado SQL não foi alterado.
+
+## Auditoria de integração após merges #1655 e #1656 (17/11/2026)
+Inspeção direta dos componentes `Program.cs`, `ProbabilisticLinkageBatchRunner.cs`, `V9PinnedSyntheticGraphCohortRunScorer.cs`, `V9ConfiguredArtifactLoader.cs` e `V9FrozenCohortSqlCandidateGraph.cs` na master:
+
+1. **Seletor:** `Program.cs` verifica `Linkage:SelectedModelVersion=9`, `Linkage:V9SelectionFile`, SHA do artefato e instancia `V9OperationalPinnedCohortRuntime` sem consultar parâmetros científicos SQL; em seguida interrompe com `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`. Não retirar o gate sem paridade comprovada.
+2. **Executor:** `ProbabilisticLinkageBatchRunner.RunAsync` ainda seleciona `GetModelByVersionAsync`/`GetActiveModelAsync` e opera com `IProbabilisticIdentityLinkage`, sem receber o runtime V9 de arquivo. Consultas SQL permanecem necessárias ao legado e REPLAY.
+3. **Ponte de coorte:** `IV9NonPublishingFrozenCohortScorer` permite preparação global antecipada, mas `V9PinnedSyntheticGraphCohortRunScorer` carrega vencedor por `V9OperationalPinnedCohortRuntime.LoadPinnedAsync(connection,...)`, exige `JornadaHarness` e limita 512 observações. Não constitui adaptador produtivo.
+4. **Grafo físico:** `V9FrozenCohortSqlCandidateGraph` reconcilia assinaturas e arestas contra oráculo C#, mas limita 512 observações, 8.192 assinaturas e 25.000 incidências de pares; não comprova completude operacional de `identidade.blocking_chave`.
+5. **Próxima entrega:** criar despacho V9 separado do legado, injetar runtime imutável por run, mapear consulta operacional de candidatos e semântica de paginação/coorte, e executar provas físicas de completude, concorrência interlotes, falha fechada e ausência de publicação parcial. Não alterar parâmetros científicos, TEST one-use ou dados históricos.
+
+**Rastreabilidade:** merges #1655 (`6c6ff6838336eb41cec97a5241baa68d72e773e7`) e #1656 (`c7fb318b977eb86ae346ac77dda454b5802e6b72`). Registro de lacunas, sem autorização de produção. Decisão já consta do índice vigente.
