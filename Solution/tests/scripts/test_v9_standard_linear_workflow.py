@@ -110,8 +110,8 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         legacy_audit = legacy_audit.replace(
             "# Skip of optional TEST preparation must never suppress a successful audit.",
             "# TEST preparation is mandatory before TRAIN; audit requires successful TRAIN.")
-        # PO-approved Standard Linear difference: zero finalists is a successful
-        # terminal outcome, whereas the historical workflow fails the campaign.
+        # PO-approved standard linear terminal outcome: no eligible finalists
+        # is successful, unlike the legacy workflow.
         self.assertIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", legacy_audit)
         self.assertIn("V9_AUDIT_COMPLETED_WITHOUT_ELIGIBLE_FINALISTS", standard_audit)
         self.assertNotIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", standard_audit)
