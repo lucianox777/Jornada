@@ -57,6 +57,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
                       "materializedSignatures != signatures.Count",
                       "CREATE UNIQUE INDEX UX_v9_run_sig",
                       "expectedSignatures.SetEquals(observedSignatures)",
+                      "CanonicalSignaturesSha256: signaturesDigest",
+                      "OrderBy(s => s.Obs)",
                       "SELECT obs_id,gestor,pass_id,assinatura FROM #v9_run_sig;",
                       "SELECT COUNT_BIG(*) FROM (",
                       "if (edges.Count != expectedEdges)",
