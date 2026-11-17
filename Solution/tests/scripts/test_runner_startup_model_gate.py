@@ -41,6 +41,8 @@ class RunnerStartupModelGateTests(unittest.TestCase):
         self.assertIn('model_id="$(sql_scalar', linkage)
         self.assertIn('compose exec -T -e "Linkage__SelectedModelVersion=$version"', linkage)
         self.assertIn('--model-version "$version"', linkage)
+        self.assertNotIn('invocation.\\n', linkage)
+        self.assertIn('\n  compose exec -T -e "Linkage__SelectedModelVersion=$version"', linkage)
         self.assertNotIn('compose up', linkage)
         self.assertNotIn('docker compose down', linkage)
 
