@@ -128,9 +128,11 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root"
-          V9_PEOPLE_OVERRIDE=()
-          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then
+            echo "::error::V9_CONFIG_FROZEN: synthetic_population override prohibited; change versioned calibration JSON instead"
+            exit 1
+          fi
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42 --out "$root/people-100k"             > "$root/generation.log"
       - name: Package and checksum immutable PREPARE transfer
         run: |
           set -euo pipefail
