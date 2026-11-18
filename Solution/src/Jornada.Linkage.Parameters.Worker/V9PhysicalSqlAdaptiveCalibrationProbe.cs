@@ -197,7 +197,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     }
 
     public const string Version = "V9_PHYSICAL_SQL_ADAPTIVE_FS_TRAIN_VALIDATION_V2";
-    public const int HardPairIncidenceCap = 1_000_000;
+    public const int HardPairIncidenceCap = 2_000_000;
+    public const int HardProjectedSignatureCap = 1_000_000;
 
     /// <summary>
     /// Read-only exact pre-SQL admission used by the physical probe itself:
@@ -852,7 +853,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
 
     private static List<SignatureRow> BuildSignatures(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
-        IReadOnlyCollection<LinkageBlockingPass> passes, int maximumPrefixLength = 0, int signatureCap = HardPairIncidenceCap)
+        IReadOnlyCollection<LinkageBlockingPass> passes, int maximumPrefixLength = 0, int signatureCap = HardProjectedSignatureCap)
     {
         var result = new List<SignatureRow>();
         foreach (var observation in observations)
