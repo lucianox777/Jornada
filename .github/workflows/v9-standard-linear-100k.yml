@@ -9,8 +9,8 @@ on:
         description: Exact master commit SHA to run the 100k V9 technical TRAIN
         required: true
         type: string
-      test_end_to_end_repetitions:
-        description: "Optional TEST repetitions (blank defaults to scientific 20; 1-19 DEV diagnostic only)"
+      synthetic_population:
+        description: "Optional identity count; overrides syntheticPopulation in calibration config"
         required: false
         default: ""
         type: string
@@ -31,7 +31,7 @@ on:
 
 
 env:
-  V9_TEST_REPETITIONS_INPUT: ${{ inputs.test_end_to_end_repetitions }}
+  V9_SYNTHETIC_POPULATION: ${{ inputs.synthetic_population }}
 
 permissions:
   contents: read
@@ -59,9 +59,9 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          if [[ -n "$V9_TEST_REPETITIONS_INPUT" ]]; then
-            [[ "$V9_TEST_REPETITIONS_INPUT" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid test repetitions"; exit 1; }
-            (( V9_TEST_REPETITIONS_INPUT <= 200 )) || { echo "::error::TEST repetitions above 200"; exit 1; }
+          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then
+            [[ "$V9_SYNTHETIC_POPULATION" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid synthetic_population"; exit 1; }
+            test "${#V9_SYNTHETIC_POPULATION}" -le 9 || { echo "::error::synthetic_population too large"; exit 1; }
           fi
           # TEST is mandatory with a VALIDATION winner; TEST generates its own cohort.
           # No TEST encryption credentials are required for on-demand generation.
@@ -118,7 +118,9 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          V9_PEOPLE_OVERRIDE=()
+          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42 --out "$root/people-100k"             > "$root/generation.log"
       - name: Package and checksum immutable PREPARE transfer
         run: |
           set -euo pipefail
@@ -245,11 +247,13 @@ jobs:
           python3 scripts/v9-scale-100k-technical-plan.py \
             --artifact-zip "$root/historical-official.zip" \
             --corpus-root "$root/people-100k" \
-            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
+            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto \
+              --expected-people "${V9_SYNTHETIC_POPULATION:-100000}"
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
             --tf-policy config/calibration/v9-synthetic-sampling.json \
-            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json" \
+              --expected-people "${V9_SYNTHETIC_POPULATION:-100000}"
           test -s "$root/base-bound/plan.json"
           test -s "$root/base-bound/binding-receipt.json"
           test -s "$root/bound/plan.json"
@@ -588,11 +592,13 @@ jobs:
           # Download was already checked byte-for-byte against pinned names
           # and the successful TRAIN audit, before generating new holdout data.
           mkdir -p "$root/validation-people"
+          V9_PEOPLE_OVERRIDE=()
+          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 20261112001 \
+            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 20261112001 \
             --out "$root/validation-people" > "$root/validation-generation.log"
           envelope="$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f)"
           test "$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
@@ -804,11 +810,13 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
           mkdir -p "$root/corpus"
+          V9_PEOPLE_OVERRIDE=()
+          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed "${{ steps.test_seed.outputs.test_seed }}" \
+            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed "${{ steps.test_seed.outputs.test_seed }}" \
             --out "$root/corpus" > "$root/test-generation.log"
           test -s "$root/corpus/observacoes.csv"
       - name: Verify reserved TEST seed receipt matches this execution and generated corpus
@@ -841,15 +849,8 @@ jobs:
           root="$PWD/.local/v9-independent-test"
           model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
           test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
-          test_args=()
-          if [[ -n "$V9_TEST_REPETITIONS_INPUT" ]]; then
-            test_args=(--test-repetitions "$V9_TEST_REPETITIONS_INPUT")
-            if (( V9_TEST_REPETITIONS_INPUT < 20 )); then
-              export JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC=true
-            fi
-          fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-independent-test "$model" "${test_args[@]}"
+            --v9-independent-test "$model"
           python3 - "$root/results/independent-test.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1]))
