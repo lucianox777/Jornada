@@ -41,14 +41,14 @@ class StandaloneTestContract(unittest.TestCase):
     def test_test_and_runner_share_frozen_projection_resolver(self):
         source = CLI.read_text()
         runtime = (ROOT / "src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs").read_text()
-        self.assertIn("V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(", source)
+        contract = (ROOT / "src/Jornada.Contracts/V9CalibrationBlockingProjection.cs").read_text()
+        self.assertIn("V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(", source)
+        self.assertIn("V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(", runtime)
         self.assertIn("MaximumPrefixLength: frozenPrefixLength", source)
-        self.assertLess(source.index("ResolveFrozenPrefixLength("),
-                        source.index("EvaluateFrozenTestAsync("))
-        self.assertIn("public static int ResolveFrozenPrefixLength(", runtime)
-        self.assertIn("MaximumPrefixLength = ResolveFrozenPrefixLength(", runtime)
-        self.assertIn("matches.Length != 1", runtime)
-        self.assertIn("PersonResolutionProjectionContract.ValidateSupported(schemaVersion, fingerprint)", runtime)
+        self.assertLess(source.index("ResolveFrozenPrefixLength("), source.index("EvaluateFrozenTestAsync("))
+        self.assertIn("public static int ResolveFrozenPrefixLength(", contract)
+        self.assertIn("matches.Length != 1", contract)
+        self.assertIn("PersonResolutionProjectionContract.ValidateSupported(schemaVersion, fingerprint)", contract)
         self.assertNotIn("Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)", source)
 
     def test_test_reader_owns_independent_cohort(self):
