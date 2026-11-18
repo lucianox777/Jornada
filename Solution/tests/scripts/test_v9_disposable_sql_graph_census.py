@@ -22,6 +22,21 @@ class V9DisposableSqlGraphCensusTests(unittest.TestCase):
                           "INSERT INTO", "UPDATE ", "DELETE FROM"):
             self.assertNotIn(forbidden, source)
 
+    def test_bridge_rejects_frozen_cohort_and_independent_census_mismatch(self):
+        source = (ROOT / "V9DisposableSqlGraphCensus.cs").read_text(encoding="utf-8")
+        for required in (
+            "ReadAndVerifyAsync(",
+            "independentlyFrozenObservationIds.ToHashSet()",
+            "expectedIds.Count != independentlyFrozenObservationIds.Count",
+            "receipt.ObservationIds.Any(id => !expectedIds.Contains(id))",
+            "receipt.ObservationIds.Distinct().Count()",
+            "receipt.SqlObservationRows != independentSourceCensus.ObservationCount",
+            "receipt.SqlEdgeRows != independentSourceCensus.EdgeCount",
+            "V9OperationalCandidateGraphIntegrity.Verify(",
+            "RUNNER_V9_SQL_GRAPH_SOURCE_CENSUS_MISMATCH",
+        ):
+            self.assertIn(required, source)
+
     def test_production_gate_is_still_closed(self):
         source = (ROOT / "V9OperationalRunBoundary.cs").read_text(encoding="utf-8")
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", source)
