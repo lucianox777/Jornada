@@ -37,6 +37,46 @@ public sealed class ProbabilisticLinkageBatchRunner(
     /// pipeline lock, create linkage_run/results, or publish Gold/Serving.
     /// Does not certify legacy production batch equivalence.
     /// </summary>
+    /// <summary>
+    /// File-pinned typed V9 handoff into the real operational candidate SQL
+    /// retrieval, but strictly diagnostic in disposable JornadaHarness.
+    /// Never reloads scientific parameters from SQL or certifies RunV9Async.
+    /// </summary>
+    public async Task<V9NonPublishingBatchExecutionReceipt> RehearseV9PinnedFileNonPublishingAsync(
+        V9OperationalRunBoundary boundary,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> syntheticTest,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(boundary);
+        ArgumentNullException.ThrowIfNull(syntheticTest);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        cancellationToken.ThrowIfCancellationRequested();
+        // CompareTestAsync checks DB_NAME() before querying candidates.
+        // The runtime is passed from the immutable file boundary, not SQL.
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        var proof = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+            connection, boundary.Runtime, syntheticTest, physicalSqlEdges,
+            batchSize, cancellationToken);
+        if (proof.ProductionBatchPipelineCertified
+            || proof.ObservationCount != syntheticTest.Count
+            || proof.ObservationCount != proof.Resolved + proof.Unresolved + proof.Conflicts
+            || proof.NoCandidateInBlock > proof.Unresolved
+            || proof.WinnerSha256 != boundary.Runtime.WinnerSha256
+            || proof.CanonicalEdgesSha256.Length != 64
+            || proof.DecisionsSha256 is not { Length: 64 }
+            || proof.IdentityGroupsSha256 is not { Length: 64 })
+            throw new InvalidDataException("Recibo V9 de arquivo pinado não reconciliado.");
+        return new(boundary.Runtime.ModelId, proof.WinnerSha256,
+            LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO,
+            proof.ObservationCount, proof.ObservationCount,
+            proof.Resolved, proof.Unresolved, proof.Conflicts,
+            proof.NoCandidateInBlock, proof.BatchSize, proof.BatchCount,
+            proof.CanonicalEdgesSha256, proof.DecisionsSha256,
+            proof.IdentityGroupsSha256);
+    }
+
     public async Task<V9NonPublishingBatchExecutionReceipt> RehearseV9NonPublishingSyntheticTestAsync(
         Guid pinnedModelId,
         string pinnedWinnerSha256,
