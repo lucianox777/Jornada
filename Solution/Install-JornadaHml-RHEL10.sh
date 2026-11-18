@@ -44,6 +44,24 @@ data["environment"] = "Test"
 dst.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
   compose config --quiet
+  # Recusa iniciar se NODE2 estiver ativo no projeto local (mesmo com outro perfil).
+  if docker ps --format '{{.Names}}' | grep -qx 'jornada-node2'; then
+    die "NODE2 já está ativo neste host. Pare-o antes de iniciar HML single-node."
+  fi
+}
+verify() {
+  preflight
+  prepare
+  echo "Verificando serviços da homologação..."
+  compose ps
+  local node_state sql_state
+  node_state="$(docker inspect -f '{{.State.Health.Status}}' jornada-node1 2>/dev/null || true)"
+  sql_state="$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)"
+  [[ "$node_state" == healthy ]] || die "NODE1 não está healthy: ${node_state:-ausente}"
+  [[ "$sql_state" == healthy ]] || die "SQL Server não está healthy: ${sql_state:-ausente}"
+  wait_http "http://127.0.0.1:5080/health/ready"
+  wait_http "http://127.0.0.1:5080/monitor"
+  echo "Verificação operacional aprovada (não substitui homologação física/científica)."
 }
 wait_http() {
   local url="$1" i
@@ -75,13 +93,15 @@ install() {
     die "NODE2 inesperadamente ativo: interrompa o cluster anterior antes da homologação single-node."
   fi
   echo "HML single-node iniciada: http://127.0.0.1:5080/monitor"
+  echo "Execute: bash ./Install-JornadaHml-RHEL10.sh verify"
   echo "SQL: porta configurada em .env; persistência em volumes Docker."
 }
 case "$ACTION" in
   install) install ;;
   preflight) preflight; prepare; echo "Preflight OK" ;;
   status|ps) preflight; prepare; compose ps ;;
+  verify) verify ;;
   logs) preflight; prepare; compose logs --tail 200 jornada-node1 sqlserver ;;
   down) preflight; prepare; compose stop jornada-node1 jornada-nas sqlserver ;;
-  *) die "Uso: $0 {install|preflight|status|logs|down}" ;;
+  *) die "Uso: $0 {install|preflight|status|verify|logs|down}" ;;
 esac
