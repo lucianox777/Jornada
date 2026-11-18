@@ -20,3 +20,7 @@ O banco e a imagem SQL Server Developer seguem o **harness de Development existe
 Substitui sugestão anterior de Ubuntu e enquadramento anterior de produção. Preserva decisões científicas, bloqueios de publicação e governança. Base técnica: `Solution/Install-JornadaLocal.ps1`, `Solution/docker-compose.yml`, `Solution/scripts/local-db.sh`, `Solution/install/windows-production/Jornada.Cluster.Test.json`.
 
 **Critério de conclusão:** revisão, CI, integração e instalação física no RHEL 10 x64 com verificação de persistência e dos serviços. PR aberta não equivale a homologação.
+
+## Complemento de segurança operacional — 18/11/2026
+
+A implementação acrescenta bloqueio preventivo quando um NODE2 existente está ativo no host e um comando `verify` que confirma healthchecks de NODE1/SQL e endpoints de prontidão/monitor. Justificativa: impedir falsa homologação single-node em host compartilhado e produzir evidência operacional reproduzível. Não altera escopo científico nem substitui testes físicos RHEL 10.
