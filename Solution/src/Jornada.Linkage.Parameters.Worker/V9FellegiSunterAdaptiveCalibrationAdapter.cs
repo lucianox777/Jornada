@@ -572,22 +572,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }
         bool IsScoreable(LinkageCandidate candidate)
         {
-            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                return true; // Historical snapshots still throw on an unknown frequency.
-            var target = targets[candidate.PessoaUuid];
-            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
-            {
-                var unit = SelectedUnit(candidate, side);
-                if (!unit.HasValue || UnitWeight(config, side, unit.Value) <= 0m)
-                    continue;
-                var left = side == CompositeNominalTfSideV9.Person ? source.PersonName : source.MotherName;
-                var right = side == CompositeNominalTfSideV9.Person ? target.PersonName : target.MotherName;
-                if (frozenTfReference is null)
-                    throw new InvalidDataException("TF ativa sem IBGE congelado.");
-                if (V9NominalTfTermCoverage.MissingPublishedFrequency(unit.Value, left, right,
-                    frozenTfReference.FrequenciesForUnit(side, unit.Value)))
-                    return false;
-            }
+            // TRAIN/VALIDATION uses the same 20/context-population imputation
+            // as the frozen portable scorer; unpublished names are scoreable.
             return true;
         }
         return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
