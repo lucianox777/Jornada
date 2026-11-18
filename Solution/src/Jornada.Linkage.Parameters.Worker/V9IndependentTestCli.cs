@@ -83,7 +83,7 @@ public static class V9IndependentTestCli
         Directory.CreateDirectory(fullOutput);
         // Resolve the projection contract from the immutable, SHA-pinned winner.
         // Never silently substitute the default projection for a V9-fitted model.
-        var frozenPrefixLength = V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(
+        var frozenPrefixLength = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
             winner.Payload.ProjectionSchemaVersion, winner.Payload.ProjectionFingerprintSha256);
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
