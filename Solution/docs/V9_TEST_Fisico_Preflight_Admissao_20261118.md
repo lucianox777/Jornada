@@ -19,10 +19,10 @@ PR #1687 integrada com `unit-runtime`, `deterministic-build`, `security-guards`,
 5. Arquivar logs, `independent-test.json`, identidade do commit, SHA do vencedor, hashes da coorte, parâmetros e resultado; confirmar `refitted=false`, `certified=false`, `activated=false`, `configurationsEvaluated=1`, projeção congelada coincidente e nenhuma publicação.
 6. Só após evidência física adequada avaliar liberação da terceira campanha. A aprovação da CI, sozinha, não remove esse bloqueio.
 
-## Opção de preflight físico de menor custo — mudança futura distinta
+## Opção de preflight físico de menor custo — mecanismo permanente aprovado pelo PO — implementação futura
 
 Para um ensaio físico **reduzido** sem alterar o TEST científico, implementar uma entrada de diagnóstico separada (nome, relatório e marcadores distintos), com corpus sintético pequeno, SQL efêmero, mesmo carregamento SHA-pinned e mesmo resolvedor/projeção. Essa entrada deve ser explicitamente **não científica, não certificadora e incapaz de liberar a campanha sozinha**. Exige implementação, testes e CI próprios antes de execução; não existe hoje como execução comprovada.
 
 ## Precedência e impacto
 
-Complementa `Decisao_GOV_V9_TEST_Projecao_Congelada_20261118.md`; não modifica nem revoga o protocolo TEST de 100k, a separação TRAIN/VALIDATION/TEST, o bloqueio de publicação ou a exigência de seed inédita. Corrige o planejamento anterior que tratava um TEST científico reduzido como diretamente executável, apesar da restrição do leitor. A decisão sobre criar uma entrada diagnóstica separada fica **pendente de aprovação do PO**. Este roteiro não é autorização para a terceira campanha.
+Complementa `Decisao_GOV_V9_TEST_Projecao_Congelada_20261118.md`; não modifica nem revoga o protocolo TEST de 100k, a separação TRAIN/VALIDATION/TEST, o bloqueio de publicação ou a exigência de seed inédita. Corrige o planejamento anterior que tratava um TEST científico reduzido como diretamente executável, apesar da restrição do leitor. A criação de uma entrada diagnóstica separada foi **aprovada pelo PO em 18/11/2026** e está registrada em [GOV-V9-PREFLIGHT-FISICO-PERMANENTE](Decisao_GOV_V9_Preflight_Fisico_Reduzido_Permanente_20261118.md); sua implementação e execução permanecem pendentes. Este roteiro não é autorização para a terceira campanha.
