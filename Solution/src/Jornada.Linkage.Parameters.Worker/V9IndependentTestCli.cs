@@ -82,9 +82,18 @@ public static class V9IndependentTestCli
         Directory.CreateDirectory(fullOutput);
         // Resolve the projection contract from the immutable, SHA-pinned winner.
         // Never silently substitute the default projection for a V9-fitted model.
-        var frozenProjection = V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(), winnerSha);
+        var projectionFingerprint = winner.Payload.ProjectionFingerprintSha256;
+        var frozenPrefixLength = winner.Payload.ProjectionSchemaVersion == V9CalibrationBlockingProjection.SchemaVersion
+            ? Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
+                .Single(prefix => string.Equals(
+                    V9CalibrationBlockingProjection.ComputeSchemaFingerprint(prefix),
+                    projectionFingerprint, StringComparison.OrdinalIgnoreCase))
+            : 0;
+        if (frozenPrefixLength == 0)
+            Jornada.Contracts.PersonResolutionProjectionContract.ValidateSupported(
+                winner.Payload.ProjectionSchemaVersion, projectionFingerprint);
         var execution = new V9PhysicalAdaptiveExecution(
-            MaximumPrefixLength: frozenProjection.MaximumPrefixLength ?? 0,
+            MaximumPrefixLength: frozenPrefixLength,
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
