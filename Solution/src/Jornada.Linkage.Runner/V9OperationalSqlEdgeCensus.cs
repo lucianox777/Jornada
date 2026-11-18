@@ -30,7 +30,7 @@ public static class V9OperationalSqlEdgeCensus
         if (frozenCohort.Count == 0)
             throw new InvalidDataException("RUNNER_V9_COHORT_EMPTY");
 
-        var lookup = new Dictionary<Guid, V9OperationalCohortGraphPreview.Source>();
+        var lookup = new Dictionary<Guid, List<V9OperationalCohortGraphPreview.Source>>();
         var observationIds = new HashSet<long>();
         foreach (var source in frozenCohort)
         {
@@ -38,9 +38,11 @@ public static class V9OperationalSqlEdgeCensus
                 || !string.IsNullOrWhiteSpace(source.Observation.Cpf)
                 || source.ObservationId <= 0 || source.GoldUuid == Guid.Empty
                 || string.IsNullOrWhiteSpace(source.Manager)
-                || !lookup.TryAdd(source.GoldUuid, source)
                 || !observationIds.Add(source.ObservationId))
                 throw new InvalidDataException("RUNNER_V9_COHORT_INVALID_OR_DUPLICATE");
+            if (!lookup.TryGetValue(source.GoldUuid, out var sources))
+                lookup.Add(source.GoldUuid, sources = new List<V9OperationalCohortGraphPreview.Source>());
+            sources.Add(source);
         }
 
         // SQL is queried separately for every frozen source, without calling
@@ -68,19 +70,22 @@ public static class V9OperationalSqlEdgeCensus
                 var candidate = reader.GetGuid(0);
                 if (!uniqueCandidates.Add(candidate))
                     throw new InvalidDataException("RUNNER_V9_CENSUS_DUPLICATE_CANDIDATE");
-                if (!lookup.TryGetValue(candidate, out var target))
+                if (!lookup.TryGetValue(candidate, out var targets))
                     throw new InvalidDataException("RUNNER_V9_CENSUS_OUTSIDE_COHORT");
-                if (target.ObservationId == source.ObservationId
-                    || string.Equals(source.Manager, target.Manager, StringComparison.Ordinal))
-                    continue;
-                var a = Math.Min(source.ObservationId, target.ObservationId);
-                var b = Math.Max(source.ObservationId, target.ObservationId);
-                var key = (A: a, B: b);
-                var bit = (byte)(source.ObservationId == a ? 1 : 2);
-                directed.TryGetValue(key, out var previous);
-                if ((previous & bit) != 0)
-                    throw new InvalidDataException("RUNNER_V9_CENSUS_DUPLICATE_DIRECTION");
-                directed[key] = (byte)(previous | bit);
+                if (candidate == source.GoldUuid) continue;
+                foreach (var target in targets)
+                {
+                    if (string.Equals(source.Manager, target.Manager, StringComparison.Ordinal))
+                        continue;
+                    var a = Math.Min(source.ObservationId, target.ObservationId);
+                    var b = Math.Max(source.ObservationId, target.ObservationId);
+                    var key = (A: a, B: b);
+                    var bit = (byte)(source.ObservationId == a ? 1 : 2);
+                    directed.TryGetValue(key, out var previous);
+                    if ((previous & bit) != 0)
+                        throw new InvalidDataException("RUNNER_V9_CENSUS_DUPLICATE_DIRECTION");
+                    directed[key] = (byte)(previous | bit);
+                }
             }
         }
         if (directed.Values.Any(bits => bits != 3))
