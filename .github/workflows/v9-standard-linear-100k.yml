@@ -244,16 +244,18 @@ jobs:
           root="$PWD/.local/v9-100k-technical"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound" "$root/base-bound"
+          configured_people="$(python3 -c 'import json; print(json.load(open("config/calibration/v9-synthetic-sampling.json"))["syntheticPopulation"])')"
+          effective_people="${V9_SYNTHETIC_POPULATION:-$configured_people}"
           python3 scripts/v9-scale-100k-technical-plan.py \
             --artifact-zip "$root/historical-official.zip" \
             --corpus-root "$root/people-100k" \
             --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto \
-              --expected-people "${V9_SYNTHETIC_POPULATION:-100000}"
+              --expected-people "$effective_people"
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
             --tf-policy config/calibration/v9-synthetic-sampling.json \
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json" \
-              --expected-people "${V9_SYNTHETIC_POPULATION:-100000}"
+              --expected-people "$effective_people"
           test -s "$root/base-bound/plan.json"
           test -s "$root/base-bound/binding-receipt.json"
           test -s "$root/bound/plan.json"
