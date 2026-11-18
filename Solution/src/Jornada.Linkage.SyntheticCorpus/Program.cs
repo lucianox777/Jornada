@@ -293,8 +293,15 @@ static string ResolveReferenceRoot(IReadOnlyDictionary<string, string> values)
 
 static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, string> values)
 {
+    // Optional V9 calibrator configuration; explicit CLI values take precedence.
+    var configPath = Get(values, "calibrator-config");
+    using var configDocument = configPath is null ? null : JsonDocument.Parse(File.ReadAllText(configPath));
+    var config = configDocument?.RootElement;
+    int ConfigPeople() => config is { } c ? c.GetProperty("syntheticPopulation").GetInt32() : 30_000;
+    double ConfigPercent(string key, double fallback) => config is { } c
+        ? c.GetProperty("sampling").GetProperty(key).GetDouble() : fallback;
     var options = new SyntheticCorpusOptions(
-        People: GetInt(values, "people", 30_000),
+        People: GetInt(values, "people", ConfigPeople()),
         Seed: GetUlong(values, "seed", 42),
         ErrorProfile: Get(values, "error-profile") ?? "clean",
         MinFrequency: GetLong(values, "min-freq", 20),
@@ -312,7 +319,10 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
             : null,
         StratifiedErrors: Get(values, "stratified-errors-config") is { } strataPath
             ? SyntheticStratifiedErrorConfig.ReadFile(strataPath)
-            : null);
+            : null,
+        TrainPercent: GetDouble(values, "train-percent", ConfigPercent("trainPercent", 60)),
+        ValidationPercent: GetDouble(values, "validation-percent", ConfigPercent("validationPercent", 20)),
+        TestPercent: GetDouble(values, "test-percent", ConfigPercent("testPercent", 20)));
     options.Validate();
     return options;
 }
