@@ -59,14 +59,16 @@ install() {
   echo "[2/9] Configuração de nó único"; prepare
   echo "[3/9] Restore bloqueado"; dotnet restore Jornada.sln --locked-mode
   echo "[4/9] Build Release"; dotnet build Jornada.sln --configuration Release --no-restore -warnaserror
-  echo "[5/9] Imagem NODE1"; compose build jornada-node1
+  echo "[5/9] Imagens NODE1 e NAS auxiliar"; compose build jornada-node1 jornada-nas
   echo "[6/9] SQL e bootstrap idempotente (harness local DEV/HML)"
   # local-db.sh respeita COMPOSE_FILE, incluindo override single-node.
   COMPOSE_FILE="$ROOT/docker-compose.yml:$OVERRIDE" bash "$ROOT/scripts/local-db.sh" up
   echo "[7/9] Inicialização NODE1 e referência IBGE"
-  compose up -d --no-deps jornada-node1
+  # O Compose base exige o serviço NAS de teste para NODE1; ele não é um segundo nó.
+  compose up -d jornada-nas
   # O bootstrap IBGE existente roda uma vez e não é serviço residente.
   compose run --rm jornada-reference-bootstrap
+  compose up -d jornada-node1
   echo "[8/9] Saúde NODE1"; wait_http "http://127.0.0.1:5080/health/ready"
   echo "[9/9] Monitor"; wait_http "http://127.0.0.1:5080/monitor"
   if compose ps --status running --services | grep -qx 'jornada-node2'; then
@@ -80,6 +82,6 @@ case "$ACTION" in
   preflight) preflight; prepare; echo "Preflight OK" ;;
   status|ps) preflight; prepare; compose ps ;;
   logs) preflight; prepare; compose logs --tail 200 jornada-node1 sqlserver ;;
-  down) preflight; prepare; compose stop jornada-node1 sqlserver ;;
+  down) preflight; prepare; compose stop jornada-node1 jornada-nas sqlserver ;;
   *) die "Uso: $0 {install|preflight|status|logs|down}" ;;
 esac
