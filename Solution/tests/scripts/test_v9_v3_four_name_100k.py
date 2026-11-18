@@ -112,6 +112,25 @@ class V9FourName100kTests(unittest.TestCase):
                              config["tfNominalPolicy"]["unpublishedOccurrenceCount"])
             self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedTermPolicy"], 0)
 
+    def test_people_override_is_frozen_and_checked_against_source(self):
+        config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            source = self.receipt(p.digest(bp.read_bytes()))
+            source["people"] = 120000
+            br.write_text(json.dumps(source))
+            output, receipt = d / "plan.json", d / "receipt.json"
+            with self.assertRaises((ValueError, AssertionError)):
+                p.prepare(bp, br, output, receipt, config_path)
+            self.assertFalse(output.exists())
+            p.prepare(bp, br, output, receipt, config_path, expected_people=120000)
+            evidence = json.loads(receipt.read_text())
+            self.assertEqual(evidence["configuredSyntheticPopulation"], 100000)
+            self.assertEqual(evidence["effectiveSyntheticPopulation"], 120000)
+            self.assertTrue(evidence["populationOverrideApplied"])
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
