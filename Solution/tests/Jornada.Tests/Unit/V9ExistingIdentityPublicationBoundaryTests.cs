@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace Jornada.Tests.Unit;
 
 [TestFixture]
