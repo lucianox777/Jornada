@@ -1,0 +1,31 @@
+name: HML RHEL10 installer contract
+on:
+  pull_request:
+    paths:
+      - 'Solution/Install-JornadaHml-RHEL10.sh'
+      - 'Solution/install/linux-hml/**'
+      - 'Solution/tests/scripts/test_rhel10_hml_installer_contract.py'
+      - '.github/workflows/hml-rhel10-installer-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n Solution/Install-JornadaHml-RHEL10.sh
+      - name: Python contract
+        run: python3 -m unittest discover -s Solution/tests/scripts -p test_rhel10_hml_installer_contract.py -v
+      - name: Compose render (synthetic secret, no deployment)
+        working-directory: Solution
+        env:
+          JORNADA_SQL_SA_PASSWORD: "CI_Only_Not_A_Real_Secret_123!"
+        run: |
+          docker compose -f docker-compose.yml -f install/linux-hml/compose.single-node.yml config --quiet
+          docker compose -f docker-compose.yml -f install/linux-hml/compose.single-node.yml config --services | grep -qx jornada-node1
+          if docker compose -f docker-compose.yml -f install/linux-hml/compose.single-node.yml config --services | grep -qx jornada-node2; then
+            echo "NODE2 unexpectedly active" >&2
+            exit 1
+          fi
