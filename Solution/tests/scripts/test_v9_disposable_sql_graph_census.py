@@ -50,16 +50,13 @@ class V9DisposableSqlGraphCensusTests(unittest.TestCase):
             self.assertIn(required, source)
 
     def test_every_sql_command_in_verified_read_uses_snapshot(self):
-        import re
-
         source = (ROOT / "V9DisposableSqlGraphCensus.cs").read_text(encoding="utf-8")
         verified_read = source.split("private static async Task<Receipt> ReadAsync(", 1)[1]
-        commands = re.findall(r"new SqlCommand\\s*\\((.*?)\\)\\s*(?:\\{|\\))",
-                              verified_read, flags=re.DOTALL)
+        commands = verified_read.split("new SqlCommand(")[1:]
         self.assertEqual(len(commands), 4, "Every diagnostic SQL command must be audited")
         for command in commands:
-            self.assertRegex(command, r",\\s*connection\\s*,\\s*transaction\\s*$",
-                             "A SQL read escaped the required snapshot transaction")
+            self.assertIn("connection, transaction)", command.split("CommandTimeout", 1)[0],
+                          "A SQL read escaped the required snapshot transaction")
 
     def test_production_gate_is_still_closed(self):
         source = (ROOT / "V9OperationalRunBoundary.cs").read_text(encoding="utf-8")
