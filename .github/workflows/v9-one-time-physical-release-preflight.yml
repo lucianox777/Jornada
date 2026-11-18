@@ -142,6 +142,8 @@ jobs:
       - name: Execute full physical path as NON-SCIENTIFIC regression diagnostic
 
         env:
+          JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC: "true"
+          JORNADA_V9_DIAGNOSTIC_PAIR_INCIDENCE_CAP: "1500000"
           JORNADA_V9_TEST_RESERVED_SEED: ${{ steps.test_seed.outputs.test_seed }}
           JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
           JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/results
