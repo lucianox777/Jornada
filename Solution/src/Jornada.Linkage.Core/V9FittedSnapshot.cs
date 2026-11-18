@@ -290,12 +290,12 @@ public sealed class V9FittedSnapshot
             ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
         var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
-        if (term is null || term != rightTerm
-            || !tf.Frequencies.TryGetValue(term, out var frequency))
+        if (term is null || term != rightTerm)
             throw new InvalidDataException("TF positiva sem frequência IBGE ou termo coincidente.");
         var unitU = tf.NominalUReference
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
+        var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term);
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
             unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
