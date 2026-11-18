@@ -14,7 +14,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9IndependentTestCorpusReader
 {
     public sealed record TestCorpus(string CorpusManifestSha256, string ObservationsSha256,
-        ulong Seed, int BaseIdentities, V9PhysicalCalibrationObservation[] Observations);
+        ulong Seed, int BaseIdentities, int SelectedBaseIdentities, V9PhysicalCalibrationObservation[] Observations);
 
     public static async Task<TestCorpus> ReadAsync(string directory, CancellationToken cancellationToken = default)
     {
@@ -99,9 +99,9 @@ public static class V9IndependentTestCorpusReader
         if (byIdentity.Count != 100000 || rows.Count < 4)
             throw new InvalidDataException("População TEST de 100 mil identidades incompleta.");
         var testIdentities = byIdentity.Count(x => x.Value.Part == "TEST");
-        if (testIdentities == 0 || testIdentities > 25000 || testIdentities < 15000)
+        // Same Bernoulli 60/20/20 partition rule as SyntheticCorpusGenerator.\n        // With 100k people, a 19%-21% admission window is wider than six standard deviations.\n        if (testIdentities < 19000 || testIdentities > 21000)
             throw new InvalidDataException("Partição TEST independente não corresponde ao cohort de aproximadamente 20%.");
         return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
-            byIdentity.Count, rows.ToArray());
+            byIdentity.Count, testIdentities, rows.ToArray());
     }
 }
