@@ -11,14 +11,16 @@ public static class V9UnpublishedNominalFrequency
 {
     public const long DefaultContextPopulation = 11911337;
     public const long AssumedUnpublishedOccurrences = 20;
+    public const long MunicipalPublicationThreshold = 10;
     public const string PolicyVersion = "V9_IBGE_UNPUBLISHED_CONTEXT_POPULATION_20_V1";
 
     public static decimal Resolve(
         IReadOnlyDictionary<string, decimal> publishedFrequencies,
-        string normalizedTerm, long contextPopulation = DefaultContextPopulation)
+        string normalizedTerm, long contextPopulation = DefaultContextPopulation,
+        long unpublishedOccurrenceCount = AssumedUnpublishedOccurrences)
     {
-        if (contextPopulation < AssumedUnpublishedOccurrences)
-            throw new InvalidDataException("População contextual deve ser >= 20.");
+        if (unpublishedOccurrenceCount < 1 || contextPopulation < unpublishedOccurrenceCount)
+            throw new InvalidDataException("Ocorrências imputadas devem estar entre 1 e a população contextual.");
         if (string.IsNullOrWhiteSpace(normalizedTerm) || publishedFrequencies is null)
             throw new InvalidDataException("Termo nominal ou referência IBGE inválidos.");
         if (publishedFrequencies.TryGetValue(normalizedTerm, out var frequency))
@@ -27,6 +29,6 @@ public static class V9UnpublishedNominalFrequency
                 throw new InvalidDataException("Frequência IBGE publicada inválida.");
             return frequency;
         }
-        return (decimal)AssumedUnpublishedOccurrences / contextPopulation;
+        return (decimal)unpublishedOccurrenceCount / contextPopulation;
     }
 }
