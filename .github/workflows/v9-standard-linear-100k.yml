@@ -260,6 +260,7 @@ jobs:
             --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
+            --tf-policy config/calibration/v9-tf-nominal-policy-v1.json \
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
           test -s "$root/base-bound/plan.json"
           test -s "$root/base-bound/binding-receipt.json"
