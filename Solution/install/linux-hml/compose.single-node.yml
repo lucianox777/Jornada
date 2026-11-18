@@ -1,0 +1,13 @@
+# Override de homologação single-node. Base: Solution/docker-compose.yml
+services:
+  jornada-node2:
+    profiles: ["two-node-only"]
+  jornada-nas:
+    profiles: ["two-node-only"]
+  jornada-node1:
+    environment:
+      JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Hml.SingleNode.json
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      - ./install/linux-hml/Jornada.Cluster.Hml.SingleNode.json:/etc/jornada/Jornada.Cluster.Hml.SingleNode.json:ro
