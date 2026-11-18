@@ -126,7 +126,8 @@ public static class V9TrainSqlNominalUCalibration
         decimal weight,
         decimal minimumFrequency,
         long minimumIndependentSupport,
-        CompositeNominalTfAdjustmentModeV9 mode = CompositeNominalTfAdjustmentModeV9.Symmetric)
+        CompositeNominalTfAdjustmentModeV9 mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
+        long contextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation)
     {
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(reference);
@@ -163,7 +164,8 @@ public static class V9TrainSqlNominalUCalibration
             reference.FrequenciesForUnit(calibration.Side, calibration.Unit), value);
         var preview = reference.CreatePreview(
             calibration.Side, marginalLevel, left, right,
-            unitReferenceProbability, weight, minimumFrequency, minimumIndependentSupport)
+            unitReferenceProbability, weight, minimumFrequency, minimumIndependentSupport,
+            contextPopulation)
             ?? throw new InvalidDataException("TF positiva não pode gerar preview nulo.");
         return preview with { Mode = mode };
     }
