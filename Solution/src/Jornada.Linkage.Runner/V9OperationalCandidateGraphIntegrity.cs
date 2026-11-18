@@ -52,17 +52,16 @@ public static class V9OperationalCandidateGraphIntegrity
 
         // Stable length-delimited canonical edge encoding; independent SQL census
         // must explicitly implement the same specification, not reuse these edges.
-        using var sha = SHA256.Create();
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var (a, b) in edges.OrderBy(edge => edge.A).ThenBy(edge => edge.B))
         {
             var line = string.Concat(
                 a.ToString(CultureInfo.InvariantCulture), ":",
                 b.ToString(CultureInfo.InvariantCulture), "\n");
             var bytes = Encoding.UTF8.GetBytes(line);
-            sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
+            sha.AppendData(bytes);
         }
-        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-        var digest = Convert.ToHexString(sha.Hash!).ToLowerInvariant();
+        var digest = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
         if (!string.Equals(digest, independentSourceCensus.CanonicalEdgesSha256,
                 StringComparison.Ordinal))
             throw new InvalidDataException("RUNNER_V9_GRAPH_HASH_MISMATCH");
