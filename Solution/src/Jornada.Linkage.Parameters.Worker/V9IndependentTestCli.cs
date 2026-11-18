@@ -85,10 +85,26 @@ public static class V9IndependentTestCli
         // Never silently substitute the default projection for a V9-fitted model.
         var frozenPrefixLength = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
             winner.Payload.ProjectionSchemaVersion, winner.Payload.ProjectionFingerprintSha256);
+        // A one-off DEV-only physical regression may lift the conservative incidence
+        // admission cap, without changing the scientific TEST default or winner.
+        var diagnosticCap = V9PhysicalSqlAdaptiveCalibrationProbe.HardPairIncidenceCap;
+        var diagnosticCapText = Environment.GetEnvironmentVariable("JORNADA_V9_DIAGNOSTIC_PAIR_INCIDENCE_CAP");
+        if (diagnosticCapText is not null)
+        {
+            if (diagnosticCapText != "1500000"
+                || Environment.GetEnvironmentVariable("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC") != "true"
+                || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
+                || Environment.GetEnvironmentVariable("GITHUB_WORKFLOW_REF") is not string workflowRef
+                || !workflowRef.Contains("/.github/workflows/v9-one-time-physical-release-preflight.yml@", StringComparison.Ordinal))
+                throw new InvalidDataException("Cap diagnóstico exige workflow físico autorizado em DEV e valor exato 1500000.");
+            diagnosticCap = 1_500_000;
+            Console.WriteLine("V9_PHYSICAL_DIAGNOSTIC_ONLY_PAIR_INCIDENCE_CAP=1500000; SCIENTIFIC_DEFAULT_UNCHANGED");
+        }
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
-            FsBlindGroupingOnly: true);
+            FsBlindGroupingOnly: true,
+            MaximumCandidatePairIncidences: diagnosticCap);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
             connection, corpus.Observations, winner, runtime, execution,
             maximumAcceptedPerIdentity: 4, CancellationToken.None);
