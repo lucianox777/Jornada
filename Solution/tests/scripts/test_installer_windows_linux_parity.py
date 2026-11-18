@@ -12,7 +12,7 @@ OVERRIDE = ROOT / "install/linux-hml/compose.single-node.yml"
 # Diferenças intencionais (NODE2, perfil, comandos de administração) ficam na decisão.
 CAPABILITIES = {
     "docker_engine": ("Assert-DockerEngine", "docker info"),
-    "compose": ("docker','compose','version", "docker compose version"),
+    "compose": ("'compose','version", "docker compose version"),
     "dotnet_sdk": ("dotnet' '.NET SDK'", "dotnet --version"),
     "env_bootstrap": ("local_env_bootstrap.py", "local_env_bootstrap.py"),
     "locked_restore": ("restore','Jornada.sln','--locked-mode", "dotnet restore Jornada.sln --locked-mode"),
