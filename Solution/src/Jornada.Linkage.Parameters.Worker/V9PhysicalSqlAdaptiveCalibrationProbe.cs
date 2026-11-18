@@ -197,7 +197,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     }
 
     public const string Version = "V9_PHYSICAL_SQL_ADAPTIVE_FS_TRAIN_VALIDATION_V2";
-    public const int HardPairIncidenceCap = 1_500_000;
+    public const int HardPairIncidenceCap = 2_000_000;
     public const int HardProjectedSignatureCap = 1_000_000;
 
     /// <summary>
