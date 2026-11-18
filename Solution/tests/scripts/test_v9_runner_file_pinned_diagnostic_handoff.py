@@ -19,6 +19,15 @@ class PinnedFileDiagnosticHandoff(unittest.TestCase):
         self.assertNotIn("INSERT INTO", method)
         self.assertNotIn("RunV9Async(", method)
 
+    def test_invalid_envelope_rejected_before_opening_sql(self):
+        method = RUNNER.split("RehearseV9PinnedFileNonPublishingAsync(", 1)[1].split(
+            "RehearseV9NonPublishingSyntheticTestAsync(", 1)[0]
+        before_sql = method.split("await operationalSql.OpenAsync(", 1)[0]
+        self.assertIn("ThrowIfLessThan(batchSize, 1)", before_sql)
+        self.assertIn("ThrowIfGreaterThan(", before_sql)
+        self.assertIn("syntheticTest.Count is < 2", before_sql)
+        self.assertIn("cancellationToken.ThrowIfCancellationRequested()", before_sql)
+
     def test_sql_audit_remains_disposable_only(self):
         self.assertIn('"JornadaHarness"', AUDIT)
         self.assertIn("ReplayOperationalGraph(test,", AUDIT)
