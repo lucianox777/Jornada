@@ -1,4 +1,5 @@
 using Jornada.Linkage.Runner;
+using Jornada.Linkage.Parameters.Worker;
 using System.Text.Json;
 using NUnit.Framework;
 
