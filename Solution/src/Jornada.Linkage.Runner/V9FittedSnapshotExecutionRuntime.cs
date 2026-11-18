@@ -26,12 +26,7 @@ public sealed class V9FittedSnapshotExecutionRuntime
         snapshot = fit;
         if (fit.Payload.ProjectionSchemaVersion == V9CalibrationBlockingProjection.SchemaVersion)
         {
-            var matches = Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
-                .Where(k => string.Equals(V9CalibrationBlockingProjection.ComputeSchemaFingerprint(k), ProjectionFingerprintSha256,
-                    StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (matches.Length != 1)
-                throw new InvalidDataException("Fingerprint da projeção V9 não corresponde a um contrato de prefixos executável.");
-            MaximumPrefixLength = matches[0];
+            MaximumPrefixLength = ResolveFrozenPrefixLength(ProjectionSchemaVersion, ProjectionFingerprintSha256);
             v9Features = V9CalibrationBlockingProjection.SupportedFeatures(matches[0]).ToHashSet(StringComparer.Ordinal);
         }
         else
@@ -40,6 +35,22 @@ public sealed class V9FittedSnapshotExecutionRuntime
         }
         foreach (var feature in fit.Payload.BlockingPasses.SelectMany(p => p.Fields))
             _ = TemporalSemantics(feature);
+    }
+
+    /// <summary>Shared fail-closed projection resolver for Runner and independent TEST.</summary>
+    public static int ResolveFrozenPrefixLength(string schemaVersion, string fingerprint)
+    {
+        if (schemaVersion != V9CalibrationBlockingProjection.SchemaVersion)
+        {
+            PersonResolutionProjectionContract.ValidateSupported(schemaVersion, fingerprint);
+            return 0;
+        }
+        var matches = Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
+            .Where(k => string.Equals(V9CalibrationBlockingProjection.ComputeSchemaFingerprint(k), fingerprint,
+                StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        if (matches.Length != 1)
+            throw new InvalidDataException("Fingerprint da projeção V9 não corresponde a um contrato de prefixos executável.");
+        return matches[0];
     }
 
     public static V9FittedSnapshotExecutionRuntime Load(ReadOnlySpan<byte> content, string expectedSnapshotSha256) =>
