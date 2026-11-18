@@ -89,6 +89,8 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
                 and isinstance(tf_config.get("sampling"), dict)
                 and all(type(tf_config["sampling"].get(k)) in (int, float)
                         for k in ("trainPercent", "validationPercent", "testPercent"))
+                and all(0 <= tf_config["sampling"][k] <= 100
+                        for k in ("trainPercent", "validationPercent", "testPercent"))
                 and sum(tf_config["sampling"][k]
                         for k in ("trainPercent", "validationPercent", "testPercent")) == 100,
                 "invalid unified calibration population/sampling configuration")
@@ -97,7 +99,11 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
                 and type(tf_policy.get("contextPopulation")) is int
                 and type(tf_policy.get("unpublishedOccurrenceCount")) is int
                 and 1 <= tf_policy["unpublishedOccurrenceCount"] <= tf_policy["contextPopulation"]
-                and tf_policy.get("unpublishedTermPolicy") == 0,
+                and type(tf_policy.get("unpublishedTermPolicy")) is int
+                and tf_policy["unpublishedTermPolicy"] == 0
+                and tf_policy.get("nominalUnits") == [
+                    "PERSON_FIRST", "PERSON_LAST", "MOTHER_FIRST", "MOTHER_LAST"]
+                and tf_policy.get("uEstimation") == "TRAIN_NONMATCH_LAPLACE_ALPHA",
                 "invalid or incompatible versioned TF policy")
     output_path, receipt_path = Path(output_path), Path(receipt_path)
     require(output_path.name == "plan.json" and not output_path.exists()
