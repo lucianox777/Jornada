@@ -55,3 +55,7 @@ Commits `f078c62` e `b0e8d03`: resolvedor de frequência e testes isolados; comm
 ### Congelamento incremental da população no snapshot (18/11/2026)
 
 Commits `c2ee07c` e `f2406ab`: adicionam `ContextPopulation` ao payload portátil V9 com padrão `11911337`, usam esse valor na resolução de frequência inédita durante o scoring do snapshot e rejeitam população inferior a 20 na validação do artefato. **Ainda falta** vincular o parâmetro ao arquivo de configuração e à criação do snapshot pelo adaptador, aplicar o mesmo valor no preview TRAIN/VALIDATION, revisar a política legada de rejeição/abstenção por cobertura, executar testes e CI. O fallback implícito em snapshots antigos exige análise de compatibilidade/versionamento antes de ativação científica. Não considerar implementação concluída.
+
+### Propagação da população no adaptador (18/11/2026)
+
+Commits `6c1b4f8`, `9c42fa1`, `1778f13`: `V9FsAdaptiveOptionConfiguration` recebe `ContextPopulation` (padrão 11911337); o adaptador passa o valor ao snapshot e ao preview TRAIN/VALIDATION; a referência IBGE aplica `20/N_contexto` em ausência de frequência publicada; a auditoria de cobertura continua computando lacunas mas deixa de rejeitar operação sob `RejectOperation` no caminho de validação. Configurações com população fora do domínio são rejeitadas ao calcular fingerprint. **Pendências:** verificar todos os caminhos de abstenção legada e scoring, serialização do arquivo físico de parâmetros, identidade de snapshots históricos, testes/CI e conflitos da PR. Nenhuma conclusão científica declarada.
