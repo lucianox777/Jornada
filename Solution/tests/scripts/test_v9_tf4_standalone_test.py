@@ -61,7 +61,7 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("byIdentity.Count != 100000",source)
         self.assertIn('internalPartition != "TEST"',source)
         self.assertIn('byIdentity.Count(x => x.Value.Part == "TEST")',source)
-        self.assertIn("testIdentities > 25000 || testIdentities < 15000",source)
+        self.assertIn("testIdentities < 19000 || testIdentities > 21000",source)\n        self.assertIn("int SelectedBaseIdentities",source)\n        self.assertIn("selectedTestBaseIdentityFraction",CLI.read_text())
         self.assertLess(source.index('byIdentity[id] = (internalPartition, count)'), source.index('internalPartition != "TEST"'))
         self.assertIn('m.GetProperty("error_profile").GetString() != "clean"',source)
         self.assertIn('m.GetProperty("reference_code").GetString() != "CENSO2022_NOMES_BRASIL_V1"',source)
