@@ -85,3 +85,7 @@ Conforme orientação do PO, o **arquivo único vigente para o workflow físico*
 ### Controle de precedência e eliminação da duplicidade (18/11/2026)
 
 Aprovado pelo PO: a **única fonte editável de parâmetros da campanha** é `Solution/config/calibration/v9-synthetic-sampling.json`. O arquivo nominal separado criado durante a implementação foi excluído (commit `ffae6b7`) para evitar divergência. No workflow físico, a substituição `synthetic_population` fora do JSON é agora **rejeitada** (commit `a57abe7`); mudanças de tamanho exigem nova configuração versionada e adequação das salvaguardas específicas da campanha 100k. Precedência: esta decisão substitui o registro transitório anterior que mencionava dois arquivos. Impactos: hash da configuração consolidada no recibo; compatibilidade dos planos históricos preservada. Pendente CI e testes ponta a ponta.
+
+### Conciliação com correção de binding da master (18/11/2026)
+
+A master introduziu `--expected-people` no gerador de plano TF4. Na PR #1723, esse argumento foi incorporado com verificação de igualdade estrita com `syntheticPopulation` do JSON consolidado; divergência causa rejeição, sem sobrescrever o arquivo congelado (commit `4a12752`). A integração Git da master ainda apresenta conflitos em workflow, gerador e índice; não há build ou certificação científica nesta etapa. A correção da master para outros scripts e testes ainda precisa ser preservada na resolução final.
