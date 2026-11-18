@@ -14,7 +14,7 @@ public sealed record V9PhysicalAdaptiveExecution(
     bool FsBlindGroupingOnly = false,
     int? MaximumBlindClusterSize = null,
     int MaximumCandidatePairIncidences = V9PhysicalSqlAdaptiveCalibrationProbe.HardPairIncidenceCap,
-    int MaximumProjectedSignatures = V9PhysicalSqlAdaptiveCalibrationProbe.HardPairIncidenceCap)
+    int MaximumProjectedSignatures = V9PhysicalSqlAdaptiveCalibrationProbe.HardProjectedSignatureCap)
 {
     public const string EndToEndProtocol = "V9_FULL_FRAME_SQL_FS_RANK_RESOLVE_LATENCY_V1|"
         + "warm-process;each-run:project-observations,create-temp-tables,bulk-observations,"
