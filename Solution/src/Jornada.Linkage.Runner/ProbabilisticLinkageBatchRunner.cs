@@ -31,13 +31,6 @@ public sealed class ProbabilisticLinkageBatchRunner(
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
     /// <summary>
-    /// Explicit V9 opt-in integration on the actual operational Runner class:
-    /// read-only, synthetic, disposable SQL TEST_ONLY model, never the legacy
-    /// RunAsync flow. Uses the Runner's SQL adapter but DOES NOT acquire
-    /// pipeline lock, create linkage_run/results, or publish Gold/Serving.
-    /// Does not certify legacy production batch equivalence.
-    /// </summary>
-    /// <summary>
     /// File-pinned typed V9 handoff into the real operational candidate SQL
     /// retrieval, but strictly diagnostic in disposable JornadaHarness.
     /// Never reloads scientific parameters from SQL or certifies RunV9Async.
@@ -53,6 +46,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
         ArgumentNullException.ThrowIfNull(syntheticTest);
         ArgumentNullException.ThrowIfNull(physicalSqlEdges);
         cancellationToken.ThrowIfCancellationRequested();
+        // Fail before opening any SQL connection for malformed diagnostic input.
+        // The deeper audit independently revalidates these invariants.
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            batchSize, V9OperationalPinnedCohortRuntime.MaximumAuditObservations);
+        if (syntheticTest.Count is < 2 or > V9OperationalPinnedCohortRuntime.MaximumAuditObservations)
+            throw new InvalidDataException("Ensaio V9 exige coorte TEST sintética entre 2 e 128 observações.");
         // CompareTestAsync checks DB_NAME() before querying candidates.
         // The runtime is passed from the immutable file boundary, not SQL.
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
