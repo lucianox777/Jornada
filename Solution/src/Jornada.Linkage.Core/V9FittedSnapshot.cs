@@ -226,21 +226,8 @@ public sealed class V9FittedSnapshot
             }
             bool IsScoreable(IdentityObservation o, LinkageCandidate c)
             {
-                if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                    return true; // Legacy snapshot rejects in CreateTf as before.
-                foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
-                {
-                    var fit = Select(o, c, side);
-                    if (fit?.State != V9SnapshotTfFitState.Active)
-                        continue;
-                    var calibration = fit.Calibration
-                        ?? throw new InvalidDataException("TF ativa sem calibração congelada.");
-                    var left = side == CompositeNominalTfSideV9.Person ? o.NomeCompleto : o.NomeMae;
-                    var right = side == CompositeNominalTfSideV9.Person ? c.NomeCompleto : c.NomeMae;
-                    if (V9NominalTfTermCoverage.MissingPublishedFrequency(
-                        fit.Unit, left, right, calibration.Frequencies))
-                        return false;
-                }
+                // An unpublished nominal term is scoreable through the frozen
+                // context-population fallback; do not silently abstain.
                 return true;
             }
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
