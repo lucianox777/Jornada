@@ -37,6 +37,18 @@ class V9DisposableSqlGraphCensusTests(unittest.TestCase):
         ):
             self.assertIn(required, source)
 
+    def test_snapshot_transaction_is_mandatory_for_integrity_bridge(self):
+        source = (ROOT / "V9DisposableSqlGraphCensus.cs").read_text(encoding="utf-8")
+        for required in (
+            "SqlTransaction snapshotTransaction",
+            "ValidateSnapshot(connection, snapshotTransaction)",
+            "transaction.IsolationLevel != IsolationLevel.Snapshot",
+            "ReferenceEquals(transaction.Connection, connection)",
+            "RUNNER_V9_SQL_GRAPH_SNAPSHOT_REQUIRED",
+            "new SqlCommand(\"SELECT DB_NAME();\", connection, transaction)",
+        ):
+            self.assertIn(required, source)
+
     def test_production_gate_is_still_closed(self):
         source = (ROOT / "V9OperationalRunBoundary.cs").read_text(encoding="utf-8")
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", source)
