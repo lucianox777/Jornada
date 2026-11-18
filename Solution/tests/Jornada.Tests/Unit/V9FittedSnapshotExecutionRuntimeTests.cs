@@ -43,6 +43,25 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
         IReadOnlyList<V9SnapshotCandidate> candidates) => runtime.ResolveRetrievedCandidatesPreview(Model, Observation(),
             new(runtime.SnapshotSha256, runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates));
 
+    [TestCase(1)]
+    [TestCase(4)]
+    [TestCase(7)]
+    [TestCase(64)]
+    public void Frozen_projection_resolver_accepts_exact_supported_fingerprint(int prefix)
+    {
+        var fingerprint = V9CalibrationBlockingProjection.ComputeSchemaFingerprint(prefix);
+        Assert.That(V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(
+            V9CalibrationBlockingProjection.SchemaVersion, fingerprint), Is.EqualTo(prefix));
+    }
+
+    [Test]
+    public void Frozen_projection_resolver_rejects_unknown_fingerprint()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(
+                V9CalibrationBlockingProjection.SchemaVersion, Hash('0')));
+    }
+
     [Test]
     public void Exact_projection_digest_resolves_prefix_configuration_and_actual_keys()
     {
