@@ -17,3 +17,9 @@ Primeira entrega na PR #1723: argumento CLI opcional `--test-repetitions N`, exp
 - Run: https://github.com/lucianox777/Jornada/actions/runs/44411153793
 - PR: https://github.com/lucianox777/Jornada/pull/1723
 - Precedência: GOV-DOC-01 e decisão IBGE congelado de 13/11/2026.
+
+## Retificação do Product Owner — 18/11/2026
+
+O PO revogou a autorização para **rejeitar isoladamente hipóteses por ausência de suporte U** até esclarecimento do significado estatístico. A implementação correspondente foi revertida na PR #1723 (commit 6034e437). **Precedência:** esta retificação substitui somente o item 1 acima; as decisões REF e parametrização TEST permanecem vigentes. O TRAIN volta a falhar fechado em suporte U insuficiente. Não executar nem certificar campanha presumindo que a hipótese é simplesmente descartável.
+
+**Verificação do código:** `V9TrainSqlNominalUCalibration.Frozen.HasSufficientSupport` exige simultaneamente `UnmatchedCandidatePairs >= 2` e `MatchingNominalPairs >= 2`. A implementação conta **pares candidatos não correspondentes no TRAIN**, não pessoas/observações únicas. Portanto a falha pode decorrer de zero ou um acordo nominal U entre pares não correspondentes, ou de menos de dois pares não correspondentes totais; não prova, por si só, que exista exatamente uma observação no corpus. Exige-se diagnóstico dos contadores por lado/unidade antes de definir nova política.
