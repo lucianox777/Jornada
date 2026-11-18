@@ -57,7 +57,7 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertIn("sha256sum -c SHA256SUMS", text)
         self.assertIn("train-inputs.tar.gz", text)
         self.assertIn("test -s \"$root/people-100k/observacoes.csv\"", text)
-        self.assertIn("--calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42", text)
+        self.assertIn("--calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42", text)
 
     def test_prepare_creates_generation_log_parent_before_redirect(self):
         prepare = self.workflow.split("  prepare-100k:\n", 1)[1].split("  physical-100k:\n", 1)[0]
@@ -103,7 +103,7 @@ class StandardLinearWorkflowTests(unittest.TestCase):
                         train.index("python3 scripts/v9-scale-100k-technical-plan.py"))
         self.assertLess(train.index("python3 scripts/v9-v3-four-name-100k-plan.py"),
                         train.index("Start masked disposable SQL Server"))
-        self.assertIn("--calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42", prepare)
+        self.assertIn("--calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42", prepare)
 
     def test_audit_validation_jobs_are_identical_to_legacy(self):
         legacy = (WORKFLOW.parent / "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
