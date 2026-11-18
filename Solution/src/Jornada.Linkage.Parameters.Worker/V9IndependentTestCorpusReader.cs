@@ -99,7 +99,9 @@ public static class V9IndependentTestCorpusReader
         if (byIdentity.Count != 100000 || rows.Count < 4)
             throw new InvalidDataException("População TEST de 100 mil identidades incompleta.");
         var testIdentities = byIdentity.Count(x => x.Value.Part == "TEST");
-        // Same Bernoulli 60/20/20 partition rule as SyntheticCorpusGenerator.\n        // With 100k people, a 19%-21% admission window is wider than six standard deviations.\n        if (testIdentities < 19000 || testIdentities > 21000)
+        // Same Bernoulli 60/20/20 partition rule as SyntheticCorpusGenerator.
+        // With 100k people, a 19%-21% admission window is wider than six standard deviations.
+        if (testIdentities < 19000 || testIdentities > 21000)
             throw new InvalidDataException("Partição TEST independente não corresponde ao cohort de aproximadamente 20%.");
         return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
             byIdentity.Count, testIdentities, rows.ToArray());
