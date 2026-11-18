@@ -9,11 +9,6 @@ on:
         description: Exact master commit SHA to run the 100k V9 technical TRAIN
         required: true
         type: string
-      synthetic_population:
-        description: "Optional identity count; overrides syntheticPopulation in calibration config"
-        required: false
-        default: ""
-        type: string
       test_end_to_end_repetitions:
         description: "Optional TEST repetitions (blank defaults to scientific 20; 1-19 DEV diagnostic only)"
         required: false
@@ -36,7 +31,6 @@ on:
 
 
 env:
-  V9_SYNTHETIC_POPULATION: ${{ inputs.synthetic_population }}
   V9_TEST_REPETITIONS_INPUT: ${{ inputs.test_end_to_end_repetitions }}
 
 permissions:
@@ -65,10 +59,6 @@ jobs:
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$APPROVED" = "true"
-          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then
-            echo "::error::V9_CONFIG_FROZEN: population override prohibited; edit versioned JSON"
-            exit 1
-          fi
           if [[ -n "$V9_TEST_REPETITIONS_INPUT" ]]; then
             [[ "$V9_TEST_REPETITIONS_INPUT" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid test repetitions"; exit 1; }
             (( V9_TEST_REPETITIONS_INPUT <= 200 )) || { echo "::error::TEST repetitions above 200"; exit 1; }
@@ -128,10 +118,6 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root"
-          if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then
-            echo "::error::V9_CONFIG_FROZEN: synthetic_population override prohibited; change versioned calibration JSON instead"
-            exit 1
-          fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42 --out "$root/people-100k"             > "$root/generation.log"
       - name: Package and checksum immutable PREPARE transfer
         run: |
