@@ -4,5 +4,18 @@
     "trainPercent": 60,
     "validationPercent": 20,
     "testPercent": 20
+  },
+  "tfNominalPolicy": {
+    "schema": "V9_TF_NOMINAL_POLICY_V1",
+    "contextPopulation": 11911337,
+    "unpublishedOccurrenceCount": 20,
+    "unpublishedTermPolicy": 0,
+    "nominalUnits": [
+      "PERSON_FIRST",
+      "PERSON_LAST",
+      "MOTHER_FIRST",
+      "MOTHER_LAST"
+    ],
+    "uEstimation": "TRAIN_NONMATCH_LAPLACE_ALPHA"
   }
 }
