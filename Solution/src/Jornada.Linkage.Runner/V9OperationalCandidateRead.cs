@@ -50,8 +50,8 @@ public static class V9OperationalCandidateRead
                 if (reader.IsDBNull(0))
                     throw new InvalidDataException("RUNNER_V9_CANDIDATE_NULL_UUID");
                 var id = reader.GetGuid(0);
-                if (!unique.Add(id) || (ids.Count > 0 && ids[^1].CompareTo(id) >= 0))
-                    throw new InvalidDataException("RUNNER_V9_CANDIDATE_DUPLICATE_OR_UNORDERED");
+                if (!unique.Add(id))
+                    throw new InvalidDataException("RUNNER_V9_CANDIDATE_DUPLICATE");
                 ids.Add(id);
                 sha.AppendData(Encoding.UTF8.GetBytes(id.ToString("D") + "\n"));
             }
