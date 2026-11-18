@@ -20,6 +20,8 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",source)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)",source)
+        self.assertIn("winner.Payload.ProjectionFingerprintSha256",source)
+        self.assertIn("MaximumPrefixLength: frozenPrefixLength",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
         self.assertIn("TotalComparedConfigurations: 1",source)
         self.assertIn("EndToEndRepetitions: 20",source)
@@ -35,6 +37,25 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("configurationsEvaluated = 1",source)
         self.assertIn("certified = false",source)
         self.assertIn('guardedArgs[0] == "--v9-independent-test"',PROGRAM.read_text())
+
+    def test_frozen_projection_is_resolved_before_physical_scoring(self):
+        source = CLI.read_text()
+        projection = ROOT / "src/Jornada.Contracts/V9CalibrationBlockingProjection.cs"
+        contract = projection.read_text()
+        self.assertIn("using Jornada.Contracts;", source)
+        self.assertIn("V9CalibrationBlockingProjection.SchemaVersion", source)
+        self.assertIn("V9CalibrationBlockingProjection.MaximumSupportedPrefixLength", source)
+        self.assertIn("V9CalibrationBlockingProjection.ComputeSchemaFingerprint(prefix)", source)
+        self.assertIn("matchingPrefixes.Length != 1", source)
+        self.assertIn("throw new InvalidDataException(", source)
+        self.assertIn("frozenPrefixLength = matchingPrefixes[0]", source)
+        self.assertIn("PersonResolutionProjectionContract.ValidateSupported(", source)
+        self.assertLess(source.index("matchingPrefixes.Length != 1"),
+                        source.index("EvaluateFrozenTestAsync("))
+        self.assertLess(source.index("MaximumPrefixLength: frozenPrefixLength"),
+                        source.index("EvaluateFrozenTestAsync("))
+        self.assertIn("public const int MaximumSupportedPrefixLength = 64;", contract)
+        self.assertNotIn(".Single(prefix =>", source)
 
     def test_test_reader_owns_independent_cohort(self):
         source=CORPUS.read_text()
