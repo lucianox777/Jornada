@@ -51,3 +51,7 @@ O PO aprovou continuar a implementação da política de frequência substituta 
 ### Integração incremental da resolução de termos inéditos
 
 Commits `f078c62` e `b0e8d03`: resolvedor de frequência e testes isolados; commits `7adb973`, `d4ffdd3` e `e4f33cd`: utilização do resolvedor nos caminhos `V9NominalTfUReference`, `FrozenIbgeNominalTfV9.CreatePreview` e `V9FittedSnapshot.CreateTf`. O comportamento vigente nesses pontos usa o padrão 11.911.337, **ainda não o valor configurável propagado**. Não afirmar conclusão end-to-end: auditoria de cobertura, política de abstenção de snapshot, serialização da população, passagem de parâmetros, testes legados e CI continuam pendentes. O uso do padrão fixo em caminhos operacionais é provisório e não atende à decisão completa do PO.
+
+### Congelamento incremental da população no snapshot (18/11/2026)
+
+Commits `c2ee07c` e `f2406ab`: adicionam `ContextPopulation` ao payload portátil V9 com padrão `11911337`, usam esse valor na resolução de frequência inédita durante o scoring do snapshot e rejeitam população inferior a 20 na validação do artefato. **Ainda falta** vincular o parâmetro ao arquivo de configuração e à criação do snapshot pelo adaptador, aplicar o mesmo valor no preview TRAIN/VALIDATION, revisar a política legada de rejeição/abstenção por cobertura, executar testes e CI. O fallback implícito em snapshots antigos exige análise de compatibilidade/versionamento antes de ativação científica. Não considerar implementação concluída.
