@@ -20,6 +20,8 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",source)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)",source)
+        self.assertIn("V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(), winnerSha)",source)
+        self.assertIn("MaximumPrefixLength: frozenProjection.MaximumPrefixLength ?? 0",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
         self.assertIn("TotalComparedConfigurations: 1",source)
         self.assertIn("EndToEndRepetitions: 20",source)
