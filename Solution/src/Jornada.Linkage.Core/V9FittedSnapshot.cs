@@ -32,7 +32,8 @@ public sealed record V9FittedSnapshotPayload(
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation,
-    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation);
+    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation,
+    long UnpublishedOccurrenceCount = V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -284,7 +285,7 @@ public sealed class V9FittedSnapshot
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
         var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term,
-            Payload.ContextPopulation);
+            Payload.ContextPopulation, Payload.UnpublishedOccurrenceCount);
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
             unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
@@ -322,7 +323,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
-            || p.ContextPopulation < V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences
+            || p.UnpublishedOccurrenceCount < 1 || p.ContextPopulation < p.UnpublishedOccurrenceCount
             || !Enum.IsDefined(p.UnpublishedTermPolicy)
             || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
