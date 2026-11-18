@@ -50,7 +50,7 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
     public void Frozen_projection_resolver_accepts_exact_supported_fingerprint(int prefix)
     {
         var fingerprint = V9CalibrationBlockingProjection.ComputeSchemaFingerprint(prefix);
-        Assert.That(V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(
+        Assert.That(V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
             V9CalibrationBlockingProjection.SchemaVersion, fingerprint), Is.EqualTo(prefix));
     }
 
@@ -58,7 +58,7 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
     public void Frozen_projection_resolver_rejects_unknown_fingerprint()
     {
         Assert.Throws<InvalidDataException>(() =>
-            V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength(
+            V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
                 V9CalibrationBlockingProjection.SchemaVersion, Hash('0')));
     }
 
