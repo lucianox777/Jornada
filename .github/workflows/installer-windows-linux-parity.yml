@@ -1,0 +1,25 @@
+name: Installer Windows Linux parity
+on:
+  pull_request:
+    paths:
+      - 'Solution/Install-JornadaLocal.ps1'
+      - 'Solution/Install-JornadaHml-RHEL10.sh'
+      - 'Solution/scripts/local-cluster.ps1'
+      - 'Solution/scripts/local-cluster.sh'
+      - 'Solution/scripts/local-db.sh'
+      - 'Solution/docker-compose.yml'
+      - 'Solution/install/linux-hml/**'
+      - 'Solution/tests/scripts/test_installer_windows_linux_parity.py'
+      - '.github/workflows/installer-windows-linux-parity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared installer capability contracts
+        run: python3 -m unittest discover -s Solution/tests/scripts -p test_installer_windows_linux_parity.py -v
+      - name: Linux installer shell syntax
+        run: bash -n Solution/Install-JornadaHml-RHEL10.sh
