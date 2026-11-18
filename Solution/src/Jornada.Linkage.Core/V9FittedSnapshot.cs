@@ -335,6 +335,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
+            || p.ContextPopulation < V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences
             || !Enum.IsDefined(p.UnpublishedTermPolicy)
             || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
