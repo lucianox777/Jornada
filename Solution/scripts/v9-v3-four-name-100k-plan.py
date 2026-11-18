@@ -106,11 +106,14 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
     base = strict_json(source_bytes)
     source_receipt = strict_json(Path(base_receipt_path).read_bytes())
     source_sha = digest(source_bytes)
+    expected_people = (tf_config["syntheticPopulation"]
+                       if tf_config is not None and "tfNominalPolicy" in tf_config
+                       else 100000)
     c = base["Calibration"]
     require(source_receipt.get("schema") == BASE_SCHEMA
             and source_receipt.get("technicalPlanSha256") == source_sha
             and source_receipt.get("physicalEvaluations") == 24
-            and source_receipt.get("people") == 100000
+            and source_receipt.get("people") == expected_people
             and source_receipt.get("knownTrainSeed") == 42
             and source_receipt.get("testUsed") is False
             and source_receipt.get("certified") is False
