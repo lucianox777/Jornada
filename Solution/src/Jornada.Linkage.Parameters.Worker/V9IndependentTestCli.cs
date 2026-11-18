@@ -100,9 +100,21 @@ public static class V9IndependentTestCli
             diagnosticCap = 1_500_000;
             Console.WriteLine("V9_PHYSICAL_DIAGNOSTIC_ONLY_PAIR_INCIDENCE_CAP=1500000; SCIENTIFIC_DEFAULT_UNCHANGED");
         }
+        // Diagnostic-only repetition override; the scientific protocol remains 20.
+        var repetitions = 20;
+        var requestedRepetitions = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_END_TO_END_REPETITIONS");
+        if (requestedRepetitions is not null)
+        {
+            if (!int.TryParse(requestedRepetitions, out repetitions)
+                || repetitions is < 1 or > 200
+                || (repetitions < 20 && (Environment.GetEnvironmentVariable("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC") != "true"
+                    || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV")))
+                throw new InvalidDataException("TEST repetitions: fewer than 20 require explicit DEV non-scientific diagnostic mode.");
+            Console.WriteLine($"V9_TEST_REPETITIONS={repetitions}; SCIENTIFIC_PROTOCOL_MINIMUM=20");
+        }
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
-            EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
+            EndToEndRepetitions: repetitions, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true,
             MaximumCandidatePairIncidences: diagnosticCap);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
@@ -133,6 +145,8 @@ public static class V9IndependentTestCli
             selectedTestBaseIdentityFraction = (double)corpus.SelectedBaseIdentities / corpus.BaseIdentities,
             evaluatedTestObservations = corpus.Observations.Length,
             configurationsEvaluated = 1,
+            testEndToEndRepetitions = repetitions,
+            diagnosticNonScientific = repetitions < 20,
             evaluationProtocol = evaluated.LatencyProtocol,
             p95Milliseconds = evaluated.P95Milliseconds,
             falseDegreeP99 = evaluated.FalseDegreeP99,
