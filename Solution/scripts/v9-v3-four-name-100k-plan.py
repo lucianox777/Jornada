@@ -70,19 +70,21 @@ def grid(tf0):
     return result
 
 
-def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
+def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, expected_people=100000):
     output_path, receipt_path = Path(output_path), Path(receipt_path)
     require(output_path.name == "plan.json" and not output_path.exists()
             and not receipt_path.exists(), "never overwrite a frozen study")
     source_bytes = Path(base_plan_path).read_bytes()
     base = strict_json(source_bytes)
     source_receipt = strict_json(Path(base_receipt_path).read_bytes())
+    require(type(expected_people) is int and expected_people > 0,
+            "expected TRAIN population must be a positive integer")
     source_sha = digest(source_bytes)
     c = base["Calibration"]
     require(source_receipt.get("schema") == BASE_SCHEMA
             and source_receipt.get("technicalPlanSha256") == source_sha
             and source_receipt.get("physicalEvaluations") == 24
-            and source_receipt.get("people") == 100000
+            and source_receipt.get("people") == expected_people
             and source_receipt.get("knownTrainSeed") == 42
             and source_receipt.get("testUsed") is False
             and source_receipt.get("certified") is False
@@ -166,6 +168,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ("base-plan", "base-receipt", "plan", "receipt"):
         parser.add_argument("--" + arg, type=Path, required=True)
+    parser.add_argument("--expected-people", type=int, default=100000)
     p = parser.parse_args()
-    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt),
+    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.expected_people),
                      sort_keys=True))
