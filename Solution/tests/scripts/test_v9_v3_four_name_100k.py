@@ -91,6 +91,27 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertEqual({x["UnpublishedOccurrenceCount"] for x in options}, {20})
         self.assertEqual({x["UnpublishedTermPolicy"] for x in options}, {0})
 
+    def test_unified_config_receipt_and_fingerprint_are_bound(self):
+        config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            br.write_text(json.dumps(self.receipt(p.digest(bp.read_bytes()))))
+            output, receipt = d / "plan.json", d / "receipt.json"
+            p.prepare(bp, br, output, receipt, config_path)
+            plan = json.loads(output.read_text())
+            evidence = json.loads(receipt.read_text())
+            config = json.loads(config_path.read_text())
+            self.assertEqual(evidence["tfPolicySha256"], p.digest(config_path.read_bytes()))
+            self.assertEqual(evidence["calibratorConfiguration"], config)
+            self.assertEqual(evidence["tfUnpublishedPolicy"], "IMPUTE_CONFIGURED")
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["ContextPopulation"],
+                             config["tfNominalPolicy"]["contextPopulation"])
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedOccurrenceCount"],
+                             config["tfNominalPolicy"]["unpublishedOccurrenceCount"])
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedTermPolicy"], 0)
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
