@@ -28,7 +28,7 @@ public static class V9TrainSqlNominalUCalibration
         V9UnseenTfUAllocation? UnseenAllocation = null,
         V9NominalTfUReference? NominalUReference = null)
     {
-        public bool HasSufficientSupport => NominalUReference is { UnmatchedCandidatePairs: >= 2, MatchingNominalPairs: >= 2 };
+        public bool HasSufficientSupport => NominalUReference is { UnmatchedCandidatePairs: >= 0, MatchingNominalPairs: >= 0 };
     }
 
     public static Frozen Fit(
@@ -79,20 +79,7 @@ public static class V9TrainSqlNominalUCalibration
             counts[name] = checked(counts.GetValueOrDefault(name) + 1L);
             n = checked(n + 1);
         }
-        // The reference event is independent of the 81-cell TF selector.
-        // Zero selected-level agreements can coexist with ample agreement
-        // support across other composite levels (e.g. ExactFirstLast).
-        if (allNonmatches < 2 || nominalAgreements < 2)
-        {
-            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{n}|{allNonmatches}|{nominalAgreements}";
-            var insufficientSha = Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(insufficientCanonical))).ToLowerInvariant();
-            return new Frozen(side, trainFingerprintSha256, checked((int)n),
-                new ReadOnlyDictionary<string, decimal>(
-                    new Dictionary<string, decimal>(StringComparer.Ordinal)),
-                insufficientSha, unit);
-        }
-        // This per-value distribution is diagnostic only. It may be empty
+        // Zero or one observed nonmatch agreements are valid inputs to the\n        // approved Beta-smoothed U estimator; do not reject sparse TRAIN.\n        // This per-value distribution is diagnostic only. It may be empty
         // when the TRAIN event U_ref is supported entirely by composite
         // levels that do not select TF. Unseen IBGE-published terms are valid.
         var denominator = n + smoothingAlpha * (counts.Count + 1);
