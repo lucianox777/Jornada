@@ -104,6 +104,18 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
             program.index("v9Boundary.EnsureProductiveCertified();"),
             program.index("pinnedLinkage.GetModelByVersionAsync("))
 
+    def test_typed_runv9_entry_is_fail_closed_before_legacy_pipeline(self):
+        source = (ROOT / "ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
+        start = source.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(")
+        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        typed = source[start:end]
+        self.assertIn("V9OperationalRunBoundary boundary", typed)
+        self.assertIn("boundary.EnsureProductiveCertified();", typed)
+        self.assertNotIn("AcquireExclusiveJobAsync", typed)
+        self.assertNotIn("GetModelByVersionAsync", typed)
+        self.assertNotIn("OpenAsync(", typed)
+        self.assertNotIn("PublishAsync(", typed)
+
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
         loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")

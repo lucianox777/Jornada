@@ -107,6 +107,25 @@ public sealed class ProbabilisticLinkageBatchRunner(
             connection, rehearsalId, proof, syntheticTest, physicalSqlEdges, cancellationToken);
     }
 
+    public Task<ProbabilisticLinkageRunSummary> RunV9Async(
+        ProbabilisticLinkageRunRequest request,
+        V9OperationalRunBoundary boundary,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(boundary);
+        ct.ThrowIfCancellationRequested();
+        if (request.Mode == LinkageRunType.REPLAY)
+            throw new InvalidOperationException(
+                "RUNNER_V9_REPLAY_NOT_SUPPORTED: REPLAY histórico deve usar o caminho DT-05.");
+        if (request.ModelVersion is int version && version != 9)
+            throw new InvalidOperationException(
+                "RUNNER_V9_SELECTION_VERSION_MISMATCH: despacho tipado exige modelo V9.");
+        boundary.EnsureProductiveCertified();
+        throw new InvalidOperationException(
+            "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED");
+    }
+
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
         ProbabilisticLinkageRunRequest request,
         CancellationToken ct)
