@@ -14,6 +14,11 @@ on:
         required: false
         default: ""
         type: string
+      test_end_to_end_repetitions:
+        description: "Optional TEST repetitions (blank defaults to scientific 20; 1-19 DEV diagnostic only)"
+        required: false
+        default: ""
+        type: string
       security_preflight_approved:
         description: Confirm one-use SQL, historical credentials not reused, private runner
         required: true
@@ -32,6 +37,7 @@ on:
 
 env:
   V9_SYNTHETIC_POPULATION: ${{ inputs.synthetic_population }}
+  V9_TEST_REPETITIONS_INPUT: ${{ inputs.test_end_to_end_repetitions }}
 
 permissions:
   contents: read
@@ -62,6 +68,10 @@ jobs:
           if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then
             [[ "$V9_SYNTHETIC_POPULATION" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid synthetic_population"; exit 1; }
             test "${#V9_SYNTHETIC_POPULATION}" -le 9 || { echo "::error::synthetic_population too large"; exit 1; }
+          fi
+          if [[ -n "$V9_TEST_REPETITIONS_INPUT" ]]; then
+            [[ "$V9_TEST_REPETITIONS_INPUT" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid test repetitions"; exit 1; }
+            (( V9_TEST_REPETITIONS_INPUT <= 200 )) || { echo "::error::TEST repetitions above 200"; exit 1; }
           fi
           # TEST is mandatory with a VALIDATION winner; TEST generates its own cohort.
           # No TEST encryption credentials are required for on-demand generation.
@@ -846,8 +856,15 @@ jobs:
           root="$PWD/.local/v9-independent-test"
           model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
           test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          test_args=()
+          if [[ -n "$V9_TEST_REPETITIONS_INPUT" ]]; then
+            test_args=(--test-repetitions "$V9_TEST_REPETITIONS_INPUT")
+            if (( V9_TEST_REPETITIONS_INPUT < 20 )); then
+              export JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC=true
+            fi
+          fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-independent-test "$model"
+            --v9-independent-test "$model" "${test_args[@]}"
           python3 - "$root/results/independent-test.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1]))
