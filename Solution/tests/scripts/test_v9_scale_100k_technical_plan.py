@@ -128,7 +128,9 @@ class V9Scale100kPlanTests(unittest.TestCase):
         code = (SCRIPTS / "v9-scale-100k-technical-plan.py").read_text()
         self.assertIn('restored == original', code)
         self.assertIn('"historicalPinnedIbgeBootstrapPeople": 30000', code)
-        self.assertIn('"people": 100000', code)
+        self.assertIn('"people": expected_people', code)
+        self.assertIn('expected_people=100000', code)
+        self.assertIn('truth["people"] == expected_people', code)
         self.assertNotIn("os.environ.get('TEST'", code)
 
     def test_100k_auto_parallelism_is_only_operational_override(self):
