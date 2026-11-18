@@ -11,7 +11,7 @@ Run #44411153793, SHA 2bc76e84f581aa6b20f500637614999fc1e12f6b, população 1000
 3. **TEST:** introduzir parâmetro de repetições, com 3 apenas para diagnóstico DEV explicitamente não científico, preservando 20 como padrão e mínimo do protocolo científico vigente. Não publicar ou certificar resultado diagnóstico. Manter vencedor SHA-pinado, corpus TEST independente, nenhuma refit ou seleção.
 
 ## Implementação, riscos e precedência
-Primeira entrega na PR #1723: variável `JORNADA_V9_TEST_END_TO_END_REPETITIONS`, com default 20 e guarda explícita `JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC=true` e `JORNADA_RUNTIME_MODE=DEV` para menos de 20. A propagação de 3 pelo workflow e a revisão de contratos de latência e critérios científicos dependem de testes de integração: não declarar a modalidade 3 operacional antes disso. As correções de tratamento por hipótese e auditoria da carga REF ainda precisam ser concluídas e testadas. Não substituir uma falha estatística por zero, suavização arbitrária ou resultado aprovado.
+Primeira entrega na PR #1723: argumento CLI opcional `--test-repetitions N`, exposto como input `test_end_to_end_repetitions` no workflow manual, com default 20 e guarda explícita `JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC=true` e `JORNADA_RUNTIME_MODE=DEV` para menos de 20. A propagação de 3 pelo workflow foi implementada; a revisão de contratos de latência e critérios científicos depende de testes de integração: não declarar a modalidade 3 operacional antes disso. As correções de tratamento por hipótese e auditoria da carga REF ainda precisam ser concluídas e testadas. Não substituir uma falha estatística por zero, suavização arbitrária ou resultado aprovado.
 
 ## Rastreabilidade
 - Run: https://github.com/lucianox777/Jornada/actions/runs/44411153793
