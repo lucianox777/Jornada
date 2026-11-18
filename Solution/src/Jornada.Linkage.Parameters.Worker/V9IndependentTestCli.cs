@@ -128,7 +128,7 @@ public static class V9IndependentTestCli
             testCorpusManifestSha256 = corpus.CorpusManifestSha256,
             testObservationsSha256 = corpus.ObservationsSha256,
             testSeed = corpus.Seed,
-            baseIdentities = corpus.BaseIdentities,
+            baseIdentities = corpus.BaseIdentities,\n            selectedTestBaseIdentities = corpus.SelectedBaseIdentities,\n            selectedTestBaseIdentityFraction = (double)corpus.SelectedBaseIdentities / corpus.BaseIdentities,\n            evaluatedTestObservations = corpus.Observations.Length,
             configurationsEvaluated = 1,
             evaluationProtocol = evaluated.LatencyProtocol,
             p95Milliseconds = evaluated.P95Milliseconds,
