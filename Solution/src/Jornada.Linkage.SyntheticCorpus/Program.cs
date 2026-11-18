@@ -294,8 +294,8 @@ static string ResolveReferenceRoot(IReadOnlyDictionary<string, string> values)
 static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, string> values)
 {
     // Optional V9 calibrator configuration; explicit CLI values take precedence.
-    var configPath = Get(values, "calibrator-config");
-    using var configDocument = configPath is null ? null : JsonDocument.Parse(File.ReadAllText(configPath));
+    var calibratorConfigPath = Get(values, "calibrator-config");
+    using var configDocument = calibratorConfigPath is null ? null : JsonDocument.Parse(File.ReadAllText(calibratorConfigPath));
     var config = configDocument?.RootElement;
     int ConfigPeople() => config is { } c ? c.GetProperty("syntheticPopulation").GetInt32() : 30_000;
     double ConfigPercent(string key, double fallback) => config is { } c
