@@ -372,10 +372,8 @@ public static class V9NestedCalibrationCoordinator
                         .Select(indices => indices.Select(index => requests[index]).ToArray())
                         // A TRAIN U support failure belongs to one option, not all
                         // options sharing the same physical frame. Keep margins together.
-                        .SelectMany(group => group[0].Option is null
-                            ? new[] { group }
-                            : group.GroupBy(x => x.Option.OptionId, StringComparer.Ordinal)
-                                .Select(options => options.ToArray()))
+                        .SelectMany(group => group.GroupBy(x => x.Option.OptionId, StringComparer.Ordinal)
+                            .Select(options => options.ToArray()))
                         .ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha)
@@ -696,6 +694,11 @@ public static class V9NestedCalibrationCoordinator
                 request.Sha, batch, null, ["TRAIN_TF_U_SUPPORT_INSUFFICIENT"],
                 OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
                 ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
+                MuEstimationMethod: plan.MuEstimationMethods is null ? null
+                    : request.Option.JointSupportPolicy is null
+                        ? V9MuEstimationSearchSpace.Default
+                        : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                            ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
                 MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                 EligibleForSelection: false)).ToArray());
             foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(evaluation);
