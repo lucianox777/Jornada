@@ -206,6 +206,65 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         }));
     }
 
+    [Test]
+    public async Task Incomplete_run_cannot_publish_or_create_progressive_events()
+    {
+        var cs = RequireSyntheticEvidenceConnection();
+        await using var connection = new SqlConnection(cs);
+        await connection.OpenAsync();
+        await PrepareAsync(connection);
+        var model = await ReadModelAsync(connection);
+        var source = (await ReadProvisionalSourcesAsync(connection, 1)).Single();
+        var run = Guid.NewGuid();
+        await SeedRunAsync(connection, run, model, [source], Publication.NewIdentity);
+
+        // Persist an incomplete run header without changing the materialized item/result.
+        await using (var truncate = connection.CreateCommand())
+        {
+            truncate.CommandText = """
+                UPDATE identidade.linkage_run SET avaliados=0
+                WHERE linkage_run_id=@run AND registros_elegiveis=1;
+                """;
+            truncate.Parameters.AddWithValue("@run", run);
+            Assert.That(await truncate.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable))
+        {
+            try
+            {
+                var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+                    await ExecuteBatchAsync(connection, tx, run)));
+                Assert.That(ex!.Number, Is.EqualTo(51818));
+            }
+            finally
+            {
+                if (tx.Connection is not null) await tx.RollbackAsync();
+            }
+        }
+
+        await using var verify = new SqlConnection(cs);
+        await verify.OpenAsync();
+        await using var check = verify.CreateCommand();
+        check.CommandText = """
+            SELECT p.estado,p.canonical_uuid,p.versao,
+                   (SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva_evento e
+                    WHERE e.pessoa_origem_id=@source AND e.linkage_run_id=@run)
+            FROM identidade.pessoa_origem_progressiva p
+            WHERE p.pessoa_origem_id=@source;
+            """;
+        check.Parameters.AddWithValue("@source", source.SourceId);
+        check.Parameters.AddWithValue("@run", run);
+        await using var reader = await check.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(reader.GetString(0), Is.EqualTo("PROVISORIA"));
+            Assert.That(reader.IsDBNull(1), Is.True);
+            Assert.That(reader.GetInt64(3), Is.Zero);
+        }));
+    }
+
     private static async Task PrepareAsync(SqlConnection connection)
     {
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
