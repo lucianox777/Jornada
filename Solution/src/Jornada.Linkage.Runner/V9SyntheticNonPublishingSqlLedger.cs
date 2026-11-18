@@ -268,11 +268,24 @@ public static class V9SyntheticNonPublishingSqlLedger
                 Add(complete, "@id", SqlDbType.UniqueIdentifier, rehearsalId);
                 await complete.ExecuteNonQueryAsync(cancellationToken);
             }
+            // Cancellation after the final reconciliation must not commit a
+            // partially accepted rehearsal; the catch path rolls back.
+            cancellationToken.ThrowIfCancellationRequested();
             await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
-            await transaction.RollbackAsync(CancellationToken.None);
+            // Preserve the original failure when SQL has already rolled back
+            // the transaction or the connection was interrupted.
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackError) when (rollbackError is SqlException or InvalidOperationException)
+            {
+                // Rollback may be impossible after a broken connection;
+                // the transaction is not reported as successfully committed.
+            }
             throw;
         }
 
