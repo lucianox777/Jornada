@@ -60,8 +60,7 @@ public sealed record V9NominalTfUReference(
     {
         Validate(Side, Unit, TrainCorpusFingerprintSha256);
         if (string.IsNullOrWhiteSpace(normalizedTerm) || publishedFrequencies is null
-            || !publishedFrequencies.TryGetValue(normalizedTerm, out var frequency)
-            || frequency <= 0m || frequency > 1m)
+            || V9UnpublishedNominalFrequency.Resolve(publishedFrequencies, normalizedTerm) <= 0m)
             throw new InvalidDataException("TF positiva sem frequência IBGE publicada.");
         return Probability;
     }
