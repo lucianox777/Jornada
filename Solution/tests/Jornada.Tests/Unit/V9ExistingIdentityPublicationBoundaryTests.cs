@@ -22,13 +22,13 @@ public sealed class V9ExistingIdentityPublicationBoundaryTests
         Assert.That(start, Is.GreaterThanOrEqualTo(0));
         Assert.That(end, Is.GreaterThan(start));
         var body = runner[start..end];
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(body, Does.Contain("boundary.EnsureProductiveCertified()"));
             Assert.That(body, Does.Contain("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED"));
             Assert.That(body, Does.Not.Contain("LinkagePublicationBatchSql"));
             Assert.That(body, Does.Not.Contain("sp_publicar_resolucao_progressiva_linkage_lote"));
-        });
+        }));
     }
 
     [Test]
@@ -36,7 +36,7 @@ public sealed class V9ExistingIdentityPublicationBoundaryTests
     {
         var runner = ReadRepositoryFile("src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs");
         var sql = ReadRepositoryFile("database", "Jornada_Identidade_Progressiva.sql");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(runner, Does.Contain("THROW 51835"));
             Assert.That(runner, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
@@ -50,7 +50,7 @@ public sealed class V9ExistingIdentityPublicationBoundaryTests
             Assert.That(runner, Does.Contain("THEN c.initial_uuid"));
             Assert.That(sql, Does.Contain("resultado='INDEFINIDA' AND estado='INDEFINIDA' AND canonical_uuid IS NULL"));
             Assert.That(sql, Does.Contain("resultado='NOVA_IDENTIDADE' AND estado='REFERENCIA' AND canonical_uuid IS NOT NULL"));
-        });
+        }));
     }
 
     [Test]
@@ -58,13 +58,13 @@ public sealed class V9ExistingIdentityPublicationBoundaryTests
     {
         var runner = ReadRepositoryFile("src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs");
         var publisher = ReadRepositoryFile("src", "Jornada.Linkage.Runner", "LinkagePublicationBatchSql.cs");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(runner, Does.Contain("LinkagePublicationBatchSql.RecomposeAffectedGoldSql"));
             Assert.That(runner, Does.Contain("LinkagePublicationBatchSql.RefreshServingAssignmentsSql"));
             Assert.That(publisher, Does.Contain("MERGE gold.pessoa WITH (HOLDLOCK)"));
             Assert.That(publisher, Does.Contain("identidade.pessoa_origem_progressiva"));
             Assert.That(publisher, Does.Contain("p.initial_uuid"));
-        });
+        }));
     }
 }
