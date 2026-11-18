@@ -31,9 +31,9 @@ public static class V9OperationalGoldCohortMembership
         var expected = new HashSet<Guid>();
         foreach (var source in frozenCohort)
         {
-            if (source is null || source.GoldUuid == Guid.Empty
-                || !expected.Add(source.GoldUuid))
+            if (source is null || source.GoldUuid == Guid.Empty)
                 throw new InvalidDataException("RUNNER_V9_GOLD_COHORT_DUPLICATE_OR_INVALID");
+            expected.Add(source.GoldUuid);
         }
 
         long count;
