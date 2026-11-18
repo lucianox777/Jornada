@@ -57,9 +57,11 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
     [Test]
     public void Frozen_projection_resolver_rejects_unknown_fingerprint()
     {
-        Assert.Throws<InvalidDataException>(() =>
-            V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
-                V9CalibrationBlockingProjection.SchemaVersion, Hash('0')));
+        Reject<InvalidDataException>(() =>
+        {
+            _ = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
+                V9CalibrationBlockingProjection.SchemaVersion, Hash('0'));
+        });
     }
 
     [Test]
