@@ -247,7 +247,8 @@ jobs:
           python3 scripts/v9-scale-100k-technical-plan.py \
             --artifact-zip "$root/historical-official.zip" \
             --corpus-root "$root/people-100k" \
-            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
+            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto \
+              --expected-people "${V9_SYNTHETIC_POPULATION:-100000}"
           python3 scripts/v9-v3-four-name-100k-plan.py \
             --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
