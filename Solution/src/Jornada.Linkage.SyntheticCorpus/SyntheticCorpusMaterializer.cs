@@ -101,6 +101,13 @@ public static class SyntheticCorpusMaterializer
                 ? "LEGACY_ENGINEERING_FIXTURE"
                 : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
+            synthetic_population = generation.Options.People,
+            partition_percentages = new
+            {
+                train = generation.Options.TrainPercent,
+                validation = generation.Options.ValidationPercent,
+                test = generation.Options.TestPercent
+            },
             input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
             reference_code = source.ReferenceCode,
             outputs = hashes

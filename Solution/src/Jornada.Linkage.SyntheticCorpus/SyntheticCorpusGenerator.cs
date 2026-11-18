@@ -61,7 +61,8 @@ public sealed class SyntheticCorpusGenerator
                 options.BrazilianNameErrors?.AgnomeBasePrevalence ?? 0);
 
             var split = random.NextUnitInterval();
-            person.Partition = split < .6 ? "TRAIN" : split < .8 ? "VALIDATION" : "TEST";
+            person.Partition = split < options.TrainPercent / 100d ? "TRAIN"
+                : split < (options.TrainPercent + options.ValidationPercent) / 100d ? "VALIDATION" : "TEST";
             people.Add(person);
         }
 

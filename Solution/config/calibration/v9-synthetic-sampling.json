@@ -1,0 +1,8 @@
+{
+  "syntheticPopulation": 100000,
+  "sampling": {
+    "trainPercent": 60,
+    "validationPercent": 20,
+    "testPercent": 20
+  }
+}
