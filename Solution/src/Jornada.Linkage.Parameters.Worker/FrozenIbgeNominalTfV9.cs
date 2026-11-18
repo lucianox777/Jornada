@@ -219,7 +219,8 @@ public sealed class FrozenIbgeNominalTfV9
         decimal unitReferenceU,
         decimal weight,
         decimal minimumFrequency,
-        long minimumIndependentSupport)
+        long minimumIndependentSupport,
+        long contextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation)
     {
         if (!Enum.IsDefined(side))
             throw new InvalidOperationException("Lado nominal TF V9 desconhecido.");
@@ -241,7 +242,7 @@ public sealed class FrozenIbgeNominalTfV9
         var domain = level == CompositeNominalLevelV9.ExactFirst
             ? (side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst)
             : (side == CompositeNominalTfSideV9.Person ? personLast : motherLast);
-        var frequency = V9UnpublishedNominalFrequency.Resolve(domain, value);
+        var frequency = V9UnpublishedNominalFrequency.Resolve(domain, value, contextPopulation);
 
         var reference = MakeReference(side, ReferenceCode,
             PublishedReferenceSha256, BlockingFrameFingerprint, Bootstrap, level);
