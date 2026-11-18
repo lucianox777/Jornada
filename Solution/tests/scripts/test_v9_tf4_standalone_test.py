@@ -24,7 +24,10 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("MaximumPrefixLength: frozenPrefixLength",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
         self.assertIn("TotalComparedConfigurations: 1",source)
-        self.assertIn("EndToEndRepetitions: 20",source)
+        self.assertIn("EndToEndRepetitions: repetitions",source)
+        self.assertIn("JORNADA_V9_TEST_END_TO_END_REPETITIONS",source)
+        self.assertIn("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC",source)
+        self.assertIn("var repetitions = 20;",source)
         self.assertIn("JORNADA_V9_TEST_CORPUS_DIR",source)
         self.assertIn("JORNADA_V9_TEST_OUTPUT_DIR",source)
         for bad in ("--v9-calibrate", "--v9-validate-finalists", "finalist-validation.json",
