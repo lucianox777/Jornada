@@ -47,4 +47,40 @@ public static class V9OperationalSnapshotGraphVerification
             throw new InvalidDataException("RUNNER_V9_SNAPSHOT_COHORT_GRAPH_COUNT_MISMATCH");
         return new Receipt(gold, graph, verified);
     }
+    /// <summary>
+    /// Stronger diagnostic entrypoint: obtain the separately sourced edge
+    /// census inside the same operational SNAPSHOT before assembling the graph.
+    /// The callback must read independently from operational sources, never
+    /// from the preview or its receipt. Provenance still needs physical proof.
+    /// </summary>
+    public static async Task<Receipt> VerifyWithSnapshotCensusAsync(
+        SqlConnection connection,
+        SqlTransaction snapshotTransaction,
+        V9FittedSnapshotExecutionRuntime pinnedRuntime,
+        IReadOnlyCollection<V9OperationalCohortGraphPreview.Source> frozenCohort,
+        Func<SqlConnection, SqlTransaction, CancellationToken,
+            Task<V9OperationalCandidateGraphIntegrity.Census>> readIndependentCensus,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(snapshotTransaction);
+        ArgumentNullException.ThrowIfNull(pinnedRuntime);
+        ArgumentNullException.ThrowIfNull(frozenCohort);
+        ArgumentNullException.ThrowIfNull(readIndependentCensus);
+        ct.ThrowIfCancellationRequested();
+        if (connection.State != ConnectionState.Open
+            || !ReferenceEquals(snapshotTransaction.Connection, connection)
+            || snapshotTransaction.IsolationLevel != IsolationLevel.Snapshot)
+            throw new InvalidOperationException("RUNNER_V9_OPERATIONAL_SNAPSHOT_REQUIRED");
+
+        // Fetch before the graph is constructed to avoid accidental reuse of
+        // its edges. The same connection and transaction are passed explicitly.
+        var census = await readIndependentCensus(connection, snapshotTransaction, ct);
+        if (census is null)
+            throw new InvalidDataException("RUNNER_V9_GRAPH_CENSUS_MISSING");
+        ct.ThrowIfCancellationRequested();
+        return await VerifyAsync(connection, snapshotTransaction, pinnedRuntime,
+            frozenCohort, census, ct);
+    }
+
 }
