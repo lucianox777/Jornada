@@ -78,6 +78,19 @@ class V9FourName100kTests(unittest.TestCase):
                          {tuple(v) for v in __import__("itertools").product(p.STATES, repeat=4)}
                          - {(0, 0, 0, 0)})
 
+    def test_unified_calibration_json_is_versioned_into_tf_plan(self):
+        config = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
+        self.assertEqual(config["syntheticPopulation"], 100000)
+        self.assertEqual(config["sampling"],
+                         {"trainPercent": 60, "validationPercent": 20, "testPercent": 20})
+        self.assertEqual(config["tfNominalPolicy"]["contextPopulation"], 11911337)
+        self.assertEqual(config["tfNominalPolicy"]["unpublishedOccurrenceCount"], 20)
+        options = p.grid(self.base()["Calibration"]["ModelOptions"][0],
+                         config["tfNominalPolicy"])
+        self.assertEqual({x["ContextPopulation"] for x in options}, {11911337})
+        self.assertEqual({x["UnpublishedOccurrenceCount"] for x in options}, {20})
+        self.assertEqual({x["UnpublishedTermPolicy"] for x in options}, {0})
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
