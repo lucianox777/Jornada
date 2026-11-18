@@ -78,7 +78,7 @@ def grid(tf0, tf_policy=None):
     return result
 
 
-def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_policy_path=None, expected_people=None):
+def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_policy_path=None):
     tf_policy_bytes = Path(tf_policy_path).read_bytes() if tf_policy_path else None
     tf_config = strict_json(tf_policy_bytes) if tf_policy_bytes else None
     tf_policy = (tf_config.get("tfNominalPolicy", tf_config)
@@ -109,9 +109,6 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
     configured_people = (tf_config["syntheticPopulation"]
                          if tf_config is not None and "tfNominalPolicy" in tf_config
                          else 100000)
-    require(expected_people is None or (type(expected_people) is int
-            and expected_people == configured_people),
-            "CLI expected population disagrees with frozen configuration")
     expected_people = configured_people
     c = base["Calibration"]
     require(source_receipt.get("schema") == BASE_SCHEMA
@@ -206,8 +203,6 @@ if __name__ == "__main__":
     for arg in ("base-plan", "base-receipt", "plan", "receipt"):
         parser.add_argument("--" + arg, type=Path, required=True)
     parser.add_argument("--tf-policy", type=Path)
-    parser.add_argument("--expected-people", type=int)
     p = parser.parse_args()
-    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.tf_policy,
-                               p.expected_people),
+    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.tf_policy),
                      sort_keys=True))
