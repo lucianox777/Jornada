@@ -1,3 +1,5 @@
+> **Estado atualizado em 18/11/2026 — proposta da PR #1464 SUPERADA por decisão expressa do PO.** O desenho de cache/reutilização de pares SQL desta PR não é implementação autorizada nem requisito da campanha V9. Preservar este documento somente como histórico técnico; não mesclar a PR #1464 para introduzir essa proposta. Permanecem válidos os contratos científicos de reconstrução SQL, medição P95 e isolamento. O sucesso da campanha não prova nem exige a otimização aqui descrita. A separação estrutural já registrada abaixo não equivale à adoção de cache. Decisão prevalece sobre a proposta de 12/11; GOV-DOC-01.
+
 # V9 — plano de reutilização física do holdout congelado
 
 Data: 2026-11-12. Estado: proposta técnica, **não implementada**, sem autorização para alterar o protocolo científico.
