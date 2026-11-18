@@ -241,9 +241,7 @@ public sealed class FrozenIbgeNominalTfV9
         var domain = level == CompositeNominalLevelV9.ExactFirst
             ? (side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst)
             : (side == CompositeNominalTfSideV9.Person ? personLast : motherLast);
-        if (!domain.TryGetValue(value, out var frequency))
-            throw new InvalidOperationException(
-                "Prenome ausente/suprimido no snapshot IBGE fixado; não inferir frequência zero.");
+        var frequency = V9UnpublishedNominalFrequency.Resolve(domain, value);
 
         var reference = MakeReference(side, ReferenceCode,
             PublishedReferenceSha256, BlockingFrameFingerprint, Bootstrap, level);
