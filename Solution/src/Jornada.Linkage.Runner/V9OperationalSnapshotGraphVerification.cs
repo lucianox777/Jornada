@@ -39,6 +39,10 @@ public static class V9OperationalSnapshotGraphVerification
         // by contract; this API cannot authenticate its external provenance.
         var gold = await V9OperationalGoldCohortMembership.VerifyAsync(
             connection, snapshotTransaction, frozenCohort, ct);
+        // Authenticate caller-supplied Silver attributes, manager and active
+        // Gold link before any candidate graph construction.
+        await V9OperationalSilverSourceAuthentication.VerifyAsync(
+            connection, snapshotTransaction, frozenCohort, ct);
         var graph = await V9OperationalCohortGraphPreview.ReadAsync(
             connection, snapshotTransaction, pinnedRuntime, frozenCohort, ct);
         var verified = V9OperationalGraphReceiptVerification.Verify(
