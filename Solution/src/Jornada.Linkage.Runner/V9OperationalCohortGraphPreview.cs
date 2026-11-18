@@ -36,16 +36,18 @@ public static class V9OperationalCohortGraphPreview
         if (frozenCohort.Count == 0)
             throw new InvalidDataException("RUNNER_V9_COHORT_EMPTY");
 
-        var byUuid = new Dictionary<Guid, Source>();
+        var byUuid = new Dictionary<Guid, List<Source>>();
         var byId = new HashSet<long>();
         foreach (var source in frozenCohort)
         {
             if (source is null || source.ObservationId <= 0
                 || source.GoldUuid == Guid.Empty || string.IsNullOrWhiteSpace(source.Manager)
                 || source.Observation is null || !string.IsNullOrWhiteSpace(source.Observation.Cpf)
-                || !byUuid.TryAdd(source.GoldUuid, source)
                 || !byId.Add(source.ObservationId))
                 throw new InvalidDataException("RUNNER_V9_COHORT_INVALID_OR_DUPLICATE");
+            if (!byUuid.TryGetValue(source.GoldUuid, out var sources))
+                byUuid.Add(source.GoldUuid, sources = new List<Source>());
+            sources.Add(source);
         }
 
         // The Gold UUID-to-observation mapping is an explicit external input:
@@ -60,20 +62,25 @@ public static class V9OperationalCohortGraphPreview
                 connection, snapshotTransaction, pinnedRuntime, source.Observation, ct);
             foreach (var candidateUuid in result.CandidateUuids)
             {
-                if (!byUuid.TryGetValue(candidateUuid, out var target))
+                if (!byUuid.TryGetValue(candidateUuid, out var targets))
                     throw new InvalidDataException("RUNNER_V9_CANDIDATE_OUTSIDE_FROZEN_COHORT");
-                if (target.ObservationId == source.ObservationId
-                    || string.Equals(target.Manager, source.Manager, StringComparison.Ordinal))
-                    continue;
-                directed = checked(directed + 1);
-                var a = Math.Min(source.ObservationId, target.ObservationId);
-                var b = Math.Max(source.ObservationId, target.ObservationId);
-                var edge = (A: a, B: b);
-                var bit = (byte)(source.ObservationId == a ? 1 : 2);
-                directions.TryGetValue(edge, out var existing);
-                if ((existing & bit) != 0)
-                    throw new InvalidDataException("RUNNER_V9_GRAPH_DUPLICATE_DIRECTION");
-                directions[edge] = (byte)(existing | bit);
+                // Gold identifies a person; Silver identifies observations. Never
+                // create self-person edges, even across distinct managers.
+                if (candidateUuid == source.GoldUuid) continue;
+                foreach (var target in targets)
+                {
+                    if (string.Equals(target.Manager, source.Manager, StringComparison.Ordinal))
+                        continue;
+                    directed = checked(directed + 1);
+                    var a = Math.Min(source.ObservationId, target.ObservationId);
+                    var b = Math.Max(source.ObservationId, target.ObservationId);
+                    var edge = (A: a, B: b);
+                    var bit = (byte)(source.ObservationId == a ? 1 : 2);
+                    directions.TryGetValue(edge, out var existing);
+                    if ((existing & bit) != 0)
+                        throw new InvalidDataException("RUNNER_V9_GRAPH_DUPLICATE_DIRECTION");
+                    directions[edge] = (byte)(existing | bit);
+                }
             }
         }
         if (directions.Values.Any(bits => bits != 3))
