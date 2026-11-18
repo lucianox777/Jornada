@@ -2058,11 +2058,9 @@ jobs:
       - name: Run linkage model-validation smoke
         # Explicitly pin the same model already selected by this synthetic harness.
         # The runner must never infer a production model or bypass Operator Master guards.
-        env:
-          Linkage__SelectedModelVersion: ${{ env.MODEL_VERSION }}
         run: |
           test -n "$MODEL_VERSION"
-          dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+          Linkage__SelectedModelVersion="$MODEL_VERSION" dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
             --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --since 2026-08-31T01:00:00Z --max-records 1000 \
             --batch-size 500 --max-parallelism 2 --publish false \
             --requested-by CI_HARNESS --reason ci-harness-evidence
