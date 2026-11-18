@@ -57,6 +57,18 @@ public sealed class V9TfDirectionDecision19Tests
         Assert.That(legacyCommon, Is.GreaterThan(legacyRare));
     }
 
+    [TestCase(0L, 0L, 0.5)]
+    [TestCase(1L, 0L, 0.25)]
+    [TestCase(1L, 1L, 0.75)]
+    public void SparseTrainU_UsesSmoothedEstimatorWithoutMinimumCounts(long pairs, long agreements, double expected)
+    {
+        var fitted = V9NominalTfUReference.Fit(CompositeNominalTfSideV9.Mother,
+            NominalFrequencyUnitV9.LastContentSurname, pairs, agreements, 0.5m, TrainSha);
+        Assert.That((double)fitted.Probability, Is.EqualTo(expected).Within(1e-12));
+        fitted.Validate(CompositeNominalTfSideV9.Mother,
+            NominalFrequencyUnitV9.LastContentSurname, TrainSha);
+    }
+
     [Test]
     public void URef_is_frozen_by_side_unit_TRAIN_support_and_policy()
     {
