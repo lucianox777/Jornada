@@ -35,8 +35,12 @@ public static class V9IndependentTestCorpusReader
         var manifestSha = Convert.ToHexString(SHA256.HashData(manifestBytes)).ToLowerInvariant();
         using var doc = JsonDocument.Parse(manifestBytes);
         var m = doc.RootElement;
-        const ulong Seed = 20261113001UL;
-        if (m.GetProperty("seed").GetUInt64() != Seed
+        var expectedSeedText = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_RESERVED_SEED");
+        if (!ulong.TryParse(expectedSeedText, NumberStyles.None, CultureInfo.InvariantCulture, out var expectedSeed)
+            || expectedSeed == 0 || expectedSeed is 42UL or 20261112001UL or 20261113001UL)
+            throw new InvalidDataException("TEST exige seed inédita vinculada à reserva oficial.");
+        var seed = m.GetProperty("seed").GetUInt64();
+        if (seed != expectedSeed
             || m.GetProperty("schema_version").GetInt32() != 1
             || m.GetProperty("population_profile").GetString() != "DEMOGRAPHIC_PRIMARY_V1"
             || m.GetProperty("error_profile").GetString() != "clean"
@@ -92,7 +96,7 @@ public static class V9IndependentTestCorpusReader
         }
         if (byIdentity.Count != 100000 || rows.Count < 4)
             throw new InvalidDataException("População TEST de 100 mil identidades incompleta.");
-        return new TestCorpus(manifestSha, outputs["observacoes.csv"], Seed,
+        return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
             byIdentity.Count, rows.ToArray());
     }
 }

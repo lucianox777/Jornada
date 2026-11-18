@@ -798,9 +798,29 @@ jobs:
             --error-profile clean --people 100000 --seed "${{ steps.test_seed.outputs.test_seed }}" \
             --out "$root/corpus" > "$root/test-generation.log"
           test -s "$root/corpus/observacoes.csv"
+      - name: Verify reserved TEST seed receipt matches this execution and generated corpus
+        env:
+          RESERVED_SEED: ${{ steps.test_seed.outputs.test_seed }}
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/.local/v9-independent-test/test-seed-reservation.json" "$PWD/.local/v9-independent-test/corpus/generation-manifest.json" <<'PY'
+          import json,os,pathlib,sys
+          receipt=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          manifest=json.loads(pathlib.Path(sys.argv[2]).read_text())
+          seed=int(os.environ["RESERVED_SEED"])
+          assert seed > 0 and seed not in (42,20261112001,20261113001)
+          assert receipt["schema"] == "V9_TEST_SEED_RESERVATION_V2"
+          assert receipt["seed"] == seed == manifest["seed"]
+          assert receipt["codeSha"] == os.environ["GITHUB_SHA"]
+          assert str(receipt["runId"]) == os.environ["GITHUB_RUN_ID"]
+          assert str(receipt["runAttempt"]) == "1" == os.environ["GITHUB_RUN_ATTEMPT"]
+          assert receipt["exposureRef"] == "refs/tags/v9-tf4-test-seed-v2-"+str(seed)
+          print("V9_TEST_RESERVED_SEED_BOUND_TO_CORPUS")
+          PY
       - name: Apply one frozen winner to TEST, no refit and no winner selection
 
         env:
+          JORNADA_V9_TEST_RESERVED_SEED: ${{ steps.test_seed.outputs.test_seed }}
           JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
           JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/results
         run: |
