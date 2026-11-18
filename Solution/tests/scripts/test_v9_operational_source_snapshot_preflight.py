@@ -19,6 +19,19 @@ class V9OperationalSourceSnapshotPreflightTests(unittest.TestCase):
                           "UPDATE ", "DELETE FROM", "IBGE", "PublishAsync("):
             self.assertNotIn(forbidden, source)
 
+    def test_coverage_is_partitioned_without_sampling(self):
+        source = (ROOT / "V9OperationalSourceSnapshotPreflight.cs").read_text(encoding="utf-8")
+        for required in (
+            "GoldReferencesWithActiveBlockingKeys",
+            "GoldReferencesWithoutActiveBlockingKeys",
+            "AND EXISTS (SELECT 1 FROM identidade.blocking_chave",
+            "AND NOT EXISTS (SELECT 1 FROM identidade.blocking_chave",
+            "b.pessoa_uuid = g.pessoa_uuid",
+            "covered != gold - uncovered",
+            "new Receipt(gold, blocking, covered, uncovered)",
+        ):
+            self.assertIn(required, source)
+
     def test_not_productive_certification(self):
         source = (ROOT / "V9OperationalRunBoundary.cs").read_text(encoding="utf-8")
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", source)
