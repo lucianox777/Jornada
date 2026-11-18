@@ -219,10 +219,14 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         await SeedRunAsync(connection, run, model, [source], Publication.NewIdentity);
 
         // Persist an incomplete run header without changing the materialized item/result.
+        // All counters are zeroed together so ck_linkage_run_contagens
+        // (avaliados = resolvidos + nao_resolvidos + conflitos; sem_candidato <= nao_resolvidos)
+        // still holds; incompleteness comes from avaliados (0) <> registros_elegiveis (1).
         await using (var truncate = connection.CreateCommand())
         {
             truncate.CommandText = """
-                UPDATE identidade.linkage_run SET avaliados=0
+                UPDATE identidade.linkage_run
+                SET avaliados=0, resolvidos=0, nao_resolvidos=0, conflitos=0, sem_candidato_no_bloco=0
                 WHERE linkage_run_id=@run AND registros_elegiveis=1;
                 """;
             truncate.Parameters.AddWithValue("@run", run);
