@@ -28,7 +28,6 @@ public static class V9OperationalSilverSourceAuthentication
             throw new InvalidDataException("RUNNER_V9_COHORT_EMPTY");
 
         var seenIds = new HashSet<long>();
-        var seenGold = new HashSet<Guid>();
         const string sql = """
             SELECT o.cpf, o.cpf_ausente_motivo, o.nome_completo,
                    o.data_nascimento, o.nome_mae, gestor.codigo
@@ -48,7 +47,7 @@ public static class V9OperationalSilverSourceAuthentication
             if (source is null || source.Observation is null
                 || source.ObservationId <= 0 || source.GoldUuid == Guid.Empty
                 || string.IsNullOrWhiteSpace(source.Manager)
-                || !seenIds.Add(source.ObservationId) || !seenGold.Add(source.GoldUuid)
+                || !seenIds.Add(source.ObservationId)
                 || !string.IsNullOrWhiteSpace(source.Observation.Cpf)
                 || source.Observation.ResolutionAttributes is { Count: > 0 })
                 throw new InvalidDataException("RUNNER_V9_SOURCE_AUTH_INVALID_INPUT");
