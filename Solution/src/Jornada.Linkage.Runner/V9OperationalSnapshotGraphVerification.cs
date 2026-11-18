@@ -47,7 +47,7 @@ public static class V9OperationalSnapshotGraphVerification
             connection, snapshotTransaction, pinnedRuntime, frozenCohort, ct);
         var verified = V9OperationalGraphReceiptVerification.Verify(
             frozenCohort, graph, independentlyReadGraphCensus);
-        if (gold.GoldReferenceCount != verified.ObservationCount)
+        if (gold.GoldReferenceCount != frozenCohort.Select(s => s.GoldUuid).Distinct().LongCount())
             throw new InvalidDataException("RUNNER_V9_SNAPSHOT_COHORT_GRAPH_COUNT_MISMATCH");
         return new Receipt(gold, graph, verified);
     }
