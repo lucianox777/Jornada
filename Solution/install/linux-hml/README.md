@@ -17,7 +17,7 @@ bash ./Install-JornadaHml-RHEL10.sh down
 
 O instalador não limpa volumes e não reinicializa o banco de forma destrutiva. A opção `--open-monitor` apenas tenta abrir o navegador local. O SQL fica em `127.0.0.1:14333` se não houver configuração alternativa; portas publicadas pelo Compose base devem ser protegidas pelo firewall da HML. Não exponha a API, SQL ou SMB diretamente à Internet.
 
-O perfil monta o Bronze em volume Docker compartilhado apenas com NODE1, sem necessidade de NAS físico ou contêiner SMB. A configuração single-node é derivada do schema `Jornada.Cluster.Test.json` e usa os mesmos contratos e hashes de bundle.
+O perfil monta o Bronze em volume Docker acessível ao NODE1 e ao contêiner NAS auxiliar, sem necessidade de NAS físico. O contêiner auxiliar `jornada-nas` permanece porque é dependência declarada no Compose original; **não** representa um segundo nó da aplicação. A configuração single-node é derivada do schema `Jornada.Cluster.Test.json` e usa os mesmos contratos e hashes de bundle.
 
 ## Execuções sob demanda
 
