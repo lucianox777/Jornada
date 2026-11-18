@@ -546,3 +546,5 @@ A [DT-15](DT15_Governanca_Decisao_Modelo.md) especifica comparação pareada ATI
 - [GOV-V9-OVERRIDE-POPULACAO-CLI-20261118](Decisao_GOV_V9_Override_Populacao_CLI_20261118.md) — **APROVADA pelo PO:** `--people N` sobrepõe `syntheticPopulation` do JSON; input manual opcional `synthetic_population` aplica a mesma quantidade aos três corpora independentes TRAIN/VALIDATION/TEST. Sem argumento, usa-se a configuração. Mantém 60/20/20 e controles científicos; CI e integração pendentes.
 
 - [GOV-V9-BINDING-TRAIN-POPULACAO-PARAMETRIZADA-20261118](Decisao_GOV_V9_Correcao_Binding_TRAIN_10k_20261118.md) — correção técnica da falha física #44407931103: binder TRAIN deve conferir população declarada no gabarito contra valor efetivo do workflow, preservando verificação de seed, hashes e fingerprint. PR, CI e reexecução pendentes.
+
+- **GOV-V9 — Correção do binding TF4 para população parametrizada (18/11/2026):** [registro e evidências](Decisao_GOV_V9_Correcao_TF4_Populacao_1000_20261118.md). Correção técnica fail-closed; 1000 é diagnóstico, não certificação.
