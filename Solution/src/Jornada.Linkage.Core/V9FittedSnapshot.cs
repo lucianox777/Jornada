@@ -31,7 +31,8 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation);
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation,
+    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -295,7 +296,8 @@ public sealed class V9FittedSnapshot
         var unitU = tf.NominalUReference
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
-        var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term);
+        var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term,
+            Payload.ContextPopulation);
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
             unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
