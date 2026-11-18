@@ -21,9 +21,9 @@ public static class V9IndependentTestCli
     {
         if ((args.Length != 2 && args.Length != 4)
             || args[0] != "--v9-independent-test"
-            || (args.Length == 4 && args[2] != "--test-database"))
+            || (args.Length == 4 && args[2] != "--test-database" && args[2] != "--test-repetitions"))
             throw new ArgumentException(
-                "Uso: --v9-independent-test <sha256.operational.json> [--test-database <database_existente>].");
+                "Uso: --v9-independent-test <sha256.operational.json> [--test-database <database_existente> | --test-repetitions <inteiro>].");
         var winnerFile = Path.GetFullPath(args[1]);
         var name = Path.GetFileName(winnerFile);
         if (!name.EndsWith(V9ValidatedOperationalModelFile.Suffix, StringComparison.Ordinal)
@@ -38,7 +38,7 @@ public static class V9IndependentTestCli
         var validatedFileWinner = await V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile);
         if (validatedFileWinner.ContentSha256 != winnerSha)
             throw new InvalidDataException("TEST recebeu arquivo diferente do vencedor VALIDATION.");
-        if (args.Length == 4)
+        if (args.Length == 4 && args[2] == "--test-database")
         {
             // Explicit database means EXISTING rows, never silent synthetic
             // generation. A separate SELECT-only SQL principal is mandatory.
@@ -102,7 +102,7 @@ public static class V9IndependentTestCli
         }
         // Diagnostic-only repetition override; the scientific protocol remains 20.
         var repetitions = 20;
-        var requestedRepetitions = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_END_TO_END_REPETITIONS");
+        var requestedRepetitions = args.Length == 4 ? args[3] : null;
         if (requestedRepetitions is not null)
         {
             if (!int.TryParse(requestedRepetitions, out repetitions)
