@@ -27,7 +27,7 @@ public static class V9OperationalGoldSilverCardinality
 
         const string sql = """
             WITH per_gold AS (
-                SELECT g.pessoa_uuid, COUNT_BIG(v.pessoa_observacao_id) AS linked_observations
+                SELECT g.pessoa_uuid, COUNT_BIG(o.pessoa_observacao_id) AS linked_observations
                 FROM gold.pessoa g
                 LEFT JOIN identidade.vinculo_fonte v
                   ON v.pessoa_uuid = g.pessoa_uuid
