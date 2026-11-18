@@ -44,11 +44,15 @@ def strict_json(raw):
                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
 
 
-def grid(tf0):
+def grid(tf0, tf_policy=None):
     require(tf0["OptionId"] == TF0 and tf0.get("UnitTfOptions") is None
             and tf0.get("TfWeight") == 0 and tf0.get("UnpublishedTermPolicy", 0) == 0,
             "historical TF0 is not the neutral control")
     result = [copy.deepcopy(tf0)]
+    if tf_policy is not None:
+        result[0].update(ContextPopulation=tf_policy["contextPopulation"],
+                         UnpublishedOccurrenceCount=tf_policy["unpublishedOccurrenceCount"],
+                         UnpublishedTermPolicy=tf_policy["unpublishedTermPolicy"])
     for values in itertools.product(STATES, repeat=4):
         if values == (0, 0, 0, 0):
             continue
@@ -60,7 +64,11 @@ def grid(tf0):
             for (side, unit, _), weight in zip(SLOTS, values)]
         option["TfWeight"] = 0
         option["SharedSurnameMode"] = 0
-        option["UnpublishedTermPolicy"] = 1  # per-candidate abstention, never invented frequency
+        option["UnpublishedTermPolicy"] = (tf_policy["unpublishedTermPolicy"]
+                                             if tf_policy is not None else 1)
+        if tf_policy is not None:
+            option["ContextPopulation"] = tf_policy["contextPopulation"]
+            option["UnpublishedOccurrenceCount"] = tf_policy["unpublishedOccurrenceCount"]
         option["EligibleForSelection"] = True
         result.append(option)
     require(len(result) == OPTIONS and len({x["OptionId"] for x in result}) == OPTIONS,
@@ -70,7 +78,16 @@ def grid(tf0):
     return result
 
 
-def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
+def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_policy_path=None):
+    tf_policy_bytes = Path(tf_policy_path).read_bytes() if tf_policy_path else None
+    tf_policy = strict_json(tf_policy_bytes) if tf_policy_bytes else None
+    if tf_policy is not None:
+        require(tf_policy.get("schema") == "V9_TF_NOMINAL_POLICY_V1"
+                and type(tf_policy.get("contextPopulation")) is int
+                and type(tf_policy.get("unpublishedOccurrenceCount")) is int
+                and 1 <= tf_policy["unpublishedOccurrenceCount"] <= tf_policy["contextPopulation"]
+                and tf_policy.get("unpublishedTermPolicy") == 0,
+                "invalid or incompatible versioned TF policy")
     output_path, receipt_path = Path(output_path), Path(receipt_path)
     require(output_path.name == "plan.json" and not output_path.exists()
             and not receipt_path.exists(), "never overwrite a frozen study")
@@ -104,7 +121,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
 
     plan = copy.deepcopy(base)
     cp = plan["Calibration"]
-    cp["ModelOptions"] = grid(c["ModelOptions"][0])
+    cp["ModelOptions"] = grid(c["ModelOptions"][0], tf_policy)
     mixture = copy.deepcopy(base["MuEstimationMethods"][2])
     require(mixture["Method"] == "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
             and mixture["Parameters"]["ClassMassCoverage"] == [0.99]
@@ -140,7 +157,10 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
         "weights": list(STATES), "uMixtureLambdas": list(LAMBDAS),
         "conflictMargins": list(MARGINS), "blockingPasses": three_pass,
         "maximumBatches": 1, "physicalHypotheses": EVALUATIONS,
-        "tfUnpublishedPolicy": "ABSTAIN_CANDIDATE_WHEN_POSITIVE",
+        "tfUnpublishedPolicy": ("IMPUTE_CONFIGURED" if tf_policy is not None
+                                else "ABSTAIN_CANDIDATE_WHEN_POSITIVE"),
+        **({"tfPolicySha256": digest(tf_policy_bytes), "tfPolicy": tf_policy}
+           if tf_policy is not None else {}),
         "testUsed": False, "activated": False}
     fingerprint = digest(json.dumps(snapshot, sort_keys=True, separators=(",", ":"),
                                     allow_nan=False).encode())
@@ -166,6 +186,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ("base-plan", "base-receipt", "plan", "receipt"):
         parser.add_argument("--" + arg, type=Path, required=True)
+    parser.add_argument("--tf-policy", type=Path)
     p = parser.parse_args()
-    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt),
+    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.tf_policy),
                      sort_keys=True))
