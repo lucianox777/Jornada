@@ -23,7 +23,7 @@ public sealed record V9NominalTfUReference(
         long unmatchedCandidatePairs, long matchingNominalPairs,
         decimal smoothingAlpha, string trainCorpusFingerprintSha256)
     {
-        if (unmatchedCandidatePairs < 2 || matchingNominalPairs < 2
+        if (unmatchedCandidatePairs < 0 || matchingNominalPairs < 0
             || matchingNominalPairs > unmatchedCandidatePairs || smoothingAlpha <= 0m
             || !Enum.IsDefined(side)
             || unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
@@ -47,7 +47,7 @@ public sealed record V9NominalTfUReference(
         if (PolicyVersion != Version || Side != side || Unit != unit
             || !string.Equals(TrainCorpusFingerprintSha256, trainCorpusFingerprintSha256,
                 StringComparison.OrdinalIgnoreCase)
-            || UnmatchedCandidatePairs < 2 || MatchingNominalPairs < 2
+            || UnmatchedCandidatePairs < 0 || MatchingNominalPairs < 0
             || MatchingNominalPairs > UnmatchedCandidatePairs || SmoothingAlpha <= 0m
             || Probability <= 0m || Probability >= 1m
             || Math.Abs(Probability - (MatchingNominalPairs + SmoothingAlpha)
