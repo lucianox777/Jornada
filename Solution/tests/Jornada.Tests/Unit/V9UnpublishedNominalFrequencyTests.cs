@@ -19,6 +19,26 @@ public sealed class V9UnpublishedNominalFrequencyTests
     }
 
     [Test]
+    public void MunicipalImputation_UsesTenOccurrencesWithoutChangingPublishedFrequency()
+    {
+        var published = new Dictionary<string, decimal> { ["SILVA"] = 0.08m };
+        Assert.That(V9UnpublishedNominalFrequency.Resolve(published, "INEDITO",
+            11911337L, 10L), Is.EqualTo(10m / 11911337m));
+        Assert.That(V9UnpublishedNominalFrequency.Resolve(published, "SILVA",
+            11911337L, 10L), Is.EqualTo(0.08m));
+    }
+
+    [TestCase(0L, 100L)]
+    [TestCase(-1L, 100L)]
+    [TestCase(101L, 100L)]
+    public void InvalidOccurrenceCount_IsRejected(long count, long population)
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            V9UnpublishedNominalFrequency.Resolve(new Dictionary<string, decimal>(),
+                "INEDITO", population, count));
+    }
+
+    [Test]
     public void PublishedTerm_RemainsUnmodified()
     {
         var values = new Dictionary<string, decimal> { ["PUBLICADO"] = 0.0000001m };
