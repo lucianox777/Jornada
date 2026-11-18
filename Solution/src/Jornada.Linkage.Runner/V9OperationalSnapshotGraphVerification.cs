@@ -83,4 +83,24 @@ public static class V9OperationalSnapshotGraphVerification
             frozenCohort, census, ct);
     }
 
+    /// <summary>
+    /// Diagnostic entrypoint wired to the separate operational SQL census
+    /// reader. Both readers share one caller-owned SNAPSHOT; no publishing.
+    /// Sharing the V9 planner is not independent physical certification.
+    /// </summary>
+    public static Task<Receipt> VerifyWithOperationalSqlCensusAsync(
+        SqlConnection connection,
+        SqlTransaction snapshotTransaction,
+        V9FittedSnapshotExecutionRuntime pinnedRuntime,
+        IReadOnlyCollection<V9OperationalCohortGraphPreview.Source> frozenCohort,
+        CancellationToken ct)
+    {
+        return VerifyWithSnapshotCensusAsync(
+            connection, snapshotTransaction, pinnedRuntime, frozenCohort,
+            (sameConnection, sameTransaction, token) =>
+                V9OperationalSqlEdgeCensus.ReadAsync(
+                    sameConnection, sameTransaction, pinnedRuntime, frozenCohort, token),
+            ct);
+    }
+
 }
