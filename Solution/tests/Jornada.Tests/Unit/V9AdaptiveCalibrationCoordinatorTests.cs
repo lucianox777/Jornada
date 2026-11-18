@@ -292,7 +292,7 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
         var rows = Enumerable.Range(1, 4000).Select(i => new V9PhysicalCalibrationObservation(
             i, "BASE-" + i, "TRAIN", i <= 2000 ? "G1" : "G2", "MARIA", null, null)).ToArray();
         var signatures = rows.Select(x => (x.ObservationId, x.Partition, PassId: "P", Signature: "SAME")).ToArray();
-        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows),
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows, 1_000_000),
             Is.EqualTo(1_000_001));
         Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows, 2_000_000),
             Is.EqualTo(2_000_001));
