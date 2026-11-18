@@ -26,13 +26,8 @@ public sealed class V9FittedSnapshotExecutionRuntime
         snapshot = fit;
         if (fit.Payload.ProjectionSchemaVersion == V9CalibrationBlockingProjection.SchemaVersion)
         {
-            var matches = Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
-                .Where(k => string.Equals(V9CalibrationBlockingProjection.ComputeSchemaFingerprint(k), ProjectionFingerprintSha256,
-                    StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (matches.Length != 1)
-                throw new InvalidDataException("Fingerprint da projeção V9 não corresponde a um contrato de prefixos executável.");
-            MaximumPrefixLength = matches[0];
-            v9Features = V9CalibrationBlockingProjection.SupportedFeatures(matches[0]).ToHashSet(StringComparer.Ordinal);
+            MaximumPrefixLength = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(ProjectionSchemaVersion, ProjectionFingerprintSha256);
+            v9Features = V9CalibrationBlockingProjection.SupportedFeatures(MaximumPrefixLength.Value).ToHashSet(StringComparer.Ordinal);
         }
         else
         {

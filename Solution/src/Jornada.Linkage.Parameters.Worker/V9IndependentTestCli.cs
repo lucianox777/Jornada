@@ -83,25 +83,8 @@ public static class V9IndependentTestCli
         Directory.CreateDirectory(fullOutput);
         // Resolve the projection contract from the immutable, SHA-pinned winner.
         // Never silently substitute the default projection for a V9-fitted model.
-        var projectionFingerprint = winner.Payload.ProjectionFingerprintSha256;
-        // Fail closed with an actionable protocol error BEFORE any physical scoring.
-        // Never guess a default prefix when the pinned model fingerprint is unknown.
-        var frozenPrefixLength = 0;
-        if (winner.Payload.ProjectionSchemaVersion == V9CalibrationBlockingProjection.SchemaVersion)
-        {
-            var matchingPrefixes = Enumerable.Range(1, V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
-                .Where(prefix => string.Equals(
-                    V9CalibrationBlockingProjection.ComputeSchemaFingerprint(prefix),
-                    projectionFingerprint, StringComparison.OrdinalIgnoreCase))
-                .Take(2).ToArray();
-            if (matchingPrefixes.Length != 1)
-                throw new InvalidDataException(
-                    "TEST recusado: fingerprint da projeção V9 congelada não corresponde a um prefixo único suportado.");
-            frozenPrefixLength = matchingPrefixes[0];
-        }
-        if (frozenPrefixLength == 0)
-            Jornada.Contracts.PersonResolutionProjectionContract.ValidateSupported(
-                winner.Payload.ProjectionSchemaVersion, projectionFingerprint);
+        var frozenPrefixLength = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
+            winner.Payload.ProjectionSchemaVersion, winner.Payload.ProjectionFingerprintSha256);
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,

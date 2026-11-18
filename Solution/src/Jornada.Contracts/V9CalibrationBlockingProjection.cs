@@ -29,6 +29,22 @@ public static class V9CalibrationBlockingProjection
         BlockingFeatureNames.BirthDay, BlockingFeatureNames.BirthMonth, BlockingFeatureNames.BirthYear
     ];
 
+    /// <summary>Shared fail-closed resolver for a SHA-pinned operational projection.</summary>
+    public static int ResolveFrozenPrefixLength(string schemaVersion, string fingerprint)
+    {
+        if (schemaVersion != SchemaVersion)
+        {
+            PersonResolutionProjectionContract.ValidateSupported(schemaVersion, fingerprint);
+            return 0;
+        }
+        var matches = Enumerable.Range(1, MaximumSupportedPrefixLength)
+            .Where(k => string.Equals(ComputeSchemaFingerprint(k), fingerprint,
+                StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        if (matches.Length != 1)
+            throw new InvalidDataException("Fingerprint da projeção V9 não corresponde a um contrato de prefixos executável.");
+        return matches[0];
+    }
+
     public static IReadOnlyList<string> SupportedFeatures(int maximumPrefixLength = DefaultMaximumPrefixLength)
     {
         ValidateMaximumPrefixLength(maximumPrefixLength);
