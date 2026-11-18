@@ -1,6 +1,6 @@
 # GOV-V9-TEST — Projeção congelada no TEST independente (2026-11-18)
 
-**Estado:** correção proposta em PR; CI e revisão pendentes. **Política:** GOV-DOC-01.
+**Estado:** correção inicial integrada à master na PR #1686 (commit 248089f4863042e564b74de06695cb69079eb3a9); reforço de paridade em revisão na PR #1687, sujeito à CI. **Política:** GOV-DOC-01.
 
 ## Evidência e contexto
 A execução manual 44235715333, SHA d9b751212ce4af0502c6827ae783067142a4b8f7, concluiu ADMISSION, PREPARE, TRAIN (324), AUDIT e VALIDATION. O TEST reservou seed 897934382746562240 e validou a vinculação ao manifesto, mas falhou em `V9PhysicalSqlFrozenHoldout.EvaluateFrozenPartitionAsync` com `Snapshot e projeção do protocolo devem coincidir.`. A seed já exposta não é reutilizável.
@@ -13,3 +13,7 @@ O TEST resolve o comprimento de prefixo exclusivamente do snapshot imutável SHA
 
 ## Precedência e rastreabilidade
 Complementa a decisão de seed reservada de 2026-11-17; não revoga as restrições de isolamento e imutabilidade do TEST. Código: `Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs`. Regressão: `Solution/tests/scripts/test_v9_tf4_standalone_test.py`. Execução e logs: https://github.com/lucianox777/Jornada/actions/runs/44235715333/job/134694520640 . **Pendente:** CI, revisão, integração e nova campanha científica com seed inédita. TEST anterior inconclusivo, sem certificação.
+
+## Reforço aprovado: um único resolvedor de projeção para TEST e Runner
+
+**Contexto:** a correção inicial duplicou a correspondência de fingerprint/prefixo entre Worker e Runner. Mesmo com a PR #1686 integrada, duas implementações poderiam divergir em alterações futuras. **Decisão técnica operacionalizada mediante continuidade solicitada pelo PO:** centralizar a validação fail-closed em `V9FittedSnapshotExecutionRuntime.ResolveFrozenPrefixLength`, reutilizada pelo TEST científico e pelo executor, com retorno 0 somente para projeção padrão validada. A função rejeita fingerprint V9 desconhecido ou ambíguo, sem fallback. **Justificativa:** impedir repetição da incompatibilidade de projeção observada na execução #44235715333. **Impactos:** dependência compartilhada da regra de resolução, testes de prefixos 1/4/7/64, fingerprint inválido e regressão estrutural de paridade; nenhuma alteração de seleção, ajuste, multiplicidade, coorte ou ativação. **Precedência:** complementa a correção PR #1686 e preserva isolamento TEST e imutabilidade do vencedor; não autoriza a terceira campanha. **Rastreabilidade:** PR #1687; `Solution/src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs`, `Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs`, `Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotExecutionRuntimeTests.cs`, `Solution/tests/scripts/test_v9_tf4_standalone_test.py`. **Aceite pendente:** CI obrigatória e TEST físico reduzido com vencedor congelado e SQL descartável. A CI, isoladamente, não comprova o TEST científico reduzido.
