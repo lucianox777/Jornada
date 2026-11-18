@@ -24,13 +24,15 @@ public static class V9DisposableSqlGraphCensus
     /// </summary>
     public static async Task<V9OperationalCandidateGraphIntegrity.Verified> ReadAndVerifyAsync(
         SqlConnection connection,
+        SqlTransaction snapshotTransaction,
         IReadOnlyCollection<long> independentlyFrozenObservationIds,
         V9OperationalCandidateGraphIntegrity.Census independentSourceCensus,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(independentlyFrozenObservationIds);
         ArgumentNullException.ThrowIfNull(independentSourceCensus);
-        var receipt = await ReadAsync(connection, ct);
+        ValidateSnapshot(connection, snapshotTransaction);
+        var receipt = await ReadAsync(connection, snapshotTransaction, ct);
         var expectedIds = independentlyFrozenObservationIds.ToHashSet();
         if (expectedIds.Count != independentlyFrozenObservationIds.Count
             || receipt.ObservationIds.Count != expectedIds.Count
@@ -44,12 +46,24 @@ public static class V9DisposableSqlGraphCensus
             independentlyFrozenObservationIds, receipt.Edges, independentSourceCensus);
     }
 
-    public static async Task<Receipt> ReadAsync(SqlConnection connection, CancellationToken ct)
+    public static Task<Receipt> ReadAsync(SqlConnection connection, CancellationToken ct) =>
+        ReadAsync(connection, null, ct);
+
+    private static void ValidateSnapshot(SqlConnection connection, SqlTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (!ReferenceEquals(transaction.Connection, connection)
+            || transaction.IsolationLevel != IsolationLevel.Snapshot)
+            throw new InvalidOperationException("RUNNER_V9_SQL_GRAPH_SNAPSHOT_REQUIRED");
+    }
+
+    private static async Task<Receipt> ReadAsync(
+        SqlConnection connection, SqlTransaction? transaction, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
         if (connection.State != ConnectionState.Open)
             throw new InvalidOperationException("RUNNER_V9_SQL_GRAPH_CONNECTION_CLOSED");
-        await using (var db = new SqlCommand("SELECT DB_NAME();", connection))
+        await using (var db = new SqlCommand("SELECT DB_NAME();", connection, transaction))
             if (!string.Equals((string?)await db.ExecuteScalarAsync(ct), "JornadaHarness",
                     StringComparison.Ordinal))
                 throw new InvalidOperationException("RUNNER_V9_SQL_GRAPH_DIAGNOSTIC_ONLY");
@@ -61,7 +75,7 @@ public static class V9DisposableSqlGraphCensus
         await using (var census = new SqlCommand("""
             SELECT (SELECT COUNT_BIG(*) FROM #V9CohortIds),
                    (SELECT COUNT_BIG(*) FROM #V9GraphEdges);
-            """, connection) { CommandTimeout = 120 })
+            """, connection, transaction) { CommandTimeout = 120 })
         {
             await using var reader = await census.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
@@ -72,7 +86,7 @@ public static class V9DisposableSqlGraphCensus
 
         var ids = new List<long>();
         await using (var command = new SqlCommand(
-            "SELECT id FROM #V9CohortIds ORDER BY id;", connection) { CommandTimeout = 120 })
+            "SELECT id FROM #V9CohortIds ORDER BY id;", connection, transaction) { CommandTimeout = 120 })
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -88,7 +102,7 @@ public static class V9DisposableSqlGraphCensus
 
         var edges = new List<(long A, long B)>();
         await using (var command = new SqlCommand(
-            "SELECT a,b FROM #V9GraphEdges ORDER BY a,b;", connection) { CommandTimeout = 120 })
+            "SELECT a,b FROM #V9GraphEdges ORDER BY a,b;", connection, transaction) { CommandTimeout = 120 })
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
