@@ -38,7 +38,9 @@ class StandaloneTestContract(unittest.TestCase):
 
     def test_test_reader_owns_independent_cohort(self):
         source=CORPUS.read_text()
-        self.assertIn("const ulong Seed = 20261113001UL",source)
+        self.assertIn('Environment.GetEnvironmentVariable("JORNADA_V9_TEST_RESERVED_SEED")',source)
+        self.assertIn("seed != expectedSeed",source)
+        self.assertNotIn("const ulong Seed = 20261113001UL",source)
         self.assertIn('ns = "EXTERNAL_TEST_" + manifestSha + ":"',source)
         self.assertIn('ns + id, "TEST"',source)
         self.assertIn("byIdentity.Count != 100000",source)
