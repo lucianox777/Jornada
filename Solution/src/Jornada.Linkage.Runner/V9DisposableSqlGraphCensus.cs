@@ -16,6 +16,34 @@ public static class V9DisposableSqlGraphCensus
         long SqlObservationRows,
         long SqlEdgeRows);
 
+    /// <summary>
+    /// Diagnostic bridge: verifies SQL transport against independently frozen
+    /// observation IDs and an externally obtained source census. A caller must
+    /// establish source independence and a stable SQL snapshot; this method
+    /// cannot certify either condition or authorize productive execution.
+    /// </summary>
+    public static async Task<V9OperationalCandidateGraphIntegrity.Verified> ReadAndVerifyAsync(
+        SqlConnection connection,
+        IReadOnlyCollection<long> independentlyFrozenObservationIds,
+        V9OperationalCandidateGraphIntegrity.Census independentSourceCensus,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(independentlyFrozenObservationIds);
+        ArgumentNullException.ThrowIfNull(independentSourceCensus);
+        var receipt = await ReadAsync(connection, ct);
+        var expectedIds = independentlyFrozenObservationIds.ToHashSet();
+        if (expectedIds.Count != independentlyFrozenObservationIds.Count
+            || receipt.ObservationIds.Count != expectedIds.Count
+            || receipt.ObservationIds.Any(id => !expectedIds.Contains(id))
+            || receipt.ObservationIds.Distinct().Count() != receipt.ObservationIds.Count)
+            throw new InvalidDataException("RUNNER_V9_SQL_GRAPH_FROZEN_COHORT_MISMATCH");
+        if (receipt.SqlObservationRows != independentSourceCensus.ObservationCount
+            || receipt.SqlEdgeRows != independentSourceCensus.EdgeCount)
+            throw new InvalidDataException("RUNNER_V9_SQL_GRAPH_SOURCE_CENSUS_MISMATCH");
+        return V9OperationalCandidateGraphIntegrity.Verify(
+            independentlyFrozenObservationIds, receipt.Edges, independentSourceCensus);
+    }
+
     public static async Task<Receipt> ReadAsync(SqlConnection connection, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
