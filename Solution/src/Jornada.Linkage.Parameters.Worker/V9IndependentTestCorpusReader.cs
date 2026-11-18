@@ -7,7 +7,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
 /// TEST-owned corpus reader. Never receives a TRAIN/VALIDATION file, plan,
-/// selection envelope or other finalist. The independent generator's TEST partition (20% of its 100k population)
+/// selection envelope or other finalist. The independent generator's configured TEST partition
 /// is the scientific holdout. Other internal partitions are integrity-checked
 /// but never exposed to the evaluator. TEST has a corpus-scoped identity namespace.
 /// </summary>
@@ -96,13 +96,21 @@ public static class V9IndependentTestCorpusReader
             rows.Add(new V9PhysicalCalibrationObservation(checked(rows.Count + 1),
                 ns + id, "TEST", Get("gestor"), Get("nome"), Get("nome_mae"), date));
         }
-        if (byIdentity.Count != 100000 || rows.Count < 4)
-            throw new InvalidDataException("População TEST de 100 mil identidades incompleta.");
+        // Legacy sealed fixtures without the new metadata remain on the historical 100k/20% contract.
+        var population = m.TryGetProperty("synthetic_population", out var declaredPopulation)
+            ? declaredPopulation.GetInt32() : 100000;
+        var testPercent = m.TryGetProperty("partition_percentages", out var percentages)
+            ? percentages.GetProperty("test").GetDouble() : 20d;
+        if (population <= 0 || !double.IsFinite(testPercent) || testPercent < 0 || testPercent > 100)
+            throw new InvalidDataException("População ou percentual TEST inválido no manifesto lacrado.");
+        if (byIdentity.Count != population || rows.Count < 4)
+            throw new InvalidDataException("População TEST incompleta em relação ao manifesto.");
         var testIdentities = byIdentity.Count(x => x.Value.Part == "TEST");
-        // Same Bernoulli 60/20/20 partition rule as SyntheticCorpusGenerator.
-        // With 100k people, a 19%-21% admission window is wider than six standard deviations.
-        if (testIdentities < 19000 || testIdentities > 21000)
-            throw new InvalidDataException("Partição TEST independente não corresponde ao cohort de aproximadamente 20%.");
+        // Six-sigma Bernoulli guard, with a small finite-population continuity margin.
+        var expectedCount = population * testPercent / 100d;
+        var standardDeviation = Math.Sqrt(population * (testPercent / 100d) * (1d - testPercent / 100d));
+        if (Math.Abs(testIdentities - expectedCount) > 6d * standardDeviation + 1d)
+            throw new InvalidDataException("Partição TEST incompatível com o percentual probabilístico declarado.");
         return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
             byIdentity.Count, testIdentities, rows.ToArray());
     }
