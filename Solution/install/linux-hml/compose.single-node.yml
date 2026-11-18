@@ -2,8 +2,6 @@
 services:
   jornada-node2:
     profiles: ["two-node-only"]
-  jornada-nas:
-    profiles: ["two-node-only"]
   jornada-node1:
     environment:
       JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Hml.SingleNode.json
