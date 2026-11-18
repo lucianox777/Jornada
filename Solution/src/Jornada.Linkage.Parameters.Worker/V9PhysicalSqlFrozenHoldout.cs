@@ -155,7 +155,40 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
         if (CountPairIncidences(signatures, validation, execution.MaximumCandidatePairIncidences)
             > execution.MaximumCandidatePairIncidences)
+        {
+            // Aggregate diagnostic only. Counts are censored at cap+1.
+            // Never change blocking, winner, or scientific resource cap.
+            var byPass = signatures.GroupBy(x => x.PassId, StringComparer.Ordinal)
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(group =>
+                {
+                    var count = CountCrossManagerPairIncidences(
+                        group.Select(x => (x.ObservationId, x.Partition, x.PassId, x.Signature)).ToArray(),
+                        validation, execution.MaximumCandidatePairIncidences);
+                    return new
+                    {
+                        Pass = group.Key,
+                        SignatureRows = group.Count(),
+                        IncidencesCapped = count,
+                        ExceedsCap = count > execution.MaximumCandidatePairIncidences
+                    };
+                }).ToArray();
+            Console.Error.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                eventType = "V9_TEST_PAIR_CAP_DIAGNOSTIC_NON_SCIENTIFIC",
+                purpose,
+                observationCount = validation.Count,
+                projectedSignatureRows = signatures.Count,
+                declaredPairIncidenceCap = execution.MaximumCandidatePairIncidences,
+                declaredSignatureCap = execution.MaximumProjectedSignatures,
+                aggregateIncidencesCapped = (long)execution.MaximumCandidatePairIncidences + 1,
+                perPass = byPass,
+                countSemantics = "cross-manager incidences, duplicate pass hits counted, censored at cap+1",
+                candidatePairsMaterialized = false,
+                winnerModified = false
+            }));
             throw new InvalidDataException("Holdout excede recursos pré-declarados; não truncar candidatos.");
+        }
         await CreateTablesAsync(connection, cancellationToken);
         await BulkObservationsAsync(connection, validation, cancellationToken);
         await BulkSignaturesAsync(connection, signatures, cancellationToken);
