@@ -67,6 +67,47 @@ public sealed class V9OperationalPinnedCohortRuntime
     }
 
     /// <summary>
+    /// Diagnostic-only replay of the complete operational graph. The independently
+    /// observed physical SQL graph is mandatory; no edge repair or fallback.
+    /// Does not authorize the production RunAsync or TEST certification.
+    /// </summary>
+    public V9FrozenSourceReplayResult ReplayOperationalGraph(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
+        IReadOnlyList<(int A, int B)> operationalEdges,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+        ArgumentNullException.ThrowIfNull(operationalEdges);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        if (test.Count is < 2 or > MaximumAuditObservations)
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_COHORT_INVALID");
+        if (test.Any(x => x is null || x.Partition != "TEST"
+            || x.ObservationId <= 0 || string.IsNullOrWhiteSpace(x.Gestor)))
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_OBSERVATION");
+        if (test.Select(x => x.ObservationId).Distinct().Count() != test.Count)
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_DUPLICATE_OBSERVATION");
+        var byId = test.ToDictionary(x => x.ObservationId, x => x);
+
+        HashSet<(int A, int B)> Validate(IReadOnlyList<(int A, int B)> edges)
+        {
+            var result = new HashSet<(int A, int B)>();
+            foreach (var edge in edges)
+                if (edge.A >= edge.B || !byId.TryGetValue(edge.A, out var left)
+                    || !byId.TryGetValue(edge.B, out var right)
+                    || string.Equals(left.Gestor, right.Gestor, StringComparison.Ordinal)
+                    || !result.Add(edge))
+                    throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INVALID_EDGE");
+            return result;
+        }
+
+        var actual = Validate(operationalEdges);
+        var expected = Validate(physicalSqlEdges);
+        if (!actual.SetEquals(expected))
+            throw new InvalidDataException("V9_OPERATIONAL_GRAPH_INCOMPLETE_OR_DRIFTED");
+        return ReplayTest(test, actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
+    }
+
+    /// <summary>
     /// The SAME complete-link/FS/Resolve executable shared by the physical
     /// independent TEST Worker. Caller must provide the complete physical SQL
     /// graph with a reconciled row count, never truncated or synthesized.
