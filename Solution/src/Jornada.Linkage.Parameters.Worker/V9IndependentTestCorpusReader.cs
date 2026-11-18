@@ -7,9 +7,9 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
 /// TEST-owned corpus reader. Never receives a TRAIN/VALIDATION file, plan,
-/// selection envelope or other finalist. Generator-internal partition labels
-/// are ignored as scientific splits: all observations belong to this separate
-/// TEST cohort and have a corpus-scoped identity namespace.
+/// selection envelope or other finalist. The independent generator's TEST partition (20% of its 100k population)
+/// is the scientific holdout. Other internal partitions are integrity-checked
+/// but never exposed to the evaluator. TEST has a corpus-scoped identity namespace.
 /// </summary>
 public static class V9IndependentTestCorpusReader
 {
@@ -86,7 +86,9 @@ public static class V9IndependentTestCorpusReader
             var count = prev.Count + 1;
             if (count > 4) throw new InvalidDataException("Cap de multiplicidade TEST excedido.");
             byIdentity[id] = (internalPartition, count);
-            if (!string.IsNullOrWhiteSpace(Get("cpf")))
+            // Mirror VALIDATION: only the generator-owned 20% TEST partition is evaluated.
+            // Check all identities for integrity first; never sample individual rows.
+            if (internalPartition != "TEST" || !string.IsNullOrWhiteSpace(Get("cpf")))
                 continue; // FS sem CPF, inclusive no conjunto TEST.
             var birth = Get("data_nascimento");
             var date = string.IsNullOrWhiteSpace(birth) ? (DateOnly?)null
@@ -96,6 +98,9 @@ public static class V9IndependentTestCorpusReader
         }
         if (byIdentity.Count != 100000 || rows.Count < 4)
             throw new InvalidDataException("População TEST de 100 mil identidades incompleta.");
+        var testIdentities = byIdentity.Count(x => x.Value.Part == "TEST");
+        if (testIdentities == 0 || testIdentities > 25000 || testIdentities < 15000)
+            throw new InvalidDataException("Partição TEST independente não corresponde ao cohort de aproximadamente 20%.");
         return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
             byIdentity.Count, rows.ToArray());
     }
