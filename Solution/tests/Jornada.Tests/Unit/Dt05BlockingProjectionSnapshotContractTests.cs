@@ -20,7 +20,7 @@ public sealed class Dt05BlockingProjectionSnapshotContractTests
             Assert.That(publisher,Does.Contain("snapshot_kind=\"blocking-projection\""));
             Assert.That(publisher,Does.Contain("objects/{payloadSha[..2]}/{payloadSha}.json"));
             Assert.That(runner.IndexOf("blockingProjectionSnapshotPublisher.CaptureAsync",StringComparison.Ordinal),
-                Is.LessThan(runner.IndexOf("ScoreBatchAsync(batch",StringComparison.Ordinal)));
+                Is.LessThan(runner.IndexOf("ScoreBatchAsync(",StringComparison.Ordinal)));
         }));
     }
 }
