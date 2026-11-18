@@ -80,7 +80,11 @@ public static class V9IndependentTestCli
         // its SHA/round-trip check. No VALIDATION measurements are read.
         var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
         Directory.CreateDirectory(fullOutput);
+        // Resolve the projection contract from the immutable, SHA-pinned winner.
+        // Never silently substitute the default projection for a V9-fitted model.
+        var frozenProjection = V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(), winnerSha);
         var execution = new V9PhysicalAdaptiveExecution(
+            MaximumPrefixLength: frozenProjection.MaximumPrefixLength ?? 0,
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
