@@ -59,3 +59,7 @@ Commits `c2ee07c` e `f2406ab`: adicionam `ContextPopulation` ao payload portáti
 ### Propagação da população no adaptador (18/11/2026)
 
 Commits `6c1b4f8`, `9c42fa1`, `1778f13`: `V9FsAdaptiveOptionConfiguration` recebe `ContextPopulation` (padrão 11911337); o adaptador passa o valor ao snapshot e ao preview TRAIN/VALIDATION; a referência IBGE aplica `20/N_contexto` em ausência de frequência publicada; a auditoria de cobertura continua computando lacunas mas deixa de rejeitar operação sob `RejectOperation` no caminho de validação. Configurações com população fora do domínio são rejeitadas ao calcular fingerprint. **Pendências:** verificar todos os caminhos de abstenção legada e scoring, serialização do arquivo físico de parâmetros, identidade de snapshots históricos, testes/CI e conflitos da PR. Nenhuma conclusão científica declarada.
+
+### Abstenção por nome não publicado — correção incremental
+
+Commits `3f0555d` e `8217896`: os predicados `IsScoreable` do scorer portátil e do ranking VALIDATION deixam de descartar candidatos apenas porque a frequência nominal não foi publicada; o termo passa ao resolvedor de frequência `20 / ContextPopulation`. Permanecem necessárias a revisão dos demais ramos de política legada, a ligação ao arquivo de configuração físico, os testes end-to-end, a CI e a sincronização do índice de decisões vigentes. Não há aprovação de build declarada.
