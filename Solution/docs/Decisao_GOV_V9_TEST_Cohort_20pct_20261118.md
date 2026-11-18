@@ -22,3 +22,10 @@ O TEST já exposto em #44329203788 **não pode ser recortado retroativamente** e
 - `Solution/tests/scripts/test_v9_tf4_standalone_test.py`: regressão do contrato de partição e ordem das verificações.
 - `Solution/docs/Indice_Decisoes_Vigentes.md`: registro indexado.
 - Evidência anterior: execução #44329203788. Implementação em PR dedicada; CI, ensaio físico e integração ainda pendentes. **Sem certificação, publicação ou ativação.**
+
+## Complemento aprovado pelo PO — igualdade exata das amostras (18/11/2026)
+O PO esclareceu que a PR #1721 deve permanecer aberta e que VALIDATION e TEST devem avaliar **exatamente 20%** de suas respectivas populações geradas, com **a mesma quantidade de identidades-base**: para 100.000 identidades em cada corpus, **20.000 VALIDATION e 20.000 TEST**. Não basta intervalo aproximado de 19.000–21.000 nem partição Bernoulli nominal de 20%.
+
+**Impacto e precedência:** este complemento prevalece sobre a tolerância probabilística descrita acima. O gerador atual sorteia partições por Bernoulli e, portanto, **a implementação existente da PR ainda não atende ao requisito**. Implementar particionamento de tamanho fixo por identidade-base, reproduzível e independente por seed, para ambas as coortes, sem seleção condicionada aos resultados; preservar integridade, todas as observações de cada identidade, segregação e demais gates. Não modificar retroativamente os resultados históricos da campanha #44329203788 nem reutilizar TEST exposto. Adicionar testes positivos e negativos para os dois tamanhos exatos, e comprovar CI antes do merge.
+
+**Rastreabilidade:** aprovação do PO na conversa do projeto, PR #1721. Estado: requisito aprovado, implementação complementar e validação pendentes; não há certificação ou ativação.
