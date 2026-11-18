@@ -102,7 +102,7 @@ public static class V9DisposableSqlGraphCensus
 
         var edges = new List<(long A, long B)>();
         await using (var command = new SqlCommand(
-            "SELECT a,b FROM #V9GraphEdges ORDER BY a,b;", connection) { CommandTimeout = 120 })
+            "SELECT a,b FROM #V9GraphEdges ORDER BY a,b;", connection, transaction) { CommandTimeout = 120 })
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
