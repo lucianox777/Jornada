@@ -69,6 +69,16 @@ public sealed class V9TfDirectionDecision19Tests
             NominalFrequencyUnitV9.LastContentSurname, TrainSha);
     }
 
+    [TestCase(-1L, 0L)]
+    [TestCase(1L, -1L)]
+    [TestCase(0L, 1L)]
+    public void SparseTrainU_StillRejectsImpossibleCounts(long pairs, long agreements)
+    {
+        Assert.Throws<InvalidDataException>(() => V9NominalTfUReference.Fit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+            pairs, agreements, 0.5m, TrainSha));
+    }
+
     [Test]
     public void URef_is_frozen_by_side_unit_TRAIN_support_and_policy()
     {
