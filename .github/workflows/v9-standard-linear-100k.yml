@@ -106,7 +106,7 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           mkdir -p "$root"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 42 --out "$root/people-100k"             > "$root/generation.log"
       - name: Package and checksum immutable PREPARE transfer
         run: |
           set -euo pipefail
@@ -579,7 +579,7 @@ jobs:
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --people 100000 --seed 20261112001 \
+            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed 20261112001 \
             --out "$root/validation-people" > "$root/validation-generation.log"
           envelope="$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f)"
           test "$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
@@ -795,7 +795,7 @@ jobs:
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --people 100000 --seed "${{ steps.test_seed.outputs.test_seed }}" \
+            --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json --seed "${{ steps.test_seed.outputs.test_seed }}" \
             --out "$root/corpus" > "$root/test-generation.log"
           test -s "$root/corpus/observacoes.csv"
       - name: Verify reserved TEST seed receipt matches this execution and generated corpus
