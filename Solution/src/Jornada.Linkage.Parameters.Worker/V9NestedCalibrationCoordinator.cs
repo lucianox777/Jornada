@@ -369,12 +369,7 @@ public static class V9NestedCalibrationCoordinator
                             PhysicalFrameKey(r), r.Option.OptionId, r.Margin,
                             V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option),
                             (int)r.Option.UnpublishedTermPolicy)).ToArray())
-                        .Select(indices => indices.Select(index => requests[index]).ToArray())
-                        // A TRAIN U support failure belongs to one option, not all
-                        // options sharing the same physical frame. Keep margins together.
-                        .SelectMany(group => group.GroupBy(x => x.Option.OptionId, StringComparer.Ordinal)
-                            .Select(options => options.ToArray()))
-                        .ToArray(),
+                        .Select(indices => indices.Select(index => requests[index]).ToArray()).ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha)
                 // Equal three-pass blocking breadth in TF4/324. The 128-request
@@ -682,27 +677,6 @@ public static class V9NestedCalibrationCoordinator
                 reportPhysicalCompletion?.Invoke(result[^1]);
             }
             return result.AsReadOnly();
-        }
-        catch (InvalidDataException exception) when (
-            exception.Message.StartsWith("TF ativa sem suporte TRAIN U: ", StringComparison.Ordinal)
-            && requests.Select(x => x.Option.OptionId).Distinct(StringComparer.Ordinal).Count() == 1
-            && requests.All(x => V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x.Option)))
-        {
-            // Only the isolated option is statistically non-evaluable; never
-            // turn absent U support into a fitted or selected configuration.
-            var rejected = Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
-                request.Sha, batch, null, ["TRAIN_TF_U_SUPPORT_INSUFFICIENT"],
-                OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
-                ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
-                MuEstimationMethod: plan.MuEstimationMethods is null ? null
-                    : request.Option.JointSupportPolicy is null
-                        ? V9MuEstimationSearchSpace.Default
-                        : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
-                            ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
-                MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-                EligibleForSelection: false)).ToArray());
-            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(evaluation);
-            return rejected;
         }
         catch (V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
         {
