@@ -1,0 +1,188 @@
+name: V9 one-time physical release preflight (historical winner)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact current master commit SHA (40 lowercase hex)"
+        required: true
+        type: string
+      security_preflight_approved:
+        description: "Owner acknowledges diagnostic-only status and fresh synthetic 100k cost"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: v9-one-time-physical-preflight
+  cancel-in-progress: false
+
+jobs:
+  physical-release-preflight:
+    name: "One-time physical regression: historical frozen winner"
+    runs-on: ubuntu-24.04
+
+    # Reserve the globally single-use seed before generating TEST observations.
+    permissions:
+      contents: read
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed TEST SHA, owner and one-use run attempt
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build independent physical TEST evaluator and synthetic generator
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-validated-operational-model-d9b751212ce4af0502c6827ae783067142a4b8f7-44235715333
+          run-id: 44235715333
+          github-token: ${{ github.token }}
+          path: Solution/.local/v9-independent-test/winner
+      - name: Verify one SHA-pinned frozen VALIDATION winner
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          python3 - "$root/winner" <<'PY'
+          import hashlib,pathlib,re,sys
+          files=list(pathlib.Path(sys.argv[1]).iterdir())
+          assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
+          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
+          with files[0].open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
+          print("ONE_SHA_PINNED_WINNER_ONLY")
+          PY
+      - name: Start brand-new disposable SQL database only for TEST
+        run: |
+          set -euo pipefail
+          bash scripts/v9-tf-start-disposable-sql.sh
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+      - name: Load versioned V9 SQL operational schema (no activation or publication)
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec -i "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
+            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+      - name: Convert the ONLY SHA-pinned VALIDATION winner to SQL before TEST exposure
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-convert-winner-operational "$model"
+          # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
+      - name: Create fresh diagnostic-only seed (not the scientific TEST ledger)
+        id: test_seed
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import secrets,os
+          seed=secrets.randbelow(2**62-1)+1
+          assert seed not in (42,20261112001,20261113001,897934382746562240)
+          with open(os.environ["GITHUB_OUTPUT"],"a") as output:
+              output.write(f"test_seed={seed}\n")
+          print("ONE_TIME_DIAGNOSTIC_SEED_GENERATED_NOT_RESERVED_FOR_SCIENCE")
+          PY
+      - name: Generate fresh independent TEST 100k after winner is frozen
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          mkdir -p "$root/corpus"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed "${{ steps.test_seed.outputs.test_seed }}" \
+            --out "$root/corpus" > "$root/test-generation.log"
+          test -s "$root/corpus/observacoes.csv"
+      - name: Verify diagnostic seed matches generated cohort
+        env:
+          DIAGNOSTIC_SEED: ${{ steps.test_seed.outputs.test_seed }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(".local/v9-independent-test/corpus")
+          manifest=json.loads((root/"generation-manifest.json").read_text())
+          assert int(manifest["seed"]) == int(os.environ["DIAGNOSTIC_SEED"])
+          print("ONE_TIME_DIAGNOSTIC_CORPUS_SEED_MATCH")
+          PY
+      - name: Execute full physical path as NON-SCIENTIFIC regression diagnostic
+
+        env:
+          JORNADA_V9_TEST_RESERVED_SEED: ${{ steps.test_seed.outputs.test_seed }}
+          JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
+          JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/results
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-independent-test "$model"
+          python3 - "$root/results/independent-test.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r["configurationsEvaluated"]==1
+          assert r["trainPlanRead"] is False and r["validationResultsRead"] is False
+          assert r["refitted"] is False and r["testUsed"] is True
+          assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
+          assert r["operationalModelByteExactRoundTrip"] is True
+          assert r["validatedOperationalJsonSchema"] == "V9_FITTED_SNAPSHOT_V3"
+          assert r["sameOperationalJsonBytesAsProductionSideSqlPayload"] is True
+          assert r["validatedOperationalModelFileName"] == r["winnerSnapshotSha256"] + ".operational.json"
+          assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
+          assert r["productionRunnerFullPipelineParityCertified"] is False
+          assert r["certified"] is False and r["activated"] is False
+          print("ONE_TIME_REGRESSION_ONLY_NOT_SCIENTIFIC_CERTIFICATION",r["winnerSnapshotSha256"])
+          PY
+      - name: Upload diagnostic-only aggregate result (not scientific evidence)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-one-time-regression-not-scientific-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: Solution/.local/v9-independent-test/results/independent-test.json
+      - name: Dispose entire TEST corpus after run or failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test"
+      - name: Dispose TEST SQL even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
