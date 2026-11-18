@@ -19,3 +19,9 @@
 ## Rastreabilidade
 
 Continuidade de implementação solicitada pelo PO em 18/11/2026, sem decisão adicional; GOV-DOC-01. Referências: `Solution/docs/Arquitetura_Identidade_Linkage.md`, `Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md`, `Solution/database/Jornada_Identidade_Progressiva.sql`, `Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs`, `Solution/src/Jornada.Linkage.Runner/LinkagePublicationBatchSql.cs`.
+
+## Verificação complementar da procedure DT-10 em lote (PR subsequente)
+
+A migração `20261029_Linkage_NoCandidate_Literal_Guards.sql` foi examinada diretamente na definição da procedure `identidade.sp_publicar_resolucao_progressiva_linkage_lote`. O contrato SQL exige transação explícita e isolamento SERIALIZABLE, reconcilia avaliados/elegíveis/itens/resultados e confronta os universos de itens e resultados antes de emitir eventos. A decisão `NOVA_IDENTIDADE` exige motivo literal `SEM_CANDIDATO_`, `initial_uuid` e ausência de candidatos persistidos (51835); `INDEFINIDA` não admite destino publicado (51814). Há precedência por origem de vínculos determinísticos/governados.
+
+O teste `V9Dt10BatchPublicationGuardsTests.cs` passa a proteger essas invariantes por inspeção estrutural do SQL instalado como migração, inclusive a ordem da guarda 51835 antes do primeiro INSERT de evento. **Não é teste físico SQL Server e não prova que o produtor V9 materializou todo o universo de candidatos.** Essa comprovação continua pendente; não liberar V9 para publicação com base nesta evidência.
