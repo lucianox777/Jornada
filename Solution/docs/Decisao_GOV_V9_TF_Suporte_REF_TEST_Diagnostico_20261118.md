@@ -63,3 +63,7 @@ Commits `6c1b4f8`, `9c42fa1`, `1778f13`: `V9FsAdaptiveOptionConfiguration` receb
 ### Abstenção por nome não publicado — correção incremental
 
 Commits `3f0555d` e `8217896`: os predicados `IsScoreable` do scorer portátil e do ranking VALIDATION deixam de descartar candidatos apenas porque a frequência nominal não foi publicada; o termo passa ao resolvedor de frequência `20 / ContextPopulation`. Permanecem necessárias a revisão dos demais ramos de política legada, a ligação ao arquivo de configuração físico, os testes end-to-end, a CI e a sincronização do índice de decisões vigentes. Não há aprovação de build declarada.
+
+### Configuração JSON da opção de calibração (18/11/2026)
+
+O campo `ContextPopulation` integra `V9FsAdaptiveOptionConfiguration`, desserializada nas opções `Calibration.ModelOptions[]` dos planos JSON do calibrador aninhado. Exemplo de propriedade **dentro de cada opção**: `"ContextPopulation": 11911337`. Quando omitida, aplica-se o padrão. O teste `PhysicalModelOptionJson_OverridesContextPopulationAndChangesFingerprint` verifica a leitura do JSON, a substituição do denominador e a distinção de identidade da configuração quando o valor não é o padrão (commits `5c2afd1`, `9f18be9`). Não se modificam planos históricos congelados. **Pendente:** rodar os testes/CI e confirmar o fluxo físico completo; a PR segue com conflitos de merge.
