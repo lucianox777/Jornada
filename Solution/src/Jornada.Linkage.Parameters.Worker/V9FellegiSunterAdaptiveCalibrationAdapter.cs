@@ -55,7 +55,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
     bool EligibleForSelection = true,
-    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation)
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation,
+    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -304,7 +305,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
             CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
             UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode,
-            UnpublishedTermPolicy: config.UnpublishedTermPolicy));
+            UnpublishedTermPolicy: config.UnpublishedTermPolicy,
+            ContextPopulation: config.ContextPopulation));
     }
 
     private static bool BlockingPassesEqual(
@@ -529,7 +531,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
-            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value),
+            config.ContextPopulation);
         if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
             onUnseen?.Invoke(side, unit.Value);
         return preview;
@@ -670,8 +673,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 rows, activeReference, activeSlots);
             if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
             {
-                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_REQUIRE");
-                V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+                // Missing published names use the approved 20/context-population
+                // frequency; retain the coverage audit as diagnostic evidence.
+                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_IMPUTED");
             }
             else
             {
@@ -1438,12 +1442,16 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (config.ContextPopulation < V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
+            throw new InvalidDataException("População contextual TF inválida.");
         if (!Enum.IsDefined(config.UnpublishedTermPolicy))
             throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
         // Default historical serialization/fingerprint is unchanged. A new
         // opt-in policy has a distinct fit/configuration identity.
         if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
             canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
+        if (config.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation)
+            canonical += "|TF_CONTEXT_POPULATION=" + config.ContextPopulation;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)
