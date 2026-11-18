@@ -15,3 +15,22 @@ Contagens por regra e contagem global são **censuradas**, não um censo exato. 
 
 ## Rastreabilidade e precedência
 Execução: https://github.com/lucianox777/Jornada/actions/runs/44312200910 . PR #1689 integrou o workflow pontual. PR #1654 permanece separada. Esta instrumentação não revoga GOV-V9-TESTE-PONTUAL-WORKFLOW-20261118, não substitui GOV-DOC-01 e não declara a campanha liberada.
+
+## Resultado físico observado — execução #44314407095 (18/11/2026)
+
+A instrumentação da PR #1690 (merge `efe0a4b80c74fad0aae9ac460bbab129de5a9a80`) foi exercitada no workflow manual #44314407095. Recuperação do vencedor, conversão SQL, geração do corpus e validação da seed passaram. A avaliação TEST física abortou corretamente antes de materializar pares. Recibo agregado nos logs:
+
+| Regra | Assinaturas | Incidências entre gestores |
+| --- | ---: | ---: |
+| P_FIRST_BIRTH_YEAR | 169.191 | 902.410 |
+| P_LAST_M_PHON | 162.499 | 103.612 |
+| P_PHON_M_LAST | 162.499 | 84.770 |
+| **Total das três regras** | **494.189** | **1.090.792** |
+
+Coorte: 100.000 identidades-base, 170.941 observações. Teto declarado no TEST: 1.000.000 incidências; excesso: 90.792 (9,0792%). Nenhuma contagem **por regra** atingiu o teto individual de censura; a contagem global do mecanismo foi censurada em 1.000.001. A soma exata das contagens por regra resulta em 1.090.792 **incidências**, não em pares SQL distintos, que não foram materializados nem contados. P_FIRST_BIRTH_YEAR responde por aproximadamente 82,73% das incidências contadas.
+
+### Divergência de parâmetros que exige decisão explícita
+
+`V9IndependentTestCli` constrói `V9PhysicalAdaptiveExecution` sem informar `MaximumCandidatePairIncidences` e `MaximumProjectedSignatures`, herdando ambos os defaults de 1.000.000 definidos por `HardPairIncidenceCap`. Entretanto, o documento histórico [GOV-V9-100K-DIAGNOSTICO-PRESQL-20261109](Decisao_V9_100k_Diagnostico_Offline_Limites_PreSQL_20261109.md) registra **20.000.000 incidências e 5.000.000 assinaturas** no plano oficial anterior de 24 configurações TRAIN. Esses valores **não são automaticamente o orçamento aprovado do TEST independente**, cuja fonte de autoridade deve ser verificada. O plano TRAIN não deve ser importado implicitamente pelo TEST.
+
+**Sem decisão de alteração:** não elevar o cap para 1.090.792, 20 milhões ou qualquer outro valor com base no TEST. Primeiro estabelecer o orçamento operacional TEST pré-declarado e sua proveniência, independentemente dos outcomes TEST; depois avaliar recursos, critérios de aprovação e eventual nova campanha. Não modificar o vencedor, as três regras, a seed, o protocolo de 20 repetições ou a separação científica. TEST segue não certificado. Referências: [run #44314407095](https://github.com/lucianox777/Jornada/actions/runs/44314407095), PR #1690.
