@@ -173,6 +173,39 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                         ExceedsCap = count > execution.MaximumCandidatePairIncidences
                     };
                 }).ToArray();
+            // Diagnostic-only exact distinct-pair census, bounded to the declared cap + 1.
+            // It never substitutes for the conservative incidence admission guard.
+            var gestorById = validation.ToDictionary(x => x.ObservationId, x => x.Gestor);
+            var distinctPairs = new HashSet<(int A, int B)>();
+            var distinctByPass = new List<object>();
+            var distinctCensored = false;
+            foreach (var pass in signatures.GroupBy(x => x.PassId, StringComparer.Ordinal)
+                         .OrderBy(x => x.Key, StringComparer.Ordinal))
+            {
+                long newPairs = 0, repeatedPairs = 0;
+                foreach (var bucket in pass.GroupBy(x => (x.Partition, x.Signature)))
+                {
+                    var ids = bucket.Select(x => x.ObservationId).Distinct().OrderBy(x => x).ToArray();
+                    for (var i = 0; i < ids.Length && !distinctCensored; i++)
+                    for (var j = i + 1; j < ids.Length; j++)
+                    {
+                        if (string.Equals(gestorById[ids[i]], gestorById[ids[j]], StringComparison.Ordinal))
+                            continue;
+                        if (distinctPairs.Add((ids[i], ids[j]))) newPairs++;
+                        else repeatedPairs++;
+                        if (distinctPairs.Count > execution.MaximumCandidatePairIncidences)
+                        {
+                            distinctCensored = true;
+                            break;
+                        }
+                    }
+                    if (distinctCensored) break;
+                }
+                distinctByPass.Add(new { Pass = pass.Key, NewDistinctPairs = newPairs,
+                    RepeatedIncidencesAgainstEarlierPasses = repeatedPairs,
+                    Complete = !distinctCensored });
+                if (distinctCensored) break;
+            }
             Console.Error.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
             {
                 eventType = "V9_TEST_PAIR_CAP_DIAGNOSTIC_NON_SCIENTIFIC",
@@ -183,6 +216,10 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 declaredSignatureCap = execution.MaximumProjectedSignatures,
                 aggregateIncidencesCapped = (long)execution.MaximumCandidatePairIncidences + 1,
                 perPass = byPass,
+                distinctPairsCapped = distinctPairs.Count,
+                distinctPairCensusComplete = !distinctCensored,
+                distinctPairOverlapByPass = distinctByPass,
+                distinctPairCensusDiagnosticOnly = true,
                 countSemantics = "cross-manager incidences, duplicate pass hits counted, censored at cap+1",
                 candidatePairsMaterialized = false,
                 winnerModified = false
