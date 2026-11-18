@@ -33,3 +33,11 @@ Os comandos acima apenas consultam ajuda; não ativam nem publicam modelos. A au
 ## Limites de validação
 
 O script verifica o host, o Compose, o build, a saúde do NODE1, o monitor e a ausência de NODE2 ativo no projeto. Não certifica uma execução científica, uma migração real de produção ou a segurança do ambiente. A imagem SQL Server é fixada no Compose base e exige ensaio real no host RHEL 10 x64.
+
+## Verificação após a instalação
+
+```bash
+bash ./Install-JornadaHml-RHEL10.sh verify
+```
+
+O comando exige SQL Server e NODE1 com healthcheck **healthy** e responde às rotas `/health/ready` e `/monitor`. O instalador também bloqueia uma instalação se encontrar um contêiner `jornada-node2` ativo no host. Não é um teste de desempenho nem homologação científica.
