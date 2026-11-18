@@ -35,6 +35,7 @@ public static class V9OperationalSqlEdgeCensus
         foreach (var source in frozenCohort)
         {
             if (source is null || source.Observation is null
+                || !string.IsNullOrWhiteSpace(source.Observation.Cpf)
                 || source.ObservationId <= 0 || source.GoldUuid == Guid.Empty
                 || string.IsNullOrWhiteSpace(source.Manager)
                 || !lookup.TryAdd(source.GoldUuid, source)
