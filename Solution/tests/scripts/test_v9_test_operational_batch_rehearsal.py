@@ -23,7 +23,7 @@ class V9NonpublishingBatchRehearsalContract(unittest.TestCase):
         self.assertIn("if (observationsRead != ordered.Length", src)
         self.assertIn("actualDirections.Values.Any(v => v != 3)", src)
         self.assertIn("expected.SetEquals(actual)", src)
-        self.assertIn("var operational = operationalRuntime.ReplayTest(test,", src)
+        self.assertIn("var operational = operationalRuntime.ReplayOperationalGraph(test,", src)
         self.assertIn("var reference = operationalRuntime.ReplayTest(test,", src)
         self.assertIn("reference.Decisions.SequenceEqual(operational.Decisions)", src)
         self.assertIn("reference.IdentityByObservation.Any(", src)
