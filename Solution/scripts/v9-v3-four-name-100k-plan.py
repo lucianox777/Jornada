@@ -80,7 +80,18 @@ def grid(tf0, tf_policy=None):
 
 def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_policy_path=None):
     tf_policy_bytes = Path(tf_policy_path).read_bytes() if tf_policy_path else None
-    tf_policy = strict_json(tf_policy_bytes) if tf_policy_bytes else None
+    tf_config = strict_json(tf_policy_bytes) if tf_policy_bytes else None
+    tf_policy = (tf_config.get("tfNominalPolicy", tf_config)
+                 if tf_config is not None else None)
+    if tf_config is not None and "tfNominalPolicy" in tf_config:
+        require(type(tf_config.get("syntheticPopulation")) is int
+                and tf_config["syntheticPopulation"] > 0
+                and isinstance(tf_config.get("sampling"), dict)
+                and all(type(tf_config["sampling"].get(k)) in (int, float)
+                        for k in ("trainPercent", "validationPercent", "testPercent"))
+                and sum(tf_config["sampling"][k]
+                        for k in ("trainPercent", "validationPercent", "testPercent")) == 100,
+                "invalid unified calibration population/sampling configuration")
     if tf_policy is not None:
         require(tf_policy.get("schema") == "V9_TF_NOMINAL_POLICY_V1"
                 and type(tf_policy.get("contextPopulation")) is int
@@ -159,7 +170,8 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
         "maximumBatches": 1, "physicalHypotheses": EVALUATIONS,
         "tfUnpublishedPolicy": ("IMPUTE_CONFIGURED" if tf_policy is not None
                                 else "ABSTAIN_CANDIDATE_WHEN_POSITIVE"),
-        **({"tfPolicySha256": digest(tf_policy_bytes), "tfPolicy": tf_policy}
+        **({"tfPolicySha256": digest(tf_policy_bytes), "tfPolicy": tf_policy,
+            "calibratorConfiguration": tf_config}
            if tf_policy is not None else {}),
         "testUsed": False, "activated": False}
     fingerprint = digest(json.dumps(snapshot, sort_keys=True, separators=(",", ":"),
