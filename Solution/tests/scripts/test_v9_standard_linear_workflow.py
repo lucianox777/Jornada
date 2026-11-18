@@ -13,6 +13,14 @@ class StandardLinearWorkflowTests(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 
+    def test_optional_cli_population_overrides_config_in_all_three_cohorts(self):
+        text = self.workflow
+        self.assertIn("synthetic_population:", text)
+        self.assertIn("V9_SYNTHETIC_POPULATION: ${{ inputs.synthetic_population }}", text)
+        self.assertIn('[[ "$V9_SYNTHETIC_POPULATION" =~ ^[1-9][0-9]*$ ]]', text)
+        self.assertEqual(text.count('V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION")'), 3)
+        self.assertEqual(text.count('config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed'), 3)
+
     def test_only_scientific_test_option(self):
         text = self.workflow
         self.assertNotIn("test_required:", text)
