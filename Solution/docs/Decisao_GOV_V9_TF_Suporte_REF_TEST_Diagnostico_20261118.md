@@ -101,3 +101,7 @@ A master introduziu `--expected-people` no gerador de plano TF4. Na PR #1723, es
 ### Verificação adicional de propagação do override (18/11/2026)
 
 O workflow mantém `synthetic_population` e passa o valor efetivo a ambos os geradores de planos (`v9-scale-100k-technical-plan.py` e `v9-v3-four-name-100k-plan.py`). Sem override, o valor padrão de `--expected-people` é agora lido de `syntheticPopulation` no JSON (commit `89cce65`), em vez de repetir `100000` no YAML. Novo teste de rejeição de divergência e congelamento da população efetiva adicionada no commit `b340644`. Teste ainda não executado em CI; integração com master pendente.
+
+### Correção de integração — vínculo físico do parâmetro people (18/11/2026)
+
+Foi identificada divergência crítica: o workflow enviava `--expected-people` ao plano técnico, mas a versão do script na branch ainda validava `100000` de forma fixa e não aceitava o argumento. Foi incorporada a versão corrigida da master de `v9-scale-100k-technical-plan.py` (commit `11fa484`), que valida o tamanho efetivo do corpus no manifesto/verdade e grava a população no recibo. Os testes de regressão correspondentes da master foram incorporados (commit `a16943d`). **Impacto:** evita falha de CLI e rejeição indevida de override. **Precedência:** preserva as correções já aprovadas na master; não altera a decisão do PO sobre a sobrescrita. **Rastreabilidade:** PR #1723. CI e integração final pendentes.
