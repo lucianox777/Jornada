@@ -29,6 +29,9 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, GiB), Is.True);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(2 * GiB, 8 * GiB, 1, 0), Is.True);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(2 * GiB - 1, 8 * GiB, 1, 0), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(GiB + GiB / 2, 8 * GiB, 0, 0), Is.True);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(GiB + GiB / 2, 8 * GiB, 1, 0), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(GiB - 1, 8 * GiB, 0, 0), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, 3 * GiB), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(8 * GiB, 2 * GiB, 0, GiB), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 0, 0), Is.True);

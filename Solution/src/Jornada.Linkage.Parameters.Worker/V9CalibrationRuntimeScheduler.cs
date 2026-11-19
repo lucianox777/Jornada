@@ -152,14 +152,19 @@ public sealed class V9CalibrationRuntimeScheduler
             || freeDiskBytes < V9CalibrationResourceGovernor.MinimumFreeDiskBytes)
             return false;
         if (measuredAvailableBytes is null) return activeWorkers == 0;
-        // 2 GiB is the preventive admission floor; 1 GiB the critical floor.
+        // Startup already enforced the 2 GiB preventive floor. After SQL/bootstrap
+        // consumes RAM, permit the first worker above the 1 GiB critical floor;
+        // retain the 2 GiB preventive floor for additional concurrent workers.
         // The OS controls actual allocation; no per-worker RAM is pre-reserved.
-        if (measuredAvailableBytes < V9CalibrationResourceGovernor.PreventiveAvailableMemoryBytes)
+        var admissionFloor = activeWorkers == 0
+            ? V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes
+            : V9CalibrationResourceGovernor.PreventiveAvailableMemoryBytes;
+        if (measuredAvailableBytes < admissionFloor)
             return false;
         if (incrementalWorkerBytes >
             long.MaxValue - V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes)
             return false;
-        var required = Math.Max(V9CalibrationResourceGovernor.PreventiveAvailableMemoryBytes,
+        var required = Math.Max(admissionFloor,
             V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes + incrementalWorkerBytes);
         return measuredAvailableBytes >= required;
     }
