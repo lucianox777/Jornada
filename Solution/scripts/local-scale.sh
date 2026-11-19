@@ -203,7 +203,8 @@ SELECT CONCAT(p.pessoa_observacao_id,',',CONVERT(varchar(36),tv.pessoa_uuid))
   | tr -d '\r' | sed '/^[[:space:]]*$/d' >> "$BLOCKING_AUDIT_LABELS"
 ACTUAL_BLOCKING_LABELS="$(( $(wc -l < "$BLOCKING_AUDIT_LABELS") - 1 ))"
 [[ "$ACTUAL_BLOCKING_LABELS" -eq "$BLOCKING_AUDIT_LABEL_COUNT" ]] || { echo "ERRO: rótulos SCALE insuficientes para auditoria de blocking: obtidos=$ACTUAL_BLOCKING_LABELS esperados=$BLOCKING_AUDIT_LABEL_COUNT" >&2; exit 5; }
-dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+Linkage__SelectedModelVersion="$MODEL_VERSION" \
+  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
   --blocking-pass-audit-labels "$BLOCKING_AUDIT_LABELS" \
   --blocking-pass-audit-output "$BLOCKING_AUDIT" \
   --ProbabilisticLinkage:CommandTimeoutSeconds 300
@@ -215,7 +216,8 @@ import uuid; print(uuid.uuid4())
 PY
 )"
 R0=$(now_ms)
-dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
+Linkage__SelectedModelVersion="$MODEL_VERSION" \
+  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \
   --mode MODEL_VALIDATION --model-version "$MODEL_VERSION" --since "$PENDING_SINCE" --max-records "$PENDING" \
   --batch-size "$BATCH" --max-parallelism "$PARALLEL" --publish false \
   --requested-by V373_SCALE_HARNESS --reason "$PROFILE" --correlation-id "$CORRELATION"
