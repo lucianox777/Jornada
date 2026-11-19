@@ -248,7 +248,9 @@ def closeout(
                 test_report_status = "INVALID_RECEIPT"
         else:
             test_report_status = "INCOMPLETE"
-        # Receipt integrity is not a production readiness verdict. Full production\n        # pipeline parity is explicitly NOT certified by this scientific TEST.\n        production_readiness = "NOT_DEMONSTRATED"\n        scientific_test_assessment = ("INCONCLUSIVE" if test_report_status != "VERIFIED"\n                                      else "MEASURED_NOT_ADJUDICATED")\n        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
+        # Receipt integrity is not a production readiness verdict. Full production
+        # pipeline parity is explicitly NOT certified by this scientific TEST.
+        production_readiness = "NOT_DEMONSTRATED"\n        scientific_test_assessment = ("INCONCLUSIVE" if test_report_status != "VERIFIED"\n                                      else "MEASURED_NOT_ADJUDICATED")\n        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
     else:
         test_report_status = "NOT_REQUESTED"\n        production_readiness = "NOT_APPLICABLE"\n        scientific_test_assessment = "NOT_PERFORMED"
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
