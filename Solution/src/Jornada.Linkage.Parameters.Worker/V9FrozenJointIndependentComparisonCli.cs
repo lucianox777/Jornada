@@ -151,9 +151,20 @@ public static class V9FrozenJointIndependentComparisonCli
             Stage("V2_READ_FAILED_DIRECTORY_MISSING");
             throw;
         }
-        catch (InvalidDataException)
+        catch (InvalidDataException error)
         {
-            Stage("V2_READ_FAILED_INVALID_DATA");
+            // Whitelist only stable failure categories; never print exception details,
+            // paths, hashes or scientific payload values in public CI logs.
+            var category = error.Message switch
+            {
+                "Schema do snapshot V9 inválido." => "SCHEMA_JSON",
+                "Snapshot V9 não utiliza serialização canônica." => "NONCANONICAL_ENCODING",
+                "Snapshot V9 diverge do SHA-256 fixado ou excede o tamanho permitido." => "CONTENT_IDENTITY",
+                "Snapshot V9 incompleto, incompatível ou TF sem referência congelada." => "PAYLOAD_CONTRACT",
+                "Snapshot V9 mistura TRAIN e VALIDATION." => "CORPUS_SEPARATION",
+                _ => "OTHER_VALIDATION"
+            };
+            Stage("V2_READ_FAILED_" + category);
             throw;
         }
         catch (System.Text.Json.JsonException)
