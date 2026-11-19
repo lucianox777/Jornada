@@ -40,11 +40,25 @@ for name in names:
 report["corpus_bytes_equal"] = all(x["equal"] for x in report["files"].values())
 old_manifest = json.loads((old / "generation-manifest.json").read_text())
 new_manifest = json.loads((new / "generation-manifest.json").read_text())
-report["manifest_metadata_equal"] = old_manifest == new_manifest
+# Normalize only the isolated output directory, retaining byte order and JSON formatting.
+old_raw = (old / "generation-manifest.json").read_bytes()
+new_raw = (new / "generation-manifest.json").read_bytes()
+old_prefix, new_prefix = str(old).encode(), str(new).encode()
+assert old_raw.count(old_prefix) > 0, "Historical output path missing"
+assert new_raw.count(new_prefix) > 0, "Current output path missing"
+canonical_prefix = b"/SEED42_ISOLATED_OUTPUT"
+old_canonical = old_raw.replace(old_prefix, canonical_prefix)
+new_canonical = new_raw.replace(new_prefix, canonical_prefix)
+report["manifest_metadata_equal"] = json.loads(old_canonical) == json.loads(new_canonical)
+report["manifest_canonical_bytes_equal"] = old_canonical == new_canonical
+report["manifest_historical_canonical_sha256"] = hashlib.sha256(old_canonical).hexdigest()
+report["manifest_current_canonical_sha256"] = hashlib.sha256(new_canonical).hexdigest()
 report["manifest_changed_fields"] = sorted(set(old_manifest) ^ set(new_manifest))
 pathlib.Path("v9-seed42-generator-byte-comparison.json").write_text(
     json.dumps(report, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(report, indent=2))
 if not report["corpus_bytes_equal"]:
     sys.exit("Corpus bytes diverge; do not certify historical compatibility")
+if not report["manifest_canonical_bytes_equal"]:
+    sys.exit("Manifest bytes diverge after isolated output path normalization")
 PY
