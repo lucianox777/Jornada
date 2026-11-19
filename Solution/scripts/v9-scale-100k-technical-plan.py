@@ -103,7 +103,7 @@ def verified_official_plan(zip_path):
     return plan, digest(raw)
 
 
-def corpus_provenance(root):
+def corpus_provenance(root, expected_people=100000):
     root = Path(root)
     manifest_raw = (root / "generation-manifest.json").read_bytes()
     m = json_unique(manifest_raw)
@@ -133,7 +133,7 @@ def corpus_provenance(root):
     require(set(outputs) == expected_names, "generated output set incomplete")
     # Only aggregate declared people/seed are consumed; no TEST outcomes.
     truth = json_unique((root / "gabarito.json").read_bytes())
-    require(type(truth.get("people")) is int and truth["people"] == 100000
+    require(type(truth.get("people")) is int and truth["people"] == expected_people
             and truth.get("seed") == 42
             and truth.get("generator_version") == m["generator_version"]
             and truth.get("error_profile") == "clean",
@@ -141,13 +141,14 @@ def corpus_provenance(root):
     return m, digest(manifest_raw), outputs["observacoes.csv"]
 
 
-def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve"):
+def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve", expected_people=100000):
     output, receipt_path = Path(output), Path(receipt_path)
     require(output.name == "plan.json", "only official-format plan.json is executable")
     require(not output.exists() and not receipt_path.exists(),
             "refuse to overwrite existing plan or receipt")
     original, official_sha = verified_official_plan(zip_path)
-    manifest, manifest_sha, obs_sha = corpus_provenance(corpus_root)
+    require(type(expected_people) is int and expected_people > 0, "expected population must be positive")
+    manifest, manifest_sha, obs_sha = corpus_provenance(corpus_root, expected_people)
     plan = copy.deepcopy(original)
     require(parallelism_mode in ("preserve", "auto"), "unsupported runtime parallelism option")
     historical_parallelism = original["Calibration"].get("MaximumParallelRuleSets")
@@ -183,7 +184,7 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
         "schema": SCHEMA, "historicalOfficialPlanSha256": official_sha,
         "technicalCorpusManifestSha256": manifest_sha,
         "technicalCorpusObservationsSha256": obs_sha,
-        "people": 100000, "knownTrainSeed": 42,
+        "people": expected_people, "knownTrainSeed": 42,
         "historicalPinnedIbgeBootstrapPeople": 30000,
         "tfUnpublishedTermPolicyChanges": policy_changes,
     }
@@ -240,6 +241,8 @@ if __name__ == "__main__":
     cli.add_argument("--receipt", type=Path, required=True)
     cli.add_argument("--parallelism", choices=("preserve", "auto"), default="preserve",
                      help="Only change runtime MaximumParallelRuleSets to 0 for the 100k technical fit")
+    cli.add_argument("--expected-people", type=int, default=100000,
+                     help="Expected generated TRAIN identities; fail closed on mismatch")
     args = cli.parse_args()
     print(json.dumps(bind(args.artifact_zip, args.corpus_root,
-                          args.plan, args.receipt, args.parallelism), sort_keys=True))
+                          args.plan, args.receipt, args.parallelism, args.expected_people), sort_keys=True))
