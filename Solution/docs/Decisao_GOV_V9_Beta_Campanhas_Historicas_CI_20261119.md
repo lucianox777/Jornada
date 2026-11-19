@@ -22,3 +22,6 @@ Issue #1734; issue #1275; PR #1721; relatórios de seeds 42–47 e 48–57; GOV-
 
 ## Complemento de implementação (19/11/2026)
 O PR fast passa a executar também os testes offline do `impact` atual (sem os dois gates históricos aposentados). O workflow manual de frozen transfer falha explicitamente quando disparado na master beta; execução histórica exige selecionar ref original e SHA exato. A decisão de 20% teve o cabeçalho atualizado para refletir o merge de #1721. A referência física 30k vigente ainda requer geração controlada e versionamento; não substituir hash por valor não verificado.
+
+## Evidência de CI do PR (19/11/2026)
+Execução `jornada-pr-required-fast` #44534469495, commit `1788bc3e8b7028b643adb1e8f43daef761e8ddaf`: jobs `security-guards`, `unit-runtime` e `deterministic-build` concluídos com **success**. A evidência cobre os checks do PR fast, **não** comprova a suíte completa `jornada-ci` da master nem a execução física 30k. O probe de proveniência 30k permanece bloqueio de integração; o manifesto original `data/reference/v9-synthetic-seed42-30000/manifest.json` continua imutável. Não declarar resolução da issue #1734 sem prova física e revisão das proteções de merge.
