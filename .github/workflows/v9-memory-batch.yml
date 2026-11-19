@@ -82,8 +82,16 @@ jobs:
           python-version: '3.12'
       - name: Fetch pinned IBGE-derived original seed42 artifact
         run: |
+          set -euo pipefail
+          run_id=38593005691
+          artifact_name=v9-physical-sql-active-candidate-wrong-link-30k
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.name == \"$artifact_name\" and .expired == false) | .id" | grep -Eq "^[0-9]+$"; then
+            echo "::error title=Frozen historical corpus unavailable::Run $run_id no longer exposes unexpired artifact $artifact_name. Do not substitute a different seed42 corpus without independent physical SHA/provenance verification."
+            exit 1
+          fi
           mkdir -p Solution/.local/v9-sqlite-original/input
-          gh run download 38593005691 --repo lucianox777/Jornada -n v9-physical-sql-active-candidate-wrong-link-30k -D Solution/.local/v9-sqlite-original/input
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" -n "$artifact_name" -D Solution/.local/v9-sqlite-original/input
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Canonical C# export, TRAIN-only frozen snapshot and real in-memory SQL
