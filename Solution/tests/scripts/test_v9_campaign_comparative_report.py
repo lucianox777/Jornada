@@ -24,6 +24,8 @@ class ComparativeReportTests(unittest.TestCase):
             self.assertEqual(report["syntheticPopulationRequested"], "10000")
             self.assertEqual(report["productionAuthorization"], "OPERATOR_MASTER_ONLY_NOT_GRANTED")
             self.assertIn("AUDIT evidence", mod.markdown(report))
+            self.assertFalse(report["operatorComparison"]["candidateAvailable"])
+            self.assertFalse(report["operatorComparison"]["promotionAllowed"])
 
     def test_winner_is_preserved_when_test_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -37,6 +39,8 @@ class ComparativeReportTests(unittest.TestCase):
             report = mod.build(args)
             self.assertEqual(report["scientificWinnerSha256"], "abc")
             self.assertEqual(report["stages"]["test_result"], "failure")
+            self.assertTrue(report["operatorComparison"]["candidateAvailable"])
+            self.assertEqual(report["operatorComparison"]["comparisonStatus"], "NOT_COMPARABLE_WITHOUT_PAIRED_EVIDENCE")
 
 
 if __name__ == "__main__":
