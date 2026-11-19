@@ -235,9 +235,10 @@ public sealed class V9FittedSnapshot
                     if (payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences) reasons.Add("UNPUBLISHED_OCCURRENCES");
                     category += "_REASONS_" + string.Join("_", reasons);
                 }
-                if (legacyEligible)
-                    category += content.SequenceEqual(EncodeLegacyBootstrapV0(canonical))
-                        ? "_BYTES_MATCH" : "_BYTES_DIFFER";
+                // Byte comparison is diagnostic even when a legacy guard fails;
+                // it does not grant compatibility or bypass payload validation.
+                category += content.SequenceEqual(EncodeLegacyBootstrapV0(canonical))
+                    ? "_BYTES_MATCH" : "_BYTES_DIFFER";
             }
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica: " + category);
         }
