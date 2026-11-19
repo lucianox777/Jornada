@@ -23,3 +23,7 @@ O script `Solution/scripts/v9-generator-lock-provenance-diagnostic.py` compara, 
 5. Reconciliar precedência com GOV-V9-BETA-CAMPANHAS-HISTORICAS-CI-20261119: LOCK histórico é imutável; seu digest não é automaticamente um requisito para o gerador beta evolutivo atual.
 
 **Rastreabilidade:** issue #1734; PR #1721; manifestos `V9_TF_SEEDS_44_47_LOCK.json` e `V9_TF_SEEDS_48_57_LOCK.json`; GOV-DOC-01.
+
+## Verificação offline adicionada
+
+`python -m unittest Solution/tests/scripts/test_v9_generator_lock_provenance_diagnostic.py` verifica ordenação de caminhos, hash de bytes exatos, identificação de arquivos adicionados/removidos/modificados e ausência de alegação de equivalência de corpus. Estes testes não substituem execução física, nem validam seed 42.
