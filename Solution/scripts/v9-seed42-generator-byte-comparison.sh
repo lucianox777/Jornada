@@ -26,6 +26,26 @@ generate() {
 generate "$tmp/historical" "$tmp/historical-output"
 generate "$repo" "$tmp/current"
 cd "$repo"
+# Authenticate generated 30k identities, partitions, output hashes and bootstrap
+# with the production verifier. This is not the separate IBGE SQL pin gate.
+python3 Solution/scripts/v9-tf-pin-source.py bootstrap \
+  --root "$tmp/current" --output "$tmp/bootstrap.json"
+python3 - "$tmp/bootstrap.json" Solution/data/reference/v9-synthetic-seed42-30000/manifest.json <<'PYBOOT'
+import json, pathlib, sys
+bootstrap = json.loads(pathlib.Path(sys.argv[1]).read_text())
+registry = json.loads(pathlib.Path(sys.argv[2]).read_text())
+expected = {
+    "Provenance": registry["origin"],
+    "People": registry["population"],
+    "CorpusFingerprint": registry["generated_files"][0]["sha256"].lower(),
+    "GeneratorVersion": registry["generator_version"],
+    "GeneratorSeed": registry["seed"],
+    "GenerationHypothesesFingerprint": registry["generation_manifest_sha256"].lower(),
+}
+if bootstrap != expected:
+    raise SystemExit("Authenticated 30k bootstrap differs from immutable registry")
+print("PASS: authenticated 30k bootstrap matches immutable registry; IBGE SQL pin not evaluated")
+PYBOOT
 python3 - "$tmp/historical-output" "$tmp/current" <<'PY'
 import hashlib, json, pathlib, sys
 old, new = map(pathlib.Path, sys.argv[1:])
