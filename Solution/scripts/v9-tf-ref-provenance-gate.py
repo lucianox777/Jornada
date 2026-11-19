@@ -30,14 +30,24 @@ def validate(reference: dict, pinned: dict, generated: dict, bootstrap: dict) ->
         or pinned.get("PinnedIbgeMaterializedFrequencySha256", "").upper()
         != publication["materialized_tf_sha256"]):
         raise ValueError("Pinned IBGE reference differs from synthetic ref registry")
-    if (bootstrap["CorpusFingerprint"].upper()
-        != reference["generated_files"][0]["sha256"]
-        or bootstrap["GenerationHypothesesFingerprint"].upper() != reference["generation_manifest_sha256"]
-        or bootstrap["GeneratorVersion"] != reference["generator_version"]
-        or bootstrap["GeneratorSeed"] != 42 or bootstrap["People"] != 30000
-        or bootstrap["Provenance"] != "SINTETICO_IBGE"
-        or pinned.get("PinnedIbgeBootstrap") != bootstrap):
-        raise ValueError("Synthetic bootstrap differs from ref registry and live corpus")
+    # Log field names only; never emit hashes or corpus contents.
+    mismatches = []
+    if bootstrap["CorpusFingerprint"].upper() != reference["generated_files"][0]["sha256"]:
+        mismatches.append("CorpusFingerprint")
+    if bootstrap["GenerationHypothesesFingerprint"].upper() != reference["generation_manifest_sha256"]:
+        mismatches.append("GenerationHypothesesFingerprint")
+    if bootstrap["GeneratorVersion"] != reference["generator_version"]:
+        mismatches.append("GeneratorVersion")
+    if bootstrap["GeneratorSeed"] != 42:
+        mismatches.append("GeneratorSeed")
+    if bootstrap["People"] != 30000:
+        mismatches.append("People")
+    if bootstrap["Provenance"] != "SINTETICO_IBGE":
+        mismatches.append("Provenance")
+    if pinned.get("PinnedIbgeBootstrap") != bootstrap:
+        mismatches.append("PinnedIbgeBootstrap")
+    if mismatches:
+        raise ValueError("Synthetic bootstrap differs from ref registry and live corpus; fields=" + ",".join(mismatches))
     manifest_outputs = {x["path"]: x["sha256"].upper() for x in generated["outputs"]}
     reference_outputs = {x["file"]: x["sha256"] for x in reference["generated_files"]}
     if (manifest_outputs != reference_outputs
