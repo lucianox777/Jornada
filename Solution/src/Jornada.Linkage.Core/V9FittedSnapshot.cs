@@ -188,7 +188,60 @@ public sealed class V9FittedSnapshot
         if (content.SequenceEqual(canonical))
             return snapshot;
         if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
-            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
+        {
+            // Diagnostic only: disclose no values, names, hashes or artifact bytes.
+            // The pinned SHA and every payload validation above remain mandatory.
+            using var historicalJson = JsonDocument.Parse(content.ToArray());
+            using var canonicalJson = JsonDocument.Parse(canonical);
+            var historicalNames = historicalJson.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+            var canonicalNames = canonicalJson.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+            var category = historicalNames.Except(canonicalNames, StringComparer.Ordinal).Any()
+                ? "EXTRA_FIELDS"
+                : canonicalNames.Except(historicalNames, StringComparer.Ordinal).Any()
+                    ? "MISSING_FIELDS"
+                    : !historicalNames.SequenceEqual(canonicalNames, StringComparer.Ordinal)
+                        ? "FIELD_ORDER"
+                        : "FIELD_ENCODING_OR_VALUES";
+            // Report only a fixed allowlist of schema property names (never values).
+            // This identifies historical additions without revealing fitted data.
+            if (category == "MISSING_FIELDS")
+            {
+                var missing = canonicalNames.Except(historicalNames, StringComparer.Ordinal).ToHashSet(StringComparer.Ordinal);
+                var known = new[] { "ContextPopulation", "UnpublishedOccurrenceCount",
+                    "SharedSurnameMode", "UnpublishedTermPolicy", "MotherTfCalibration",
+                    "UnitTfCalibrations", "CandidateGrouping", "JointSupport",
+                    "GoldParentSnapshotSha256", "BlockingFrameFingerprintSha256" };
+                var identified = known.Where(missing.Contains).ToArray();
+                category += "_COUNT_" + missing.Count + "_KNOWN_" +
+                    (identified.Length == 0 ? "NONE" : string.Join("_", identified));
+            }
+            if (category.StartsWith("MISSING_FIELDS", StringComparison.Ordinal))
+            {
+                // Distinguish legacy eligibility from byte encoding without leaking values.
+                var legacyEligible = payload.TfWeight == 0m && payload.TfCalibration is null
+                    && payload.MotherTfCalibration is null && payload.UnitTfCalibrations is null
+                    && payload.ContextPopulation == V9UnpublishedNominalFrequency.DefaultContextPopulation
+                    && payload.UnpublishedOccurrenceCount == V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences;
+                category += legacyEligible ? "_LEGACY_ELIGIBLE" : "_LEGACY_INELIGIBLE";
+                if (!legacyEligible)
+                {
+                    // Report boolean predicate names only, never fitted values.
+                    var reasons = new List<string>();
+                    if (payload.TfWeight != 0m) reasons.Add("TF_WEIGHT");
+                    if (payload.TfCalibration is not null) reasons.Add("TF_CALIBRATION");
+                    if (payload.MotherTfCalibration is not null) reasons.Add("MOTHER_TF_CALIBRATION");
+                    if (payload.UnitTfCalibrations is not null) reasons.Add("UNIT_TF_CALIBRATIONS");
+                    if (payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation) reasons.Add("CONTEXT_POPULATION");
+                    if (payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences) reasons.Add("UNPUBLISHED_OCCURRENCES");
+                    category += "_REASONS_" + string.Join("_", reasons);
+                }
+                // Byte comparison is diagnostic even when a legacy guard fails;
+                // it does not grant compatibility or bypass payload validation.
+                category += content.SequenceEqual(EncodeLegacyBootstrapV0(canonical))
+                    ? "_BYTES_MATCH" : "_BYTES_DIFFER";
+            }
+            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica: " + category);
+        }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
         // Never normalize the pinned historical artifact into a new SHA.
         return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
@@ -200,8 +253,16 @@ public sealed class V9FittedSnapshot
     private static bool MatchesLegacyBootstrapV0Encoding(
         ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
     {
+        // The pinned historical V2 carries per-unit TF provenance despite TF weight zero.
+        // This exception is restricted to that exact content-addressed artifact;
+        // byte-for-byte legacy encoding and all payload validation still apply.
+        const string historicalV2WithUnitTfSha = "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f";
+        var historicalUnitTf = payload.UnitTfCalibrations is not null
+            && Convert.ToHexString(SHA256.HashData(original)).Equals(
+                historicalV2WithUnitTfSha, StringComparison.OrdinalIgnoreCase);
         if (payload.TfWeight != 0m || payload.TfCalibration is not null
-            || payload.MotherTfCalibration is not null || payload.UnitTfCalibrations is not null
+            || payload.MotherTfCalibration is not null
+            || (payload.UnitTfCalibrations is not null && !historicalUnitTf)
             || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
             || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
             return false;

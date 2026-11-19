@@ -127,11 +127,18 @@ function Send-Dt05Delivery([int]$wave, [string]$cpf) {
 
 function Invoke-Dt05Runner([int]$wave, [long]$observationId) {
     $reason = "$marker-W$wave"
+    $activeModelVersion = [int](Scalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status=N'ATIVO';")
+    if ($activeModelVersion -le 0) { throw "DT-05: versão do modelo ATIVO sintético inválida." }
+    $previousSelectedVersion = [Environment]::GetEnvironmentVariable("Linkage__SelectedModelVersion", "Process")
     Push-Location $Root
     try {
+        $env:Linkage__SelectedModelVersion = [string]$activeModelVersion
         dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode ON_DEMAND --pessoa-observacao-id $observationId --max-records 1 --requested-by DT05_CPF_LATE_E2E --reason $reason --publish true | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "DT-05: Runner real falhou na onda $wave." }
-    } finally { Pop-Location }
+    } finally {
+        [Environment]::SetEnvironmentVariable("Linkage__SelectedModelVersion", $previousSelectedVersion, "Process")
+        Pop-Location
+    }
     $runId = Scalar "SELECT CONVERT(VARCHAR(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_CPF_LATE_E2E' AND motivo=N'$reason' AND status=N'PUBLICADO';"
     if (-not $runId -or [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_CPF_LATE_E2E' AND motivo=N'$reason' AND status=N'PUBLICADO';") -ne 1) {
         throw "DT-05: Runner da onda $wave não publicou exatamente um run."

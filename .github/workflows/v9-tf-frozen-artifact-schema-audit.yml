@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Verify PR merge checkout or exact manual branch HEAD; run audit tests
@@ -58,7 +58,7 @@ jobs:
             test "$GITHUB_EVENT_NAME" = 'pull_request'
           fi
           python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
         with:
           dotnet-version: '10.0.113'
           cache: true
@@ -134,7 +134,7 @@ jobs:
           print('- Status: authenticated historical evidence; NOT CERTIFIED / NO TEST / NO DT-15')
           PY
       - name: Upload compact calibrated bundle receipt, never original study or TF dictionaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-calibration-evidence-v2-${{ github.sha }}
           path: |
@@ -143,7 +143,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Upload only sanitized, SHA-backed metadata receipt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-tf-original-frozen-schema-${{ github.sha }}
           path: ${{ runner.temp }}/v9-tf-frozen-schema.json

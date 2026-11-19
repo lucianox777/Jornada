@@ -96,8 +96,10 @@ public static class V9FrozenJointIndependentComparisonCli
     // evaluation. Do not allow physical-only shortcuts in later refactoring.
     private static async Task<VerifiedPair> VerifyPinnedPairAsync(
         string executorPath, string planPath, string originalPath,
-        string trialPath, string receiptPath)
+        string trialPath, string receiptPath, bool diagnosticStages = false)
     {
+        void Stage(string code) { if (diagnosticStages) Console.Error.WriteLine($"V9_PAIR_PREFLIGHT_STAGE:{code}"); }
+        Stage("EXECUTOR_PLAN");
         var executor = JsonSerializer.Deserialize<V9FrozenTransferExecutorPlan>(
             await File.ReadAllBytesAsync(executorPath))
             ?? throw new InvalidDataException("Executor de origem ausente.");
@@ -107,6 +109,7 @@ public static class V9FrozenJointIndependentComparisonCli
                 && x.OptionId == V9FrozenTransferCli.TreatmentOption
                 && x.SnapshotSha256 == OriginalV2 && x.ConflictMargin == .5m))
             throw new InvalidDataException("Origem TF-001 não é o ONE_MF primário pinado.");
+        Stage("SOURCE_PLAN");
         var planBytes = await File.ReadAllBytesAsync(planPath);
         if (Sha(planBytes) != executor.SourcePlanTfSha256)
             throw new InvalidDataException("Plano TF-001 original diverge do SHA.");
@@ -117,16 +120,81 @@ public static class V9FrozenJointIndependentComparisonCli
             || sourceCap.ObservationsSha256 != executor.SourceObservationsSha256)
             throw new InvalidDataException("Plano original sem referência/cap TRAIN verificável.");
 
-        var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        Stage("FITTED_SNAPSHOTS");
+        Stage("V2_READ_START");
+        // Distinguish immutable artifact byte identity from payload/schema validation.
+        // Never log content, paths, observed hashes or fitted parameters.
+        var v2Bytes = await File.ReadAllBytesAsync(originalPath);
+        if (v2Bytes.Length <= 0 || v2Bytes.Length > V9FittedSnapshot.MaximumContentBytes)
+        {
+            Stage("V2_READ_FAILED_SIZE");
+            throw new InvalidDataException("Pinned V2 artifact size is invalid.");
+        }
+        if (!Sha(v2Bytes).Equals(OriginalV2, StringComparison.OrdinalIgnoreCase))
+        {
+            Stage("V2_READ_FAILED_SHA_MISMATCH");
+            throw new InvalidDataException("Pinned V2 artifact SHA-256 mismatch.");
+        }
+        Stage("V2_SHA_VERIFIED");
+        V9FittedSnapshot original;
+        try
+        {
+            original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        }
+        catch (FileNotFoundException)
+        {
+            Stage("V2_READ_FAILED_FILE_MISSING");
+            throw;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            Stage("V2_READ_FAILED_DIRECTORY_MISSING");
+            throw;
+        }
+        catch (InvalidDataException error)
+        {
+            // Whitelist only stable failure categories; never print exception details,
+            // paths, hashes or scientific payload values in public CI logs.
+            var category = error.Message.StartsWith("Snapshot V9 não utiliza serialização canônica: ", StringComparison.Ordinal)
+                ? "NONCANONICAL_" + error.Message["Snapshot V9 não utiliza serialização canônica: ".Length..]
+                : error.Message switch
+            {
+                "Schema do snapshot V9 inválido." => "SCHEMA_JSON",
+                "Snapshot V9 não utiliza serialização canônica." => "NONCANONICAL_ENCODING",
+                "Snapshot V9 diverge do SHA-256 fixado ou excede o tamanho permitido." => "CONTENT_IDENTITY",
+                "Snapshot V9 incompleto, incompatível ou TF sem referência congelada." => "PAYLOAD_CONTRACT",
+                "Snapshot V9 mistura TRAIN e VALIDATION." => "CORPUS_SEPARATION",
+                _ => "OTHER_VALIDATION"
+            };
+            Stage("V2_READ_FAILED_" + category);
+            throw;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            Stage("V2_READ_FAILED_JSON");
+            throw;
+        }
+        catch (IOException)
+        {
+            Stage("V2_READ_FAILED_IO");
+            throw;
+        }
+        Stage("V2_READ_OK");
+        Stage("V3_READ_START");
         var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        Stage("V3_READ_OK");
+        Stage("FROZEN_PAIR");
         ValidateFrozenPair(original, candidate);
+        Stage("IBGE_PROVENANCE");
         V9NestedCalibrationCli.RequirePinnedSnapshotReference(
             sourcePlan.PinnedIbgeReferenceVersionId, sourcePlan.PinnedIbgePublishedSha256, bootstrap, original);
         V9NestedCalibrationCli.RequirePinnedSnapshotReference(
             sourcePlan.PinnedIbgeReferenceVersionId, sourcePlan.PinnedIbgePublishedSha256, bootstrap, candidate);
+        Stage("DERIVATION_RECEIPT");
         using (var receipt = JsonDocument.Parse(await File.ReadAllBytesAsync(receiptPath)))
             RequireExperimentalReceipt(receipt.RootElement, executor, original, candidate);
 
+        Stage("PAIR_VERIFIED");
         return new VerifiedPair(executor, sourcePlan, sourceCap, original, candidate);
     }
 
@@ -139,7 +207,8 @@ public static class V9FrozenJointIndependentComparisonCli
         if (args.Length != 6 || args[0] != PreflightFlag)
             throw new ArgumentException(
                 "Uso: --v9-preflight-frozen-v2-v3-pair <executor.json> <plan-tf.json> <V2.fitted.json> <V3.fitted.json> <derivation-receipt.json>.");
-        var verified = await VerifyPinnedPairAsync(args[1], args[2], args[3], args[4], args[5]);
+        var verified = await VerifyPinnedPairAsync(args[1], args[2], args[3], args[4], args[5], diagnosticStages: true);
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:GOLD_READINESS");
         var gold = V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(verified.Candidate);
         if (gold.GetProperty("status").GetString()
             != "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY"

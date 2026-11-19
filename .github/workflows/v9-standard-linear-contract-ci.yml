@@ -17,7 +17,7 @@ jobs:
     name: "V9 standard: syntax and PREPARE transfer contract (no physical TRAIN)"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Validate GitHub Actions YAML syntax
@@ -49,7 +49,7 @@ jobs:
     needs: contract-tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Create fixture and package using production handoff script
@@ -64,7 +64,7 @@ jobs:
           printf '%s' "$GITHUB_RUN_ID" > "$root/prepare-transfer/run-id.txt"
           (cd "$root/prepare-transfer" && sha256sum train-inputs.tar.gz code-sha.txt run-id.txt > SHA256SUMS)
       - name: Upload artifact across job boundary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pinned
         with:
           name: v9-standard-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/v9-prepare-smoke/prepare-transfer/
@@ -76,11 +76,11 @@ jobs:
     needs: prepare-transfer-smoke
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Download immutable artifact in independent runner
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # pinned
         with:
           name: v9-standard-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/v9-train-smoke/prepare-transfer

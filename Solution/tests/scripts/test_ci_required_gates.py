@@ -129,8 +129,8 @@ def test_security_guards_codeql_and_aggregate_are_independent_and_mandatory():
 
     for item in (
         "security-events: write",
-        "github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
-        "github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+        "github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066",
+        "github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066",
         "queries: security-extended",
         "build-mode: manual",
         "dotnet build Jornada.sln --configuration Release --no-restore",

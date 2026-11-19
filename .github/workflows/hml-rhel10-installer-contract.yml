@@ -13,7 +13,7 @@ jobs:
   static-contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Shell syntax
         run: bash -n Solution/Install-JornadaHml-RHEL10.sh
       - name: Python contract
