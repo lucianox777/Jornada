@@ -40,6 +40,23 @@ def build(args):
         "finalists": finalist_count, "scientificWinnerSha256": winner,
         "testAssessment": receipt.get("scientificTestAssessment") if receipt else None,
         "productionAuthorization": "OPERATOR_MASTER_ONLY_NOT_GRANTED",
+        "operatorComparison": {
+            "schema": "V9_DT15_OPERATOR_CANDIDATE_V1",
+            "currentActiveModel": "RESOLVE_FROM_DT15_AUTHORIZED_STATE",
+            "candidateSource": "VALIDATION_FROZEN_WINNER_ONLY",
+            "candidateWinnerSha256": winner,
+            "candidateAvailable": bool(winner and stages["validation_result"] == "success"),
+            "comparisonStatus": "NOT_COMPARABLE_WITHOUT_PAIRED_EVIDENCE",
+            "promotionAllowed": False,
+            "testIsReportOnly": True,
+            "decisionAuthority": "OPERATOR_MASTER",
+            "requires": [
+                "verified frozen VALIDATION winner and model identity",
+                "authorized DT-15 ACTIVE model identity and fingerprints",
+                "paired metrics on same cohort, truth and evaluator",
+                "DT-09/DT-15 security, eligibility and transactional gates",
+            ],
+        },
         "receiptsPresent": {"closeout": receipt is not None, "audit": audit is not None,
                             "validation": validation is not None, "independentTest": independent is not None},
         "artifacts": artifacts,
@@ -58,7 +75,7 @@ def markdown(report):
         "# V9 — Relatório comparativo da campanha",
         "",
         f"- Execução: {report['runId']} (tentativa {report['runAttempt']})",
-        f"- SHA: \`{report['codeSha']}\`",
+        f"- SHA: `{report['codeSha']}`",
         f"- População solicitada: {report['syntheticPopulationRequested']}",
         f"- Encerramento científico: **{report['scientificOutcome']}**",
         f"- Finalistas: {report['finalists'] if report['finalists'] is not None else 'não informado'}",
@@ -73,7 +90,7 @@ def markdown(report):
         lines.append(f"| {stage} | {state} |")
     lines += ["", "## Evidências e rastreabilidade", "Artefatos da mesma execução no GitHub Actions:"]
     for label, name in report["artifacts"].items():
-        lines.append(f"- {label}: \`{name}\`")
+        lines.append(f"- {label}: `{name}`")
     lines += ["", "## Disponibilidade de recibos"]
     for label, present in report["receiptsPresent"].items():
         lines.append(f"- {label}: {'presente' if present else 'indisponível'}")
@@ -96,6 +113,10 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "campaign-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (args.out / "campaign-report.md").write_text(markdown(report), encoding="utf-8")
+    (args.out / "dt15-operator-candidate.json").write_text(
+        json.dumps(report["operatorComparison"], indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     print("V9_COMPARATIVE_REPORT_GENERATED")
 
 
