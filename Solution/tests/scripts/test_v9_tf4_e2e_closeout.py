@@ -106,10 +106,6 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
              "UNREQUESTED_TEST_PREPARATION"),
             (("success", "success", "success", "skipped", "failure", False),
              "UNREQUESTED_TEST_EXPOSURE"),
-            (("success", "success", "success", "skipped", "skipped", True),
-             "TEST_PREPARATION_NOT_SUCCESS"),
-            (("success", "success", "success", "success", "skipped", True),
-             "TEST_NOT_SUCCESS"),
         ]:
             with self.subTest(fields=fields):
                 with self.assertRaisesRegex(ValueError, reason):
@@ -145,7 +141,8 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.test.write_text(json.dumps(test_doc()), encoding="utf-8")
         result = self.call(requested=True, prep="success", test="success")
         self.assertEqual(result["status"],
-                         "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE")
+                         "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED")
+        self.assertEqual(result["independentTestReportStatus"], "VERIFIED")
         for field, value, message in [
             ("winnerSnapshotSha256", E, "TEST_WINNER_CONTRACT_DRIFT"),
             ("operationalModelByteExactRoundTrip", False, "TEST_MODEL_"),
@@ -157,8 +154,9 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
                 r = test_doc(full_parity=False)
                 r[field] = value
                 self.test.write_text(json.dumps(r), encoding="utf-8")
-                with self.assertRaisesRegex(ValueError, message):
-                    self.call(requested=True, prep="success", test="success")
+                result = self.call(requested=True, prep="success", test="success")
+                self.assertEqual(result["independentTestReportStatus"], "INVALID_RECEIPT")
+                self.assertEqual(result["winnerSha256"], W)
         self.test.write_text(json.dumps(test_doc(full_parity=False)), encoding="utf-8")
         result = self.call(requested=True, prep="success", test="success")
         self.assertEqual(result["status"],
@@ -166,8 +164,8 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertFalse(result["certified"])
         invalid = test_doc(full_parity=True)
         self.test.write_text(json.dumps(invalid), encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "TEST_MUST_NOT_CLAIM_PRODUCTION_RUNASYNC_CERTIFICATION"):
-            self.call(requested=True, prep="success", test="success")
+        result = self.call(requested=True, prep="success", test="success")
+        self.assertEqual(result["independentTestReportStatus"], "INVALID_RECEIPT")
 
     def test_cli_failure_emits_sanitized_receipt_even_after_missing_validation(self):
         out = self.root / "receipt.json"
