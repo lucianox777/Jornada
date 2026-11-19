@@ -18,9 +18,9 @@ generate() {
   cd "$checkout/Solution"
   dotnet restore src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj --locked-mode
   dotnet run --project src/Jornada.Linkage.SyntheticCorpus --configuration Release -- generate \
-    --reference-root "$repo/Solution/data/reference/ibge-nomes-2022" \
+    --reference-root "$checkout/Solution/data/reference/ibge-nomes-2022" \
     --population-profile demographic-primary \
-    --birth-daily-source "$repo/Solution/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+    --birth-daily-source "$checkout/Solution/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
     --error-profile clean --people 30000 --seed 42 --out "$output" > "$output.log"
 }
 generate "$tmp/historical" "$tmp/historical-output"
