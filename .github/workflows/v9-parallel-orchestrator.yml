@@ -20,6 +20,9 @@ on:
       - 'Solution/tests/scripts/test_v9_orchestrator.py'
       - 'Solution/data/reference/v9-frozen-artifacts/**'
       - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
+      # A2 reads these contracts: trigger the non-physical preflight on changes.
+      - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenJointIndependentComparisonCli.cs'
 
 permissions:
   contents: read
