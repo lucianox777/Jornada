@@ -15,3 +15,8 @@ Precedência: GOV-DOC-01, registro histórico imutável seed42/30k, decisão de 
 
 ## Validação e estado
 Alteração proposta em branch de PR **Draft**. Sem execução local de .NET/SQL e sem reprodução byte a byte nesta etapa; CI e execução física de master são requisitos de confirmação após integração autorizada. Não executar TRAIN/TEST científico, ativação ou publicação. O merge exige aprovação explícita do Product Owner.
+
+## Nova evidência independente — recuperação histórica física
+O workflow de master `V9 frozen seed42 30k historical recovery`, run **44638752085**, job **135963994848**, terminou com sucesso em 2026-11-19. Ele compilou o **gerador histórico congelado**, reconstruiu fisicamente as 30.000 pessoas em SQL descartável e verificou os hashes dos arquivos contra o registro imutável. O teste do manifesto normalizou explicitamente o prefixo de caminho do checkout histórico para o prefixo de referência antes de calcular o SHA; essa normalização é parte da evidência e **não equivale a demonstrar que o gerador atual reproduz o mesmo SHA bruto**. Artefato não nominal: `v9-frozen-seed42-recovery-44638752085`, ID `14585343322`. Resultado do job: `PASS: exact historical physical 30k hashes match frozen V1; no model certification`.
+
+A recuperação confirma que a referência histórica é fisicamente reprodutível com o produtor congelado, **não** que esta PR corrija a geração atual. A alteração proposta deve continuar Draft até existir validação específica do gerador atual, incluindo a identidade de caminhos e o gate integral. Não reutilizar automaticamente o corpus histórico como substituto dos artefatos atuais de campanha.
