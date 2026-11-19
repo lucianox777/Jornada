@@ -31,3 +31,9 @@ O script `Solution/scripts/v9-generator-lock-provenance-diagnostic.py` compara, 
 ## Evidência automatizada no GitHub Actions
 
 Workflow diagnóstico `.github/workflows/v9-generator-lock-provenance-diagnostic.yml`: checkout com histórico completo, teste unitário offline, comparação read-only dos dois LOCKs e publicação do JSON como artifact com retenção de 30 dias. A execução e seu resultado ainda precisam ser verificados; o workflow não é gate físico nem substitui a prova de equivalência do corpus.
+
+## Resultado comprovado — execução #44580963680 (19/11/2026)
+
+Workflow `v9-generator-lock-provenance-diagnostic`: **success**; dois testes offline: **pass**. Ambos os manifestos `44_47` e `48_57` indicam a mesma revisão histórica `b98a01180737909edf7cbd0bee4ba2757d52fe0f`, com 25 arquivos. Digest histórico calculado `924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb` **coincide** com o digest registrado nos LOCKs. Digest HEAD `1b227c9e0eac7331fdfc5aa52bde0418f7d08198b9d64d82e2b457ad1502b355` **não coincide**. Sem arquivos adicionados/removidos; quatro modificados: `Program.cs`, `SyntheticCorpusGenerator.cs`, `SyntheticCorpusMaterializer.cs`, `SyntheticCorpusModels.cs`.
+
+**Interpretação restrita:** a integridade do registro histórico foi verificada; a fonte atual diverge. A equivalência byte a byte do corpus continua **NOT_TESTED**. Este diagnóstico não implica falha científica das campanhas concluídas nem autoriza reabrir gates históricos como condição da CI beta. Próxima ação: verificar compatibilidade física em ambiente isolado e estabelecer gate vigente apropriado. Evidência: https://github.com/lucianox777/Jornada/actions/runs/44580963680 .
