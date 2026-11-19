@@ -12,3 +12,8 @@ O relatório é **observacional**: não muda TRAIN, AUDIT, VALIDATION, TEST, gat
 
 ## Impactos, precedência e rastreabilidade
 Implementação em `Solution/scripts/v9-campaign-comparative-report.py` e `.github/workflows/v9-standard-linear-100k.yml`. Artefato `v9-campaign-comparative-report-<run>-<attempt>`, retenção de 30 dias. Preserva decisões GOV-V9-TEST-INDEPENDENTE-RELATORIO-20261119 e GOV-V9-TEST-APTIDAO-PRODUCAO-20261119; não substitui os recibos oficiais. A execução já iniciada usa SHA antigo e **não** recebe retroativamente o novo relatório. CI e integração ainda pendentes.
+
+## Complemento aprovado pelo PO — comparação operacional não retroativa
+A decisão operacional compara **somente o modelo ATIVO atual e o novo vencedor científico selecionado pela VALIDATION**, na página DT-15 existente (`/governanca/modelos`). Os demais finalistas permanecem como evidência científica, não como alternativas de promoção direta. O TEST independente não impõe filtro de seleção; sua medição e limitações integram a evidência para o operador master. Não se exige reconstrução retrospectiva de campanhas históricas.
+
+A página existente é prévia DEV somente leitura e ainda **não** consome automaticamente o vencedor V9 nem seu TEST; o endpoint e a integração do dossiê científico precisam de implementação própria e de evidência de comparabilidade. Resultados de corpora distintos não devem produzir delta ou alegação de superioridade. Preservam-se DT-15, DT-09, autorização exclusiva do master, ledger e gates de VALIDATE/ACTIVATE; nenhuma ativação automática. Esta PR ajusta a apresentação e o contrato documental, sem afirmar que a integração operacional está pronta.
