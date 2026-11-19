@@ -122,7 +122,36 @@ public static class V9FrozenJointIndependentComparisonCli
 
         Stage("FITTED_SNAPSHOTS");
         Stage("V2_READ_START");
-        var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        V9FittedSnapshot original;
+        try
+        {
+            original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        }
+        catch (FileNotFoundException)
+        {
+            Stage("V2_READ_FAILED_FILE_MISSING");
+            throw;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            Stage("V2_READ_FAILED_DIRECTORY_MISSING");
+            throw;
+        }
+        catch (InvalidDataException)
+        {
+            Stage("V2_READ_FAILED_INVALID_DATA");
+            throw;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            Stage("V2_READ_FAILED_JSON");
+            throw;
+        }
+        catch (IOException)
+        {
+            Stage("V2_READ_FAILED_IO");
+            throw;
+        }
         Stage("V2_READ_OK");
         Stage("V3_READ_START");
         var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
