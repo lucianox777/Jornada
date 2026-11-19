@@ -72,7 +72,22 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
                 == receipt["technicalCorpusObservationsSha256"]
             and plan["PinnedIbgeBootstrap"]["People"] == 30000,
             "plan, provenance or budget receipt drift")
-    require(c["ModelOptions"] == study.grid(c["ModelOptions"][0])
+    # Reconstruct the declared TF policy from the frozen TF0 control. The
+    # generator applies this policy to all options; omitting it here
+    # incorrectly recreates the historical unpublished-term mode for TF4.
+    tf0 = c["ModelOptions"][0]
+    require(type(tf0.get("ContextPopulation")) is int
+            and type(tf0.get("UnpublishedOccurrenceCount")) is int
+            and 1 <= tf0["UnpublishedOccurrenceCount"] <= tf0["ContextPopulation"]
+            and type(tf0.get("UnpublishedTermPolicy")) is int
+            and tf0["UnpublishedTermPolicy"] == 0,
+            "invalid frozen nominal TF policy")
+    frozen_tf_policy = {
+        "contextPopulation": tf0["ContextPopulation"],
+        "unpublishedOccurrenceCount": tf0["UnpublishedOccurrenceCount"],
+        "unpublishedTermPolicy": tf0["UnpublishedTermPolicy"],
+    }
+    require(c["ModelOptions"] == study.grid(tf0, frozen_tf_policy)
             and c["ConflictMargins"] == list(study.MARGINS)
             and c["MaximumComparedConfigurations"] == study.EVALUATIONS
             and plan["MaximumSearchConfigurations"] == study.EVALUATIONS
