@@ -137,10 +137,11 @@ public sealed class FrozenIbgeNominalTfV9Tests
         Assert.That(frozen.CreatePreview(
             CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
             "Nome ausente", "Nome ausente", .10m, 0m, .00001m, 100), Is.Null);
-        Assert.That((Action)(() => frozen.CreatePreview(
+        var unpublishedSurname = frozen.CreatePreview(
             CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
-            "Maria Lima", "Ana Lima", .10m, 1m, .00001m, 100)),
-            Throws.InvalidOperationException);
+            "Maria Lima", "Ana Lima", .10m, 1m, .00001m, 100);
+        Assert.That(unpublishedSurname, Is.Not.Null);
+        Assert.That(unpublishedSurname!.TermFrequency, Is.EqualTo(20m / 11911337m));
     }
 
     [Test]
@@ -152,10 +153,11 @@ public sealed class FrozenIbgeNominalTfV9Tests
             "NAO PUBLICADO", "NAO PUBLICADO", .10m, 0m, .001m, 1), Is.Null);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That((Action)(() => frozen.CreatePreview(
+            var unpublished = frozen.CreatePreview(
                 CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst,
-                "NAO PUBLICADO", "NAO PUBLICADO", .10m, 1m, .001m, 1)),
-                Throws.InvalidOperationException);
+                "NAO PUBLICADO", "NAO PUBLICADO", .10m, 1m, .001m, 1);
+            Assert.That(unpublished, Is.Not.Null);
+            Assert.That(unpublished!.TermFrequency, Is.EqualTo(20m / 11911337m));
             Assert.That((Action)(() => frozen.CreatePreview(
                 CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst,
                 "Maria Lima", "Zuleica Costa", .10m, 1m, .001m, 1)),
