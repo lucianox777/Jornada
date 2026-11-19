@@ -100,11 +100,11 @@ public sealed class V9FittedSnapshot
     private readonly IReadOnlyDictionary<string, double> numericParameters;
     public V9FittedSnapshotPayload Payload { get; }
     public string ContentSha256 { get; }
-    private readonly byte[]? legacyBootstrapV0Bytes;
+    private readonly bool legacyBootstrapV0Encoding;
 
-    private V9FittedSnapshot(V9FittedSnapshotPayload payload, byte[]? verifiedLegacyBootstrapV0Bytes = null)
+    private V9FittedSnapshot(V9FittedSnapshotPayload payload, bool verifiedLegacyBootstrapV0Encoding = false)
     {
-        legacyBootstrapV0Bytes = verifiedLegacyBootstrapV0Bytes?.ToArray();
+        legacyBootstrapV0Encoding = verifiedLegacyBootstrapV0Encoding;
         Payload = FreezeAndValidate(payload);
         frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
         numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
@@ -113,7 +113,8 @@ public sealed class V9FittedSnapshot
         var canonicalBytes = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (canonicalBytes.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
-        ContentSha256 = Convert.ToHexString(SHA256.HashData(legacyBootstrapV0Bytes ?? canonicalBytes)).ToLowerInvariant();
+        ContentSha256 = Convert.ToHexString(SHA256.HashData(legacyBootstrapV0Encoding
+            ? EncodeLegacyBootstrapV0(canonicalBytes) : canonicalBytes)).ToLowerInvariant();
     }
 
     public static V9FittedSnapshot Create(V9FittedSnapshotPayload payload) => new(payload);
@@ -122,8 +123,8 @@ public sealed class V9FittedSnapshot
     {
         // Returning a fresh buffer also preserves the historical defensive-copy
         // contract. Reject mutated payloads rather than emitting an unpinned fit.
-        var encoded = legacyBootstrapV0Bytes?.ToArray()
-            ?? JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        var canonical = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        var encoded = legacyBootstrapV0Encoding ? EncodeLegacyBootstrapV0(canonical) : canonical;
         if (encoded.Length <= 0 || encoded.Length > MaximumContentBytes
             || !Convert.ToHexString(SHA256.HashData(encoded)).Equals(
                 ContentSha256, StringComparison.OrdinalIgnoreCase))
@@ -190,7 +191,7 @@ public sealed class V9FittedSnapshot
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
         // Only a byte-for-byte verified legacy V0 gets its original content address.
         // Never normalize the pinned historical artifact into a new SHA.
-        return new V9FittedSnapshot(payload, content.ToArray());
+        return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
     }
 
     // The pinned experimental bootstrap-v0 predates these two nonzero-default
@@ -210,6 +211,11 @@ public sealed class V9FittedSnapshot
             || source.RootElement.TryGetProperty("UnpublishedOccurrenceCount", out _))
             return false;
 
+        return original.SequenceEqual(EncodeLegacyBootstrapV0(canonical));
+    }
+
+    private static byte[] EncodeLegacyBootstrapV0(ReadOnlySpan<byte> canonical)
+    {
         using var parsed = JsonDocument.Parse(canonical.ToArray());
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
@@ -223,7 +229,7 @@ public sealed class V9FittedSnapshot
             }
             writer.WriteEndObject();
         }
-        return original.SequenceEqual(buffer.ToArray());
+        return buffer.ToArray();
     }
 
     public ProbabilisticLinkageDecision ResolvePreview(Guid diagnosticModelId,
