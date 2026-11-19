@@ -19,3 +19,6 @@ Esta decisão afeta exclusivamente o escopo obrigatório de CI do gerador sinté
 
 ## Rastreabilidade
 Issue #1734; issue #1275; PR #1721; relatórios de seeds 42–47 e 48–57; GOV-V9-TEST-COHORT-20PCT-20261118; GOV-DOC-01.
+
+## Complemento de implementação (19/11/2026)
+O PR fast passa a executar também os testes offline do `impact` atual (sem os dois gates históricos aposentados). O workflow manual de frozen transfer falha explicitamente quando disparado na master beta; execução histórica exige selecionar ref original e SHA exato. A decisão de 20% teve o cabeçalho atualizado para refletir o merge de #1721. A referência física 30k vigente ainda requer geração controlada e versionamento; não substituir hash por valor não verificado.
