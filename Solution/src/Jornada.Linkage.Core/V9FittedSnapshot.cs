@@ -178,9 +178,44 @@ public sealed class V9FittedSnapshot
         var snapshot = new V9FittedSnapshot(payload);
         // Require the canonical encoding, preventing multiple byte identities
         // for one fitted artifact and silent normalization at application startup.
-        if (!content.SequenceEqual(snapshot.SerializeUtf8()))
+        var canonical = snapshot.SerializeUtf8();
+        if (!content.SequenceEqual(canonical)
+            && !MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
         return snapshot;
+    }
+
+    // The pinned experimental bootstrap-v0 predates these two nonzero-default
+    // TF configuration fields. Preserve its exact measured bytes and SHA; do
+    // not relax canonical checks for modern or TF-positive fitted snapshots.
+    private static bool MatchesLegacyBootstrapV0Encoding(
+        ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
+    {
+        if (payload.TfWeight != 0m || payload.TfCalibration is not null
+            || payload.MotherTfCalibration is not null || payload.UnitTfCalibrations is not null
+            || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
+            || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
+            return false;
+
+        using var source = JsonDocument.Parse(original);
+        if (source.RootElement.TryGetProperty("ContextPopulation", out _)
+            || source.RootElement.TryGetProperty("UnpublishedOccurrenceCount", out _))
+            return false;
+
+        using var parsed = JsonDocument.Parse(canonical);
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (var property in parsed.RootElement.EnumerateObject())
+            {
+                if (property.Name is "ContextPopulation" or "UnpublishedOccurrenceCount")
+                    continue;
+                property.WriteTo(writer);
+            }
+            writer.WriteEndObject();
+        }
+        return original.SequenceEqual(buffer.ToArray());
     }
 
     public ProbabilisticLinkageDecision ResolvePreview(Guid diagnosticModelId,
