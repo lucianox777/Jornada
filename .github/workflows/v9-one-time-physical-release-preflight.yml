@@ -35,7 +35,7 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           ref: ${{ inputs.expected_sha }}
           persist-credentials: false
@@ -51,7 +51,7 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ inputs.security_preflight_approved }}" = "true"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # pinned
         with:
           dotnet-version: "10.0.113"
           cache: true
@@ -61,7 +61,7 @@ jobs:
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
       - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # pinned
         with:
           name: v9-tf4-validated-operational-model-d9b751212ce4af0502c6827ae783067142a4b8f7-44235715333
           run-id: 44235715333
@@ -172,7 +172,7 @@ jobs:
           PY
       - name: Upload diagnostic-only aggregate result (not scientific evidence)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pinned
         with:
           name: v9-one-time-regression-not-scientific-${{ github.run_id }}
           retention-days: 30

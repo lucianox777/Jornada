@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Bind to exact SHA on manual dispatch
@@ -62,7 +62,7 @@ jobs:
       matrix:
         artifact: [seed42-source, v3-trial-model, v3-trial-metadata]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Download only the declared artifact and verify its real layout
@@ -76,7 +76,7 @@ jobs:
           root="$RUNNER_TEMP/artifact-$KEY"
           gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$root"
           python3 Solution/scripts/v9-orchestrator.py verify-artifact --key "$KEY" --root "$root" | tee "$RUNNER_TEMP/verify-$KEY.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-orch-artifact-preflight-${{ matrix.artifact }}-${{ github.run_id }}
           path: ${{ runner.temp }}/verify-${{ matrix.artifact }}.json
@@ -87,14 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Exclusive temporary directories for this job
         run: |
           echo "SOURCE_DIR=$RUNNER_TEMP/v9-frozen-source" >> "$GITHUB_ENV"
           echo "TRIAL_DIR=$RUNNER_TEMP/v9-v3-candidate" >> "$GITHUB_ENV"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
         with:
           dotnet-version: '10.0.113'
           cache: true
@@ -125,7 +125,7 @@ jobs:
           mapfile -t ARGV < "$RUNNER_TEMP/preflight.argv"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-preflight-frozen-v2-v3-pair "${ARGV[@]}" | tee "$RUNNER_TEMP/pair-preflight.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-orch-executor-contract-${{ github.run_id }}
           path: |
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Download latest V2×V3 aggregate result for the master SHA, if any
@@ -167,7 +167,7 @@ jobs:
           echo "BEGIN_RESULTS_JSON"
           python3 -c 'import json,sys;print(json.dumps(json.load(open(sys.argv[1]))["results"],separators=(",",":")))' "$RUNNER_TEMP/v9-evidence-manifest.json"
           echo "END_RESULTS_JSON"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-orch-evidence-manifest-${{ github.run_id }}
           path: |
