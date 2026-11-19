@@ -215,6 +215,18 @@ public sealed class V9FittedSnapshot
                 category += "_COUNT_" + missing.Count + "_KNOWN_" +
                     (identified.Length == 0 ? "NONE" : string.Join("_", identified));
             }
+            if (category.StartsWith("MISSING_FIELDS", StringComparison.Ordinal))
+            {
+                // Distinguish legacy eligibility from byte encoding without leaking values.
+                var legacyEligible = payload.TfWeight == 0m && payload.TfCalibration is null
+                    && payload.MotherTfCalibration is null && payload.UnitTfCalibrations is null
+                    && payload.ContextPopulation == V9UnpublishedNominalFrequency.DefaultContextPopulation
+                    && payload.UnpublishedOccurrenceCount == V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences;
+                category += legacyEligible ? "_LEGACY_ELIGIBLE" : "_LEGACY_INELIGIBLE";
+                if (legacyEligible)
+                    category += content.SequenceEqual(EncodeLegacyBootstrapV0(canonical))
+                        ? "_BYTES_MATCH" : "_BYTES_DIFFER";
+            }
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica: " + category);
         }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
