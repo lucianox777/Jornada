@@ -122,6 +122,20 @@ public static class V9FrozenJointIndependentComparisonCli
 
         Stage("FITTED_SNAPSHOTS");
         Stage("V2_READ_START");
+        // Distinguish immutable artifact byte identity from payload/schema validation.
+        // Never log content, paths, observed hashes or fitted parameters.
+        var v2Bytes = await File.ReadAllBytesAsync(originalPath);
+        if (v2Bytes.Length <= 0 || v2Bytes.Length > V9FittedSnapshot.MaximumContentBytes)
+        {
+            Stage("V2_READ_FAILED_SIZE");
+            throw new InvalidDataException("Pinned V2 artifact size is invalid.");
+        }
+        if (!Sha(v2Bytes).Equals(OriginalV2, StringComparison.OrdinalIgnoreCase))
+        {
+            Stage("V2_READ_FAILED_SHA_MISMATCH");
+            throw new InvalidDataException("Pinned V2 artifact SHA-256 mismatch.");
+        }
+        Stage("V2_SHA_VERIFIED");
         V9FittedSnapshot original;
         try
         {
