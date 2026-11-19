@@ -23,3 +23,5 @@ A recuperação confirma que a referência histórica é fisicamente reprodutív
 
 ## Proteção de regressão proposta
 Adicionado `Solution/tests/scripts/test_v9_seed42_historical_manifest_shape.py` para verificar estaticamente as nove condições simultâneas de escopo, a remoção de somente dois campos e a preservação dos metadados no formato geral. É um teste de contrato de código, **não** um teste físico de SHA, de partições ou de proveniência. A aprovação deste teste não elimina a exigência de validação física independente.
+
+O teste de escopo foi conectado explicitamente ao job `unit-runtime` do workflow obrigatório `.github/workflows/jornada-pr-required-fast.yml`, após `test_v9_tf_ref_provenance_gate.py`, para que a proteção seja executada em CI e não apenas mantida no repositório. Resultado da execução no commit atualizado: pendente.
