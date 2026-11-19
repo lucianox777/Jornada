@@ -197,12 +197,12 @@ public sealed class V9FittedSnapshot
             || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
             return false;
 
-        using var source = JsonDocument.Parse(original);
+        using var source = JsonDocument.Parse(original.ToArray());
         if (source.RootElement.TryGetProperty("ContextPopulation", out _)
             || source.RootElement.TryGetProperty("UnpublishedOccurrenceCount", out _))
             return false;
 
-        using var parsed = JsonDocument.Parse(canonical);
+        using var parsed = JsonDocument.Parse(canonical.ToArray());
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
         {
