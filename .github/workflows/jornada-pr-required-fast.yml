@@ -13,15 +13,42 @@ concurrency:
   group: jornada-pr-required-fast-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  classify-impact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" > changed-files.txt
+          else
+            # For push/manual runs, retain full checks; master impact is independently classified in jornada-ci.
+            git ls-files > changed-files.txt
+          fi
+          python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
+          grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
+      - name: Check classification contract
+        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py
   unit-runtime:
+    needs: classify-impact
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Full current offline impact suite before merge (no SQL or physical calibration)
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        name: Full current offline impact suite before merge (no SQL or physical calibration)
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_csharp_comment_escaped_newline_gate.py
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
@@ -31,7 +58,8 @@ jobs:
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py Solution/tests/scripts/test_v9_tf_workflow_protocol.py Solution/tests/scripts/test_v9_orchestrator.py
           python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py Solution/tests/scripts/test_ci_built_binary_gate.py Solution/tests/scripts/test_ci_failure_checkpoint.py Solution/tests/scripts/test_nuget_product_inventory.py
           python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py
-      - name: Essential V9 contract tests
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        name: Essential V9 contract tests
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_independent_cohort_artifacts.py'
           # Current beta corpus partition, TEST isolation and provenance contracts (offline).
@@ -81,14 +109,18 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py'
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py'
   deterministic-build:
+    needs: classify-impact
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
-      - name: Compile production solution and verify internal calibration budget
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        name: Compile production solution and verify internal calibration budget
         working-directory: Solution
         run: |
           dotnet build Jornada.sln -c Release
@@ -110,7 +142,8 @@ jobs:
             --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FittedSnapshotTests'
-      - name: Verify C# startup console and closed JSONL (no calibration)
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        name: Verify C# startup console and closed JSONL (no calibration)
         working-directory: Solution
         run: |
           set -euo pipefail
@@ -131,7 +164,7 @@ jobs:
           print('V9_STARTUP_PROBE_VERIFIED: console and JSONL')
           PY
       - name: Upload startup probe logs
-        if: always()
+        if: always() && needs.classify-impact.outputs.docs_only != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: v9-startup-probe
@@ -140,9 +173,14 @@ jobs:
             Solution/.local/v9-startup-probe/startup-progress.jsonl
           if-no-files-found: warn
   security-guards:
+    needs: classify-impact
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Fail closed when impact classification fails
+        if: needs.classify-impact.result != 'success'
+        run: exit 1
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Repository safety and CI contract gates
         run: |
