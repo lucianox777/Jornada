@@ -33,9 +33,9 @@ public sealed class V9UnpublishedNominalFrequencyTests
     [TestCase(101L, 100L)]
     public void InvalidOccurrenceCount_IsRejected(long count, long population)
     {
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9UnpublishedNominalFrequency.Resolve(new Dictionary<string, decimal>(),
-                "INEDITO", population, count));
+                "INEDITO", population, count)));
     }
 
     [Test]
@@ -50,9 +50,9 @@ public sealed class V9UnpublishedNominalFrequencyTests
     [TestCase(19L)]
     public void InvalidPopulation_IsRejected(long population)
     {
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9UnpublishedNominalFrequency.Resolve(new Dictionary<string, decimal>(),
-                "INEDITO", population));
+                "INEDITO", population)));
     }
     [Test]
     public void PhysicalModelOptionJson_OverridesContextPopulationAndChangesFingerprint()
@@ -66,7 +66,7 @@ public sealed class V9UnpublishedNominalFrequencyTests
         {
             ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation
         };
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(configured.ContextPopulation, Is.EqualTo(12000000L));
             Assert.That(configured.UnpublishedOccurrenceCount, Is.EqualTo(10L));
@@ -75,7 +75,7 @@ public sealed class V9UnpublishedNominalFrequencyTests
                 new Dictionary<string, decimal>(), "INEDITO", configured.ContextPopulation,
                 configured.UnpublishedOccurrenceCount),
                 Is.EqualTo(10m / 12000000m));
-        });
+        }));
     }
 
     [Test]
