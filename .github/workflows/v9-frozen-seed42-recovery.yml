@@ -1,8 +1,5 @@
 name: V9 frozen seed42 30k historical recovery
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-frozen-seed42-recovery.yml'
   workflow_dispatch:
     inputs:
       historical_sha:
@@ -23,7 +20,7 @@ jobs:
       - name: Verify requested historical SHA against immutable registry
         shell: bash
         env:
-          REQUESTED_SHA: ${{ inputs.historical_sha || '945f2e7efbfa217fbf333aa1fb705e15973be9f2' }}
+          REQUESTED_SHA: ${{ inputs.historical_sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -39,13 +36,13 @@ jobs:
       - name: Checkout exact frozen historical generator and scripts
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ inputs.historical_sha || '945f2e7efbfa217fbf333aa1fb705e15973be9f2' }}
+          ref: ${{ inputs.historical_sha }}
           path: historical
           persist-credentials: false
       - name: Verify actual checkout
         shell: bash
         env:
-          REQUESTED_SHA: ${{ inputs.historical_sha || '945f2e7efbfa217fbf333aa1fb705e15973be9f2' }}
+          REQUESTED_SHA: ${{ inputs.historical_sha }}
         run: |
           set -euo pipefail
           test "$(git -C historical rev-parse HEAD)" = "$REQUESTED_SHA"
