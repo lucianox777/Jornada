@@ -1,57 +1,64 @@
-# MANDATO OPERACIONAL — Acompanhamento assistido de CI e correções rastreáveis
+# MANDATO GERAL — Acompanhamento assistido de CI, investigação e correções rastreáveis
 
 **Identificador:** GOV-MANDATO-CI-ASSISTIDA-20261119  
-**Emissor:** Product Owner do Projeto Jornada do Cidadão  
-**Data:** 19/11/2026  
-**Status:** mandato solicitado expressamente pelo Product Owner nesta conversa; registrado em branch da PR #1450, **pendente de integração à master**.  
-**Repositório:** `lucianox777/Jornada`
+**Solicitante:** titular da solicitação / Product Owner no contexto de Jornada do Cidadão  
+**Data original:** 19/11/2026  
+**Revisão de escopo:** 19/11/2026 — generalização expressamente solicitada: **aplicável a qualquer projeto**, não exclusivo do Jornada.  
+**Status documental:** registrado neste repositório como referência reutilizável; pendente de integração da PR #1450 à branch principal. **Não constitui política automaticamente adotada por outros repositórios ou organizações.**
 
-## 1. Objeto e finalidade
+## 1. Finalidade e aplicabilidade
 
-Formalizar o mandato para o assistente acompanhar, investigar e apoiar a correção de falhas de integração contínua no GitHub, de modo repetível, verificável e auditável. O método é descrito em [Procedimento Operacional — Acompanhamento Assistido da CI](Procedimento_Operacional_Acompanhamento_CI_Externo_20261119.md).
+Estabelecer um **modelo geral de trabalho** para acompanhamento assistido de integração contínua (CI), investigação de falhas, implementação de correções técnicas permitidas, validação e documentação auditável, **independentemente do projeto, linguagem, plataforma de CI ou provedor de repositório**.
 
-A CI **continua sendo executada pelo GitHub Actions**; o assistente consulta os resultados pela integração GitHub, sem constituir executor de CI paralelo. A atuação ocorre quando acionada pelo PO, não representa monitoramento ininterrupto em segundo plano.
+O mandato pode orientar trabalhos em projetos novos ou existentes, públicos ou privados, sempre sujeito às permissões concedidas, às ferramentas disponíveis, à governança e às regras específicas de cada ambiente. Sua adoção em outro projeto exige contextualização das regras locais; salvar este documento no Git do Jornada não o instala nem o torna vinculante em outros projetos.
 
-## 2. Atribuições abrangidas
+## 2. Natureza do acompanhamento
 
-1. Consultar PR, branch, SHA e estado de merge; enumerar execuções, jobs, checks e respectivos resultados vinculados à revisão correta.
-2. Ler logs, workflows, testes, código, artefatos disponíveis e documentação para separar causa primária de sintomas derivados.
-3. Investigar divergências de contrato, dependências expiradas e erros de execução com evidência suficiente, mantendo a distinção entre hipótese e fato confirmado.
-4. Aplicar **correções técnicas pontuais e reversíveis** em branches de trabalho, com commits identificáveis, quando não alterarem decisões científicas ou políticas reservadas ao PO.
-5. Reexecutar/verificar a CI pelos mecanismos autorizados e conferir os gates efetivamente exigidos; não declarar aprovação com jobs pendentes nem aproveitar sucesso de SHA antigo como aprovação de SHA novo.
-6. Documentar contexto, justificativa, precedência, impactos, SHA, runs, evidências e resultado; sincronizar o índice de decisões vigentes conforme GOV-DOC-01.
-7. Informar o PO de avanços, falhas, bloqueios, riscos e necessidades de decisão explícita.
+O assistente **não cria nem substitui uma CI paralela**: utiliza as interfaces e APIs autorizadas do provedor para consultar pipelines, commits, jobs, checks, logs e artefatos. Distingue evidência observada, diagnóstico provável e hipótese ainda não comprovada. Não há vigilância contínua entre interações sem automação explicitamente configurada e autorizada.
 
-## 3. Limites de autoridade e matérias reservadas
+## 3. Mandato operacional
 
-Este mandato **não autoriza**, por si só:
-- Fazer merge ou contornar branch protection, revisões, checks obrigatórios ou regras de segurança.
-- Iniciar ou repetir campanhas científicas TRAIN/VALIDATION/TEST, consumir TEST one-use, alterar LOCKs, thresholds científicos, corpora congelados ou fingerprints.
-- Certificar, promover ou ativar modelos; essas decisões continuam submetidas às autoridades e controles vigentes, inclusive Operador Master.
-- Substituir artefatos históricos indisponíveis por corpora apenas aparentemente semelhantes.
-- Publicar dados pessoais, segredos, mensagens integrais de exceções ou logs restritos.
-- Encerrar incidentes ou afirmar que uma correção está validada antes de observar evidência do commit correspondente.
+1. Identificar repositório, branch, PR/MR, commit exato, pipelines e requisitos de integração.
+2. Consultar o estado da CI por revisão, distinguir sucesso, falha, cancelamento, pendência, fila e execução em andamento.
+3. Priorizar verificações obrigatórias e bloqueios relevantes ao objetivo do trabalho.
+4. Inspecionar logs, jobs, código, testes, configurações, dependências e proveniência de artefatos; separar erro primário de falhas consequentes.
+5. Propor e, quando autorizado e tecnicamente seguro, aplicar correções **mínimas, reversíveis e rastreáveis** em branches apropriadas, sem alterar contratos ou políticas reservadas à aprovação humana.
+6. Conferir novamente os resultados no novo commit, sem atribuir a ele aprovação obtida em revisão anterior.
+7. Registrar decisões aprovadas, justificativas, impactos, precedência, evidências e histórico nos arquivos oficiais do projeto, conforme sua política de governança.
+8. Comunicar estado real, evidências, incertezas, impedimentos e ações que dependam de autorização.
 
-Mudanças de escopo, decisões técnicas/funcionais/científicas ou exceções de governança que ultrapassem os limites acima requerem aprovação específica do PO e registro oficial antes da conclusão.
+**Ciclo:** identificar → observar → investigar → corrigir → documentar → validar → informar → repetir conforme necessário.
 
-## 4. Ciclo de atuação e critérios de conclusão
+## 4. Limites e controles universais
 
-**Identificar SHA → consultar CI → priorizar bloqueios → examinar evidências → corrigir de forma mínima → registrar decisão/alteração → validar nova revisão → comunicar.**
+Este mandato **não concede por si só** autorização para:
+- Efetuar merge, deploy, publicação, alteração de produção ou desabilitar gates, aprovações, proteção de branch e verificações de segurança.
+- Expor dados pessoais, credenciais, segredos, artefatos restritos ou logs sensíveis.
+- Modificar critérios de aceitação, resultados de testes, proveniência de dados ou controles de conformidade para produzir aprovação artificial.
+- Executar atividades irreversíveis, de alto impacto, custosas ou reservadas ao responsável do projeto sem autorização pertinente.
+- Afirmar que CI, PR/MR ou implantação foram aprovadas antes da confirmação dos requisitos correspondentes.
+- Atribuir a si acesso, execução em segundo plano ou autoridade inexistentes.
 
-Uma intervenção só pode ser reportada como **validada** quando os testes pertinentes concluírem com sucesso no SHA indicado. A PR só pode ser reportada como **apta à integração** após confirmação de todos os requisitos aplicáveis; `mergeable=true` não basta. Falhas de insumo ou de proveniência permanecem **fail-closed**.
+Quando faltar um artefato crítico ou sua identidade não puder ser comprovada, registrar o bloqueio e **falhar de modo seguro**, sem substituição silenciosa. Havendo conflito, prevalecem as regras específicas do projeto, as permissões efetivas, os controles de segurança e a orientação expressa do responsável autorizado.
 
-## 5. Justificativa, impactos e rastreabilidade
+## 5. Critérios de rastreabilidade e conclusão
 
-**Contexto:** durante a PR #1450, o acompanhamento assistido permitiu identificar e corrigir falhas de CodeQL, Identity Foundation, TF4 e DT-05, confirmar aprovação física do DT-05 e explicitar a ausência de artefato histórico no Memory Batch. O preflight V2×V3 permaneceu sujeito à apuração da causa.
+Cada intervenção deve identificar, quando disponíveis: projeto, PR/MR, branch, SHA antes/depois, run/job, erro observado, hipótese e confirmação, alteração realizada, testes executados, resultado, pendências, responsável por decisões e links de evidência.
 
-**Justificativa:** reduzir ciclos de diagnóstico, evitar correções especulativas, preservar provas por SHA e impedir que o histórico da conversa substitua os documentos oficiais.
+**Correção implementada** não equivale a **correção validada**. **Pipeline verde** não equivale necessariamente a **merge autorizado**. A conclusão deve declarar os critérios efetivamente atendidos e os que permanecem pendentes.
 
-**Impactos:** estabelece responsabilidade operacional e forma de prestação de contas; **não** altera critérios de CI, regras científicas, responsabilidades do Operador Master ou permissões de merge.
+## 6. Governança e adoção por projeto
 
-**Precedência:** GOV-DOC-01; políticas de segurança e de branch protection; decisões científicas/LOCKs V9; decisões do Operador Master. Em caso de conflito, prevalece a regra específica mais restritiva ou a decisão posterior expressamente aprovada pelo PO.
+O documento é **genérico**. Ao utilizá-lo, cada projeto deve definir ou identificar seus próprios responsáveis, regras de autorização, documentação oficial, critérios de CI, exigências de revisão, políticas de segurança e eventuais controles de dados, ciência ou operação.
 
-**Evidências de referência:** [PR #1450](https://github.com/lucianox777/Jornada/pull/1450), [DT-05 #44602944706](https://github.com/lucianox777/Jornada/actions/runs/44602944706), [Memory Batch #44602944087](https://github.com/lucianox777/Jornada/actions/runs/44602944087).
+No **Jornada do Cidadão**, a aplicação deste mandato continua subordinada à **GOV-DOC-01**, às decisões científicas e LOCKs V9, aos controles do Operador Master e às regras de proteção de branches. Não autoriza TRAIN/VALIDATION/TEST científicos, ativação de modelo ou merge sem as autorizações e condições locais.
 
-## 6. Vigência e revisão
+O [procedimento operacional específico do Jornada](Procedimento_Operacional_Acompanhamento_CI_Externo_20261119.md) é um **exemplo de implementação**, não uma limitação de escopo deste mandato. A [PR #1450](https://github.com/lucianox777/Jornada/pull/1450), a [execução DT-05 #44605048704](https://github.com/lucianox777/Jornada/actions/runs/44605048704) e o [Memory Batch #44605048372](https://github.com/lucianox777/Jornada/actions/runs/44605048372) são evidências históricas **do caso Jornada**, não requisitos universais.
 
-Mandato aplicável ao acompanhamento assistido do projeto, observados os limites de cada tarefa e a disponibilidade das ferramentas autorizadas. Qualquer ampliação de autoridade, automação contínua ou dispensa de gate depende de nova decisão explícita e documentada do PO. A publicação nesta branch não equivale à integração na `master`.
+## 7. Decisão de revisão, justificativa, impacto e precedência
+
+**Decisão do solicitante:** o mandato deve ser utilizável **com qualquer projeto**, em vez de restrito ao Jornada do Cidadão.  
+**Motivo:** padronizar um método de trabalho reaproveitável entre repositórios e plataformas.  
+**Impacto:** generalização do escopo e das atribuições; preservação das salvaguardas, sem ampliação automática de permissões ou dispensa de políticas locais.  
+**Precedência:** esta revisão substitui o escopo exclusivamente Jornada da versão inicial deste mandato; as regras locais continuam prevalecendo quando aplicáveis.  
+**Rastreabilidade:** revisão solicitada pelo PO na conversa de 19/11/2026 e registrada em commit na branch da PR #1450.
