@@ -554,3 +554,5 @@ A [DT-15](DT15_Governanca_Decisao_Modelo.md) especifica comparação pareada ATI
 - **GOV-V9 — Correção do binding TF4 para população parametrizada (18/11/2026):** [registro e evidências](Decisao_GOV_V9_Correcao_TF4_Populacao_1000_20261118.md). Correção técnica fail-closed; 1000 é diagnóstico, não certificação.
 
 - **GOV-V9 — compatibilidade snapshot V0 sem buffer permanente (18/11/2026):** correção técnica incremental da PR #1723, commit `22eef935`, registrada em [Decisao_GOV_V9_TF_Suporte_REF_TEST_Diagnostico_20261118.md](Decisao_GOV_V9_TF_Suporte_REF_TEST_Diagnostico_20261118.md). Preserva bytes/SHA V0 após verificação estrita, sem `byte[]` retido; **CI e integração pendentes**, TRAIN científico bloqueado.
+
+- **GOV-V9-AUDIT-TF-POLICY-1K-20261118 (CORREÇÃO TÉCNICA EM PR):** run #44436773716 concluiu TRAIN 324/324, mas AUDIT falhou por reconstrução da grade sem a política nominal TF congelada; corrigir o auditor preservando comparação integral e fail-closed, sem modificar parâmetros científicos. [Diagnóstico e rastreabilidade](Decisao_GOV_V9_TF_Suporte_REF_TEST_Diagnostico_20261118.md). CI e execução física pendentes.
