@@ -17,3 +17,9 @@ Correção limitada ao contrato estático da CI; não altera código de produç�
 - PR: #1450; execução: #44595348811; revisão problemática: `434698b` (`pull/1450/merge`).
 - Arquivos: `.github/workflows/ci.yml` e `Solution/tests/scripts/test_ci_required_gates.py`.
 - Estado: ajuste submetido à PR; CI da revisão corrigida e validação externa dos pins pendentes.
+
+## Evidência complementar — CI #44596760194
+
+Na execução do commit `806c517`, `security-guards`, `classify-impact` e `deterministic-build` passaram. `unit-runtime` falhou em `Essential V9 contract tests` porque `test_v9_v3_four_name_100k_handoff.py` ainda exigia `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093`, enquanto a PR atualizou o workflow para `9000827ccba6bdab643e8b6fd33ac0654aef8333`. Ajuste estrito do literal de teste no commit `99490452`, sem suprimir a exigência de download independente no handoff científico. A nova CI e a procedência externa dos pins continuam pendentes; o merge segue bloqueado.
+
+Na mesma rodada, `v9-memory-batch` falhou pela ausência do artefato nomeado no run histórico `38593005691`; `jornada-identity-progressive-foundation`, `DT-05 Real Runner CPF Late E2E`, `V9 TF4 mandatory TRAIN-AUDIT-VALIDATION cross-job integration (synthetic only)` e `v9-parallel-orchestrator` também falharam, com investigação de causalidade ainda pendente. Não substituir artefatos, não relaxar gates, não executar TRAIN/TEST científico.
