@@ -11,3 +11,6 @@ A validação mantém todas as sete comparações existentes: `CorpusFingerprint
 
 ## Precedência, governança e rastreabilidade
 Subordinada à GOV-DOC-01, aos gates de proveniência e às regras de isolamento TRAIN/AUDIT/VALIDATION/TEST. A PR #1748 e sua compatibilidade V2/V3 não são consideradas causa da divergência sem prova adicional. A PR #1749 atualiza separadamente o índice da integração anterior; este registro acompanha a nova correção. A aprovação depende dos checks e da integração pela política do repositório.
+
+## Evidências de validação da instrumentação
+No commit `cd8fc627739320e47b7875544f0db80136af2749`, as execuções `jornada-pr-required-fast` #44634444066, `v9-experimental-fast-pr` #44634444083 e `V9 full-schema real RunAsync smoke` #44634444067 concluíram com sucesso. Os testes acrescentados verificam que somente nomes de campos divergentes aparecem na exceção, sem os valores de fingerprint, e que a igualdade estrita de `PinnedIbgeBootstrap` permanece obrigatória. Esses resultados validam a instrumentação na PR #1750, mas **não** comprovam a reconstrução física seed42/30k, a origem da divergência ou a certificação científica. O workflow `v9-physical-seed42-probe` é acionado por push na master; nenhuma integração ou execução física desta branch está aqui declarada.
