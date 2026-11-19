@@ -1038,6 +1038,32 @@ jobs:
           path: ${{ runner.temp }}/v9-e2e-closeout/prepare-evidence-reference.json
           if-no-files-found: error
           retention-days: 30
+      - name: Generate standalone V9 comparative campaign report
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PREPARE_RESULT: ${{ needs.prepare-100k.result }}
+          V9_SYNTHETIC_POPULATION: ${{ inputs.synthetic_population }}
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-campaign-comparative-report.py \
+            --sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --population "$V9_SYNTHETIC_POPULATION" --prepare "$PREPARE_RESULT" \
+            --train "$PHYSICAL_RESULT" --audit-result "$AUDIT_RESULT" \
+            --validation-result "$VALIDATION_RESULT" --test-result "$TEST_RESULT" \
+            --closeout "$RUNNER_TEMP/v9-e2e-closeout/e2e-status.json" \
+            --audit "$RUNNER_TEMP/v9-e2e-closeout/audit/results/campaign-scientific-status.json" \
+            --validation "$RUNNER_TEMP/v9-e2e-closeout/validation/validation-e2e-status.json" \
+            --independent-test "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json" \
+            --out "$RUNNER_TEMP/v9-e2e-closeout/comparative-report"
+      - name: Upload V9 comparative campaign report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-campaign-comparative-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/comparative-report/
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload sanitized E2E completion or failure receipt
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
