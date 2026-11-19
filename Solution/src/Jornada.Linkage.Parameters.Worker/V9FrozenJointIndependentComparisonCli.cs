@@ -181,7 +181,62 @@ public static class V9FrozenJointIndependentComparisonCli
         }
         Stage("V2_READ_OK");
         Stage("V3_READ_START");
-        var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        // Mirror the V2 diagnostics: disclose only finite failure categories.
+        // Keep the exact pinned SHA and the complete snapshot validation mandatory.
+        var v3Bytes = await File.ReadAllBytesAsync(trialPath);
+        if (v3Bytes.Length <= 0 || v3Bytes.Length > V9FittedSnapshot.MaximumContentBytes)
+        {
+            Stage("V3_READ_FAILED_SIZE");
+            throw new InvalidDataException("Pinned V3 artifact size is invalid.");
+        }
+        if (!Sha(v3Bytes).Equals(ExperimentalV3, StringComparison.OrdinalIgnoreCase))
+        {
+            Stage("V3_READ_FAILED_SHA_MISMATCH");
+            throw new InvalidDataException("Pinned V3 artifact SHA-256 mismatch.");
+        }
+        Stage("V3_SHA_VERIFIED");
+        V9FittedSnapshot candidate;
+        try
+        {
+            candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        }
+        catch (FileNotFoundException)
+        {
+            Stage("V3_READ_FAILED_FILE_MISSING");
+            throw;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            Stage("V3_READ_FAILED_DIRECTORY_MISSING");
+            throw;
+        }
+        catch (InvalidDataException error)
+        {
+            // Never print arbitrary exception messages or fitted data.
+            var category = error.Message.StartsWith("Snapshot V9 não utiliza serialização canônica: ", StringComparison.Ordinal)
+                ? "NONCANONICAL_ENCODING"
+                : error.Message switch
+                {
+                    "Schema do snapshot V9 inválido." => "SCHEMA_JSON",
+                    "Snapshot V9 não utiliza serialização canônica." => "NONCANONICAL_ENCODING",
+                    "Snapshot V9 diverge do SHA-256 fixado ou excede o tamanho permitido." => "CONTENT_IDENTITY",
+                    "Snapshot V9 incompleto, incompatível ou TF sem referência congelada." => "PAYLOAD_CONTRACT",
+                    "Snapshot V9 mistura TRAIN e VALIDATION." => "CORPUS_SEPARATION",
+                    _ => "OTHER_VALIDATION"
+                };
+            Stage("V3_READ_FAILED_" + category);
+            throw;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            Stage("V3_READ_FAILED_JSON");
+            throw;
+        }
+        catch (IOException)
+        {
+            Stage("V3_READ_FAILED_IO");
+            throw;
+        }
         Stage("V3_READ_OK");
         Stage("FROZEN_PAIR");
         ValidateFrozenPair(original, candidate);
