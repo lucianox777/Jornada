@@ -15,9 +15,8 @@ class DocsOnlyFastGateTests(unittest.TestCase):
         for name in ("unit-runtime", "deterministic-build"):
             part = re.split(r"(?m)^  [a-z][a-z0-9-]*:\s*$", s.split("  " + name + ":\n", 1)[1], maxsplit=1)[0]
             self.assertIn("needs: classify-impact", part)
-            self.assertNotIn("\\n    if: needs.classify-impact.outputs.docs_only", part)
+            self.assertNotIn("\n    if: needs.classify-impact.outputs.docs_only", part)
             self.assertIn("if: needs.classify-impact.outputs.docs_only != 'true'", part)
-            self.assertIn("needs: classify-impact", part)
         guard = s.split("  security-guards:\n", 1)[1]
         self.assertIn("if: always() && needs.classify-impact.result == 'success'", guard)
         self.assertIn("source-sanity-gate.py --self-test", guard)
