@@ -223,6 +223,18 @@ public sealed class V9FittedSnapshot
                     && payload.ContextPopulation == V9UnpublishedNominalFrequency.DefaultContextPopulation
                     && payload.UnpublishedOccurrenceCount == V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences;
                 category += legacyEligible ? "_LEGACY_ELIGIBLE" : "_LEGACY_INELIGIBLE";
+                if (!legacyEligible)
+                {
+                    // Report boolean predicate names only, never fitted values.
+                    var reasons = new List<string>();
+                    if (payload.TfWeight != 0m) reasons.Add("TF_WEIGHT");
+                    if (payload.TfCalibration is not null) reasons.Add("TF_CALIBRATION");
+                    if (payload.MotherTfCalibration is not null) reasons.Add("MOTHER_TF_CALIBRATION");
+                    if (payload.UnitTfCalibrations is not null) reasons.Add("UNIT_TF_CALIBRATIONS");
+                    if (payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation) reasons.Add("CONTEXT_POPULATION");
+                    if (payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences) reasons.Add("UNPUBLISHED_OCCURRENCES");
+                    category += "_REASONS_" + string.Join("_", reasons);
+                }
                 if (legacyEligible)
                     category += content.SequenceEqual(EncodeLegacyBootstrapV0(canonical))
                         ? "_BYTES_MATCH" : "_BYTES_DIFFER";
