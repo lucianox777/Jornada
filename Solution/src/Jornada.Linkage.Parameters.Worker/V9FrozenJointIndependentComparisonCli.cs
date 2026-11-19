@@ -144,13 +144,18 @@ public static class V9FrozenJointIndependentComparisonCli
             var category = error.Message switch
             {
                 "Schema do snapshot V9 inválido." => "SCHEMA_JSON",
-                "Snapshot V9 não utiliza serialização canônica." => "NONCANONICAL_ENCODING",
+                var message when message.StartsWith("Snapshot V9 não utiliza serialização canônica.", StringComparison.Ordinal) => "NONCANONICAL_ENCODING",
                 "Snapshot V9 diverge do SHA-256 fixado ou excede o tamanho permitido." => "CONTENT_IDENTITY",
                 "Snapshot V9 incompleto, incompatível ou TF sem referência congelada." => "PAYLOAD_CONTRACT",
                 "Snapshot V9 mistura TRAIN e VALIDATION." => "CORPUS_SEPARATION",
                 _ => "OTHER_VALIDATION"
             };
             Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_FAILED_" + category);
+            // Emit only the structural delta assembled by the trusted snapshot reader.
+            if (category == "NONCANONICAL_ENCODING"
+                && error.Message.StartsWith("Snapshot V9 não utiliza serialização canônica. firstDifference=", StringComparison.Ordinal))
+                Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STRUCTURAL_DELTA:" +
+                    error.Message["Snapshot V9 não utiliza serialização canônica. ".Length..]);
             throw;
         }
         Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_OK");
