@@ -250,9 +250,14 @@ def closeout(
             test_report_status = "INCOMPLETE"
         # Receipt integrity is not a production readiness verdict. Full production
         # pipeline parity is explicitly NOT certified by this scientific TEST.
-        production_readiness = "NOT_DEMONSTRATED"\n        scientific_test_assessment = ("INCONCLUSIVE" if test_report_status != "VERIFIED"\n                                      else "MEASURED_NOT_ADJUDICATED")\n        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
+        production_readiness = "NOT_DEMONSTRATED"
+        scientific_test_assessment = ("INCONCLUSIVE" if test_report_status != "VERIFIED"
+                                      else "MEASURED_NOT_ADJUDICATED")
+        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
     else:
-        test_report_status = "NOT_REQUESTED"\n        production_readiness = "NOT_APPLICABLE"\n        scientific_test_assessment = "NOT_PERFORMED"
+        test_report_status = "NOT_REQUESTED"
+        production_readiness = "NOT_APPLICABLE"
+        scientific_test_assessment = "NOT_PERFORMED"
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
         status = ("E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
                   if info["winnerSha256"] else
@@ -261,7 +266,10 @@ def closeout(
             "testRequested": test_requested, "trainResult": physical,
             "auditResult": audit, "validationResult": validation,
             "testPreparationResult": preparation, "testResult": test,
-            **info, "independentTestReportStatus": test_report_status,\n            "independentTestScientificAssessment": scientific_test_assessment,\n            "productionRequirementsStatus": production_readiness,\n            "productionAuthorization": "OPERATOR_MASTER_ONLY_NOT_GRANTED",
+            **info, "independentTestReportStatus": test_report_status,
+            "independentTestScientificAssessment": scientific_test_assessment,
+            "productionRequirementsStatus": production_readiness,
+            "productionAuthorization": "OPERATOR_MASTER_ONLY_NOT_GRANTED",
             "certified": False, "activated": False,
             "productionPublication": False}
 
