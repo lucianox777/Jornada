@@ -53,11 +53,36 @@ def main() -> None:
     parser.add_argument("--corpus-root", type=Path, required=True)
     parser.add_argument("--pin", type=Path, required=True)
     parser.add_argument("--reference", type=Path, required=True)
+    parser.add_argument("--write-candidate", type=Path, help="Create new candidate registry from authenticated physical bytes; never overwrite")
     args = parser.parse_args()
     generated = pin_source.parse_json(args.corpus_root / "generation-manifest.json")
     bootstrap = pin_source.corpus_bootstrap(args.corpus_root)
     pinned = pin_source.pinned_reference(pin_source.parse_json(args.pin))
     reference = pin_source.parse_json(args.reference)
+    if args.write_candidate:
+        import copy
+        import json
+        import re
+        if not re.fullmatch(r"manifest-v[2-9][0-9]*\\.json", args.write_candidate.name):
+            raise ValueError("Candidate must be named manifest-v2.json or higher")
+        candidate = copy.deepcopy(reference)
+        candidate["generation_manifest_sha256"] = pin_source.file_sha256(args.corpus_root / "generation-manifest.json").upper()
+        candidate["generator_input_sha256"] = generated["input_fingerprint_sha256"].upper()
+        candidate["generated_files"] = [
+            {"file": name, "sha256": pin_source.file_sha256(args.corpus_root / name).upper()}
+            for name in ("pessoas_verdade.csv", "observacoes.csv", "gabarito.json")
+        ]
+        candidate["evidence"] = {
+            "status": "CANDIDATE_REQUIRES_INDEPENDENT_PHYSICAL_REVIEW",
+            "generator_commit_sha": "RECORD_VERIFIED_COMMIT_BEFORE_APPROVAL",
+            "original_registry": "v9-synthetic-seed42-30000/manifest.json"
+        }
+        validate(candidate, pinned, generated, bootstrap)
+        with args.write_candidate.open("x", encoding="utf-8") as stream:
+            json.dump(candidate, stream, indent=2, ensure_ascii=False, allow_nan=False)
+            stream.write("\\n")
+        print("PASS: authenticated candidate created; not approved or active.")
+        return
     validate(reference, pinned, generated, bootstrap)
     print("PASS: synthetic ref metadata, 30k hashes and immutable IBGE pin coincide; no names or SQL writes.")
 
