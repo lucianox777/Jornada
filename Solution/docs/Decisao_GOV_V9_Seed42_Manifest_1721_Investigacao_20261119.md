@@ -39,3 +39,8 @@ Consulta de execuções `workflow_dispatch` no repositório (primeira página, 1
 
 ## Regressão automatizada proposta (sem reprodução física)
 Adicionado em `Solution/tests/scripts/test_v9_tf_ref_provenance_gate.py` o teste `test_metadata_only_manifest_change_remains_blocked`: demonstra, com JSON sintético não nominal, que acrescentar metadados de população/partição modifica o hash dos bytes, mesmo sem modificar as saídas; verifica que o gate rejeita a mudança tanto com o pin histórico quanto com um pin atualizado para o novo bootstrap. **Este teste protege a invariância do gate, mas não reproduz nem autentica o SHA histórico real.** Integração condicionada aos checks da PR, sem autorização de merge.
+
+## Valores conferidos diretamente no registro imutável
+A leitura do arquivo de referência em `master` confirmou `evidence.original_source_sha=945f2e7efbfa217fbf333aa1fb705e15973be9f2`, `generation_manifest_sha256=2F6ED064113D4E58B01D013B5C0A3ED99DE098FBAE4BA7910D0D62B33168E613`, `pessoas_verdade.csv=75171EEDD0BAB7C4D19C7CB37DC620EE0E249199A406F4C8A9DFAC51839ADD13`, `observacoes.csv=28BBB9F4C63C97C353E7F29CDBC77091A4773B2F4C596E46103EDADD93635D17` e `gabarito.json=982658206DF534E8F129E2C3C803E2DA9679EC96D385669CC054D6CA890754D2`. Esses são os valores de comparação, **não resultados de nova execução**.
+
+Na revisão do HEAD `815ae1fa34547f7d438402b793f21aa4ee51eca7`, a PR #1751 seguia Draft e bloqueada; os workflows #44638037872 (`full-schema RunAsync` não publicante) e #44638037864 (`jornada-pr-required-fast`) estavam em andamento/pendentes. Nenhum resultado deve ser inferido antes de sua conclusão.
