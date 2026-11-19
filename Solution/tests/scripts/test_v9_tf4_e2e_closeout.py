@@ -70,8 +70,12 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
 
     def test_actual_manual_workflow_has_always_e2e_closeout_and_no_timeouts(self):
         source = WF.read_text(encoding="utf-8")
-        self.assertIn("\n  e2e-closeout:\n", source)
-        block = source.split("\n  e2e-closeout:\n", 1)[1]
+        self.assertIn("
+  e2e-closeout:
+", source)
+        block = source.split("
+  e2e-closeout:
+", 1)[1]
         self.assertIn("needs: [prepare-100k, physical-100k, audit-100k, validation-100k, test-100k]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("v9-tf4-e2e-closeout.py", block)
@@ -142,7 +146,10 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         result = self.call(requested=True, prep="success", test="success")
         self.assertEqual(result["status"],
                          "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED")
-        self.assertEqual(result["independentTestReportStatus"], "VERIFIED")\n        self.assertEqual(result["independentTestScientificAssessment"], "MEASURED_NOT_ADJUDICATED")\n        self.assertEqual(result["productionRequirementsStatus"], "NOT_DEMONSTRATED")\n        self.assertEqual(result["productionAuthorization"], "OPERATOR_MASTER_ONLY_NOT_GRANTED")
+        self.assertEqual(result["independentTestReportStatus"], "VERIFIED")
+        self.assertEqual(result["independentTestScientificAssessment"], "MEASURED_NOT_ADJUDICATED")
+        self.assertEqual(result["productionRequirementsStatus"], "NOT_DEMONSTRATED")
+        self.assertEqual(result["productionAuthorization"], "OPERATOR_MASTER_ONLY_NOT_GRANTED")
         for field, value, message in [
             ("winnerSnapshotSha256", E, "TEST_WINNER_CONTRACT_DRIFT"),
             ("operationalModelByteExactRoundTrip", False, "TEST_MODEL_"),
