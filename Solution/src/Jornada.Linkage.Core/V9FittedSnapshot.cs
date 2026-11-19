@@ -253,8 +253,16 @@ public sealed class V9FittedSnapshot
     private static bool MatchesLegacyBootstrapV0Encoding(
         ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
     {
+        // The pinned historical V2 carries per-unit TF provenance despite TF weight zero.
+        // This exception is restricted to that exact content-addressed artifact;
+        // byte-for-byte legacy encoding and all payload validation still apply.
+        const string historicalV2WithUnitTfSha = "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f";
+        var historicalUnitTf = payload.UnitTfCalibrations is not null
+            && Convert.ToHexString(SHA256.HashData(original)).Equals(
+                historicalV2WithUnitTfSha, StringComparison.OrdinalIgnoreCase);
         if (payload.TfWeight != 0m || payload.TfCalibration is not null
-            || payload.MotherTfCalibration is not null || payload.UnitTfCalibrations is not null
+            || payload.MotherTfCalibration is not null
+            || (payload.UnitTfCalibrations is not null && !historicalUnitTf)
             || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
             || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
             return false;
