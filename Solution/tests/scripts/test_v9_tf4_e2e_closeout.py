@@ -160,7 +160,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.test.write_text(json.dumps(test_doc(full_parity=False)), encoding="utf-8")
         result = self.call(requested=True, prep="success", test="success")
         self.assertEqual(result["status"],
-                         "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE")
+                         "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED")
         self.assertFalse(result["certified"])
         invalid = test_doc(full_parity=True)
         self.test.write_text(json.dumps(invalid), encoding="utf-8")
