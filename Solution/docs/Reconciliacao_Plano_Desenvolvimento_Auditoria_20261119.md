@@ -30,3 +30,13 @@ A cada mudança: (a) selecionar **uma** frente desta fila; (b) confirmar estado 
 
 ## Situação desta reconciliação
 Registro documental proposto em PR; **nenhuma implementação, correção de testes, alteração de prioridades pelo PO ou ativação foi realizada**. Os números e achados do relatório de 19/11 exigem verificação independente no SHA atual antes de virar dívida confirmada.
+
+## Checkpoint P0-A — verificação complementar de 19/11/2026
+
+- **Plano sincronizado na master:** PR #1742 integrada, commit `68ed67cc2610ca8fc8be895ab2ea3f202b9ff48e`. No HEAD da PR, workflow obrigatório `jornada-pr-required-fast` #44588905500 concluiu `success`, com jobs `security-guards`, `unit-runtime` e `deterministic-build` aprovados. **Esse resultado é de PR, não comprovação de CI completa pós-merge da master.**
+- **Evidência física existente:** workflow #44581595305, job `compare-historical-and-current` aprovado; decisão GOV-V9-P0-1734 documenta igualdade byte a byte de três arquivos científicos com seed 42/30k e divergência de metadados. Não generalizar para todas as seeds ou configurações.
+- **Gate histórico inspecionado:** `Solution/scripts/v9-tf-frozen-transfer-lock-gate.py` exige SHA da árvore atual do gerador igual ao SHA LOCKED histórico e contrato de partição original. Esse gate deve continuar aplicável a replay da fonte congelada; seu uso como gate genérico de código beta evolutivo requer reconciliação com a decisão GOV-V9-BETA-CAMPANHAS-HISTORICAS-CI-20261119. **Não afrouxar a verificação de replay LOCKED.**
+- **DT-10:** commit histórico `4ac707d4844e7d415c120769ef0ba6bd078208e2` documenta testes e job `dt10-evidence` seletivo, mas **não comprova a validação da correção recente #1706**. Conferir PR, SHA e run específicos antes de marcar como validada.
+- **Limitação de observabilidade:** a consulta de runs por commit disponível retorna apenas eventos de PR; para o merge SHA da master retornou lista vazia. Isso **não significa ausência ou sucesso** dos workflows de push. É necessário verificar diretamente os runs pós-merge, jobs e branch protection/rulesets.
+
+**Próxima ação única:** obter evidência da CI de push da master no SHA `68ed67c`, verificar gates obrigatórios/rulesets e a PR #1706; então atualizar #1734 com a conclusão estritamente suportada. Até lá, **P0-A permanece aberto**, sem TRAIN novo ou TEST one-use.
