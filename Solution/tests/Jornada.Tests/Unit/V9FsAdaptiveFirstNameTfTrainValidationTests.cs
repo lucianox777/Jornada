@@ -513,7 +513,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Insufficient_TRAIN_U_fingerprint_is_sensitive_to_smoothing_alpha()
+    public void Sparse_TRAIN_U_ref_remains_supported_and_fingerprint_is_sensitive_to_smoothing_alpha()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
         var first = V9TrainSqlNominalUCalibration.Fit(
@@ -522,8 +522,10 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             rows, CompositeNominalTfSideV9.Mother, 1m, TrainCorpus);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(first.HasSufficientSupport, Is.False);
-            Assert.That(second.HasSufficientSupport, Is.False);
+            Assert.That(first.HasSufficientSupport, Is.True);
+            Assert.That(second.HasSufficientSupport, Is.True);
+            Assert.That(first.NominalUReference!.MatchingNominalPairs, Is.Zero);
+            Assert.That(second.NominalUReference!.MatchingNominalPairs, Is.Zero);
             Assert.That(first.FingerprintSha256, Is.Not.EqualTo(second.FingerprintSha256));
         }));
     }
@@ -549,7 +551,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Partial_TRAIN_support_exports_one_active_unit_and_three_insufficient_units()
+    public void Partial_TRAIN_selection_exports_one_active_one_not_selected_and_two_no_source_units()
     {
         var config = new V9FsAdaptiveOptionConfiguration("PARTIAL_TF", .5m, .55m, 1m);
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
@@ -566,7 +568,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Is.EqualTo(V9SnapshotTfFitState.Active));
         Assert.That(units.Single(x => x.Side == CompositeNominalTfSideV9.Mother
             && x.Unit == NominalFrequencyUnitV9.FirstName).State,
-            Is.EqualTo(V9SnapshotTfFitState.InsufficientSupport));
+            Is.EqualTo(V9SnapshotTfFitState.NotSelected));
         Assert.That(units.Count(x => x.State == V9SnapshotTfFitState.NoSource),
             Is.EqualTo(2));
         Assert.That(units.Where(x => x.State != V9SnapshotTfFitState.Active)
@@ -677,8 +679,10 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         };
         var unsupported = new V9FellegiSunterAdaptiveCalibrationAdapter(
             unsupportedFrame, [config], Reference());
-        Assert.That((Action)(() => unsupported.FitTrain(Model(config), Slice("TRAIN"))),
-            Throws.TypeOf<InvalidDataException>());
+        // U_ref V2 uses all nonmatch candidate pairs with Beta smoothing:
+        // zero observed nominal agreements must not invalidate the TRAIN fit.
+        var sparseFit = unsupported.FitTrain(Model(config), Slice("TRAIN"));
+        Assert.That(sparseFit, Is.Not.Null);
 
         var unknownFrame = Frame() with
         {
