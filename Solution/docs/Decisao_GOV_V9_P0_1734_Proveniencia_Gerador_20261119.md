@@ -45,3 +45,7 @@ A PR inclui `Solution/scripts/v9-seed42-generator-byte-comparison.sh` e o workfl
 ## Recuperação sem sobrescrita (orientação do PO)
 
 A recuperação utiliza diretamente o commit histórico imutável `b98a01180737909edf7cbd0bee4ba2757d52fe0f` via `git worktree add --detach`, em diretório temporário, em vez de substituir os quatro arquivos atuais. A execução histórica usa suas **próprias** referências de entrada, não as referências do HEAD; ambos os checkouts declaram SDK `10.0.113` no `Solution/global.json`. Essa correção evita falsos resultados por mistura de insumos. O replay ainda não foi executado. A estratégia preserva as evoluções atuais e não cria um segundo gerador de produção.
+
+## Acionamento do replay físico via PR
+
+Para obter evidência verificável sem depender de dispatch manual, o workflow de comparação foi habilitado também para `pull_request`, restrito a mudanças no script de replay ou no próprio workflow. **Não** é gate geral de todas as PRs e mantém limite de 45 minutos. A execução e os hashes resultantes devem ser consultados antes de qualquer conclusão sobre equivalência. Esta etapa não altera LOCKs nem habilita publicação científica.
