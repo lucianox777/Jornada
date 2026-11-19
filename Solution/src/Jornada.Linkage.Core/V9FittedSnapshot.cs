@@ -227,8 +227,21 @@ public sealed class V9FittedSnapshot
             }
             bool IsScoreable(IdentityObservation o, LinkageCandidate c)
             {
-                // An unpublished nominal term is scoreable through the frozen
-                // context-population fallback; do not silently abstain.
+                // Explicit opt-in abstention must survive snapshot portability.
+                // The default nominal policy still imputes unpublished terms.
+                if (Payload.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                    return true;
+                foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+                {
+                    var fit = Select(o, c, side);
+                    if (fit?.State != V9SnapshotTfFitState.Active)
+                        continue;
+                    var left = side == CompositeNominalTfSideV9.Person ? o.NomeCompleto : o.NomeMae;
+                    var right = side == CompositeNominalTfSideV9.Person ? c.NomeCompleto : c.NomeMae;
+                    if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                        fit.Unit, left, right, fit.Calibration!.Frequencies))
+                        return false;
+                }
                 return true;
             }
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
