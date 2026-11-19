@@ -27,3 +27,7 @@ O script `Solution/scripts/v9-generator-lock-provenance-diagnostic.py` compara, 
 ## Verificação offline adicionada
 
 `python -m unittest Solution/tests/scripts/test_v9_generator_lock_provenance_diagnostic.py` verifica ordenação de caminhos, hash de bytes exatos, identificação de arquivos adicionados/removidos/modificados e ausência de alegação de equivalência de corpus. Estes testes não substituem execução física, nem validam seed 42.
+
+## Evidência automatizada no GitHub Actions
+
+Workflow diagnóstico `.github/workflows/v9-generator-lock-provenance-diagnostic.yml`: checkout com histórico completo, teste unitário offline, comparação read-only dos dois LOCKs e publicação do JSON como artifact com retenção de 30 dias. A execução e seu resultado ainda precisam ser verificados; o workflow não é gate físico nem substitui a prova de equivalência do corpus.
