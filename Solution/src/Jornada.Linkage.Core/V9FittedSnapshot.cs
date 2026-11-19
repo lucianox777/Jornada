@@ -188,7 +188,28 @@ public sealed class V9FittedSnapshot
         if (content.SequenceEqual(canonical))
             return snapshot;
         if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
-            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
+        {
+            // Safe structural diagnostics: never print fitted values or corpus contents.
+            // The original pinned bytes remain immutable and are never normalized.
+            var firstDifference = 0;
+            var commonLength = Math.Min(content.Length, canonical.Length);
+            while (firstDifference < commonLength && content[firstDifference] == canonical[firstDifference])
+                firstDifference++;
+            using var sourceJson = JsonDocument.Parse(content.ToArray());
+            using var canonicalJson = JsonDocument.Parse(canonical);
+            var sourceFields = sourceJson.RootElement.EnumerateObject()
+                .Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+            var canonicalFields = canonicalJson.RootElement.EnumerateObject()
+                .Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+            var missing = canonicalFields.Except(sourceFields, StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal);
+            var extra = sourceFields.Except(canonicalFields, StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal);
+            throw new InvalidDataException(
+                $"Snapshot V9 não utiliza serialização canônica. firstDifference={firstDifference}; " +
+                $"sourceBytes={content.Length}; canonicalBytes={canonical.Length}; " +
+                $"missingFields={string.Join(",", missing)}; extraFields={string.Join(",", extra)}.");
+        }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
         // Never normalize the pinned historical artifact into a new SHA.
         return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
