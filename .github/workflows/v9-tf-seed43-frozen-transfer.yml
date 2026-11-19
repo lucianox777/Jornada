@@ -51,6 +51,12 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$TF_SHA" =~ ^[0-9a-f]{40}$ && "$GITHUB_REF" == refs/heads/* ]] || { echo "Exact SHA and branch ref required" >&2; exit 1; }
+          # Historical replay is not supported from evolving beta master.
+          # A run must explicitly select its original immutable source ref.
+          if [[ "$GITHUB_REF" == "refs/heads/master" ]]; then
+            echo "Historical frozen transfer cannot run from beta master; select original historical ref and SHA." >&2
+            exit 1
+          fi
           test "$(git rev-parse HEAD)" = "$TF_SHA"
           test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$TF_SHA"
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py \

@@ -39,6 +39,18 @@ class V9SyntheticRefRegistryTests(unittest.TestCase):
     def test_exact_reference_is_accepted(self):
         gate.validate(self.r,self.p,self.m,self.bootstrap)
 
+    def test_candidate_registry_contract_is_fail_closed(self):
+        import ast
+        import inspect
+        source = inspect.getsource(gate.main)
+        ast.parse(source)
+        self.assertIn('args.write_candidate.open("x"', source)
+        self.assertIn('args.write_candidate.parent.resolve() != args.reference.parent.resolve()', source)
+        self.assertIn('args.write_candidate.resolve() == args.reference.resolve()', source)
+        self.assertIn('re.fullmatch(r"[0-9a-f]{40}", args.generator_commit_sha or "")', source)
+        self.assertIn('validate(candidate, pinned, generated, bootstrap)', source)
+        self.assertIn('"CANDIDATE_REQUIRES_INDEPENDENT_PHYSICAL_REVIEW"', source)
+
     def test_changed_observations_are_rejected(self):
         broken = dict(self.m)
         broken["outputs"] = [dict(x) for x in self.m["outputs"]]

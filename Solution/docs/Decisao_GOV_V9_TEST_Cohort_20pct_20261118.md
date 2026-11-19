@@ -1,6 +1,6 @@
 # GOV-V9-TEST-COHORT-20PCT-20261118 — Cohort independente de 20% no TEST
 
-**Autoridade:** Product Owner, 18/11/2026. **Estado:** APROVADA PELO PO; implementação proposta em PR, aguardando CI e integração. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 18/11/2026. **Estado:** APROVADA PELO PO; PR #1721 integrada à master; validação física da campanha atual permanece independente. **Política:** GOV-DOC-01.
 
 ## Contexto e evidências
 A campanha científica #44329203788 gerou 100.000 pessoas em cada corpus independente. A VALIDATION avaliou 18.327 identidades-base (33.861 observações); o TEST avaliou 92.004 identidades-base (170.369 observações). Foram medidos respectivamente 2 e 90 falsos aceites e FDR de 0,00809% e 0,07184%. A comparação dos **números absolutos** não é equivalente entre universos de tamanhos diferentes; as taxas são comparáveis com ressalvas quanto à competição de candidatos e incerteza estatística. Não há evidência de que a calibração ou o vencedor congelado estejam incorretos.
