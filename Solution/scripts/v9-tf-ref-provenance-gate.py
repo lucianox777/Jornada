@@ -63,7 +63,7 @@ def main() -> None:
         import copy
         import json
         import re
-        if not re.fullmatch(r"manifest-v[2-9][0-9]*\\.json", args.write_candidate.name):
+        if not re.fullmatch(r"manifest-v[2-9][0-9]*\.json", args.write_candidate.name):
             raise ValueError("Candidate must be named manifest-v2.json or higher")
         candidate = copy.deepcopy(reference)
         candidate["generation_manifest_sha256"] = pin_source.file_sha256(args.corpus_root / "generation-manifest.json").upper()
@@ -80,7 +80,7 @@ def main() -> None:
         validate(candidate, pinned, generated, bootstrap)
         with args.write_candidate.open("x", encoding="utf-8") as stream:
             json.dump(candidate, stream, indent=2, ensure_ascii=False, allow_nan=False)
-            stream.write("\\n")
+            stream.write("\n")
         print("PASS: authenticated candidate created; not approved or active.")
         return
     validate(reference, pinned, generated, bootstrap)
