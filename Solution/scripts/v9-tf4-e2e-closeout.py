@@ -34,9 +34,7 @@ def validate_jobs(
     require(physical == "success", "TRAIN_NOT_SUCCESS")
     require(audit == "success", "AUDIT_NOT_SUCCESS")
     require(validation == "success", "VALIDATION_NOT_SUCCESS")
-    if test_requested:
-        # TEST execution status is independent of VALIDATION outcome.
-    else:
+    if not test_requested:
         require(preparation in {"success", "skipped"}, "UNREQUESTED_TEST_PREPARATION")
         require(test == "skipped", "UNREQUESTED_TEST_EXPOSURE")
 
