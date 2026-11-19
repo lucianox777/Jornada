@@ -11,3 +11,6 @@ Ajuste exclusivamente de infraestrutura de teste/CI. Não modifica pesos, TF, `U
 
 ## Rastreabilidade
 CI #44564338404, job `scale-harness`; `Solution/scripts/local-scale.sh`; `Solution/docs/Indice_Decisoes_Vigentes.md`; `Solution/docs/Decisao_GOV_Runner_Startup_Modelo_Operador_Master_20261117.md`.
+
+## Triagem adicional TF/U_ref (19/11/2026)
+Leitura de `V9TfDirectionDecision19Tests.cs` e `V9NominalTfUReference.cs` confirma cinco falhas relacionadas à expectativa de `InvalidDataException` para termos não publicados: `ResolveTerm` atualmente chama `V9UnpublishedNominalFrequency.Resolve`, que imputa frequência quando ausente e retorna `U_ref`. Entretanto, `Decisao_GOV_V9_TF_Suporte_REF_TEST_Diagnostico_20261118.md` contém decisões posteriores de imputação, bem como investigação e correções fail-closed de `RejectOperation` e `AbstainCandidate`, com precedências que devem ser reconciliadas por caminho. Não transformar automaticamente testes de exceção em sucesso, nem aplicar imputação a `RejectOperation` sem decisão/validação. Outros dois testes reprovados estão em `FrozenIbgeNominalTfV9Tests.cs` e exigem triagem própria. Nenhuma alteração TF foi aplicada nesta PR; resolver contrato/precedência em alteração separada, com regressão e CI.
