@@ -677,9 +677,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 rows, activeReference, activeSlots);
             if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
             {
-                // Missing published names use the approved 20/context-population
-                // frequency; retain the coverage audit as diagnostic evidence.
-                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_IMPUTED");
+                // RejectOperation is fail-closed: a missing published term
+                // cannot be assigned an invented point frequency.
+                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_REQUIRE");
+                V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
             }
             else
             {
