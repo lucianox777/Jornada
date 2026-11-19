@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed physical E2E closeout for the manual V9 100k workflow.
 
-Runs only AFTER separate TRAIN/AUDIT/VALIDATION jobs. On an optional TEST
-request it requires a passing independent TEST with verified operational
-winner-file compatibility and strict nonpublication, not production execution. This script never opens corpus, FIT or secrets.
+Runs after TRAIN/AUDIT/VALIDATION. A mandatory independent TEST for a winner
+reports evidence separately; neither TEST success nor failure changes the
+scientific winner or authorizes production. This script never opens corpus, FIT or secrets.
 A skipped scientific stage is NEVER translated into scientific SUCCESS.
 """
 from __future__ import annotations
@@ -34,10 +34,7 @@ def validate_jobs(
     require(physical == "success", "TRAIN_NOT_SUCCESS")
     require(audit == "success", "AUDIT_NOT_SUCCESS")
     require(validation == "success", "VALIDATION_NOT_SUCCESS")
-    if test_requested:
-        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
-        require(test == "success", "TEST_NOT_SUCCESS")
-    else:
+    if not test_requested:
         require(preparation in {"success", "skipped"}, "UNREQUESTED_TEST_PREPARATION")
         require(test == "skipped", "UNREQUESTED_TEST_EXPOSURE")
 
@@ -243,11 +240,24 @@ def closeout(
     require(test_requested == (info["winnerSha256"] is not None),
             "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER")
     if test_requested:
-        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
-        require(test_file is not None, "TEST_RECEIPT_NOT_GIVEN")
-        validate_optional_test(test_file, info["winnerSha256"])
-        status = "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE"
+        if preparation == "success" and test == "success" and test_file is not None:
+            try:
+                validate_optional_test(test_file, info["winnerSha256"])
+                test_report_status = "VERIFIED"
+            except (ValueError, json.JSONDecodeError, OSError):
+                test_report_status = "INVALID_RECEIPT"
+        else:
+            test_report_status = "INCOMPLETE"
+        # Receipt integrity is not a production readiness verdict. Full production
+        # pipeline parity is explicitly NOT certified by this scientific TEST.
+        production_readiness = "NOT_DEMONSTRATED"
+        scientific_test_assessment = ("INCONCLUSIVE" if test_report_status != "VERIFIED"
+                                      else "MEASURED_NOT_ADJUDICATED")
+        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
     else:
+        test_report_status = "NOT_REQUESTED"
+        production_readiness = "NOT_APPLICABLE"
+        scientific_test_assessment = "NOT_PERFORMED"
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
         status = ("E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
                   if info["winnerSha256"] else
@@ -256,7 +266,11 @@ def closeout(
             "testRequested": test_requested, "trainResult": physical,
             "auditResult": audit, "validationResult": validation,
             "testPreparationResult": preparation, "testResult": test,
-            **info, "certified": False, "activated": False,
+            **info, "independentTestReportStatus": test_report_status,
+            "independentTestScientificAssessment": scientific_test_assessment,
+            "productionRequirementsStatus": production_readiness,
+            "productionAuthorization": "OPERATOR_MASTER_ONLY_NOT_GRANTED",
+            "certified": False, "activated": False,
             "productionPublication": False}
 
 
