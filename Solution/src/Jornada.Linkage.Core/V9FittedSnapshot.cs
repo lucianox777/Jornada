@@ -188,7 +188,22 @@ public sealed class V9FittedSnapshot
         if (content.SequenceEqual(canonical))
             return snapshot;
         if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
-            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
+        {
+            // Diagnostic only: disclose no values, names, hashes or artifact bytes.
+            // The pinned SHA and every payload validation above remain mandatory.
+            using var historicalJson = JsonDocument.Parse(content.ToArray());
+            using var canonicalJson = JsonDocument.Parse(canonical);
+            var historicalNames = historicalJson.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+            var canonicalNames = canonicalJson.RootElement.EnumerateObject().Select(x => x.Name).ToArray();
+            var category = historicalNames.Except(canonicalNames, StringComparer.Ordinal).Any()
+                ? "EXTRA_FIELDS"
+                : canonicalNames.Except(historicalNames, StringComparer.Ordinal).Any()
+                    ? "MISSING_FIELDS"
+                    : !historicalNames.SequenceEqual(canonicalNames, StringComparer.Ordinal)
+                        ? "FIELD_ORDER"
+                        : "FIELD_ENCODING_OR_VALUES";
+            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica: " + category);
+        }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
         // Never normalize the pinned historical artifact into a new SHA.
         return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
