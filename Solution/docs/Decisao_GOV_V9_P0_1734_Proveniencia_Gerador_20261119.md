@@ -49,3 +49,17 @@ A recuperação utiliza diretamente o commit histórico imutável `b98a011807379
 ## Acionamento do replay físico via PR
 
 Para obter evidência verificável sem depender de dispatch manual, o workflow de comparação foi habilitado também para `pull_request`, restrito a mudanças no script de replay ou no próprio workflow. **Não** é gate geral de todas as PRs e mantém limite de 45 minutos. A execução e os hashes resultantes devem ser consultados antes de qualquer conclusão sobre equivalência. Esta etapa não altera LOCKs nem habilita publicação científica.
+
+## Resultado físico comprovado — execução #44581595305
+
+O workflow de comparação física terminou com **success** em 19/11/2026. Em dois checkouts isolados (commit histórico e HEAD da PR), com seed **42**, **30.000** identidades e as referências correspondentes a cada checkout, os três arquivos científicos foram **idênticos byte a byte**:
+
+| Arquivo | SHA-256 em ambos os geradores |
+|---|---|
+| `pessoas_verdade.csv` | `75171eedd0bab7c4d19c7cb37dc620ee0e249199a406f4c8a9dfac51839add13` |
+| `observacoes.csv` | `28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17` |
+| `gabarito.json` | `982658206df534e8f129e2c3c803e2da9679ec96d385669cc054d6ca890754d2` |
+
+`corpus_bytes_equal=true`; `manifest_metadata_equal=false`, devido somente aos campos adicionados `partition_percentages` e `synthetic_population`. A conclusão é limitada a este cenário e **não** certifica todas as seeds, configurações, gate SQL, nem a cadeia completa de proveniência dos insumos. O registro LOCK histórico permanece válido; não é necessário restaurar/sobrescrever os quatro arquivos de produção apenas para reproduzir este corpus. Evidência: https://github.com/lucianox777/Jornada/actions/runs/44581595305 .
+
+**Próxima ação:** verificar CI obrigatória e gates físicos vigentes antes de considerar o incidente encerrado. Não regenerar LOCKs.
