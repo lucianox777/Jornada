@@ -100,9 +100,11 @@ public sealed class V9FittedSnapshot
     private readonly IReadOnlyDictionary<string, double> numericParameters;
     public V9FittedSnapshotPayload Payload { get; }
     public string ContentSha256 { get; }
+    private readonly byte[]? legacyBootstrapV0Bytes;
 
-    private V9FittedSnapshot(V9FittedSnapshotPayload payload)
+    private V9FittedSnapshot(V9FittedSnapshotPayload payload, byte[]? verifiedLegacyBootstrapV0Bytes = null)
     {
+        legacyBootstrapV0Bytes = verifiedLegacyBootstrapV0Bytes?.ToArray();
         Payload = FreezeAndValidate(payload);
         frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
         numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
@@ -111,7 +113,7 @@ public sealed class V9FittedSnapshot
         var canonicalBytes = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (canonicalBytes.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
-        ContentSha256 = Convert.ToHexString(SHA256.HashData(canonicalBytes)).ToLowerInvariant();
+        ContentSha256 = Convert.ToHexString(SHA256.HashData(legacyBootstrapV0Bytes ?? canonicalBytes)).ToLowerInvariant();
     }
 
     public static V9FittedSnapshot Create(V9FittedSnapshotPayload payload) => new(payload);
@@ -120,7 +122,8 @@ public sealed class V9FittedSnapshot
     {
         // Returning a fresh buffer also preserves the historical defensive-copy
         // contract. Reject mutated payloads rather than emitting an unpinned fit.
-        var encoded = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        var encoded = legacyBootstrapV0Bytes?.ToArray()
+            ?? JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (encoded.Length <= 0 || encoded.Length > MaximumContentBytes
             || !Convert.ToHexString(SHA256.HashData(encoded)).Equals(
                 ContentSha256, StringComparison.OrdinalIgnoreCase))
@@ -181,10 +184,13 @@ public sealed class V9FittedSnapshot
         // A historical payload can have a different current-codec digest;
         // compare encodings without asking SerializeUtf8 to validate the old SHA.
         var canonical = JsonSerializer.SerializeToUtf8Bytes(snapshot.Payload, JsonOptions);
-        if (!content.SequenceEqual(canonical)
-            && !MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
+        if (content.SequenceEqual(canonical))
+            return snapshot;
+        if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
-        return snapshot;
+        // Only a byte-for-byte verified legacy V0 gets its original content address.
+        // Never normalize the pinned historical artifact into a new SHA.
+        return new V9FittedSnapshot(payload, content.ToArray());
     }
 
     // The pinned experimental bootstrap-v0 predates these two nonzero-default
