@@ -27,7 +27,9 @@ public sealed class V9TfDirectionDecision19Tests
         var rare = Math.Log((double)(uref.ResolveTerm(ibge, "RARO") / ibge["RARO"]));
         Assert.That(rare, Is.GreaterThan(common));
         Assert.That(uref.ResolveTerm(ibge, "RARO"), Is.EqualTo(uref.ResolveTerm(ibge, "COMUM")));
-        Assert.Throws<InvalidDataException>((Action)(() => uref.ResolveTerm(ibge, "SEM_IBGE")));
+        Assert.That(uref.ResolveTerm(ibge, "SEM_IBGE"), Is.EqualTo(uref.Probability));
+        Assert.That(V9UnpublishedNominalFrequency.Resolve(ibge, "SEM_IBGE"),
+            Is.EqualTo(20m / 11911337m));
     }
 
     [Test]
@@ -151,7 +153,9 @@ public sealed class V9TfDirectionDecision19Tests
             Assert.That(Math.Log((double)(unseen / ibge["NAO_VISTO"])),
                 Is.GreaterThan(Math.Log((double)(rare / ibge["RARO"]))));
         }));
-        Assert.Throws<InvalidDataException>((Action)(() => fitted.ResolveTerm(ibge, "AUSENTE")));
+        Assert.That(fitted.ResolveTerm(ibge, "AUSENTE"), Is.EqualTo(common));
+        Assert.That(V9UnpublishedNominalFrequency.Resolve(ibge, "AUSENTE"),
+            Is.EqualTo(20m / 11911337m));
     }
 
 }
