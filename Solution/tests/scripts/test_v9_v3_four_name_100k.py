@@ -140,6 +140,29 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertEqual(workflow.count('--expected-people "$effective_people"'), 2)
         self.assertNotIn('--expected-people "${V9_SYNTHETIC_POPULATION:-100000}"', workflow)
 
+    def test_invalid_scientific_policy_rejected_before_output(self):
+        original = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            br.write_text(json.dumps(self.receipt(p.digest(bp.read_bytes()))))
+            for change in ("negative_sampling", "missing_nominal_unit", "wrong_u_policy"):
+                config = json.loads(json.dumps(original))
+                if change == "negative_sampling":
+                    config["sampling"].update(trainPercent=-10, validationPercent=30, testPercent=80)
+                elif change == "missing_nominal_unit":
+                    config["tfNominalPolicy"]["nominalUnits"].pop()
+                else:
+                    config["tfNominalPolicy"]["uEstimation"] = "UNSUPPORTED"
+                cfg = d / "config.json"
+                cfg.write_text(json.dumps(config))
+                with self.subTest(change=change):
+                    with self.assertRaises(ValueError):
+                        p.prepare(bp, br, d / "plan.json", d / "receipt.json", cfg)
+                    self.assertFalse((d / "plan.json").exists())
+                    self.assertFalse((d / "receipt.json").exists())
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
