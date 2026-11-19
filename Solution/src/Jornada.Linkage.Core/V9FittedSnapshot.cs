@@ -178,7 +178,9 @@ public sealed class V9FittedSnapshot
         var snapshot = new V9FittedSnapshot(payload);
         // Require the canonical encoding, preventing multiple byte identities
         // for one fitted artifact and silent normalization at application startup.
-        var canonical = snapshot.SerializeUtf8();
+        // A historical payload can have a different current-codec digest;
+        // compare encodings without asking SerializeUtf8 to validate the old SHA.
+        var canonical = JsonSerializer.SerializeToUtf8Bytes(snapshot.Payload, JsonOptions);
         if (!content.SequenceEqual(canonical)
             && !MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
