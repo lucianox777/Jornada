@@ -36,7 +36,9 @@ class DocsOnlyFastGateTests(unittest.TestCase):
             self.assertNotIn("\n    if: needs.classify-impact.outputs.docs_only", part)
             self.assertIn("if: needs.classify-impact.outputs.docs_only != 'true'", part)
         guard = s.split("  security-guards:\n", 1)[1]
-        self.assertIn("if: always() && needs.classify-impact.result == 'success'", guard)
+        self.assertIn("if: always()", guard)
+        self.assertIn("if: needs.classify-impact.result != 'success'", guard)
+        self.assertIn("run: exit 1", guard)
         self.assertIn("source-sanity-gate.py --self-test", guard)
 
 if __name__ == "__main__":
