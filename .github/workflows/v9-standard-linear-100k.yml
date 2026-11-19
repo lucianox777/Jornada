@@ -958,6 +958,12 @@ jobs:
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/test
+      - name: Download independent AUDIT terminal evidence when no finalists
+        if: ${{ always() && needs.audit-100k.result == 'success' && needs.audit-100k.outputs.has_finalists == 'false' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-independent-audit-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/audit
       - name: Fail closed on incomplete science or invalid winner contract
         if: ${{ always() }}
         shell: bash
@@ -966,8 +972,25 @@ jobs:
           extra=()
           # No winner is a scientific terminal outcome, not an operator opt-out.
           if [[ "$V9_VALIDATION_HAS_WINNER" != "true" && "$V9_VALIDATION_HAS_WINNER" != "false" ]]; then
-            echo "::error::V9_VALIDATION_WINNER_OUTPUT_MISSING"
-            exit 1
+            # VALIDATION is intentionally skipped only when AUDIT independently
+            # proved there are zero eligible finalists. Never infer that from
+            # a skipped job alone or from an empty winner output.
+            if [[ "$AUDIT_RESULT" != "success" || "$VALIDATION_RESULT" != "skipped" || "${{ needs.audit-100k.outputs.has_finalists }}" != "false" ]]; then
+              echo "::error::V9_VALIDATION_WINNER_OUTPUT_MISSING"
+              exit 1
+            fi
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ["RUNNER_TEMP"]) / "v9-e2e-closeout/audit/results/campaign-scientific-status.json"
+          if not p.is_file() or p.is_symlink():
+              raise SystemExit("V9_AUDIT_ZERO_FINALISTS_RECEIPT_MISSING")
+          d = json.loads(p.read_text())
+          if not (d.get("status") == "COMPLETED_WITHOUT_ELIGIBLE_FINALISTS"
+                  and d.get("validationExecuted") is False
+                  and d.get("testUsed") is False):
+              raise SystemExit("V9_AUDIT_ZERO_FINALISTS_RECEIPT_INVALID")
+          PY
           fi
           if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
             extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
