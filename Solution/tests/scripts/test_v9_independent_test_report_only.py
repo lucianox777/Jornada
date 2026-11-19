@@ -31,7 +31,10 @@ class IndependentTestReportOnly(unittest.TestCase):
                         "success", test_state, True, receipt, None)
                     self.assertEqual(result["winnerSha256"], sha)
                     self.assertEqual(result["independentTestReportStatus"], "INCOMPLETE")
-                    self.assertFalse(result["activated"])\n                    self.assertEqual(result["independentTestScientificAssessment"], "INCONCLUSIVE")\n                    self.assertEqual(result["productionRequirementsStatus"], "NOT_DEMONSTRATED")\n                    self.assertEqual(result["productionAuthorization"], "OPERATOR_MASTER_ONLY_NOT_GRANTED")
+                    self.assertFalse(result["activated"])
+                    self.assertEqual(result["independentTestScientificAssessment"], "INCONCLUSIVE")
+                    self.assertEqual(result["productionRequirementsStatus"], "NOT_DEMONSTRATED")
+                    self.assertEqual(result["productionAuthorization"], "OPERATOR_MASTER_ONLY_NOT_GRANTED")
             result = module.closeout("success", "success", "success",
                 "success", "success", True, receipt, None)
             self.assertEqual(result["independentTestReportStatus"], "INCOMPLETE")
