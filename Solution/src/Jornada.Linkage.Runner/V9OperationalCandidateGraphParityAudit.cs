@@ -166,11 +166,22 @@ public static class V9OperationalCandidateGraphParityAudit
         var operational = operationalRuntime.ReplayOperationalGraph(test,
             actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray(),
             expected.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
+        // Identity GUIDs are execution-local labels, not proof of partition
+        // equivalence. Compare sorted observation memberships for each group.
+        // This detects splits and merges while allowing harmless GUID relabeling.
+        static string[] CanonicalGroups(IReadOnlyDictionary<int, Guid> identities) =>
+            identities.GroupBy(x => x.Value)
+                .Select(group => string.Join(",", group.Select(x => x.Key).OrderBy(x => x)))
+                .OrderBy(members => members, StringComparer.Ordinal)
+                .ToArray();
         if (!reference.Decisions.SequenceEqual(operational.Decisions)
-            || reference.IdentityByObservation.Count != operational.IdentityByObservation.Count
-            || reference.IdentityByObservation.Any(x =>
-                !operational.IdentityByObservation.TryGetValue(x.Key, out var id) || id != x.Value))
-            throw new InvalidDataException("Batch SQL V9 divergiu no Resolve ou no agrupamento global.");
+            || reference.IdentityByObservation.Count != test.Count
+            || operational.IdentityByObservation.Count != test.Count
+            || !reference.IdentityByObservation.Keys.ToHashSet()
+                .SetEquals(operational.IdentityByObservation.Keys)
+            || !CanonicalGroups(reference.IdentityByObservation)
+                .SequenceEqual(CanonicalGroups(operational.IdentityByObservation)))
+            throw new InvalidDataException("Batch SQL V9 divergiu no Resolve ou na partição global de identidades.");
 
         static string Sha(string value) => Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
