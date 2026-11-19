@@ -151,9 +151,9 @@ jobs:
           python3 - "$RUNNER_TEMP/synthetic-validation-e2e.json" <<'PY'
           import json,pathlib,sys
           doc={"schema":"V9_VALIDATION_E2E_STATUS_V1",
-               "status":"VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
-               "selectedValidationSnapshotSha256":"a"*64,
-               "selectedValidationOperationalModelFileName":"a"*64+".operational.json",
+               "status":"NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES",
+               "selectedValidationSnapshotSha256":None,
+               "selectedValidationOperationalModelFileName":None,
                "selectedValidationOperationalModelContract":"JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
                "selectionEnvelopeSha256":"b"*64,
                "validationResultSha256":"c"*64,
@@ -172,7 +172,7 @@ jobs:
           python3 - "$RUNNER_TEMP/synthetic-e2e-status.json" <<'PY'
           import json,sys
           r=json.load(open(sys.argv[1],encoding="utf-8"))
-          assert r["status"]=="E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
+          assert r["status"]=="E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED"
           assert not r["certified"] and not r["activated"] and not r["productionPublication"]
           print("V9_SYNTHETIC_GITHUB_E2E_CLOSEOUT_CONTRACT_PASS_NOT_PHYSICAL_NOT_TEST")
           PY
