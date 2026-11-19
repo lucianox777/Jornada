@@ -16,3 +16,10 @@ O commit `008bdb183adbe8c4935c730a99a80ef3bf02ef01` (PR #1721, 18/11/2026) acres
 Esta investigação complementa `GOV-V9-SEED42-PROVENIENCIA-DIAGNOSTICO-20261119` e a PR #1750; não substitui o registro imutável seed42/30k, as exigências de segregação TRAIN/VALIDATION/TEST ou os gates científicos. PR #1749 continua independente e aberta. Não há autorização para merge desta proposta documental nem para TRAIN/TEST confirmatório, publicação ou ativação. Status: **INVESTIGAÇÃO DOCUMENTADA EM PR; CAUSA NÃO CONFIRMADA POR SHA HISTÓRICO**.
 
 Referências: PRs #1721, #1750; workflows #44636352542 e #44636352580; `Solution/scripts/v9-tf-pin-source.py`; `Solution/scripts/v9-tf-ref-provenance-gate.py`; `Solution/src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs`. GOV-DOC-01.
+
+## Consolidação da CI pós-merge #1750 (HEAD `324c55c2`)
+Consulta posterior confirmou que os seis workflows físicos terminaram com falha: #44636352572 (probe seed42), #44636352517 (M/U seed42), #44636352573 (broad TRAIN), #44636352544 (sobrenomes), #44636352542 (V3 direto), #44636352580 (M/U TF0). Logs adicionais dos jobs 135955870589, 135955754472, 135955755460 e 135956492899 reiteram **exclusivamente** `fields=GenerationHypothesesFingerprint`.
+
+No workflow broad TRAIN #44636352573, os quatro jobs seed43/seed57 passaram, e os dois jobs seed42 falharam. Essa distinção é consistente com uma incompatibilidade **específica da referência histórica seed42**; não demonstra sucesso científico da V3, pois são regressões TRAIN não confirmatórias. A CI rápida #44636352515 terminou com sucesso; a CI principal #44636352583 permanecia em andamento na consulta.
+
+**Critério de avanço:** reproduzir o manifesto anterior a #1721 em ambiente físico descartável, verificar SHA-256 exato do manifesto e os hashes de todos os três artefatos; preservar parâmetros configuráveis e testes dos demais seeds. Se o SHA não coincidir, a hipótese deve ser rejeitada ou refinada, sem substituir a referência histórica. Nenhum bypass é aceitável.
