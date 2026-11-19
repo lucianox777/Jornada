@@ -1,0 +1,26 @@
+name: v9-seed42-generator-byte-comparison
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare-historical-and-current:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d
+        with:
+          dotnet-version: '9.0.x'
+      - name: Generate seed42 historical and current in isolation and compare bytes
+        run: bash Solution/scripts/v9-seed42-generator-byte-comparison.sh
+      - name: Archive SHA comparison without corpus
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v9-seed42-generator-byte-comparison-${{ github.run_id }}
+          path: v9-seed42-generator-byte-comparison.json
+          if-no-files-found: warn
+          retention-days: 30
