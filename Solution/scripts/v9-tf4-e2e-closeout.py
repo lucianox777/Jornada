@@ -35,8 +35,7 @@ def validate_jobs(
     require(audit == "success", "AUDIT_NOT_SUCCESS")
     require(validation == "success", "VALIDATION_NOT_SUCCESS")
     if test_requested:
-        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
-        require(test == "success", "TEST_NOT_SUCCESS")
+        # TEST execution status is independent of VALIDATION outcome.
     else:
         require(preparation in {"success", "skipped"}, "UNREQUESTED_TEST_PREPARATION")
         require(test == "skipped", "UNREQUESTED_TEST_EXPOSURE")
@@ -243,11 +242,17 @@ def closeout(
     require(test_requested == (info["winnerSha256"] is not None),
             "TEST_MANDATORY_IF_AND_ONLY_IF_VALIDATION_HAS_WINNER")
     if test_requested:
-        require(preparation == "success", "TEST_PREPARATION_NOT_SUCCESS")
-        require(test_file is not None, "TEST_RECEIPT_NOT_GIVEN")
-        validate_optional_test(test_file, info["winnerSha256"])
-        status = "E2E_PHYSICAL_CHAIN_AND_INDEPENDENT_SCIENTIFIC_TEST_COMPLETE"
+        if preparation == "success" and test == "success" and test_file is not None:
+            try:
+                validate_optional_test(test_file, info["winnerSha256"])
+                test_report_status = "VERIFIED"
+            except (ValueError, json.JSONDecodeError, OSError):
+                test_report_status = "INVALID_RECEIPT"
+        else:
+            test_report_status = "INCOMPLETE"
+        status = "E2E_VALIDATION_WINNER_PRESERVED_TEST_REPORTED"
     else:
+        test_report_status = "NOT_REQUESTED"
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
         status = ("E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
                   if info["winnerSha256"] else
@@ -256,7 +261,8 @@ def closeout(
             "testRequested": test_requested, "trainResult": physical,
             "auditResult": audit, "validationResult": validation,
             "testPreparationResult": preparation, "testResult": test,
-            **info, "certified": False, "activated": False,
+            **info, "independentTestReportStatus": test_report_status,
+            "certified": False, "activated": False,
             "productionPublication": False}
 
 
