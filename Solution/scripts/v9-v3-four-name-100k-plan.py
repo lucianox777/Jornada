@@ -64,8 +64,8 @@ def grid(tf0, tf_policy=None):
             for (side, unit, _), weight in zip(SLOTS, values)]
         option["TfWeight"] = 0
         option["SharedSurnameMode"] = 0
-        option["UnpublishedTermPolicy"] = (tf_policy["unpublishedTermPolicy"]
-                                             if tf_policy is not None else 1)
+        # Active TF abstains on unpublished terms; historical TF0 remains unchanged.
+        option["UnpublishedTermPolicy"] = 1
         if tf_policy is not None:
             option["ContextPopulation"] = tf_policy["contextPopulation"]
             option["UnpublishedOccurrenceCount"] = tf_policy["unpublishedOccurrenceCount"]
@@ -185,8 +185,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
         "weights": list(STATES), "uMixtureLambdas": list(LAMBDAS),
         "conflictMargins": list(MARGINS), "blockingPasses": three_pass,
         "maximumBatches": 1, "physicalHypotheses": EVALUATIONS,
-        "tfUnpublishedPolicy": ("IMPUTE_CONFIGURED" if tf_policy is not None
-                                else "ABSTAIN_CANDIDATE_WHEN_POSITIVE"),
+        "tfUnpublishedPolicy": "TF0_REJECT_ACTIVE_TF_ABSTAIN_CANDIDATE",
         **({"tfPolicySha256": digest(tf_policy_bytes), "tfPolicy": tf_policy,
             "calibratorConfiguration": tf_config}
            if tf_policy is not None else {}),
