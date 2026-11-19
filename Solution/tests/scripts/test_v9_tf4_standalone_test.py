@@ -15,7 +15,7 @@ class StandaloneTestContract(unittest.TestCase):
     def test_only_model_is_explicit_cli_parameter(self):
         source=CLI.read_text()
         self.assertIn('args.Length != 2 && args.Length != 4',source)
-        self.assertIn('args[2] != "--test-database"',source)
+        self.assertIn('args[2] != "--test-database" && args[2] != "--test-repetitions"',source)
         self.assertIn("V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3])",source)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",source)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
@@ -24,7 +24,13 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("MaximumPrefixLength: frozenPrefixLength",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
         self.assertIn("TotalComparedConfigurations: 1",source)
-        self.assertIn("EndToEndRepetitions: 20",source)
+        self.assertIn("EndToEndRepetitions: repetitions",source)
+        self.assertIn("--test-repetitions",source)
+        self.assertIn("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC",source)
+        self.assertIn("var repetitions = 20;",source)
+        self.assertIn("var requestedRepetitions = args.Length == 4 ? args[3] : null;",source)
+        self.assertIn("repetitions is < 1 or > 200",source)
+        self.assertIn("diagnosticNonScientific = repetitions < 20",source)
         self.assertIn("JORNADA_V9_TEST_CORPUS_DIR",source)
         self.assertIn("JORNADA_V9_TEST_OUTPUT_DIR",source)
         for bad in ("--v9-calibrate", "--v9-validate-finalists", "finalist-validation.json",

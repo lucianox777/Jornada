@@ -23,7 +23,7 @@ public sealed record V9NominalTfUReference(
         long unmatchedCandidatePairs, long matchingNominalPairs,
         decimal smoothingAlpha, string trainCorpusFingerprintSha256)
     {
-        if (unmatchedCandidatePairs < 2 || matchingNominalPairs < 2
+        if (unmatchedCandidatePairs < 0 || matchingNominalPairs < 0
             || matchingNominalPairs > unmatchedCandidatePairs || smoothingAlpha <= 0m
             || !Enum.IsDefined(side)
             || unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
@@ -47,7 +47,7 @@ public sealed record V9NominalTfUReference(
         if (PolicyVersion != Version || Side != side || Unit != unit
             || !string.Equals(TrainCorpusFingerprintSha256, trainCorpusFingerprintSha256,
                 StringComparison.OrdinalIgnoreCase)
-            || UnmatchedCandidatePairs < 2 || MatchingNominalPairs < 2
+            || UnmatchedCandidatePairs < 0 || MatchingNominalPairs < 0
             || MatchingNominalPairs > UnmatchedCandidatePairs || SmoothingAlpha <= 0m
             || Probability <= 0m || Probability >= 1m
             || Math.Abs(Probability - (MatchingNominalPairs + SmoothingAlpha)
@@ -60,8 +60,7 @@ public sealed record V9NominalTfUReference(
     {
         Validate(Side, Unit, TrainCorpusFingerprintSha256);
         if (string.IsNullOrWhiteSpace(normalizedTerm) || publishedFrequencies is null
-            || !publishedFrequencies.TryGetValue(normalizedTerm, out var frequency)
-            || frequency <= 0m || frequency > 1m)
+            || V9UnpublishedNominalFrequency.Resolve(publishedFrequencies, normalizedTerm) <= 0m)
             throw new InvalidDataException("TF positiva sem frequência IBGE publicada.");
         return Probability;
     }

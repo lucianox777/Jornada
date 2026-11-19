@@ -78,6 +78,91 @@ class V9FourName100kTests(unittest.TestCase):
                          {tuple(v) for v in __import__("itertools").product(p.STATES, repeat=4)}
                          - {(0, 0, 0, 0)})
 
+    def test_unified_calibration_json_is_versioned_into_tf_plan(self):
+        config = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
+        self.assertEqual(config["syntheticPopulation"], 100000)
+        self.assertEqual(config["sampling"],
+                         {"trainPercent": 60, "validationPercent": 20, "testPercent": 20})
+        self.assertEqual(config["tfNominalPolicy"]["contextPopulation"], 11911337)
+        self.assertEqual(config["tfNominalPolicy"]["unpublishedOccurrenceCount"], 20)
+        options = p.grid(self.base()["Calibration"]["ModelOptions"][0],
+                         config["tfNominalPolicy"])
+        self.assertEqual({x["ContextPopulation"] for x in options}, {11911337})
+        self.assertEqual({x["UnpublishedOccurrenceCount"] for x in options}, {20})
+        self.assertEqual({x["UnpublishedTermPolicy"] for x in options}, {0})
+
+    def test_unified_config_receipt_and_fingerprint_are_bound(self):
+        config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            br.write_text(json.dumps(self.receipt(p.digest(bp.read_bytes()))))
+            output, receipt = d / "plan.json", d / "receipt.json"
+            p.prepare(bp, br, output, receipt, config_path)
+            plan = json.loads(output.read_text())
+            evidence = json.loads(receipt.read_text())
+            config = json.loads(config_path.read_text())
+            self.assertEqual(evidence["tfPolicySha256"], p.digest(config_path.read_bytes()))
+            self.assertEqual(evidence["calibratorConfiguration"], config)
+            self.assertEqual(evidence["tfUnpublishedPolicy"], "IMPUTE_CONFIGURED")
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["ContextPopulation"],
+                             config["tfNominalPolicy"]["contextPopulation"])
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedOccurrenceCount"],
+                             config["tfNominalPolicy"]["unpublishedOccurrenceCount"])
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedTermPolicy"], 0)
+
+    def test_people_override_is_frozen_and_checked_against_source(self):
+        config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            source = self.receipt(p.digest(bp.read_bytes()))
+            source["people"] = 120000
+            br.write_text(json.dumps(source))
+            output, receipt = d / "plan.json", d / "receipt.json"
+            with self.assertRaises((ValueError, AssertionError)):
+                p.prepare(bp, br, output, receipt, config_path)
+            self.assertFalse(output.exists())
+            p.prepare(bp, br, output, receipt, config_path, expected_people=120000)
+            evidence = json.loads(receipt.read_text())
+            self.assertEqual(evidence["configuredSyntheticPopulation"], 100000)
+            self.assertEqual(evidence["effectiveSyntheticPopulation"], 120000)
+            self.assertTrue(evidence["populationOverrideApplied"])
+
+    def test_standard_workflow_preserves_people_override_and_unified_default(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-standard-linear-100k.yml").read_text()
+        self.assertIn("synthetic_population:", workflow)
+        self.assertIn('V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION")', workflow)
+        self.assertEqual(workflow.count('--calibrator-config config/calibration/v9-synthetic-sampling.json'), 3)
+        self.assertIn('effective_people="${V9_SYNTHETIC_POPULATION:-$configured_people}"', workflow)
+        self.assertEqual(workflow.count('--expected-people "$effective_people"'), 2)
+        self.assertNotIn('--expected-people "${V9_SYNTHETIC_POPULATION:-100000}"', workflow)
+
+    def test_invalid_scientific_policy_rejected_before_output(self):
+        original = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            bp, br = d / "source-plan.json", d / "source-receipt.json"
+            bp.write_text(json.dumps(self.base()))
+            br.write_text(json.dumps(self.receipt(p.digest(bp.read_bytes()))))
+            for change in ("negative_sampling", "missing_nominal_unit", "wrong_u_policy"):
+                config = json.loads(json.dumps(original))
+                if change == "negative_sampling":
+                    config["sampling"].update(trainPercent=-10, validationPercent=30, testPercent=80)
+                elif change == "missing_nominal_unit":
+                    config["tfNominalPolicy"]["nominalUnits"].pop()
+                else:
+                    config["tfNominalPolicy"]["uEstimation"] = "UNSUPPORTED"
+                cfg = d / "config.json"
+                cfg.write_text(json.dumps(config))
+                with self.subTest(change=change):
+                    with self.assertRaises(ValueError):
+                        p.prepare(bp, br, d / "plan.json", d / "receipt.json", cfg)
+                    self.assertFalse((d / "plan.json").exists())
+                    self.assertFalse((d / "receipt.json").exists())
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)

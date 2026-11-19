@@ -55,7 +55,9 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
     bool EligibleForSelection = true,
-    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation)
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation,
+    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation,
+    long UnpublishedOccurrenceCount = V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -304,7 +306,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
             CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
             UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode,
-            UnpublishedTermPolicy: config.UnpublishedTermPolicy));
+            UnpublishedTermPolicy: config.UnpublishedTermPolicy,
+            ContextPopulation: config.ContextPopulation,
+            UnpublishedOccurrenceCount: config.UnpublishedOccurrenceCount));
     }
 
     private static bool BlockingPassesEqual(
@@ -529,7 +533,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
-            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value),
+            config.ContextPopulation, config.UnpublishedOccurrenceCount);
         if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
             onUnseen?.Invoke(side, unit.Value);
         return preview;
@@ -569,20 +574,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }
         bool IsScoreable(LinkageCandidate candidate)
         {
-            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                return true; // Historical snapshots still throw on an unknown frequency.
+            // Match portable replay: explicit abstention excludes only SQL
+            // candidates whose selected active TF unit lacks published coverage.
+            if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                return true;
             var target = targets[candidate.PessoaUuid];
             foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
             {
+                if (!Required(candidate, side))
+                    continue;
                 var unit = SelectedUnit(candidate, side);
-                if (!unit.HasValue || UnitWeight(config, side, unit.Value) <= 0m)
+                if (unit is null)
                     continue;
                 var left = side == CompositeNominalTfSideV9.Person ? source.PersonName : source.MotherName;
                 var right = side == CompositeNominalTfSideV9.Person ? target.PersonName : target.MotherName;
-                if (frozenTfReference is null)
-                    throw new InvalidDataException("TF ativa sem IBGE congelado.");
-                if (V9NominalTfTermCoverage.MissingPublishedFrequency(unit.Value, left, right,
-                    frozenTfReference.FrequenciesForUnit(side, unit.Value)))
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                    unit.Value, left, right, frozenTfReference!.FrequenciesForUnit(side, unit.Value)))
                     return false;
             }
             return true;
@@ -670,6 +677,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 rows, activeReference, activeSlots);
             if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
             {
+                // RejectOperation is fail-closed: a missing published term
+                // cannot be assigned an invented point frequency.
                 reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_REQUIRE");
                 V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
             }
@@ -1438,12 +1447,18 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (config.UnpublishedOccurrenceCount < 1 || config.ContextPopulation < config.UnpublishedOccurrenceCount)
+            throw new InvalidDataException("População contextual TF inválida.");
         if (!Enum.IsDefined(config.UnpublishedTermPolicy))
             throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
         // Default historical serialization/fingerprint is unchanged. A new
         // opt-in policy has a distinct fit/configuration identity.
         if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
             canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
+        if (config.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation)
+            canonical += "|TF_CONTEXT_POPULATION=" + config.ContextPopulation;
+        if (config.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
+            canonical += "|TF_UNPUBLISHED_OCCURRENCES=" + config.UnpublishedOccurrenceCount;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)

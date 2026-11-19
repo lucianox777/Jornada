@@ -44,11 +44,15 @@ def strict_json(raw):
                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
 
 
-def grid(tf0):
+def grid(tf0, tf_policy=None):
     require(tf0["OptionId"] == TF0 and tf0.get("UnitTfOptions") is None
             and tf0.get("TfWeight") == 0 and tf0.get("UnpublishedTermPolicy", 0) == 0,
             "historical TF0 is not the neutral control")
     result = [copy.deepcopy(tf0)]
+    if tf_policy is not None:
+        result[0].update(ContextPopulation=tf_policy["contextPopulation"],
+                         UnpublishedOccurrenceCount=tf_policy["unpublishedOccurrenceCount"],
+                         UnpublishedTermPolicy=tf_policy["unpublishedTermPolicy"])
     for values in itertools.product(STATES, repeat=4):
         if values == (0, 0, 0, 0):
             continue
@@ -60,7 +64,11 @@ def grid(tf0):
             for (side, unit, _), weight in zip(SLOTS, values)]
         option["TfWeight"] = 0
         option["SharedSurnameMode"] = 0
-        option["UnpublishedTermPolicy"] = 1  # per-candidate abstention, never invented frequency
+        option["UnpublishedTermPolicy"] = (tf_policy["unpublishedTermPolicy"]
+                                             if tf_policy is not None else 1)
+        if tf_policy is not None:
+            option["ContextPopulation"] = tf_policy["contextPopulation"]
+            option["UnpublishedOccurrenceCount"] = tf_policy["unpublishedOccurrenceCount"]
         option["EligibleForSelection"] = True
         result.append(option)
     require(len(result) == OPTIONS and len({x["OptionId"] for x in result}) == OPTIONS,
@@ -70,16 +78,48 @@ def grid(tf0):
     return result
 
 
-def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, expected_people=100000):
+def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_policy_path=None, expected_people=None):
+    tf_policy_bytes = Path(tf_policy_path).read_bytes() if tf_policy_path else None
+    tf_config = strict_json(tf_policy_bytes) if tf_policy_bytes else None
+    tf_policy = (tf_config.get("tfNominalPolicy", tf_config)
+                 if tf_config is not None else None)
+    if tf_config is not None and "tfNominalPolicy" in tf_config:
+        require(type(tf_config.get("syntheticPopulation")) is int
+                and tf_config["syntheticPopulation"] > 0
+                and isinstance(tf_config.get("sampling"), dict)
+                and all(type(tf_config["sampling"].get(k)) in (int, float)
+                        for k in ("trainPercent", "validationPercent", "testPercent"))
+                and all(0 <= tf_config["sampling"][k] <= 100
+                        for k in ("trainPercent", "validationPercent", "testPercent"))
+                and sum(tf_config["sampling"][k]
+                        for k in ("trainPercent", "validationPercent", "testPercent")) == 100,
+                "invalid unified calibration population/sampling configuration")
+    if tf_policy is not None:
+        require(tf_policy.get("schema") == "V9_TF_NOMINAL_POLICY_V1"
+                and type(tf_policy.get("contextPopulation")) is int
+                and type(tf_policy.get("unpublishedOccurrenceCount")) is int
+                and 1 <= tf_policy["unpublishedOccurrenceCount"] <= tf_policy["contextPopulation"]
+                and type(tf_policy.get("unpublishedTermPolicy")) is int
+                and tf_policy["unpublishedTermPolicy"] == 0
+                and tf_policy.get("nominalUnits") == [
+                    "PERSON_FIRST", "PERSON_LAST", "MOTHER_FIRST", "MOTHER_LAST"]
+                and tf_policy.get("uEstimation") == "TRAIN_NONMATCH_LAPLACE_ALPHA",
+                "invalid or incompatible versioned TF policy")
     output_path, receipt_path = Path(output_path), Path(receipt_path)
     require(output_path.name == "plan.json" and not output_path.exists()
             and not receipt_path.exists(), "never overwrite a frozen study")
     source_bytes = Path(base_plan_path).read_bytes()
     base = strict_json(source_bytes)
     source_receipt = strict_json(Path(base_receipt_path).read_bytes())
-    require(type(expected_people) is int and expected_people > 0,
-            "expected TRAIN population must be a positive integer")
     source_sha = digest(source_bytes)
+    configured_people = (tf_config["syntheticPopulation"]
+                         if tf_config is not None and "tfNominalPolicy" in tf_config
+                         else 100000)
+    # Workflow --people overrides the configured default; the effective value
+    # must match the physical source receipt and be frozen in the study evidence.
+    require(expected_people is None or (type(expected_people) is int and expected_people > 0),
+            "invalid effective population")
+    expected_people = configured_people if expected_people is None else expected_people
     c = base["Calibration"]
     require(source_receipt.get("schema") == BASE_SCHEMA
             and source_receipt.get("technicalPlanSha256") == source_sha
@@ -106,7 +146,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, expect
 
     plan = copy.deepcopy(base)
     cp = plan["Calibration"]
-    cp["ModelOptions"] = grid(c["ModelOptions"][0])
+    cp["ModelOptions"] = grid(c["ModelOptions"][0], tf_policy)
     mixture = copy.deepcopy(base["MuEstimationMethods"][2])
     require(mixture["Method"] == "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
             and mixture["Parameters"]["ClassMassCoverage"] == [0.99]
@@ -138,11 +178,18 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, expect
         "technicalCorpusManifestSha256": source_receipt["technicalCorpusManifestSha256"],
         "technicalCorpusObservationsSha256": source_receipt["technicalCorpusObservationsSha256"],
         "runtimeParallelismMode": "AUTO_0",
+        "configuredSyntheticPopulation": configured_people,
+        "effectiveSyntheticPopulation": expected_people,
+        "populationOverrideApplied": expected_people != configured_people,
         "configurations": [x["OptionId"] for x in cp["ModelOptions"]],
         "weights": list(STATES), "uMixtureLambdas": list(LAMBDAS),
         "conflictMargins": list(MARGINS), "blockingPasses": three_pass,
         "maximumBatches": 1, "physicalHypotheses": EVALUATIONS,
-        "tfUnpublishedPolicy": "ABSTAIN_CANDIDATE_WHEN_POSITIVE",
+        "tfUnpublishedPolicy": ("IMPUTE_CONFIGURED" if tf_policy is not None
+                                else "ABSTAIN_CANDIDATE_WHEN_POSITIVE"),
+        **({"tfPolicySha256": digest(tf_policy_bytes), "tfPolicy": tf_policy,
+            "calibratorConfiguration": tf_config}
+           if tf_policy is not None else {}),
         "testUsed": False, "activated": False}
     fingerprint = digest(json.dumps(snapshot, sort_keys=True, separators=(",", ":"),
                                     allow_nan=False).encode())
@@ -168,7 +215,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ("base-plan", "base-receipt", "plan", "receipt"):
         parser.add_argument("--" + arg, type=Path, required=True)
-    parser.add_argument("--expected-people", type=int, default=100000)
+    parser.add_argument("--tf-policy", type=Path)
+    parser.add_argument("--expected-people", type=int)
     p = parser.parse_args()
-    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.expected_people),
+    print(json.dumps(prepare(p.base_plan, p.base_receipt, p.plan, p.receipt, p.tf_policy,
+                               p.expected_people),
                      sort_keys=True))

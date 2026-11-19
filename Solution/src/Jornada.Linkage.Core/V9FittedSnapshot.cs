@@ -31,7 +31,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation);
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation,
+    long ContextPopulation = V9UnpublishedNominalFrequency.DefaultContextPopulation,
+    long UnpublishedOccurrenceCount = V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -98,9 +100,11 @@ public sealed class V9FittedSnapshot
     private readonly IReadOnlyDictionary<string, double> numericParameters;
     public V9FittedSnapshotPayload Payload { get; }
     public string ContentSha256 { get; }
+    private readonly bool legacyBootstrapV0Encoding;
 
-    private V9FittedSnapshot(V9FittedSnapshotPayload payload)
+    private V9FittedSnapshot(V9FittedSnapshotPayload payload, bool verifiedLegacyBootstrapV0Encoding = false)
     {
+        legacyBootstrapV0Encoding = verifiedLegacyBootstrapV0Encoding;
         Payload = FreezeAndValidate(payload);
         frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
         numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
@@ -109,7 +113,8 @@ public sealed class V9FittedSnapshot
         var canonicalBytes = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (canonicalBytes.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
-        ContentSha256 = Convert.ToHexString(SHA256.HashData(canonicalBytes)).ToLowerInvariant();
+        ContentSha256 = Convert.ToHexString(SHA256.HashData(legacyBootstrapV0Encoding
+            ? EncodeLegacyBootstrapV0(canonicalBytes) : canonicalBytes)).ToLowerInvariant();
     }
 
     public static V9FittedSnapshot Create(V9FittedSnapshotPayload payload) => new(payload);
@@ -118,7 +123,8 @@ public sealed class V9FittedSnapshot
     {
         // Returning a fresh buffer also preserves the historical defensive-copy
         // contract. Reject mutated payloads rather than emitting an unpinned fit.
-        var encoded = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        var canonical = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        var encoded = legacyBootstrapV0Encoding ? EncodeLegacyBootstrapV0(canonical) : canonical;
         if (encoded.Length <= 0 || encoded.Length > MaximumContentBytes
             || !Convert.ToHexString(SHA256.HashData(encoded)).Equals(
                 ContentSha256, StringComparison.OrdinalIgnoreCase))
@@ -176,9 +182,54 @@ public sealed class V9FittedSnapshot
         var snapshot = new V9FittedSnapshot(payload);
         // Require the canonical encoding, preventing multiple byte identities
         // for one fitted artifact and silent normalization at application startup.
-        if (!content.SequenceEqual(snapshot.SerializeUtf8()))
+        // A historical payload can have a different current-codec digest;
+        // compare encodings without asking SerializeUtf8 to validate the old SHA.
+        var canonical = JsonSerializer.SerializeToUtf8Bytes(snapshot.Payload, JsonOptions);
+        if (content.SequenceEqual(canonical))
+            return snapshot;
+        if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
-        return snapshot;
+        // Only a byte-for-byte verified legacy V0 gets its original content address.
+        // Never normalize the pinned historical artifact into a new SHA.
+        return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
+    }
+
+    // The pinned experimental bootstrap-v0 predates these two nonzero-default
+    // TF configuration fields. Preserve its exact measured bytes and SHA; do
+    // not relax canonical checks for modern or TF-positive fitted snapshots.
+    private static bool MatchesLegacyBootstrapV0Encoding(
+        ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
+    {
+        if (payload.TfWeight != 0m || payload.TfCalibration is not null
+            || payload.MotherTfCalibration is not null || payload.UnitTfCalibrations is not null
+            || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
+            || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
+            return false;
+
+        using var source = JsonDocument.Parse(original.ToArray());
+        if (source.RootElement.TryGetProperty("ContextPopulation", out _)
+            || source.RootElement.TryGetProperty("UnpublishedOccurrenceCount", out _))
+            return false;
+
+        return original.SequenceEqual(EncodeLegacyBootstrapV0(canonical));
+    }
+
+    private static byte[] EncodeLegacyBootstrapV0(ReadOnlySpan<byte> canonical)
+    {
+        using var parsed = JsonDocument.Parse(canonical.ToArray());
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (var property in parsed.RootElement.EnumerateObject())
+            {
+                if (property.Name is "ContextPopulation" or "UnpublishedOccurrenceCount")
+                    continue;
+                property.WriteTo(writer);
+            }
+            writer.WriteEndObject();
+        }
+        return buffer.ToArray();
     }
 
     public ProbabilisticLinkageDecision ResolvePreview(Guid diagnosticModelId,
@@ -225,19 +276,19 @@ public sealed class V9FittedSnapshot
             }
             bool IsScoreable(IdentityObservation o, LinkageCandidate c)
             {
-                if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                    return true; // Legacy snapshot rejects in CreateTf as before.
+                // Explicit opt-in abstention must survive snapshot portability.
+                // The default nominal policy still imputes unpublished terms.
+                if (Payload.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                    return true;
                 foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
                 {
                     var fit = Select(o, c, side);
                     if (fit?.State != V9SnapshotTfFitState.Active)
                         continue;
-                    var calibration = fit.Calibration
-                        ?? throw new InvalidDataException("TF ativa sem calibração congelada.");
                     var left = side == CompositeNominalTfSideV9.Person ? o.NomeCompleto : o.NomeMae;
                     var right = side == CompositeNominalTfSideV9.Person ? c.NomeCompleto : c.NomeMae;
                     if (V9NominalTfTermCoverage.MissingPublishedFrequency(
-                        fit.Unit, left, right, calibration.Frequencies))
+                        fit.Unit, left, right, fit.Calibration!.Frequencies))
                         return false;
                 }
                 return true;
@@ -290,12 +341,21 @@ public sealed class V9FittedSnapshot
             ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
         var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
-        if (term is null || term != rightTerm
-            || !tf.Frequencies.TryGetValue(term, out var frequency))
+        if (term is null || term != rightTerm)
             throw new InvalidDataException("TF positiva sem frequência IBGE ou termo coincidente.");
         var unitU = tf.NominalUReference
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
+        // RejectOperation must not silently turn absent IBGE publication into
+        // an invented point estimate. The opt-in abstention is handled before
+        // scoring by RankPreview's candidateIsScoreable predicate.
+        if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation
+            && (!tf.Frequencies.TryGetValue(term, out var published)
+                || published <= 0m || published > 1m))
+            throw new InvalidDataException(
+                "TF positiva sem frequência IBGE publicada para unidade ativa.");
+        var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term,
+            Payload.ContextPopulation, Payload.UnpublishedOccurrenceCount);
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
             unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
@@ -333,6 +393,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
+            || p.UnpublishedOccurrenceCount < 1 || p.ContextPopulation < p.UnpublishedOccurrenceCount
             || !Enum.IsDefined(p.UnpublishedTermPolicy)
             || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
