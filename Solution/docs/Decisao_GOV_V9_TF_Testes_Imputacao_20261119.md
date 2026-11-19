@@ -13,3 +13,6 @@ Ajustar apenas as sete assertivas antigas: cinco verificam U_ref invariável par
 
 ## Validação e rastreabilidade
 Branch test/v9-tf-unpublished-approved-contract-20261119; commits 2e21383 e d9989e7; CI original #44564338404. Exigir CI verde e revisão antes de integrar; não declarar sete testes corrigidos antes da execução. A correção operacional SCALE segue isolada na PR #1738.
+
+## Evidência CI da PR #1739 — 19/11/2026
+No commit `77f31be99eea4b76fe7fc0afefa7acdec26e59a4`, o workflow `jornada-pr-required-fast` #44569839649 concluiu **success** nos três jobs (`unit-runtime`, `deterministic-build`, `security-guards`). O workflow `V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)` #44569839584 também concluiu **success**. Isso valida as assertivas alteradas no escopo da CI rápida e o smoke não publicador; **não substitui** a CI completa da master, não comprova publicação e não autoriza TRAIN científico. PR ainda draft até integração e verificações de governança.
