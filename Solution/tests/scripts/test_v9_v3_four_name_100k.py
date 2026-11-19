@@ -89,7 +89,8 @@ class V9FourName100kTests(unittest.TestCase):
                          config["tfNominalPolicy"])
         self.assertEqual({x["ContextPopulation"] for x in options}, {11911337})
         self.assertEqual({x["UnpublishedOccurrenceCount"] for x in options}, {20})
-        self.assertEqual({x["UnpublishedTermPolicy"] for x in options}, {0})
+        self.assertEqual(options[0]["UnpublishedTermPolicy"], 0)
+        self.assertEqual({x["UnpublishedTermPolicy"] for x in options[1:]}, {1})
 
     def test_unified_config_receipt_and_fingerprint_are_bound(self):
         config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
@@ -105,12 +106,12 @@ class V9FourName100kTests(unittest.TestCase):
             config = json.loads(config_path.read_text())
             self.assertEqual(evidence["tfPolicySha256"], p.digest(config_path.read_bytes()))
             self.assertEqual(evidence["calibratorConfiguration"], config)
-            self.assertEqual(evidence["tfUnpublishedPolicy"], "IMPUTE_CONFIGURED")
+            self.assertEqual(evidence["tfUnpublishedPolicy"], "TF0_REJECT_ACTIVE_TF_ABSTAIN_CANDIDATE")
             self.assertEqual(plan["Calibration"]["ModelOptions"][1]["ContextPopulation"],
                              config["tfNominalPolicy"]["contextPopulation"])
             self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedOccurrenceCount"],
                              config["tfNominalPolicy"]["unpublishedOccurrenceCount"])
-            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedTermPolicy"], 0)
+            self.assertEqual(plan["Calibration"]["ModelOptions"][1]["UnpublishedTermPolicy"], 1)
 
     def test_people_override_is_frozen_and_checked_against_source(self):
         config_path = ROOT / "config/calibration/v9-synthetic-sampling.json"
