@@ -117,8 +117,43 @@ public static class V9FrozenJointIndependentComparisonCli
             || sourceCap.ObservationsSha256 != executor.SourceObservationsSha256)
             throw new InvalidDataException("Plano original sem referência/cap TRAIN verificável.");
 
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V2_READ_START");
         var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
-        var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V2_READ_OK");
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_START");
+        var trialBytes = await File.ReadAllBytesAsync(trialPath);
+        if (trialBytes.Length <= 0 || trialBytes.Length > V9FittedSnapshot.MaximumContentBytes)
+        {
+            Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_FAILED_SIZE");
+            throw new InvalidDataException("Pinned V3 artifact size is invalid.");
+        }
+        if (!Sha(trialBytes).Equals(ExperimentalV3, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_FAILED_SHA_MISMATCH");
+            throw new InvalidDataException("Pinned V3 artifact SHA-256 mismatch.");
+        }
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_SHA_VERIFIED");
+        V9FittedSnapshot candidate;
+        try
+        {
+            candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        }
+        catch (InvalidDataException error)
+        {
+            // Fixed, non-sensitive classification: never expose fitted values or exception text.
+            var category = error.Message switch
+            {
+                "Schema do snapshot V9 inválido." => "SCHEMA_JSON",
+                "Snapshot V9 não utiliza serialização canônica." => "NONCANONICAL_ENCODING",
+                "Snapshot V9 diverge do SHA-256 fixado ou excede o tamanho permitido." => "CONTENT_IDENTITY",
+                "Snapshot V9 incompleto, incompatível ou TF sem referência congelada." => "PAYLOAD_CONTRACT",
+                "Snapshot V9 mistura TRAIN e VALIDATION." => "CORPUS_SEPARATION",
+                _ => "OTHER_VALIDATION"
+            };
+            Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_FAILED_" + category);
+            throw;
+        }
+        Console.Error.WriteLine("V9_PAIR_PREFLIGHT_STAGE:V3_READ_OK");
         ValidateFrozenPair(original, candidate);
         V9NestedCalibrationCli.RequirePinnedSnapshotReference(
             sourcePlan.PinnedIbgeReferenceVersionId, sourcePlan.PinnedIbgePublishedSha256, bootstrap, original);
