@@ -54,12 +54,12 @@
 <header>
   <small>JORNADA DO CIDADÃO · DT-15 · DEVELOPMENT</small>
   <h1>Governança de modelos</h1>
-  <p>Comparação do modelo atual com o RASCUNHO proposto. Histórico resumido é contexto; a decisão humana será habilitada apenas após a integração corporativa.</p>
+  <p>Decisão principal: modelo ATIVO atual × novo modelo proposto pelo calibrador. Os demais finalistas pertencem ao relatório científico; a decisão humana exige evidências comparáveis e autorização própria.</p>
 </header>
 <main class="stack">
   <aside class="notice" role="status">
     <strong>Prévia somente leitura · Não constitui dossiê de aprovação</strong>
-    O diagnóstico disponível compara apenas o blocking na mesma amostra de treinamento. Não contém replay Fellegi–Sunter, decisões finais, métricas de produção, identidade corporativa ou parecer master.
+    O diagnóstico disponível compara apenas o blocking na mesma amostra de treinamento. Esta página ainda não recebe automaticamente o vencedor científico V9 nem o recibo TEST. Não contém replay Fellegi–Sunter, decisões finais, métricas de produção, identidade corporativa ou parecer master.
   </aside>
   <section class="card" aria-labelledby="access-heading">
     <h2 id="access-heading">Acesso de desenvolvimento separado do Monitor</h2>
@@ -76,14 +76,14 @@
       <article class="card" id="active"><h2>Modelo ATIVO</h2><p class="empty">Dados ainda não carregados.</p></article>
       <article class="card" id="draft"><h2>Modelo proposto (RASCUNHO)</h2><p class="empty">Dados ainda não carregados.</p></article>
     </section>
-    <section class="card" id="historicalComparison" aria-label="Resultados originais dos modelos"><h2>ATIVO × último RASCUNHO · resultados históricos originais</h2><p class="empty">Aguardando dados.</p></section>
+    <section class="card" id="historicalComparison" aria-label="Evidências originais dos dois modelos"><h2>ATIVO × candidato · evidências originais (não pareadas)</h2><p class="empty">Aguardando dados.</p></section>
     <section class="card" id="comparison" aria-labelledby="comparison-heading">
       <h2 id="comparison-heading">Comparação pareada · somente blocking no treino</h2>
       <p class="empty">Dados ainda não carregados.</p>
     </section>
     <section class="card secondary">
       <h2>Decisão do operador master</h2>
-      <p>As ações de manter o modelo, solicitar nova calibração, VALIDATE e ACTIVATE não estão disponíveis nesta prévia. Nenhuma consulta altera o modelo ATIVO ou o RASCUNHO.</p>
+      <p>A decisão é somente entre manter o ATIVO e avaliar a promoção do vencedor científico V9; outros finalistas não são alternativas diretas. As ações de manter o modelo, solicitar nova calibração, VALIDATE e ACTIVATE não estão disponíveis nesta prévia. Nenhuma consulta altera o modelo ATIVO ou o RASCUNHO.</p>
       <p class="muted small">Dependências: dossiê FS contrafactual completo, identidade corporativa individual, permissões independentes, parecer append-only e gates transacionais nos caminhos diretos do Worker.</p>
     </section>
     <section class="card secondary" aria-labelledby="history-heading">
@@ -159,7 +159,7 @@
   function showHistoricalComparison(active, draft, rows, metrics) {
     const node = byId('historicalComparison');
     node.replaceChildren();
-    append(node, 'h2', 'ATIVO × último RASCUNHO · resultados históricos originais');
+    append(node, 'h2', 'ATIVO × candidato · evidências originais (não pareadas)');
     const a = (rows || []).find(x => active && x.modelId === active.modelId);
     const d = (rows || []).find(x => draft && x.modelId === draft.modelId);
     if (!a || !d) {
