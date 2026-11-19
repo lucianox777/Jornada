@@ -131,6 +131,15 @@ class V9FourName100kTests(unittest.TestCase):
             self.assertEqual(evidence["effectiveSyntheticPopulation"], 120000)
             self.assertTrue(evidence["populationOverrideApplied"])
 
+    def test_standard_workflow_preserves_people_override_and_unified_default(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-standard-linear-100k.yml").read_text()
+        self.assertIn("synthetic_population:", workflow)
+        self.assertIn('V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION")', workflow)
+        self.assertEqual(workflow.count('--calibrator-config config/calibration/v9-synthetic-sampling.json'), 3)
+        self.assertIn('effective_people="${V9_SYNTHETIC_POPULATION:-$configured_people}"', workflow)
+        self.assertEqual(workflow.count('--expected-people "$effective_people"'), 2)
+        self.assertNotIn('--expected-people "${V9_SYNTHETIC_POPULATION:-100000}"', workflow)
+
     def test_one_plan_324_V3_only_and_provenance_bound(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
