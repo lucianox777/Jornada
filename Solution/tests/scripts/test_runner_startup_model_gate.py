@@ -50,6 +50,22 @@ class RunnerStartupModelGateTests(unittest.TestCase):
         subprocess.run(['bash', '-n', str(ROOT / 'scripts/local-cluster.sh')], check=True)
 
 
+    def test_scale_harness_pins_generated_model_for_both_runner_invocations(self):
+        wrapper = (ROOT / "scripts/local-scale.sh").read_text(encoding="utf-8")
+        self.assertIn('MODEL_VERSION="$(scalar', wrapper)
+        self.assertIn('[[ "$MODEL_VERSION" =~ ^[0-9]+$ ]]', wrapper)
+        self.assertEqual(wrapper.count('Linkage__SelectedModelVersion="$MODEL_VERSION"'), 2)
+        self.assertIn(
+            'Linkage__SelectedModelVersion="$MODEL_VERSION" \\\n'
+            '  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \\\n'
+            '  --blocking-pass-audit-labels', wrapper)
+        self.assertIn(
+            'Linkage__SelectedModelVersion="$MODEL_VERSION" \\\n'
+            '  dotnet run --project src/Jornada.Linkage.Runner --configuration Release --no-build -- \\\n'
+            '  --mode MODEL_VALIDATION --model-version "$MODEL_VERSION"', wrapper)
+        import subprocess
+        subprocess.run(['bash', '-n', str(ROOT / 'scripts/local-scale.sh')], check=True)
+
     def test_replay_preserves_historical_model_binding(self):
         source = PROGRAM.read_text(encoding="utf-8")
         self.assertIn('options.Mode != LinkageRunType.REPLAY', source)
