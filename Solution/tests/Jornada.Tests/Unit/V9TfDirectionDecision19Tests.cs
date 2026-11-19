@@ -74,9 +74,9 @@ public sealed class V9TfDirectionDecision19Tests
     [TestCase(0L, 1L)]
     public void SparseTrainU_StillRejectsImpossibleCounts(long pairs, long agreements)
     {
-        Assert.Throws<InvalidDataException>(() => V9NominalTfUReference.Fit(
+        Assert.Throws<InvalidDataException>((Action)(() => V9NominalTfUReference.Fit(
             CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
-            pairs, agreements, 0.5m, TrainSha));
+            pairs, agreements, 0.5m, TrainSha)));
     }
 
     [Test]
