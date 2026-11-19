@@ -1,5 +1,6 @@
 """Regression of docs-only PR gating: preserve required names and security."""
 import unittest
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -12,7 +13,7 @@ class DocsOnlyFastGateTests(unittest.TestCase):
         self.assertIn("ci-impact-classifier.py --files-from", s)
         self.assertIn("grep -E '^docs_only=' impact.env", s)
         for name in ("unit-runtime", "deterministic-build"):
-            part = s.split("  " + name + ":\n", 1)[1].split("\n  ", 1)[0]
+            part = re.split(r"(?m)^  [a-z][a-z0-9-]*:\\s*$", s.split("  " + name + ":\n", 1)[1], maxsplit=1)[0]
             self.assertIn("needs: classify-impact", part)
             self.assertIn("if: needs.classify-impact.outputs.docs_only != 'true'", part)
         guard = s.split("  security-guards:\n", 1)[1]
