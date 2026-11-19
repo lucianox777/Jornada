@@ -77,10 +77,17 @@ jobs:
                   for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                       h.update(chunk)
               return h.hexdigest().upper()
-          assert sha(base / "generation-manifest.json") == r["generation_manifest_sha256"], "Historical manifest bytes differ"
+          raw = (base / "generation-manifest.json").read_bytes()
+          actual_path = b"/home/runner/work/Jornada/Jornada/historical/Solution/"
+          frozen_path = b"/home/runner/work/Jornada/Jornada/Solution/"
+          assert raw.count(actual_path) == 1, "Unexpected historical manifest path"
+          canonical = raw.replace(actual_path, frozen_path)
+          assert hashlib.sha256(canonical).hexdigest().upper() == r["generation_manifest_sha256"], "Canonical historical manifest bytes differ"
           manifest = json.loads((base / "generation-manifest.json").read_text())
           assert manifest["input_fingerprint_sha256"].upper() == r["generator_input_sha256"], "Input differs"
           expected = {x["file"]: x["sha256"] for x in r["generated_files"]}
+          declared = {x["path"]: x["sha256"] for x in manifest["outputs"]}
+          assert declared == expected, "Generated manifest declares different physical outputs"
           assert set(expected) == {"pessoas_verdade.csv", "observacoes.csv", "gabarito.json"}
           for name, digest in expected.items():
               assert sha(base / name) == digest, f"Historical physical hash differs: {name}"
