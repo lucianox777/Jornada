@@ -35,7 +35,7 @@ class DocsOnlyFastGateTests(unittest.TestCase):
             self.assertIn("needs: classify-impact", part)
             self.assertNotIn("\n    if: needs.classify-impact.outputs.docs_only", part)
             self.assertIn("if: needs.classify-impact.outputs.docs_only != 'true'", part)
-            self.assertNotIn("name: Upload startup probe logs\\n        if: always()\\n", part)
+            self.assertNotIn("name: Upload startup probe logs\n        if: always()\n", part)
         guard = s.split("  security-guards:\n", 1)[1]
         self.assertIn("if: always()", guard)
         self.assertIn("if: needs.classify-impact.result != 'success'", guard)
