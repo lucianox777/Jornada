@@ -121,8 +121,12 @@ public static class V9FrozenJointIndependentComparisonCli
             throw new InvalidDataException("Plano original sem referência/cap TRAIN verificável.");
 
         Stage("FITTED_SNAPSHOTS");
+        Stage("V2_READ_START");
         var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        Stage("V2_READ_OK");
+        Stage("V3_READ_START");
         var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
+        Stage("V3_READ_OK");
         Stage("FROZEN_PAIR");
         ValidateFrozenPair(original, candidate);
         Stage("IBGE_PROVENANCE");
