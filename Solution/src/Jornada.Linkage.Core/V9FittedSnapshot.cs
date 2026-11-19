@@ -297,6 +297,14 @@ public sealed class V9FittedSnapshot
         var unitU = tf.NominalUReference
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
+        // RejectOperation must not silently turn absent IBGE publication into
+        // an invented point estimate. The opt-in abstention is handled before
+        // scoring by RankPreview's candidateIsScoreable predicate.
+        if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation
+            && (!tf.Frequencies.TryGetValue(term, out var published)
+                || published <= 0m || published > 1m))
+            throw new InvalidDataException(
+                "TF positiva sem frequência IBGE publicada para unidade ativa.");
         var frequency = V9UnpublishedNominalFrequency.Resolve(tf.Frequencies, term,
             Payload.ContextPopulation, Payload.UnpublishedOccurrenceCount);
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
