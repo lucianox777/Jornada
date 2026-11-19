@@ -31,3 +31,6 @@ O gate `Solution/scripts/v9-tf-ref-provenance-gate.py` recebeu a opção `--writ
 
 ## Verificação posterior (19/11/2026)
 Para o commit `99f919d82ffcf5c1b9ac7be4470aee78accf6cf9`, os workflows PR `jornada-pr-required-fast` (#44543808600) e `v9-experimental-fast-pr` (#44543808602) concluíram com `success`. Isso não demonstra execução física 30k nem validação da master. Endurecimento subsequente do mecanismo v2: `--generator-commit-sha` passou a ser obrigatório com `--write-candidate` e deve conter SHA hexadecimal exato de 40 caracteres; sem esse parâmetro a geração do candidato falha fechada. O SHA fornecido deve ser conferido com a execução física antes da promoção. O novo commit ainda requer CI própria.
+
+## Proteção de regressão da referência 30k (19/11/2026)
+Os workflows de PR no commit `2abcebbc8e71e1a4e47622049c1ca0705be22494` terminaram com `success`: fast #44549382003 e experimental #44549382494. Em seguida, foi acrescentado teste estático do contrato de criação do candidato 30k (escrita exclusiva, diretório da referência, SHA exato, validação prévia e estado não aprovado), integrado ao workflow `jornada-pr-required-fast`. Esse teste não substitui teste físico ou testes negativos de execução; novos commits requerem CI. A geração real e a promoção da v2 permanecem pendentes.
