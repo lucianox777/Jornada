@@ -37,6 +37,16 @@ public static class V9OperationalCandidateGraphParityAudit
 {
     public const int MaximumAuditObservations = V9OperationalPinnedCohortRuntime.MaximumAuditObservations;
 
+    /// <summary>Canonical partition by membership; GUID labels are not semantic identities.</summary>
+    public static string[] CanonicalGroups(IReadOnlyDictionary<int, Guid> identities)
+    {
+        ArgumentNullException.ThrowIfNull(identities);
+        return identities.GroupBy(x => x.Value)
+            .Select(group => string.Join(",", group.Select(x => x.Key).OrderBy(x => x)))
+            .OrderBy(members => members, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public static async Task<V9OperationalCandidateGraphParityReceipt> CompareTestAsync(
         DbConnection connection,
         V9OperationalPinnedCohortRuntime operationalRuntime,
@@ -169,11 +179,7 @@ public static class V9OperationalCandidateGraphParityAudit
         // Identity GUIDs are execution-local labels, not proof of partition
         // equivalence. Compare sorted observation memberships for each group.
         // This detects splits and merges while allowing harmless GUID relabeling.
-        static string[] CanonicalGroups(IReadOnlyDictionary<int, Guid> identities) =>
-            identities.GroupBy(x => x.Value)
-                .Select(group => string.Join(",", group.Select(x => x.Key).OrderBy(x => x)))
-                .OrderBy(members => members, StringComparer.Ordinal)
-                .ToArray();
+
         if (!reference.Decisions.SequenceEqual(operational.Decisions)
             || reference.IdentityByObservation.Count != test.Count
             || operational.IdentityByObservation.Count != test.Count
