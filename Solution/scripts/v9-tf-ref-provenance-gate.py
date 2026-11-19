@@ -54,6 +54,7 @@ def main() -> None:
     parser.add_argument("--pin", type=Path, required=True)
     parser.add_argument("--reference", type=Path, required=True)
     parser.add_argument("--write-candidate", type=Path, help="Create new candidate registry from authenticated physical bytes; never overwrite")
+    parser.add_argument("--generator-commit-sha", help="Exact 40-character generator commit for candidate evidence")
     args = parser.parse_args()
     generated = pin_source.parse_json(args.corpus_root / "generation-manifest.json")
     bootstrap = pin_source.corpus_bootstrap(args.corpus_root)
@@ -63,6 +64,8 @@ def main() -> None:
         import copy
         import json
         import re
+        if not re.fullmatch(r"[0-9a-f]{40}", args.generator_commit_sha or ""):
+            raise ValueError("Candidate requires exact generator commit SHA")
         if not re.fullmatch(r"manifest-v[2-9][0-9]*\.json", args.write_candidate.name):
             raise ValueError("Candidate must be named manifest-v2.json or higher")
         candidate = copy.deepcopy(reference)
@@ -74,7 +77,7 @@ def main() -> None:
         ]
         candidate["evidence"] = {
             "status": "CANDIDATE_REQUIRES_INDEPENDENT_PHYSICAL_REVIEW",
-            "generator_commit_sha": "RECORD_VERIFIED_COMMIT_BEFORE_APPROVAL",
+            "generator_commit_sha": args.generator_commit_sha,
             "original_registry": "v9-synthetic-seed42-30000/manifest.json"
         }
         validate(candidate, pinned, generated, bootstrap)
@@ -83,6 +86,8 @@ def main() -> None:
             stream.write("\n")
         print("PASS: authenticated candidate created; not approved or active.")
         return
+    if args.generator_commit_sha:
+        raise ValueError("--generator-commit-sha is valid only with --write-candidate")
     validate(reference, pinned, generated, bootstrap)
     print("PASS: synthetic ref metadata, 30k hashes and immutable IBGE pin coincide; no names or SQL writes.")
 
