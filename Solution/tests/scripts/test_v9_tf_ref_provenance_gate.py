@@ -71,6 +71,26 @@ class V9SyntheticRefRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fields=PinnedIbgeBootstrap"):
             gate.validate(self.r, self.p, self.m, changed)
 
+    def test_metadata_only_manifest_change_remains_blocked(self):
+        # Regression for #1721: adding sampling metadata changes the
+        # manifest byte hash even when every generated output stays fixed.
+        import hashlib
+        import json
+        historical = b'{"seed":42,"outputs":[]}' + b"\n"
+        current = b'{"seed":42,"synthetic_population":30000,"partition_percentages":{"train":60,"validation":20,"test":20},"outputs":[]}' + b"\n"
+        self.assertNotEqual(hashlib.sha256(historical).digest(),
+                            hashlib.sha256(current).digest())
+        changed = dict(self.bootstrap,
+                       GenerationHypothesesFingerprint=hashlib.sha256(current).hexdigest())
+        # All corpus/IBGE/output hashes are unchanged. A new manifest is
+        # nevertheless incompatible with the immutable historical registry.
+        with self.assertRaisesRegex(ValueError, "fields=GenerationHypothesesFingerprint,PinnedIbgeBootstrap"):
+            gate.validate(self.r, self.p, self.m, changed)
+        # Even a matching newly exported pin must not bypass the registry.
+        changed_pin = dict(self.p, PinnedIbgeBootstrap=changed)
+        with self.assertRaisesRegex(ValueError, "fields=GenerationHypothesesFingerprint"):
+            gate.validate(self.r, changed_pin, self.m, changed)
+
     def test_modified_pin_and_changed_bootstrap_are_rejected(self):
         broken = dict(self.p, PinnedIbgePublishedSha256="E"*64)
         with self.assertRaises(ValueError):
