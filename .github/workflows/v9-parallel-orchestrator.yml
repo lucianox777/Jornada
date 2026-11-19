@@ -20,6 +20,9 @@ on:
       - 'Solution/tests/scripts/test_v9_orchestrator.py'
       - 'Solution/data/reference/v9-frozen-artifacts/**'
       - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
+      # A2 reads these contracts: trigger the non-physical preflight on changes.
+      - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenJointIndependentComparisonCli.cs'
 
 permissions:
   contents: read
@@ -94,6 +97,7 @@ jobs:
         run: |
           echo "SOURCE_DIR=$RUNNER_TEMP/v9-frozen-source" >> "$GITHUB_ENV"
           echo "TRIAL_DIR=$RUNNER_TEMP/v9-v3-candidate" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/v9-frozen-source" "$RUNNER_TEMP/v9-v3-candidate"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'

@@ -187,11 +187,55 @@ public sealed class V9FittedSnapshot
         var canonical = JsonSerializer.SerializeToUtf8Bytes(snapshot.Payload, JsonOptions);
         if (content.SequenceEqual(canonical))
             return snapshot;
+        if (MatchesPinnedExperimentalV3LegacyEncoding(content, canonical, payload))
+            return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
         if (!MatchesLegacyBootstrapV0Encoding(content, canonical, payload))
-            throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
+        {
+            // Safe structural diagnostics: never print fitted values or corpus contents.
+            // The original pinned bytes remain immutable and are never normalized.
+            var firstDifference = 0;
+            var commonLength = Math.Min(content.Length, canonical.Length);
+            while (firstDifference < commonLength && content[firstDifference] == canonical[firstDifference])
+                firstDifference++;
+            using var sourceJson = JsonDocument.Parse(content.ToArray());
+            using var canonicalJson = JsonDocument.Parse(canonical);
+            var sourceFields = sourceJson.RootElement.EnumerateObject()
+                .Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+            var canonicalFields = canonicalJson.RootElement.EnumerateObject()
+                .Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+            var missing = canonicalFields.Except(sourceFields, StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal);
+            var extra = sourceFields.Except(canonicalFields, StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal);
+            throw new InvalidDataException(
+                $"Snapshot V9 não utiliza serialização canônica. firstDifference={firstDifference}; " +
+                $"sourceBytes={content.Length}; canonicalBytes={canonical.Length}; " +
+                $"missingFields={string.Join(",", missing)}; extraFields={string.Join(",", extra)}.");
+        }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
         // Never normalize the pinned historical artifact into a new SHA.
         return new V9FittedSnapshot(payload, verifiedLegacyBootstrapV0Encoding: true);
+    }
+
+    // Only this exact, independently pinned experimental V3 may retain the
+    // historical omission of the two subsequently introduced context fields.
+    // No generic V3 relaxation and no changes to frozen scientific parameters.
+    private static bool MatchesPinnedExperimentalV3LegacyEncoding(
+        ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
+    {
+        const string pinnedExperimentalV3Sha =
+            "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc";
+        if (payload.SchemaVersion != SupportSchemaVersion
+            || !Convert.ToHexString(SHA256.HashData(original)).Equals(
+                pinnedExperimentalV3Sha, StringComparison.OrdinalIgnoreCase)
+            || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
+            || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
+            return false;
+        using var source = JsonDocument.Parse(original.ToArray());
+        if (source.RootElement.TryGetProperty("ContextPopulation", out _)
+            || source.RootElement.TryGetProperty("UnpublishedOccurrenceCount", out _))
+            return false;
+        return original.SequenceEqual(EncodeLegacyBootstrapV0(canonical));
     }
 
     // The pinned experimental bootstrap-v0 predates these two nonzero-default
@@ -200,8 +244,14 @@ public sealed class V9FittedSnapshot
     private static bool MatchesLegacyBootstrapV0Encoding(
         ReadOnlySpan<byte> original, ReadOnlySpan<byte> canonical, V9FittedSnapshotPayload payload)
     {
+        // Admit only the exact content-addressed historical V2 with TF-unit provenance.
+        const string historicalV2WithUnitTfSha = "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f";
+        var historicalUnitTf = payload.UnitTfCalibrations is not null
+            && Convert.ToHexString(SHA256.HashData(original)).Equals(
+                historicalV2WithUnitTfSha, StringComparison.OrdinalIgnoreCase);
         if (payload.TfWeight != 0m || payload.TfCalibration is not null
-            || payload.MotherTfCalibration is not null || payload.UnitTfCalibrations is not null
+            || payload.MotherTfCalibration is not null
+            || (payload.UnitTfCalibrations is not null && !historicalUnitTf)
             || payload.ContextPopulation != V9UnpublishedNominalFrequency.DefaultContextPopulation
             || payload.UnpublishedOccurrenceCount != V9UnpublishedNominalFrequency.AssumedUnpublishedOccurrences)
             return false;
