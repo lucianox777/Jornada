@@ -108,7 +108,7 @@ class V9FourNameHandoffTests(unittest.TestCase):
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', validation)
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', validation)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', validation)
-        self.assertIn("actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093", validation)
+        self.assertIn("actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333", validation)
         self.assertIn("v9-v3-four-name-100k-handoff.py verify", validation)
         self.assertIn("Start fresh masked disposable SQL Server for VALIDATION only", validation)
         self.assertIn('v9-100k-load-frozen-ibge.sh "$root/handoff/plan.json"', validation)
