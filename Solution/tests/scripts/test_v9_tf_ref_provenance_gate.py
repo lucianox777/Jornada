@@ -58,6 +58,19 @@ class V9SyntheticRefRegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate.validate(self.r,self.p,broken,self.bootstrap)
 
+    def test_diagnostic_reports_only_mismatched_field_names(self):
+        changed = dict(self.bootstrap, CorpusFingerprint="D" * 64,
+                       GenerationHypothesesFingerprint="E" * 64)
+        with self.assertRaisesRegex(ValueError, "fields=CorpusFingerprint,GenerationHypothesesFingerprint,PinnedIbgeBootstrap") as caught:
+            gate.validate(self.r, self.p, self.m, changed)
+        self.assertNotIn("D" * 64, str(caught.exception))
+        self.assertNotIn("E" * 64, str(caught.exception))
+
+    def test_diagnostic_preserves_pinned_bootstrap_identity_gate(self):
+        changed = dict(self.bootstrap, CorpusFingerprint=self.bootstrap["CorpusFingerprint"].upper())
+        with self.assertRaisesRegex(ValueError, "fields=PinnedIbgeBootstrap"):
+            gate.validate(self.r, self.p, self.m, changed)
+
     def test_modified_pin_and_changed_bootstrap_are_rejected(self):
         broken = dict(self.p, PinnedIbgePublishedSha256="E"*64)
         with self.assertRaises(ValueError):
