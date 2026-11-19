@@ -202,6 +202,19 @@ public sealed class V9FittedSnapshot
                     : !historicalNames.SequenceEqual(canonicalNames, StringComparer.Ordinal)
                         ? "FIELD_ORDER"
                         : "FIELD_ENCODING_OR_VALUES";
+            // Report only a fixed allowlist of schema property names (never values).
+            // This identifies historical additions without revealing fitted data.
+            if (category == "MISSING_FIELDS")
+            {
+                var missing = canonicalNames.Except(historicalNames, StringComparer.Ordinal).ToHashSet(StringComparer.Ordinal);
+                var known = new[] { "ContextPopulation", "UnpublishedOccurrenceCount",
+                    "SharedSurnameMode", "UnpublishedTermPolicy", "MotherTfCalibration",
+                    "UnitTfCalibrations", "CandidateGrouping", "JointSupport",
+                    "GoldParentSnapshotSha256", "BlockingFrameFingerprintSha256" };
+                var identified = known.Where(missing.Contains).ToArray();
+                category += "_COUNT_" + missing.Count + "_KNOWN_" +
+                    (identified.Length == 0 ? "NONE" : string.Join("_", identified));
+            }
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica: " + category);
         }
         // Only a byte-for-byte verified legacy V0 gets its original content address.
