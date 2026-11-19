@@ -13,7 +13,32 @@ concurrency:
   group: jornada-pr-required-fast-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  classify-impact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" > changed-files.txt
+          else
+            # For push/manual runs, retain full checks; master impact is independently classified in jornada-ci.
+            git ls-files > changed-files.txt
+          fi
+          python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
+          grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
+      - name: Check classification contract
+        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py
   unit-runtime:
+    needs: classify-impact
+    if: needs.classify-impact.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -81,6 +106,8 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py'
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py'
   deterministic-build:
+    needs: classify-impact
+    if: needs.classify-impact.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -140,6 +167,8 @@ jobs:
             Solution/.local/v9-startup-probe/startup-progress.jsonl
           if-no-files-found: warn
   security-guards:
+    needs: classify-impact
+    if: always() && needs.classify-impact.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
