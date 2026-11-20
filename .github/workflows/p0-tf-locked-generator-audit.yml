@@ -172,6 +172,30 @@ jobs:
           assert all(lock["matches"] and lock["tracked_file_count"] == 25
                      for lock in result["locks"]), "Restored checkout does not match both LOCKED contracts"
           PY
+      - name: Set up pinned .NET for historical compile-only rehearsal
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile restored historical generator (no execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build "$RUNNER_TEMP/restored-generator/Solution/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj" \
+            --configuration Release --nologo \
+            -p:RestoreIgnoreFailedSources=true \
+            > "$RUNNER_TEMP/restored-generator-build.log" 2>&1 || {
+              cat "$RUNNER_TEMP/restored-generator-build.log"
+              exit 1
+            }
+          tail -n 35 "$RUNNER_TEMP/restored-generator-build.log"
+      - name: Upload restored historical compile log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-restored-build
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/restored-generator-build.log
       - name: Upload disposable restoration audit
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
