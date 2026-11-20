@@ -113,7 +113,7 @@ class OperationalEdgesSourceContract(unittest.TestCase):
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
-        self.assertIn("OperationalEdges = directions.Keys.OrderBy", parity)
+        self.assertIn("OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy", parity)
         self.assertIn("Array.AsReadOnly(directions.Keys.OrderBy", parity)
         self.assertIn("if (!expected.SetEquals(directions.Keys))", parity)
         self.assertIn("directions.Values.Any(value => value != 3)", parity)
