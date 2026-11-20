@@ -96,6 +96,8 @@ jobs:
             exit 1
           fi
           test ! -e "$RUNNER_TEMP/nonexistent-corpus"
+      - name: Test read-only corpus partition verifier with disposable fixtures
+        run: python3 -m unittest Solution/tests/scripts/test_verify_parametrized_corpus_partitions.py
       - name: Validate parameterized partition percentages without corpus generation
         shell: bash
         run: |
