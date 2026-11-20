@@ -11,12 +11,16 @@ from pathlib import Path
 
 
 def summarize(snapshot):
-    runs = snapshot["workflow_runs"]
+    if not isinstance(snapshot, dict):
+        raise ValueError("snapshot must be an object")
+    runs = snapshot.get("workflow_runs")
     if not isinstance(runs, list):
         raise ValueError("workflow_runs must be a list")
     counts = Counter()
     details = []
     for run in runs:
+        if not isinstance(run, dict):
+            raise ValueError("each workflow_run must be an object")
         status = run.get("status")
         conclusion = run.get("conclusion")
         if status == "completed":
@@ -35,19 +39,29 @@ def summarize(snapshot):
         if not isinstance(jobs, list):
             raise ValueError("each jobs_by_run entry must be a list")
         for job in jobs:
+            if not isinstance(job, dict):
+                raise ValueError("each job must be an object")
             if job.get("status") == "completed":
-                job_counts[job.get("conclusion") or "other_completed"] += 1
+                conclusion = job.get("conclusion")
+                category = conclusion if conclusion in ("success", "failure", "cancelled", "skipped", "timed_out") else "other_completed"
+            elif job.get("status") in ("queued", "pending", "in_progress", "requested", "waiting"):
+                category = job["status"]
             else:
-                job_counts[job.get("status") or "unknown"] += 1
+                category = "unknown"
+            job_counts[category] += 1
+    complete_success = bool(runs) and all(
+        run.get("status") == "completed" and run.get("conclusion") == "success"
+        for run in runs
+    ) and all(
+        job.get("status") == "completed" and job.get("conclusion") == "success"
+        for jobs in jobs_by_run.values() for job in jobs
+    )
     return {
         "total_runs": len(runs),
         "run_states": dict(sorted(counts.items())),
         "job_states": dict(sorted(job_counts.items())),
         "runs": details,
-        "all_completed_success": bool(runs) and all(
-            run.get("status") == "completed" and run.get("conclusion") == "success"
-            for run in runs
-        ),
+        "all_completed_success": complete_success,
     }
 
 
