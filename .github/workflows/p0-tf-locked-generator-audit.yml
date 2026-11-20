@@ -1,0 +1,47 @@
+name: P0-A TF LOCKED generator identity diagnostic (nonblocking)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p0-tf-locked-generator-audit.yml'
+      - 'Solution/scripts/audit-v9-tf-locked-generator.py'
+      - 'Solution/tests/scripts/test_audit_v9_tf_locked_generator.py'
+      - 'Solution/docs/P0A_Auditoria_Identidade_Gerador_TF_LOCKED_20261120.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-identity:
+    name: Audit frozen generator bytes (diagnostic, not scientific)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run offline contract tests
+        run: python3 -m unittest Solution/tests/scripts/test_audit_v9_tf_locked_generator.py
+      - name: Compare checked-out generator to both LOCKED contracts
+        shell: bash
+        run: |
+          set +e
+          python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . > "$RUNNER_TEMP/locked-generator-audit.json"
+          audit_status=$?
+          set -e
+          cat "$RUNNER_TEMP/locked-generator-audit.json"
+          echo "audit_exit_code=$audit_status" >> "$GITHUB_STEP_SUMMARY"
+          echo "This diagnostic does not approve or regenerate LOCKED and does not authorize scientific TRAIN/TEST." >> "$GITHUB_STEP_SUMMARY"
+          # Divergence is recorded, not hidden and not yet a new required check.
+          if [ "$audit_status" -ne 0 ]; then
+            echo "::warning title=Frozen generator identity differs::See locked-generator-audit.json artifact and issue #1734"
+          fi
+      - name: Upload read-only audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-identity-audit
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/locked-generator-audit.json
