@@ -39,6 +39,31 @@ public sealed class V9OperationalIdentityPartitionParityTests
     }
 
     [Test]
+    public void Same_group_sizes_with_different_memberships_are_not_equivalent()
+    {
+        // Counts alone cannot detect a cross-batch identity swap.
+        var first = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            [4] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        var swapped = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            [4] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        Assert.That(first.Values.Distinct().Count(), Is.EqualTo(swapped.Values.Distinct().Count()));
+        Assert.That(first.Values.GroupBy(id => id).Select(g => g.Count()).OrderBy(n => n),
+            Is.EqualTo(swapped.Values.GroupBy(id => id).Select(g => g.Count()).OrderBy(n => n)));
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(first),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(swapped)));
+    }
+
+    [Test]
     public void Membership_order_does_not_change_partition()
     {
         var a = Guid.NewGuid();
