@@ -300,6 +300,9 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
     int ConfigPeople() => config is { } c ? c.GetProperty("syntheticPopulation").GetInt32() : 30_000;
     double ConfigPercent(string key, double fallback) => config is { } c
         ? c.GetProperty("sampling").GetProperty(key).GetDouble() : fallback;
+    double Percent(string cliKey, string configKey, double fallback) => values.ContainsKey(cliKey)
+        ? GetDouble(values, cliKey, fallback)
+        : ConfigPercent(configKey, fallback);
     var options = new SyntheticCorpusOptions(
         People: GetInt(values, "people", ConfigPeople()),
         Seed: GetUlong(values, "seed", 42),
@@ -320,9 +323,9 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
         StratifiedErrors: Get(values, "stratified-errors-config") is { } strataPath
             ? SyntheticStratifiedErrorConfig.ReadFile(strataPath)
             : null,
-        TrainPercent: GetDouble(values, "train-percent", ConfigPercent("trainPercent", 60)),
-        ValidationPercent: GetDouble(values, "validation-percent", ConfigPercent("validationPercent", 20)),
-        TestPercent: GetDouble(values, "test-percent", ConfigPercent("testPercent", 20)));
+        TrainPercent: Percent("train-percent", "trainPercent", 60),
+        ValidationPercent: Percent("validation-percent", "validationPercent", 20),
+        TestPercent: Percent("test-percent", "testPercent", 20));
     options.Validate();
     return options;
 }
