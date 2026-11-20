@@ -61,3 +61,50 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: ${{ runner.temp }}/locked-generator-audit.json
+
+  historical-reference:
+    name: Compare frozen manifests with pinned historical checkout (diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout audit implementation from PR
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          path: auditor
+      - name: Checkout immutable generator reference
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: b98a01180737909edf7cbd0bee4ba2757d52fe0f
+          path: historical
+      - name: Compare historical bytes with frozen contracts
+        shell: bash
+        run: |
+          set +e
+          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py --repo historical > "$RUNNER_TEMP/historical-locked-generator-audit.json"
+          audit_status=$?
+          set -e
+          cat "$RUNNER_TEMP/historical-locked-generator-audit.json"
+          {
+            echo "### Historical reference audit (diagnostic only)"
+            echo ""
+            echo "Reference: \`b98a01180737909edf7cbd0bee4ba2757d52fe0f\`"
+            echo ""
+            if [ "$audit_status" -eq 0 ]; then
+              echo "**MATCH** — historical checkout satisfies both current frozen manifests."
+            else
+              echo "**MISMATCH / ERROR — NOT VALIDATED** — historical checkout does not satisfy both current frozen manifests."
+              echo "::warning title=Historical reference identity NOT VALIDATED::Audit exit $audit_status; inspect JSON artifact and issue #1734"
+            fi
+            echo ""
+            echo "Exit code: \`$audit_status\`. No scientific run, manifest rewrite, or approval."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload historical read-only audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-historical-reference
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/historical-locked-generator-audit.json
