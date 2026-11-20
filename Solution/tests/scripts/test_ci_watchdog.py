@@ -30,7 +30,7 @@ def jobs(*conclusions):
     return {
         "total_count": len(conclusions),
         "jobs": [
-            {"id": i + 5, "status": "completed", "conclusion": value}
+            {"id": i + 5, "name": f"job-{i + 5}", "status": "completed", "conclusion": value}
             for i, value in enumerate(conclusions)
         ],
     }
@@ -87,6 +87,26 @@ class CiWatchdogTests(unittest.TestCase):
         self.assertFalse(watch.is_current_run(
             {**candidate, "head_repository": {"full_name": "fork/repo"}},
             FakeApi(pr=pr), SHA, NOW))
+
+    def test_retry_refuses_ambiguous_completed_job_conclusions_and_names(self):
+        for bad in (None, "action_required", "timed_out", "cancelled", "mystery"):
+            with self.subTest(conclusion=bad):
+                payload = jobs("failure", "success")
+                payload["jobs"][1]["conclusion"] = bad
+                api = FakeApi(job_results=payload)
+                self.assertFalse(watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])[0])
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
+        for name in (None, "", "  "):
+            with self.subTest(name=name):
+                payload = jobs("failure", "success")
+                payload["jobs"][0]["name"] = name
+                api = FakeApi(job_results=payload)
+                self.assertFalse(watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])[0])
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
 
     def test_retry_refuses_duplicate_or_anonymous_job_evidence(self):
         valid = jobs("failure", "success")
