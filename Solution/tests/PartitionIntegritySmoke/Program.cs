@@ -39,6 +39,9 @@ try
     await ExpectRejected("empty-base-id", [new SyntheticPerson { BasePersonId = " ", Partition = "TRAIN", Name = "Teste", MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F", EvaluationWeight = 1 }], []);
     await ExpectRejected("duplicate-observation", [person], [Observation("O1"), Observation("O1")]);
     await ExpectRejected("empty-observation-id", [person], [Observation("")]);
+    await ExpectRejected("excess-multiplicity", [person],
+        Enumerable.Range(0, SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity + 1)
+            .Select(i => Observation($"O{i}")).ToArray());
     await ExpectRejected("invalid-partition", [new SyntheticPerson { BasePersonId = "P1", Partition = "OTHER", Name = "Teste", MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F", EvaluationWeight = 1 }], []); 
 }
 finally
