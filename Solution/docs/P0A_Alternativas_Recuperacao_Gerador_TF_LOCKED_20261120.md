@@ -1,6 +1,6 @@
 # P0-A — Comparação histórica e alternativas de recuperação do gerador TF LOCKED
 
-**Data:** 20/11/2026. **Estado atual:** alternativa A **aprovada pelo PO em 20/11/2026**; alternativas B/C não aprovadas. Implementação e validação pendentes. **Issue:** #1734. **Precedência:** GOV-DOC-01, os dois manifests LOCKED e o commit histórico de referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
+**Data:** 20/11/2026. **Estado atual:** alternativa A **aprovada pelo PO em 20/11/2026**; alternativas B/C não aprovadas. Implementação segregada presente na PR #1769; verificações diagnósticas e de regressão aprovadas na revisão `0eaa68c`, com validação final e revisão de integração ainda pendentes. **Issue:** #1734. **Precedência:** GOV-DOC-01, os dois manifests LOCKED e o commit histórico de referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
 
 ## Evidência verificada
 
@@ -307,3 +307,16 @@ O commit `242f612` acrescenta teste estrutural para impedir regressão na atribu
 - **Limitação da evidência:** a proveniência IBGE (`44778995792`) ainda estava **in_progress** no momento da consulta. A aprovação dos checks não autoriza merge nem execução de TRAIN/TEST científico, que seguem sujeitos às condições de governança existentes.
 - **Contexto/justificativa:** consolidar a evidência verificável de validação para impedir que a fila de execuções seja confundida com falha do código ou com certificação científica.
 - **Impacto e precedência:** registro documental de execução, sem alteração dos artefatos LOCKED, dos geradores ou do índice de decisões; subordinado à decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` e à política GOV-DOC-01.
+
+
+### Controle do plano de ação — checkpoint operacional (20/11/2026)
+
+| Frente | Evidência | Estado no checkpoint |
+| --- | --- | --- |
+| Isolamento histórico A | Árvore congelada preservada, gerador parametrizado em projeto distinto; auditoria `44778995686` | Implementado e diagnóstico aprovado na revisão `0eaa68c` |
+| Integridade e regressão | Harness com 21 PASS distintos; checks obrigatórios `44778995913`, byte comparison `44778995704`, standard-linear `44778995766` e smoke `44778995740` | Aprovados na revisão `0eaa68c` |
+| Proveniência IBGE | Job `independent-ibge-pin` do run `44779496023` | Em execução; não alegar conclusão |
+| Revalidação da revisão documental mais recente | Run P0 `44779496077`, required-fast `44779496058`, RunAsync `44779496015` | Em execução; jobs parciais concluídos |
+| Integração / ciência | PR #1769 em draft, issue #1734 | Sem merge; TRAIN/TEST científico não autorizado |
+
+**Contexto e justificativa:** manter o plano de ação explicitamente rastreável mesmo com filas de CI e commits documentais, distinguindo implementação, evidência aprovada em revisão anterior e pendências atuais. **Impacto:** atualização somente documental, sem mudar a precedência da decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`, os LOCKED ou o índice de decisões. **Próxima condição de avanço:** verificar conclusão de proveniência IBGE e dos checks da revisão atual, avaliar logs de falhas reais e submeter integração ao PO; não fazer merge automaticamente.
