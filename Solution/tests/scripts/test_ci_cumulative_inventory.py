@@ -116,6 +116,20 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate job ID"):
             mod.failing_jobs(duplicate, 77)
 
+    def test_job_pagination_missing_id_and_changed_count_fail_closed(self):
+        def missing_id(_):
+            return {"total_count": 1, "jobs": [{"name": "unidentified", "conclusion": "failure"}]}
+        with self.assertRaisesRegex(ValueError, "Missing or duplicate job ID"):
+            mod.failing_jobs(missing_id, 78)
+
+        jobs = [{"id": i, "name": "job", "conclusion": "success"} for i in range(1, 102)]
+        def changed_total(path):
+            if "page=1" in path:
+                return {"total_count": 101, "jobs": jobs[:100]}
+            return {"total_count": 102, "jobs": jobs[100:]}
+        with self.assertRaisesRegex(ValueError, "Jobs changed"):
+            mod.failing_jobs(changed_total, 79)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
