@@ -32,7 +32,7 @@ Toda interação operacional, inclusive após limite de contexto, troca de agent
 
 ### Reconciliação bidirecional obrigatória na inicialização — decisão PO de 20/11/2026
 
-**ID:** GOV-OPS-RECONCILIACAO-INICIAL-CI-PRS-20261120. **Estado:** DECIDIDO pelo PO; implementação documental nesta PR, ainda não integrada. **Contexto:** a troca de conversas pode perder o vínculo entre incidentes de CI, PRs abertas ou integradas, decisões e próximos passos, mesmo quando os registros individuais existem. **Justificativa:** tornar executável e verificável o contrato já aprovado nas 13 etapas, sem duplicar mecanismos.
+**ID:** GOV-OPS-RECONCILIACAO-INICIAL-CI-PRS-20261120. **Estado:** DECIDIDO pelo PO; implementação documental integrada pela PR #1774 (squash `cc5f758bec3a74232e15b775cff6b16dde4ab559`); validação pós-merge ainda não comprovada. **Contexto:** a troca de conversas pode perder o vínculo entre incidentes de CI, PRs abertas ou integradas, decisões e próximos passos, mesmo quando os registros individuais existem. **Justificativa:** tornar executável e verificável o contrato já aprovado nas 13 etapas, sem duplicar mecanismos.
 
 Na abertura de **cada interação operacional**, antes de iniciar nova implementação, executar a reconciliação **nos dois sentidos**, dentro de uma janela de observação declarada e com cobertura verificável:
 
@@ -43,7 +43,7 @@ Na abertura de **cada interação operacional**, antes de iniciar nova implement
 5. Confrontar ambos os inventários com o checkpoint anterior, decisões vigentes, issues e documentação; identificar lacunas, transições, incidentes ainda abertos, validações pendentes e a **próxima atividade autorizada**. Não reabrir tarefa concluída nem transformar falha em retry sem classificação.
 6. Reportar janela, horário, cobertura total ou **PARCIAL**, contagens verificáveis, relações confirmadas/ambíguas, PRs sem prova, jobs falhos, SHA/run/attempt, pendências e próximo passo. Se a integração não listar runs globais paginados, declarar explicitamente a limitação e **não** certificar reconciliação total.
 
-**Impacto e limites:** apenas esclarecimento do procedimento inicial existente; não cria workflow, monitor, banco, novo checkpoint, execução científica, autorização de merge ou alteração de gates. A PR #1758 permanece proposta independente de inventário read-only, sem aprovação implícita. **Precedência:** detalha a inicialização deste mandato e as etapas 2–7, 10–13 do protocolo canônico de 13 etapas, sem substituí-las; GOV-DOC-01 permanece obrigatório. **Rastreabilidade:** PR #1773, #1757, #1758; `.github/workflows/ci-diagnostics.yml`; `Solution/scripts/ci-failure-checkpoint.py`; índice de decisões vigente; CI e SHA da presente PR a registrar após execução.
+**Impacto e limites:** apenas esclarecimento do procedimento inicial existente; não cria workflow, monitor, banco, novo checkpoint, execução científica, autorização de merge ou alteração de gates. A PR #1758 permanece proposta independente de inventário read-only, sem aprovação implícita. **Precedência:** detalha a inicialização deste mandato e as etapas 2–7, 10–13 do protocolo canônico de 13 etapas, sem substituí-las; GOV-DOC-01 permanece obrigatório. **Rastreabilidade:** PR #1773, #1757, #1758; `.github/workflows/ci-diagnostics.yml`; `Solution/scripts/ci-failure-checkpoint.py`; índice de decisões vigente; CI e PR #1774, squash `cc5f758bec3a74232e15b775cff6b16dde4ab559`; CI rápida pré-merge run `44825286460` (quatro jobs aprovados); pós-merge ainda não comprovado.
 
 A PR é um ponto de continuidade **não exclusivo**; `master`, decisões e evidências reais continuam fontes de verdade. Checkpoints operacionais existentes podem ser atualizados no próprio fluxo documental autorizado, sem sistema paralelo.
 
@@ -101,6 +101,6 @@ Concentrar alterações na PR existente da frente correspondente sempre que tecn
 - **11/11/2026:** GOV-OPS original, CI seletiva, watchdog horário existente e instruções específicas do Projeto.
 - **19/11/2026:** aditivo PO de 13 etapas, documentado na PR #1757.
 - **20/11/2026:** redação genérica deste arquivo e proposta genérica #1771 identificadas como desvio de escopo. O PO aprovou recuperar o mandato **exclusivo do Jornada**, com retomada obrigatória entre conversas e sem novo monitor por padrão.
-- **Estado de integração:** correção proposta na PR #1757; verificar checks, conflitos e precedência da `master` antes de qualquer merge. A decisão GOV-CI-PRESERVAR-MASTER-ENCERRAR-PR1759-20261120 permanece independente e deve ser reconciliada pela PR #1772.
+- **Estado de integração:** documentação integrada pela PR #1757 (squash `556370b44363b5c3a10029d0cb38a77b39485682`); conferir precedência de decisões posteriores na `master`. A decisão GOV-CI-PRESERVAR-MASTER-ENCERRAR-PR1759-20261120 permanece independente e deve ser reconciliada pela PR #1772.
 
 - **20/11/2026:** PO ratifica recuperação do fluxo Jornada por Diagnostics correlacionado a run/SHA, correção e novo squash, sem fechamento adicional de PR, exclusão de branch ou novo workflow; documentação proposta em PR específica, integração pendente.
