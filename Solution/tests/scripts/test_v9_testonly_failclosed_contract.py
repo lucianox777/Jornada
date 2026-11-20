@@ -16,14 +16,10 @@ TEST = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs"
 class TestV9TestOnlyFailClosedContract(unittest.TestCase):
     def test_test_cannot_start_before_parity_certification(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        prep = workflow.split("\n  prepare-test-100k:
-", 1)[1].split(
-            "\n  physical-100k:
-", 1)[0]
-        train = workflow.split("\n  physical-100k:
-", 1)[1].split(
-            "\n  validation-100k:
-", 1)[0]
+        prep = workflow.split("\n  prepare-test-100k:\n", 1)[1].split(
+            "\n  physical-100k:\n", 1)[0]
+        train = workflow.split("\n  physical-100k:\n", 1)[1].split(
+            "\n  validation-100k:\n", 1)[0]
         for stage, start in ((prep, "--people 100000"), (train, "--v9-calibrate")):
             marker = "V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"
             self.assertIn(marker, stage)
