@@ -60,6 +60,8 @@ try
         [person, new SyntheticPerson { BasePersonId = "P1", Partition = "TEST", Name = "Teste",
             MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F",
             EvaluationWeight = 1 }], [Observation("O1")]);
+    await ExpectRejected("null-person-entry", [null!], []);
+    await ExpectRejected("null-observation-entry", [person], [null!]);
     await ExpectRejected("orphan", [person], [Observation("O1", "UNKNOWN")]);
     await ExpectRejected("cross-partition", [person], [Observation("O1", partition: "TEST")]);
     await ExpectRejected("duplicate-person", [person, person], [Observation("O1")]);
