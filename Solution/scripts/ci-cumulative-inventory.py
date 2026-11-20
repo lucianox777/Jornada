@@ -201,6 +201,14 @@ def compare_snapshots(previous, current):
         before, after = old[run_id], new[run_id]
         if before.get("sha") != after.get("sha"):
             raise ValueError("Run SHA changed between observations")
+        old_attempt, new_attempt = before.get("attempt"), after.get("attempt")
+        if (type(old_attempt) is not int or type(new_attempt) is not int
+                or old_attempt < 1 or new_attempt < old_attempt):
+            raise ValueError("Run attempt invalid or regressed between observations")
+        for immutable in ("event", "created_at"):
+            if (before.get(immutable) is not None and after.get(immutable) is not None
+                    and before[immutable] != after[immutable]):
+                raise ValueError("Run immutable metadata changed between observations")
         if before.get("category") != after.get("category") or before.get("attempt") != after.get("attempt"):
             transitions.append({
                 "run_id": run_id,
