@@ -19,6 +19,10 @@ def evaluate(runs, sha):
     for run in runs:
         if not isinstance(run, dict):
             raise ValueError("Malformed Actions run entry")
+        # Validate identity before filtering: malformed entries cannot silently
+        # disappear and make the proof look complete.
+        if type(run.get("id")) is not int or run["id"] <= 0:
+            raise ValueError("Invalid Actions run ID")
         if run.get("head_sha") != sha or run.get("head_branch") != "master":
             continue
         if run.get("event") != "push":
@@ -26,8 +30,6 @@ def evaluate(runs, sha):
         name = run.get("name")
         if name not in REQUIRED:
             continue
-        if type(run.get("id")) is not int or run["id"] <= 0:
-            raise ValueError("Invalid Actions run ID")
         relevant.setdefault(name, []).append(run)
     results = {}
     for name in sorted(REQUIRED):
