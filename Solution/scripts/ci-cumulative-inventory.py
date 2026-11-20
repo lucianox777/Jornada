@@ -135,8 +135,11 @@ def failing_jobs(get, run_id, attempt=1):
             raise ValueError("Jobs changed during pagination")
         for job in items:
             job_id = job.get("id")
-            if type(job_id) is not int or job_id in seen_jobs:
+            if type(job_id) is not int or job_id <= 0 or job_id in seen_jobs:
                 raise ValueError("Missing or duplicate job ID during pagination")
+            job_attempt = job.get("run_attempt")
+            if job_attempt is not None and (type(job_attempt) is not int or job_attempt != attempt):
+                raise ValueError("Job attempt does not match observed workflow attempt")
             seen_jobs.add(job_id)
             if job.get("conclusion") in ("failure", "timed_out", "action_required"):
                 found.append({"id": job.get("id"), "name": job.get("name"),
