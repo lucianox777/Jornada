@@ -81,6 +81,16 @@ jobs:
           cat "$RUNNER_TEMP/parametrized-cli-smoke.log"
           echo "Exit status: $status"
           test "$status" -ne 0
+          # Fail closed: require the exception to identify the exact calibration file.
+          # Any unrelated failure (e.g. missing reference root) is NOT evidence of parsing.
+          if ! grep -Fq "$RUNNER_TEMP/nonexistent-calibrator.json" "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::CLI did not reach calibration configuration file loading"
+            exit 1
+          fi
+          if ! grep -Eq 'FileNotFoundException|DirectoryNotFoundException' "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::CLI failed for an unexpected reason"
+            exit 1
+          fi
           if grep -Eiq 'unknown option|unrecognized option|unknown argument|unrecognized argument' "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
             echo "::error::Parameterized CLI rejected a known calibration option"
             exit 1
