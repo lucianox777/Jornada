@@ -41,6 +41,31 @@ class IsolatedPartitionContractTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, self.models)
 
+    def test_partition_threshold_boundary_cases(self):
+        """Model the two ordered comparisons used by the generator at boundaries."""
+        def partition(split, train, validation):
+            return ("TRAIN" if split < train / 100
+                    else "VALIDATION" if split < (train + validation) / 100
+                    else "TEST")
+
+        cases = (
+            (0.0, 60, 20, "TRAIN"),
+            (0.599999999, 60, 20, "TRAIN"),
+            (0.6, 60, 20, "VALIDATION"),
+            (0.799999999, 60, 20, "VALIDATION"),
+            (0.8, 60, 20, "TEST"),
+            (0.999999999, 60, 20, "TEST"),
+            (0.0, 0, 0, "TEST"),
+            (0.0, 0, 100, "VALIDATION"),
+            (0.0, 100, 0, "TRAIN"),
+            (0.699999999, 70, 20, "TRAIN"),
+            (0.7, 70, 20, "VALIDATION"),
+            (0.9, 70, 20, "TEST"),
+        )
+        for split, train, validation, expected in cases:
+            with self.subTest(split=split, train=train, validation=validation):
+                self.assertEqual(partition(split, train, validation), expected)
+
     def test_cli_config_and_explicit_percentage_precedence(self):
         program = (ROOT / "src/Jornada.Linkage.SyntheticCorpus.Parametrized/Program.cs").read_text(encoding="utf-8")
         self.assertIn('Get(values, "calibrator-config")', program)
