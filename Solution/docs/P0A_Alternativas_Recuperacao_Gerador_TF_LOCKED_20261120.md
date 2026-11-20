@@ -536,3 +536,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Regressão:** commit `9fc34ce` cobre origem nula, lista inválida, entrada nula, número booleano/zero, respostas PR malformadas e indisponibilidade da API; todos devem retornar `is_current_run=False`. Aprovação de CI do novo HEAD ainda não confirmada.
 - **Stats da consulta do commit `5fa1bb9`:** seis workflows: 3 `in_progress`, 1 `queued`, 1 `pending`, 1 `completed/success`; sete jobs observados: 2 `completed/success`, 4 `in_progress`, 1 `queued`. Required-fast ainda sem jobs no instante da coleta. Escopo limitado a runs de PR da primeira página, sem evidência de `master` verde.
 - **Precedência/impactos:** reforça GOV-DOC-01 e a política anterior de retry fail-closed do watchdog, sem alterar a decisão P0 de isolamento do gerador LOCKED, workflows de produção, manifests ou executar replays/merges.
+
+
+### Coleta automática de evidência real de proteção da master (20/11/2026)
+
+- **Lacuna P0:** checks PR aprovados não provam que a branch `master` exige esses checks para merge. O auditor read-only `Solution/scripts/audit-master-required-checks.py` já existia, mas não era executado nos runs normais, impedindo observação da API real.
+- **Implementação:** commit `638d8ee` integra a chamada do auditor no job `classify-impact` do `jornada-pr-required-fast`, com `actions: read`, `contents: read`, token efêmero do workflow, `continue-on-error: true`, saída no log e no `GITHUB_STEP_SUMMARY`. A falha do diagnóstico não altera os gates de código existentes nem é promovida a prova de proteção.
+- **Regressão:** commit `5930afe` verifica offline o wiring, permissão de leitura, caráter não bloqueante e publicação do sumário. A confirmação depende de execução da CI no HEAD novo e acesso efetivo da API de branch protection/rulesets; `UNKNOWN` ou regras de escopo não inspecionado permanecem **não verificados**.
+- **Observação anterior no commit `cf2d0f9`:** seis workflows (4 `completed/success`, 2 `in_progress`); doze jobs: **10 success, 2 in_progress**, nenhum failed no instante da coleta. IBGE e required-fast ainda não concluídos; não extrapolar para master.
+- **Justificativa, impacto e precedência:** avanço diretamente relacionado ao checklist da issue #1734 e GOV-DOC-01; não altera a política de proteção da master nem os manifests LOCKED. Sem merge, bypass, rerun, TRAIN ou TEST científico.
