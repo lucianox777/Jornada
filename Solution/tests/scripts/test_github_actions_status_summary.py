@@ -58,6 +58,20 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
         self.assertEqual(result["job_states"], {"in_progress": 1, "success": 1})
         self.assertFalse(result["all_completed_success"])
 
+    def test_unresolved_runs_and_partial_job_coverage_are_explicit(self):
+        result = module.summarize({
+            "workflow_runs": [
+                {"id": 11, "status": "completed", "conclusion": "success"},
+                {"id": 12, "status": "queued", "conclusion": None},
+            ],
+            "jobs_by_run": {"11": [{"id": 110, "status": "completed", "conclusion": "success"}],
+                            "99": [{"id": 990, "status": "in_progress"}]},
+        })
+        self.assertEqual(result["incomplete_run_ids"], [12])
+        self.assertEqual(result["unmatched_job_run_ids"], ["99"])
+        self.assertEqual(result["job_coverage"], "partial_or_unverified")
+        self.assertFalse(result["all_completed_success"])
+
     def test_malformed_entries_are_rejected(self):
         for snapshot in (
             None,
