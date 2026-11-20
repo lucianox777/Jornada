@@ -8,6 +8,8 @@ on:
       - 'Solution/tests/scripts/test_audit_v9_tf_locked_generator.py'
       - 'Solution/docs/P0A_Auditoria_Identidade_Gerador_TF_LOCKED_20261120.md'
       - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/**'
+      - '.github/workflows/v9-standard-linear-100k.yml'
       - 'Solution/docs/V9_TF_SEEDS_44_47_LOCK.json'
       - 'Solution/docs/V9_TF_SEEDS_48_57_LOCK.json'
   workflow_dispatch:
@@ -53,6 +55,16 @@ jobs:
           if [ "$audit_status" -ne 0 ]; then
             echo "::warning title=LOCKED identity NOT VALIDATED::Audit exit $audit_status; inspect JSON artifact and issue #1734"
           fi
+      - name: Set up pinned .NET SDK for both generators
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile historical and parameterized executables (no corpus generation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release --nologo
+          dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj -c Release --nologo
       - name: Upload read-only audit report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
