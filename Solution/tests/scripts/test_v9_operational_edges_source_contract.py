@@ -9,6 +9,22 @@ ROOT = Path(__file__).resolve().parents[2] / "src/Jornada.Linkage.Runner"
 
 
 class OperationalEdgesSourceContract(unittest.TestCase):
+    def test_both_graphs_are_canonical_and_physical_oracle_is_ordered(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        self.assertIn(
+            "OperationalEdges = directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray()",
+            parity,
+        )
+        self.assertIn("ORDER BY a.obs_id,b.obs_id;", physical)
+        self.assertIn("edges[i - 1].B >= edges[i].B", physical)
+        self.assertIn("physical.Edges.SequenceEqual(operational.OperationalEdges)", scorer)
+        self.assertLess(
+            scorer.index("physical.Edges.SequenceEqual(operational.OperationalEdges)"),
+            scorer.index("edges = operational.OperationalEdges.ToList();"),
+        )
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
