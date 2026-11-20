@@ -63,8 +63,10 @@ try
     await ExpectRejected("orphan", [person], [Observation("O1", "UNKNOWN")]);
     await ExpectRejected("cross-partition", [person], [Observation("O1", partition: "TEST")]);
     await ExpectRejected("duplicate-person", [person, person], [Observation("O1")]);
+    await ExpectRejected("null-person-base-id", [new SyntheticPerson { BasePersonId = null!, Partition = "TRAIN", Name = "Teste", MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F", EvaluationWeight = 1 }], []);
     await ExpectRejected("empty-base-id", [new SyntheticPerson { BasePersonId = " ", Partition = "TRAIN", Name = "Teste", MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F", EvaluationWeight = 1 }], []);
     await ExpectRejected("duplicate-observation", [person], [Observation("O1"), Observation("O1")]);
+    await ExpectRejected("null-observation-id", [person], [Observation(null!)]);
     await ExpectRejected("empty-observation-id", [person], [Observation("")]);
     await ExpectRejected("partition-case-sensitive", [person], [Observation("O1", partition: "train")]);
     await ExpectRejected("whitespace-observation-id", [person], [Observation("  ")]);
