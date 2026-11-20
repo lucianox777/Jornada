@@ -300,11 +300,12 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
     int ConfigPeople() => config is { } c ? c.GetProperty("syntheticPopulation").GetInt32() : 30_000;
     double ConfigPercent(string key, double fallback) => config is { } c
         ? c.GetProperty("sampling").GetProperty(key).GetDouble() : fallback;
+    int People() => values.ContainsKey("people") ? GetInt(values, "people", 30_000) : ConfigPeople();
     double Percent(string cliKey, string configKey, double fallback) => values.ContainsKey(cliKey)
         ? GetDouble(values, cliKey, fallback)
         : ConfigPercent(configKey, fallback);
     var options = new SyntheticCorpusOptions(
-        People: GetInt(values, "people", ConfigPeople()),
+        People: People(),
         Seed: GetUlong(values, "seed", 42),
         ErrorProfile: Get(values, "error-profile") ?? "clean",
         MinFrequency: GetLong(values, "min-freq", 20),
