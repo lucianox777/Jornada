@@ -96,6 +96,8 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn("PartitionIntegritySmoke/PartitionIntegritySmoke.csproj", workflow)
         self.assertIn("grep -c '^PASS '", workflow)
         self.assertIn('"$passed" -ne 17', workflow)
+        self.assertIn("sort -u", workflow)
+        self.assertIn('"$unique_passed" -ne 17', workflow)
         self.assertIn("await ExpectInvalidOptions();", harness)
         self.assertEqual(harness.count("await ExpectRejected("), 16)
         self.assertIn("using Jornada.Contracts;", harness)
