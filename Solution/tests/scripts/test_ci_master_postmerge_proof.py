@@ -1,6 +1,9 @@
 import importlib.util
 import pathlib
 import unittest
+from unittest import mock
+import io
+import json
 
 path = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ci-master-postmerge-proof.py"
 spec = importlib.util.spec_from_file_location("postmerge_proof", path)
@@ -92,6 +95,20 @@ class PostmergeProofTests(unittest.TestCase):
             module.evaluate([item("jornada-ci", 17, head_sha="b" * 40),
                              item("jornada-ci", 17),
                              item("jornada-pr-required-fast", 18)], SHA)
+
+    def test_fetch_rejects_incomplete_pagination(self):
+        payload = {"total_count": 101, "workflow_runs": [item("jornada-ci", 1)]}
+        response = io.BytesIO(json.dumps(payload).encode("utf-8"))
+        with mock.patch.object(module.urllib.request, "urlopen", return_value=response):
+            with self.assertRaisesRegex(ValueError, "Incomplete Actions pagination"):
+                module.fetch(SHA, "fake-read-only-token")
+
+    def test_fetch_rejects_malformed_total_count(self):
+        payload = {"total_count": True, "workflow_runs": []}
+        response = io.BytesIO(json.dumps(payload).encode("utf-8"))
+        with mock.patch.object(module.urllib.request, "urlopen", return_value=response):
+            with self.assertRaises(ValueError):
+                module.fetch(SHA, "fake-read-only-token")
 
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
