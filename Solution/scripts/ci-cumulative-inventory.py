@@ -67,6 +67,10 @@ def enumerate_runs(get, since, until, max_pages=MAX_PAGES):
     GitHub Actions runs endpoint has a 1000-result cap per search query.
     Narrow created ranges are required when total_count exceeds that cap.
     """
+    if since.tzinfo is None or until.tzinfo is None:
+        raise ValueError("UTC window requires timezone-aware endpoints")
+    if since.utcoffset() != dt.timedelta(0) or until.utcoffset() != dt.timedelta(0):
+        raise ValueError("UTC window requires UTC endpoints")
     if since >= until:
         raise ValueError("since must be before until")
     created = urllib.parse.quote(
