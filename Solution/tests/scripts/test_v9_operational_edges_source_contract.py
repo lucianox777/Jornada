@@ -25,6 +25,18 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_isolation_gap_remains_explicit_in_both_graph_readers(self):
+        physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        self.assertNotIn("BeginTransactionAsync(", physical)
+        self.assertNotIn("BeginTransactionAsync(", parity)
+        self.assertNotIn("BeginTransactionAsync(", scorer)
+        self.assertNotIn("SET TRANSACTION ISOLATION LEVEL SNAPSHOT", physical)
+        self.assertNotIn("SET TRANSACTION ISOLATION LEVEL SNAPSHOT", parity)
+        self.assertIn("not an atomic Silver/Gold snapshot", parity)
+        self.assertIn("ProductionGoldCertified: false", parity)
+
     def test_diagnostic_gold_proof_does_not_claim_atomic_snapshot(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         self.assertIn("not an atomic Silver/Gold snapshot", parity)
