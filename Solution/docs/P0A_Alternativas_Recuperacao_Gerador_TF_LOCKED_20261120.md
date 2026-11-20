@@ -527,3 +527,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Regressão:** commit `fabecb3` testa indisponibilidade e respostas não textuais do provedor de logs, exigindo `retryable_jobs=False`. Execução dos testes no HEAD novo ainda não observada.
 - **Estado de CI observado em `01efef9`:** seis workflows (4 `in_progress`, 1 `queued`, 1 `pending`) e sete jobs visíveis: 1 `success`, 5 `in_progress`, 1 `queued`; required-fast ainda sem jobs no instante da consulta. Evidência restrita à primeira página de runs PR, não master.
 - **Precedência:** preserva GOV-DOC-01, decisão de isolamento P0 e watchdog institucional anterior. Sem merge, retry real, mudança de manifest LOCKED ou autorização científica.
+
+
+### Watchdog: proveniência de PR malformada ou inacessível bloqueia retry (20/11/2026)
+
+- **Contexto/risco:** o supervisor de CI já existente consulta o estado atual da PR antes de repetir jobs. Payloads REST com `head_repository=null`, `pull_requests` inválido, número booleano ou metadados `base/head/repo` ausentes podiam provocar exceções em vez de negar explicitamente a elegibilidade. Erros de API de consulta à PR não constituem prova de origem válida.
+- **Implementação:** commit `1414dc0` valida tipos, número positivo e origem do repositório, trata falhas de leitura de metadados e exige PR aberta, base `master`, HEAD exato e repositório canônico antes de autorizar retry.
+- **Regressão:** commit `9fc34ce` cobre origem nula, lista inválida, entrada nula, número booleano/zero, respostas PR malformadas e indisponibilidade da API; todos devem retornar `is_current_run=False`. Aprovação de CI do novo HEAD ainda não confirmada.
+- **Stats da consulta do commit `5fa1bb9`:** seis workflows: 3 `in_progress`, 1 `queued`, 1 `pending`, 1 `completed/success`; sete jobs observados: 2 `completed/success`, 4 `in_progress`, 1 `queued`. Required-fast ainda sem jobs no instante da coleta. Escopo limitado a runs de PR da primeira página, sem evidência de `master` verde.
+- **Precedência/impactos:** reforça GOV-DOC-01 e a política anterior de retry fail-closed do watchdog, sem alterar a decisão P0 de isolamento do gerador LOCKED, workflows de produção, manifests ou executar replays/merges.
