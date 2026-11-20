@@ -94,6 +94,8 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         workflow = (ROOT.parent / ".github/workflows/p0-tf-locked-generator-audit.yml").read_text(encoding="utf-8")
         self.assertIn("Jornada.Linkage.SyntheticCorpus.Parametrized.csproj", project)
         self.assertIn("PartitionIntegritySmoke/PartitionIntegritySmoke.csproj", workflow)
+        self.assertIn("grep -c '^PASS '", workflow)
+        self.assertIn('"$passed" -ne 17', workflow)
         self.assertIn("await ExpectInvalidOptions();", harness)
         self.assertEqual(harness.count("await ExpectRejected("), 16)
         self.assertIn("using Jornada.Contracts;", harness)
