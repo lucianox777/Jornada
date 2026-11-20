@@ -18,9 +18,16 @@ def summarize(snapshot):
         raise ValueError("workflow_runs must be a list")
     counts = Counter()
     details = []
+    run_ids = set()
     for run in runs:
         if not isinstance(run, dict):
             raise ValueError("each workflow_run must be an object")
+        run_id = run.get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0:
+            raise ValueError("each workflow_run requires a positive integer id")
+        if run_id in run_ids:
+            raise ValueError("duplicate workflow_run id: " + str(run_id))
+        run_ids.add(run_id)
         status = run.get("status")
         conclusion = run.get("conclusion")
         if status == "completed":
@@ -36,13 +43,22 @@ def summarize(snapshot):
         raise ValueError("jobs_by_run must be an object")
     job_counts = Counter()
     jobs_detail = {}
+    job_ids = set()
     for run_id, jobs in jobs_by_run.items():
+        if not isinstance(run_id, str) or not run_id.isascii() or not run_id.isdecimal() or str(int(run_id)) != run_id:
+            raise ValueError("jobs_by_run keys must be canonical numeric run ids")
         if not isinstance(jobs, list):
             raise ValueError("each jobs_by_run entry must be a list")
         jobs_detail[run_id] = []
         for job in jobs:
             if not isinstance(job, dict):
                 raise ValueError("each job must be an object")
+            job_id = job.get("id")
+            if not isinstance(job_id, int) or isinstance(job_id, bool) or job_id <= 0:
+                raise ValueError("each job requires a positive integer id")
+            if job_id in job_ids:
+                raise ValueError("duplicate job id: " + str(job_id))
+            job_ids.add(job_id)
             if job.get("status") == "completed":
                 conclusion = job.get("conclusion")
                 category = conclusion if conclusion in ("success", "failure", "cancelled", "skipped", "timed_out") else "other_completed"
