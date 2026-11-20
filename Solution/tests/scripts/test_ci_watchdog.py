@@ -88,6 +88,16 @@ class CiWatchdogTests(unittest.TestCase):
             {**candidate, "head_repository": {"full_name": "fork/repo"}},
             FakeApi(pr=pr), SHA, NOW))
 
+    def test_runner_log_evidence_failure_never_authorizes_retry(self):
+        payload = jobs("failure", "success")
+        def unavailable(_):
+            raise OSError("log endpoint unavailable")
+        for reader in (unavailable, lambda _: None, lambda _: b"runner has received a shutdown signal"):
+            with self.subTest(reader=reader):
+                allowed, reason = watch.retryable_jobs(payload, reader)
+                self.assertFalse(allowed)
+                self.assertIn("evidence", reason)
+
     def test_retry_refuses_ambiguous_completed_job_conclusions_and_names(self):
         for bad in (None, "action_required", "timed_out", "cancelled", "mystery"):
             with self.subTest(conclusion=bad):
