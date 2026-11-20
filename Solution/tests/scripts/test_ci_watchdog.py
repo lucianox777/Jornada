@@ -72,6 +72,35 @@ class CiWatchdogTests(unittest.TestCase):
         self.assertFalse(watch.is_current_run(run(conclusion="cancelled"), api, SHA, NOW))
         self.assertFalse(watch.is_current_run(run(created_at="2026-10-10T10:00:00Z"), api, SHA, NOW))
 
+    def test_malformed_pr_provenance_fails_closed_without_retry(self):
+        candidate = run(event="pull_request", head_branch="feature",
+                        pull_requests=[{"number": 10}])
+        valid = {
+            "state": "open", "base": {"ref": "master"},
+            "head": {"sha": SHA, "repo": {"full_name": watch.REPO}},
+        }
+        malformed = [
+            {**candidate, "head_repository": None},
+            {**candidate, "pull_requests": "invalid"},
+            {**candidate, "pull_requests": [None]},
+            {**candidate, "pull_requests": [{"number": True}]},
+            {**candidate, "pull_requests": [{"number": 0}]},
+        ]
+        for item in malformed:
+            with self.subTest(run=item):
+                self.assertFalse(watch.is_current_run(item, FakeApi(pr=valid), SHA, NOW))
+        for pr in (None, [], {"state": "open", "base": None, "head": {}},
+                   {"state": "open", "base": {"ref": "master"}, "head": {"sha": SHA, "repo": None}}):
+            with self.subTest(pr=pr):
+                class Api:
+                    def request(self, path):
+                        return pr
+                self.assertFalse(watch.is_current_run(candidate, Api(), SHA, NOW))
+        class Unavailable:
+            def request(self, path):
+                raise OSError("GitHub unavailable")
+        self.assertFalse(watch.is_current_run(candidate, Unavailable(), SHA, NOW))
+
     def test_pull_request_head_must_match_open_same_repository(self):
         pr = {
             "state": "open", "base": {"ref": "master"},
