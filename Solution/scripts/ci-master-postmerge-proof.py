@@ -67,6 +67,8 @@ def fetch(sha, token):
                  "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "jornada-postmerge-proof"})
     with urllib.request.urlopen(req, timeout=25) as response:
         payload = json.load(response)
+    if not isinstance(payload, dict):
+        raise ValueError("Malformed Actions API response")
     items = payload.get("workflow_runs")
     total = payload.get("total_count")
     if not isinstance(items, list) or type(total) is not int or total != len(items):
