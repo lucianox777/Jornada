@@ -54,3 +54,13 @@ O run `44764842253`, job `136386576723`, publicou o artefato `p0-tf-locked-gener
 ## Regressão da comparação entre revisões (20/11/2026)
 
 O commit `1416b62` adiciona teste offline de duas árvores independentes: gerador histórico sem manifests e contratos atuais em outro diretório. Verifica `matches=true` com 25 arquivos e hashes correspondentes e `matches=false` após alteração de bytes no arquivo histórico. Contexto: a primeira tentativa do job histórico falhou porque os LOCKED ainda não existiam no commit de referência; o teste protege o parâmetro `--locks-root` contra regressão. Impacto restrito a testes, sem alteração de decisões aprovadas, sem execução científica. Validação CI do novo commit ainda pendente.
+
+## Deliberação do Product Owner — 20/11/2026
+
+**DECISÃO APROVADA: GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120.** O Product Owner respondeu expressamente **“Sim”** à pergunta sobre a aprovação da **alternativa A**, isto é, **isolar o gerador histórico e preservar a implementação parametrizada separadamente**. Esta deliberação **substitui o estado “não aprovada” exclusivamente para a alternativa A**; alternativas B e C permanecem não aprovadas. A aprovação é arquitetural e **não autoriza** modificar os manifests LOCKED, os 25 bytes/arquivos de referência congelados, fingerprints, seeds, executar TRAIN/TEST, certificar produção ou fazer merge sem os gates aplicáveis.
+
+**Justificativa:** o checkout histórico `b98a01180737909edf7cbd0bee4ba2757d52fe0f` reproduz exatamente ambos os hashes atuais, enquanto o gerador parametrizado da master diverge; a separação deve permitir manter a evolução da parametrização sem comprometer a identidade histórica.
+
+**Impactos e implementação condicionada:** definir fronteiras de código e consumidores; restaurar os 25 arquivos históricos **somente no caminho contratualmente congelado**, realocar/encapsular as capacidades parametrizadas em outro caminho sem perda funcional; atualizar invocações, testes, CI e documentação; comprovar os hashes exatos em checkout da PR; preservar evidências e prever rollback. Não considerar a implementação concluída antes de CI obrigatória e gate real de identidade aprovados. A aprovação **não é prova** de que a implementação já ocorreu.
+
+**Precedência e rastreabilidade:** GOV-DOC-01; decisão de preservação de identidade sintética GOV-SYNTH-IDENTIDADE-MANTER-20261120; issue #1734; PR #1769 (diagnóstico); workflow `44765081016`, artefatos `14644136083` (histórico MATCH) e `14644620671` (atual MISMATCH). A decisão aprovada deverá constar do índice de decisões vigentes.
