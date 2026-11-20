@@ -31,6 +31,10 @@ public static class SyntheticCorpusMaterializer
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(inputFingerprintSha256);
 
+        // Materialization is a public entry point: reject invalid options even
+        // when a generation was constructed outside the CLI/generator.
+        generation.Options.Validate();
+
         // Reject imported/expanded generations before writing any output. The
         // hard support is not the largest cluster observed in this particular run.
         if (generation.Observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
