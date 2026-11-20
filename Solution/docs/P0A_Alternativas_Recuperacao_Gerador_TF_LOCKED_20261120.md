@@ -356,3 +356,11 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Justificativa/impacto:** fail-closed em indicadores operacionais para não declarar verde com dados contraditórios; não altera a política de aceitação dos workflows nem consulta dados privados. Testes novos ainda pendem de CI.
 - **Estatística observada antes desses commits:** revisão `d485c20`, seis workflows: cinco `in_progress`, um `pending`, zero falhas concluídas; revisão anterior `118ae8e`, seis workflows `completed/success`, inclusive proveniência IBGE `44780121117`.
 - **Precedência/rastreabilidade:** GOV-DOC-01, issue #1734 e decisão de isolamento P0 vigente; sem alteração do índice de decisões ou dos artefatos científicos LOCKED.
+
+
+### Frente operacional e triagem dt10 — checkpoint (20/11/2026)
+
+- **Desenvolvimento contínuo:** `aa087ea` adiciona ao resumo offline `jobs_by_run` com ID, nome e estado individual dos jobs para localizar falhas e gargalos sem depender de conclusão de todos os workflows; `eab27d4` adiciona regressão para run parcialmente concluído. Não há acesso a credenciais, mutação de CI ou execução científica.
+- **Stats GitHub:** revisão `77d5ff0` possuía seis workflows no momento da consulta: quatro `queued`, um `pending`, um `in_progress`, zero conclusões de falha; revisão anterior `d485c20` tinha três `success` (auditoria P0, seed42, standard-linear), dois `in_progress` (IBGE e RunAsync) e um `cancelled` (required-fast). Cancelamento **não** é sucesso nem evidência de falha de código.
+- **Triagem dt10 (#1706):** a referência #1706 é uma PR encerrada, não uma issue técnica aberta. Seu diagnóstico informa que o teste `Incomplete_run_cannot_publish_or_create_progressive_events` violava `ck_linkage_run_contagens` antes de atingir o guard 51818; a correção descrita zera os contadores conjuntamente e afirma que `dt10-evidence` só é executado em push na master. **Não há, neste checkpoint, comprovação independente de aprovação física pós-merge na master**; a frente dt10 continua pendente dessa evidência, sem repetir a correção já descrita.
+- **Justificativa, impacto e precedência:** distinguir estatísticas reais de jobs de inferências sobre aprovação e separar a correção documental dt10 de sua comprovação física; respeita issue #1734, GOV-DOC-01 e a decisão de isolamento do gerador histórico, sem mudança no índice de decisões.
