@@ -30,12 +30,17 @@ def evaluate(runs, sha):
         items = relevant.get(name, [])
         if not items:
             results[name] = {"state": "missing", "run_ids": []}
-        elif any(r.get("status") == "completed" and r.get("conclusion") == "success" for r in items):
-            results[name] = {"state": "success", "run_ids": [r["id"] for r in items]}
-        elif any(r.get("status") != "completed" for r in items):
-            results[name] = {"state": "pending", "run_ids": [r["id"] for r in items]}
         else:
-            results[name] = {"state": "failed_or_inconclusive", "run_ids": [r["id"] for r in items]}
+            # A historical green run cannot override a newer failed/pending run.
+            # GitHub run IDs are monotonically assigned across workflow runs.
+            latest = max(items, key=lambda r: r["id"])
+            if latest.get("status") != "completed":
+                state = "pending"
+            elif latest.get("conclusion") == "success":
+                state = "success"
+            else:
+                state = "failed_or_inconclusive"
+            results[name] = {"state": state, "run_ids": [r["id"] for r in items]}
     return {"sha": sha, "verified": all(v["state"] == "success" for v in results.values()),
             "workflows": results}
 
