@@ -153,20 +153,31 @@ def is_current_run(run: dict, api: Any, master_sha: str, now: dt.datetime) -> bo
     sha = run.get("head_sha")
     if run["event"] == "push":
         return run.get("head_branch") == "master" and sha == master_sha
-    if run.get("head_repository", {}).get("full_name") != REPO:
+    origin = run.get("head_repository")
+    if not isinstance(origin, dict) or origin.get("full_name") != REPO:
         return False
-    prs = run.get("pull_requests") or []
-    if len(prs) != 1:
+    prs = run.get("pull_requests")
+    if not isinstance(prs, list) or len(prs) != 1 or not isinstance(prs[0], dict):
         return False
     number = prs[0].get("number")
-    if not isinstance(number, int):
+    if type(number) is not int or number <= 0:
         return False
-    pr = api.request(f"/pulls/{number}")
+    try:
+        pr = api.request(f"/pulls/{number}")
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
+    if not isinstance(pr, dict):
+        return False
+    base, head = pr.get("base"), pr.get("head")
+    if not isinstance(base, dict) or not isinstance(head, dict):
+        return False
+    head_repo = head.get("repo")
     return (
         pr.get("state") == "open"
-        and pr.get("base", {}).get("ref") == "master"
-        and pr.get("head", {}).get("sha") == sha
-        and pr.get("head", {}).get("repo", {}).get("full_name") == REPO
+        and base.get("ref") == "master"
+        and head.get("sha") == sha
+        and isinstance(head_repo, dict)
+        and head_repo.get("full_name") == REPO
     )
 
 
