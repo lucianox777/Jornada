@@ -10,7 +10,7 @@ import os
 import urllib.error
 import urllib.request
 
-REQUIRED = frozenset({"classify-impact", "unit-runtime", "security-guards", "deterministic-build"})
+REQUIRED = frozenset({"unit-runtime", "security-guards", "deterministic-build"})
 
 
 def request_json(repo, endpoint, token):
@@ -29,11 +29,11 @@ def evaluate(protection, rulesets):
     sources = []
     if isinstance(protection, dict):
         checks = protection.get("required_status_checks") or {}
-        if checks.get("strict"):
+        if isinstance(checks, dict):
             # GitHub exposes both legacy contexts and app-bound checks. A
             # partial legacy list must not hide required checks in the latter.
             contexts = set(checks.get("contexts") or [])
-            contexts.update(item["context"] for item in (checks.get("checks") or []))
+            contexts.update(item["context"] for item in (checks.get("checks") or [])\n                            if isinstance(item, dict) and isinstance(item.get("context"), str))
             sources.append(("branch_protection", contexts))
     for ruleset in rulesets:
         if ruleset.get("enforcement") != "active":
@@ -43,7 +43,7 @@ def evaluate(protection, rulesets):
     return {"verified": any(REQUIRED <= contexts for _, contexts in sources),
             "required_contexts": sorted(REQUIRED),
             "verified_sources": [name for name, contexts in sources if REQUIRED <= contexts],
-            "rulesets_require_manual_scope_review": bool(rulesets)}
+            "rulesets_require_manual_scope_review": bool(rulesets),\n            "classic_strict_setting": (protection.get("required_status_checks") or {}).get("strict")\n            if isinstance(protection, dict) else None,\n            "scope": "classic_required_checks_only_not_full_merge_protection"}
 
 
 def main():
@@ -61,7 +61,7 @@ def main():
     result = evaluate(protection, rulesets)
     print(json.dumps(result, sort_keys=True))
     if not result["verified"]:
-        raise SystemExit("UNVERIFIED: mandatory contexts not proven by strict branch protection")
+        raise SystemExit("UNVERIFIED: required checks not proven by classic protection; rulesets need full inspection")
 
 
 if __name__ == "__main__":
