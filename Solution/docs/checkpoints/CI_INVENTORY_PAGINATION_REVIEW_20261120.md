@@ -82,3 +82,10 @@ Código e testes versionados na branch da PR #1758. Não houve execução local 
 - Revisões consultadas na PR #1758: **nenhuma revisão retornada**. Não equivale a rejeição nem aprovação.
 - A execução real da suíte continua **NÃO VERIFICADA**; o endpoint de workflows consultado para SHAs da branch não comprovou runs/gates e não oferece cobertura exaustiva. Tentativa local de baixar o código via raw GitHub bloqueada por resolução DNS. Não marcar VERDE.
 - Próxima ação: obter evidência do job `classify-impact` para o SHA exato do HEAD, confirmar status das verificações obrigatórias e registrar contagens de testes efetivamente executados antes de propor merge. Não há autorização de merge nem de campanha científica.
+
+## Bloqueio de execução confirmado — 2026-11-20 (continuidade)
+
+- Confirmado no workflow `jornada-pr-required-fast.yml` que a suíte `Solution/tests/scripts/test_ci_cumulative_inventory.py` integra o comando `python3 -m unittest` no job `classify-impact`.
+- Nova tentativa de obter `Solution/scripts/ci-cumulative-inventory.py` via `raw.githubusercontent.com` no ambiente de execução falhou com `curl: (6) Could not resolve host`; portanto, **não houve execução local de testes**.
+- A existência do comando no workflow não constitui evidência de job executado nem aprovação de gate. É necessário recuperar resultado de workflow/job associado ao SHA exato do HEAD da PR #1758, com tentativa, conclusão e logs.
+- Sem evidência suficiente, manter estado **NÃO VERIFICADO**, sem merge e sem certificação de campanha científica. Evitar acrescentar novas correções sem testar as alterações já acumuladas.
