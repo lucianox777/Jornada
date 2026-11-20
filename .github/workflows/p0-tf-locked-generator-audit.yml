@@ -151,6 +151,35 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: ${{ runner.temp }}/locked-generator-consumers.json
+      - name: Simulate four-file historical restoration in disposable checkout (no commit)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a auditor "$RUNNER_TEMP/restored-generator"
+          for file in Program.cs SyntheticCorpusGenerator.cs SyntheticCorpusMaterializer.cs SyntheticCorpusModels.cs; do
+            cp "historical/Solution/src/Jornada.Linkage.SyntheticCorpus/$file" \
+               "$RUNNER_TEMP/restored-generator/Solution/src/Jornada.Linkage.SyntheticCorpus/$file"
+          done
+          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py \
+            --repo "$RUNNER_TEMP/restored-generator" --locks-root auditor \
+            > "$RUNNER_TEMP/restored-generator-audit.json"
+          cat "$RUNNER_TEMP/restored-generator-audit.json"
+          python3 - "$RUNNER_TEMP/restored-generator-audit.json" <<'PY'
+          import json
+          import sys
+          result = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert len(result["locks"]) == 2
+          assert all(lock["matches"] and lock["tracked_file_count"] == 25
+                     for lock in result["locks"]), "Restored checkout does not match both LOCKED contracts"
+          PY
+      - name: Upload disposable restoration audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-restoration-simulation
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/restored-generator-audit.json
       - name: Compare historical bytes with frozen contracts
         shell: bash
         run: |
