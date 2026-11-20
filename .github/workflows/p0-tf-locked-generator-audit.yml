@@ -31,11 +31,24 @@ jobs:
           audit_status=$?
           set -e
           cat "$RUNNER_TEMP/locked-generator-audit.json"
-          echo "audit_exit_code=$audit_status" >> "$GITHUB_STEP_SUMMARY"
-          echo "This diagnostic does not approve or regenerate LOCKED and does not authorize scientific TRAIN/TEST." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### P0-A — Frozen generator identity (diagnostic only)"
+            echo ""
+            echo "| Field | Result |"
+            echo "| --- | --- |"
+            echo "| Audit process exit code | \`$audit_status\` |"
+            if [ "$audit_status" -eq 0 ]; then
+              echo "| LOCKED identity | **MATCH (both contracts)** |"
+            else
+              echo "| LOCKED identity | **MISMATCH / ERROR — NOT VALIDATED** |"
+            fi
+            echo ""
+            echo "Workflow success is NOT evidence of LOCKED integrity. Inspect the JSON artifact for each manifest's matches field."
+            echo "No corpus generated; no TRAIN/TEST, regeneration, publication or certification authorized."
+          } >> "$GITHUB_STEP_SUMMARY"
           # Divergence is recorded, not hidden and not yet a new required check.
           if [ "$audit_status" -ne 0 ]; then
-            echo "::warning title=Frozen generator identity differs::See locked-generator-audit.json artifact and issue #1734"
+            echo "::warning title=LOCKED identity NOT VALIDATED::Audit exit $audit_status; inspect JSON artifact and issue #1734"
           fi
       - name: Upload read-only audit report
         if: always()
