@@ -33,3 +33,16 @@ O commit `2c8d020` adiciona o workflow independente `.github/workflows/p0-tf-loc
 ## Falha real de CI e correção (20/11/2026)
 
 O run `44763965458` do workflow diagnóstico falhou no teste offline antes da comparação física: `KeyError: 0` na linha que acessava `audit_module.LOCKS[0]`, após a evolução de `LOCKS` de tupla para mapeamento de caminho→`experiment_id`. Por consequência, o passo de auditoria foi `skipped` e o upload falhou por ausência do JSON. O commit `cf89606` corrige o teste para selecionar a primeira chave do mapeamento. **Não afirmar que o relatório físico foi produzido no run com falha.** A validação do novo commit e o artefato permanecem pendentes. Não houve mudança de contrato LOCKED, de fonte científica ou aprovação de correção arquitetural.
+
+## Resultado físico do checkout GitHub Actions (20/11/2026)
+
+O run `44764078274` da PR #1769 executou **com sucesso** os testes offline e o passo de comparação real; o artefato `p0-tf-locked-generator-identity-audit` foi publicado sob ID `14643085698` (retenção 30 dias). O log do job `136383918712` apresenta os seguintes valores **do checkout da PR**:
+
+| Campo | Atual | Exigido pelos dois LOCKED |
+| --- | --- | --- |
+| Arquivos rastreados | 25 | 25 |
+| `generation.generator_sha256` | `f23874cf21fff462a815a33d08ac1140cd1e9541210624bad0cf2fb3871f94cc` | `924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb` |
+| `partition_contract.generator_file_sha256` | `70cbd9280417238411ff7f7e6c1384c2ad1c2458c08dcf6d38962397bbc558a2` | `83015950790a5be15a5fb843c8330c8cccb10610f1a208ee46eeb7fc348c18e4` |
+| `matches` (44–47 / 48–57) | `false` / `false` | `true` / `true` |
+
+**Interpretação:** contagem correta, identidade agregada e identidade de partição incompatíveis com os dois contratos históricos. O job é deliberadamente não bloqueante e seu sucesso significa coleta de evidência, **não** validação LOCKED. O hash físico de partição (`70cbd9...`) é o valor autoritativo deste checkout; um cálculo anterior sobre texto retornado por conector (`83b045...`) não deve ser tratado como hash físico de arquivo e não substitui esta evidência. O checkout foi o merge ref de PR #1769, não uma execução isolada em `master`; não afirmar que se mediu diretamente o filesystem da master. Sem regeneração, alteração dos manifests ou autorização científica. Próximo passo sujeito à avaliação do PO: recuperar identidade histórica e decidir separação de geradores sem reescrever LOCKED. Issue #1734.
