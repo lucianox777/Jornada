@@ -116,13 +116,15 @@ def enumerate_runs(get, since, until, max_pages=MAX_PAGES):
     raise ValueError("Maximum pages reached: inventory incomplete")
 
 
-def failing_jobs(get, run_id):
+def failing_jobs(get, run_id, attempt=1):
+    if type(run_id) is not int or run_id <= 0 or type(attempt) is not int or attempt <= 0:
+        raise ValueError("Invalid run ID or attempt for job inventory")
     found = []
     total = None
     seen_jobs = set()
     scanned = 0
     for page in range(1, MAX_PAGES + 1):
-        payload = get(f"/actions/runs/{run_id}/jobs?per_page={PAGE_SIZE}&page={page}")
+        payload = get(f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page={PAGE_SIZE}&page={page}")
         items = payload.get("jobs")
         count = payload.get("total_count")
         if not isinstance(items, list) or type(count) is not int:
@@ -164,7 +166,7 @@ def snapshot(get, since, until):
             "category": state, "url": run.get("html_url"),
         })
         if state == "failed" or state == "running":
-            jobs = failing_jobs(get, run_id)
+            jobs = failing_jobs(get, run_id, run["run_attempt"])
             if jobs:
                 failures.append({"run_id": run_id, "jobs": jobs})
     if sum(counts.values()) != len(rows):
