@@ -45,7 +45,7 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
         self.assertFalse(audit.evaluate({}, rules)["verified"])
         self.assertTrue(audit.evaluate({}, rules)["rulesets_require_manual_scope_review"])
 
-    def test_non_strict_check_configuration_not_certified(self):
+    def test_non_strict_check_configuration_matches_current_policy(self):
         p = {"required_status_checks": {"strict": False, "contexts": sorted(audit.REQUIRED)}}
         self.assertFalse(audit.evaluate(p, [])["verified"])
 
