@@ -51,6 +51,7 @@ jobs:
         name: Full current offline impact suite before merge (no SQL or physical calibration)
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_csharp_comment_escaped_newline_gate.py
+          python3 -m unittest Solution/tests/scripts/test_v9_runv9_dispatch_failclosed.py
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_synthetic_multiseed_gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
