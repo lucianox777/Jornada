@@ -518,3 +518,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Teste:** commit `f0e63b8` ajusta fixtures para nomes explícitos e exercita conclusões desconhecidas/bloqueadas e nomes inválidos com `supervise(..., apply=True)`, exigindo zero POSTs. Testes registrados, execução no novo HEAD pendente.
 - **Coleta de jobs do commit `820b76e`:** seis workflows (3 `in_progress`, 2 `queued`, 1 `pending`) e sete jobs retornados: **1 success**, **5 in_progress**, **1 queued**; o required-fast ainda não apresentava jobs no momento da coleta. A contagem é uma amostra parcial, não CI verde nem certificação de master.
 - **Justificativa/impacto/precedência:** preservar retry fail-closed e checkpoint por SHA conforme watchdog anterior, GOV-DOC-01, issue #1734 e decisão P0. Sem reexecução real, merge, alteração LOCKED ou campanha científica.
+
+
+### Watchdog: indisponibilidade de logs não autoriza retry (20/11/2026)
+
+- **Contexto e risco:** a classificação de falha de runner depende de evidência textual dos logs. Se o provedor de logs retorna `None`, bytes ou lança exceção de I/O, a avaliação anterior poderia interromper com exceção em vez de produzir uma negativa explícita. A evidência ausente jamais pode justificar replay automático.
+- **Correção:** commit `4a9d700` faz `retryable_jobs` retornar `False` para `OSError`, `ValueError`, `TypeError`, `KeyError` ou conteúdo não textual ao consultar logs de jobs falhos. Não modifica gatilhos, permissões ou endpoint de reexecução.
+- **Regressão:** commit `fabecb3` testa indisponibilidade e respostas não textuais do provedor de logs, exigindo `retryable_jobs=False`. Execução dos testes no HEAD novo ainda não observada.
+- **Estado de CI observado em `01efef9`:** seis workflows (4 `in_progress`, 1 `queued`, 1 `pending`) e sete jobs visíveis: 1 `success`, 5 `in_progress`, 1 `queued`; required-fast ainda sem jobs no instante da consulta. Evidência restrita à primeira página de runs PR, não master.
+- **Precedência:** preserva GOV-DOC-01, decisão de isolamento P0 e watchdog institucional anterior. Sem merge, retry real, mudança de manifest LOCKED ou autorização científica.
