@@ -214,6 +214,19 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid run ID or attempt"):
             mod.failing_jobs(forbidden, 0, 1)
 
+    def test_delta_rejects_inconsistent_category_counts(self):
+        base = {"repository": mod.REPO, "since": START.isoformat(),
+                "until": END.isoformat(), "coverage": "complete_for_created_window",
+                "total_unique_runs": 1}
+        entry = {"run_id": 4, "sha": "a" * 40, "category": "approved", "attempt": 1}
+        good_counts = {key: (1 if key == "approved" else 0) for key in mod.CATEGORIES}
+        old = dict(base, runs=[entry], counts=good_counts)
+        invalid_counts = dict(good_counts, approved=0, failed=1)
+        with self.assertRaisesRegex(ValueError, "category counts inconsistent"):
+            mod.compare_snapshots(old, dict(base, runs=[entry], counts=invalid_counts))
+        with self.assertRaisesRegex(ValueError, "category counts invalid"):
+            mod.compare_snapshots(old, dict(base, runs=[entry], counts={"approved": 1}))
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
