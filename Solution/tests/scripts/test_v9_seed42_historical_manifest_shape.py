@@ -106,6 +106,8 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn('PartitionPerson("P2", "VALIDATION")', harness)
         self.assertIn('PartitionPerson("P3", "TEST")', harness)
         self.assertIn("Unexpected CSV record count", harness)
+        self.assertIn("StrictCsvRows", harness)
+        self.assertIn("CSV contains blank records or missing final newline", harness)
         self.assertIn("Unexpected person CSV row", harness)
         self.assertIn("Unexpected observation CSV row", harness)
         self.assertIn("result.TruthPath", harness)
