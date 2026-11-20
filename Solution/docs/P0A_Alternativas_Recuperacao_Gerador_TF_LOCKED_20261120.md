@@ -347,3 +347,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Evidência adicional independente:** proveniência IBGE da revisão anterior `5ba058d4`, run `44779757598`, concluiu `success`; esse resultado **não** equivale a conclusão da execução atual nem a certificação científica.
 - **Justificativa/impacto:** fornecer classificação reproduzível de estados para controle operacional e evitar relatos enganosos de CI; nenhuma mudança em geradores, manifests LOCKED, gates, banco ou campanha científica.
 - **Precedência:** GOV-DOC-01, issue #1734 e decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`; ferramenta de observabilidade não altera critério de aceite ou ordem do plano de ação.
+
+
+### Frente independente — robustez do resumo de CI (20/11/2026)
+
+- **Contexto:** o primeiro resumo offline permitia `all_completed_success=true` quando todos os workflows eram verdes, mesmo que um job incluído no snapshot estivesse em execução ou tivesse falhado; também podia falhar com exceções não padronizadas diante de itens JSON inválidos.
+- **Implementação:** commit `8467374` exige sucesso explícito dos jobs incluídos para `all_completed_success`, classifica conclusões desconhecidas como `other_completed` e rejeita snapshots, workflows e jobs malformados com `ValueError`. Commit `029039f` adiciona regressões para job falho/em execução, itens inválidos e conclusão desconhecida.
+- **Justificativa/impacto:** fail-closed em indicadores operacionais para não declarar verde com dados contraditórios; não altera a política de aceitação dos workflows nem consulta dados privados. Testes novos ainda pendem de CI.
+- **Estatística observada antes desses commits:** revisão `d485c20`, seis workflows: cinco `in_progress`, um `pending`, zero falhas concluídas; revisão anterior `118ae8e`, seis workflows `completed/success`, inclusive proveniência IBGE `44780121117`.
+- **Precedência/rastreabilidade:** GOV-DOC-01, issue #1734 e decisão de isolamento P0 vigente; sem alteração do índice de decisões ou dos artefatos científicos LOCKED.
