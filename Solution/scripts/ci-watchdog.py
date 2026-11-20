@@ -184,6 +184,14 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         return False, "invalid or duplicate job ids"
     if any(job.get("status") != "completed" for job in jobs):
         return False, "jobs still running"
+    # An unknown/absent conclusion cannot be silently ignored when deciding
+    # whether to POST a selective rerun of an otherwise failed workflow.
+    recognized = {"success", "failure", "skipped", "neutral"}
+    if any(job.get("conclusion") not in recognized for job in jobs):
+        return False, "unrecognized or blocked job conclusion"
+    if any(not isinstance(job.get("name"), str) or not job["name"].strip()
+           for job in jobs):
+        return False, "missing job name"
     failed = [
         j for j in jobs
         if j.get("conclusion") in ("failure", "timed_out", "action_required", "cancelled")
