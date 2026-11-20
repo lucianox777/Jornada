@@ -11,6 +11,20 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_latest_inflight_snapshot_has_eleven_traceable_jobs(self):
+        fixture = (Path(__file__).resolve().parents[1] /
+                   "fixtures/github-actions-p0-1769-inflight-snapshot.json")
+        snapshot = json.loads(fixture.read_text(encoding="utf-8"))
+        result = module.summarize(snapshot)
+        self.assertEqual(result["total_runs"], 6)
+        self.assertEqual(result["run_states"], {"in_progress": 3, "queued": 3})
+        self.assertEqual(result["job_states"], {
+            "in_progress": 4, "queued": 5, "success": 2,
+        })
+        self.assertEqual(sum(result["job_states"].values()), 11)
+        self.assertEqual(result["missing_job_run_ids"], [])
+        self.assertFalse(result["all_completed_success"])
+
     def test_completed_run_with_active_job_flags_nonatomic_snapshot(self):
         snapshot = {
             "workflow_runs": [{"id": 7, "status": "completed", "conclusion": "success"}],
