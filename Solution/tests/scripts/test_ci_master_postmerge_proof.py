@@ -81,6 +81,18 @@ class PostmergeProofTests(unittest.TestCase):
             module.evaluate([item("jornada-ci", 1), item("jornada-ci", 1),
                              item("jornada-pr-required-fast", 2)], SHA)
 
+    def test_duplicate_id_across_workflows_fails_closed(self):
+        # A GitHub Actions run ID identifies one run, not one run per workflow.
+        with self.assertRaises(ValueError):
+            module.evaluate([item("jornada-ci", 17),
+                             item("jornada-pr-required-fast", 17)], SHA)
+
+    def test_duplicate_id_in_filtered_run_fails_closed(self):
+        with self.assertRaises(ValueError):
+            module.evaluate([item("jornada-ci", 17, head_sha="b" * 40),
+                             item("jornada-ci", 17),
+                             item("jornada-pr-required-fast", 18)], SHA)
+
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
             module.evaluate([], "a" * 7)
