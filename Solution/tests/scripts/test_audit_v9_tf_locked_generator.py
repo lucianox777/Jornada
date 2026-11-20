@@ -20,7 +20,9 @@ class LockedGeneratorAuditTests(unittest.TestCase):
         self.assertEqual(workflow.count(enforce), 1)
         classify = workflow.split("  classify-impact:\n", 1)[1].split("  unit-runtime:\n", 1)[0]
         self.assertLess(classify.index(enforce), classify.index("      - id: classify"))
-        self.assertNotIn("continue-on-error: true", classify)
+        enforce_step = classify.split("      - name: Enforce both historical TF LOCKED generator identities before classification\n", 1)[1].split("      - id: classify\n", 1)[0]
+        self.assertNotIn("continue-on-error: true", enforce_step)
+        self.assertIn("--require-pinned", enforce_step)
 
     def test_invalid_lock_structure_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
