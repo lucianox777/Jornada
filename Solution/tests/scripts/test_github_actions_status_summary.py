@@ -10,6 +10,14 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_required_fast_executes_status_regressions(self):
+        workflow = (Path(__file__).resolve().parents[3] /
+                    ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "python3 -m unittest Solution/tests/scripts/test_github_actions_status_summary.py",
+            workflow,
+        )
+
     def test_mixed_states_are_not_misreported_as_green(self):
         result = module.summarize({
             "workflow_runs": [
