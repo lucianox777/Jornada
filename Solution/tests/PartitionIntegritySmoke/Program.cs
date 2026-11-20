@@ -81,10 +81,30 @@ async Task ExpectValidMaterialization()
         percentages.GetProperty("test").GetDouble() != 10 ||
         rootElement.GetProperty("input_fingerprint_sha256").GetString() != "ABC123")
         throw new InvalidOperationException("Valid materialization manifest metadata mismatch");
+    using var truth = System.Text.Json.JsonDocument.Parse(
+        await File.ReadAllTextAsync(result.TruthPath));
+    if (truth.RootElement.GetProperty("people").GetInt32() != 1 ||
+        truth.RootElement.GetProperty("observations").GetInt32() != 1 ||
+        truth.RootElement.GetProperty("seed").GetUInt64() != 77 ||
+        truth.RootElement.GetProperty("input_fingerprint_sha256").GetString() != "ABC123")
+        throw new InvalidOperationException("Valid materialization truth metadata mismatch");
+    var manifestHashes = rootElement.GetProperty("outputs").EnumerateArray()
+        .ToDictionary(entry => entry.GetProperty("path").GetString()!,
+            entry => entry.GetProperty("sha256").GetString()!,
+            StringComparer.Ordinal);
+    if (manifestHashes.Count != 3 ||
+        !manifestHashes.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(
+            new[] { "pessoas_verdade.csv", "observacoes.csv", "gabarito.json" }))
+        throw new InvalidOperationException("Valid materialization manifest output set mismatch");
+    if (result.OutputSha256.Count != 3)
+        throw new InvalidOperationException("Valid materialization returned unexpected hash count");
     foreach (var outputHash in result.OutputSha256)
     {
         var bytes = await File.ReadAllBytesAsync(Path.Combine(output, outputHash.Key));
         var actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        if (!manifestHashes.TryGetValue(outputHash.Key, out var declaredHash) ||
+            !string.Equals(declaredHash, outputHash.Value, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Manifest output hash mismatch: {outputHash.Key}");
         if (!string.Equals(actual, outputHash.Value, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Materialization hash mismatch: {outputHash.Key}");
     }
