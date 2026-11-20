@@ -75,3 +75,10 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
 **Próximo passo:** validar regressão offline no HEAD atualizado, coletar runs completos por API paginada e verificar master por evento `push` no SHA exato antes de declarar saúde comprovada.
+
+## Verificação de integração de testes — 2026-11-20
+
+- A versão da branch de `.github/workflows/jornada-pr-required-fast.yml` **já inclui** `Solution/tests/scripts/test_ci_cumulative_inventory.py` na etapa `classify-impact` / `Check classification contract`, invocada por `python3 -m unittest` em `pull_request`, `push` na master e `workflow_dispatch`.
+- Revisões consultadas na PR #1758: **nenhuma revisão retornada**. Não equivale a rejeição nem aprovação.
+- A execução real da suíte continua **NÃO VERIFICADA**; o endpoint de workflows consultado para SHAs da branch não comprovou runs/gates e não oferece cobertura exaustiva. Tentativa local de baixar o código via raw GitHub bloqueada por resolução DNS. Não marcar VERDE.
+- Próxima ação: obter evidência do job `classify-impact` para o SHA exato do HEAD, confirmar status das verificações obrigatórias e registrar contagens de testes efetivamente executados antes de propor merge. Não há autorização de merge nem de campanha científica.
