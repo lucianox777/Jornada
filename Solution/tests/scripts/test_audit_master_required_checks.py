@@ -47,7 +47,11 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
 
     def test_non_strict_check_configuration_matches_current_policy(self):
         p = {"required_status_checks": {"strict": False, "contexts": sorted(audit.REQUIRED)}}
-        self.assertFalse(audit.evaluate(p, [])["verified"])
+        self.assertTrue(audit.evaluate(p, [])["verified"])
+        self.assertIs(audit.evaluate(p, [])["classic_strict_setting"], False)
+
+    def test_classify_impact_is_indirect_not_fourth_direct_check(self):
+        self.assertNotIn("classify-impact", audit.REQUIRED)
 
 
 if __name__ == "__main__":
