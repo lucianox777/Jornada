@@ -2,6 +2,7 @@ name: v9-seed42-generator-byte-comparison
 on:
   pull_request:
     paths:
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
       - 'Solution/scripts/v9-seed42-generator-byte-comparison.sh'
       - '.github/workflows/v9-seed42-generator-byte-comparison.yml'
   workflow_dispatch:

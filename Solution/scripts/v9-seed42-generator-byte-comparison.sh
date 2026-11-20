@@ -26,6 +26,26 @@ generate() {
 generate "$tmp/historical" "$tmp/historical-output"
 generate "$repo" "$tmp/current"
 cd "$repo"
+# Authenticate generated 30k identities, partitions, output hashes and bootstrap
+# with the production verifier. This is not the separate IBGE SQL pin gate.
+python3 Solution/scripts/v9-tf-pin-source.py bootstrap \
+  --root "$tmp/current" --output "$tmp/bootstrap.json"
+python3 - "$tmp/bootstrap.json" Solution/data/reference/v9-synthetic-seed42-30000/manifest.json <<'PYBOOT'
+import json, pathlib, sys
+bootstrap = json.loads(pathlib.Path(sys.argv[1]).read_text())
+registry = json.loads(pathlib.Path(sys.argv[2]).read_text())
+expected = {
+    "Provenance": registry["origin"],
+    "People": registry["population"],
+    "CorpusFingerprint": registry["generated_files"][0]["sha256"].lower(),
+    "GeneratorVersion": registry["generator_version"],
+    "GeneratorSeed": registry["seed"],
+    "GenerationHypothesesFingerprint": registry["generation_manifest_sha256"].lower(),
+}
+if bootstrap != expected:
+    raise SystemExit("Authenticated 30k bootstrap differs from immutable registry")
+print("PASS: authenticated 30k bootstrap matches immutable registry; IBGE SQL pin not evaluated")
+PYBOOT
 python3 - "$tmp/historical-output" "$tmp/current" <<'PY'
 import hashlib, json, pathlib, sys
 old, new = map(pathlib.Path, sys.argv[1:])
@@ -40,11 +60,24 @@ for name in names:
 report["corpus_bytes_equal"] = all(x["equal"] for x in report["files"].values())
 old_manifest = json.loads((old / "generation-manifest.json").read_text())
 new_manifest = json.loads((new / "generation-manifest.json").read_text())
+# The generation manifest contains relative output names, not output-root paths.
+# Compare the raw serialized bytes directly, including JSON ordering and whitespace.
+old_raw = (old / "generation-manifest.json").read_bytes()
+new_raw = (new / "generation-manifest.json").read_bytes()
 report["manifest_metadata_equal"] = old_manifest == new_manifest
+report["manifest_bytes_equal"] = old_raw == new_raw
+report["manifest_historical_sha256"] = hashlib.sha256(old_raw).hexdigest()
+report["manifest_current_sha256"] = hashlib.sha256(new_raw).hexdigest()
+registry = json.loads(pathlib.Path("Solution/data/reference/v9-synthetic-seed42-30000/manifest.json").read_text())
+report["frozen_registry_manifest_sha256"] = registry["generation_manifest_sha256"].lower()
+report["current_manifest_matches_frozen_registry"] = (report["manifest_current_sha256"] == report["frozen_registry_manifest_sha256"])
 report["manifest_changed_fields"] = sorted(set(old_manifest) ^ set(new_manifest))
 pathlib.Path("v9-seed42-generator-byte-comparison.json").write_text(
     json.dumps(report, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(report, indent=2))
 if not report["corpus_bytes_equal"]:
     sys.exit("Corpus bytes diverge; do not certify historical compatibility")
+# Historical generator manifest is diagnostic; immutable registry is authoritative.
+if not report["current_manifest_matches_frozen_registry"]:
+    sys.exit("Current manifest SHA differs from immutable seed42 registry")
 PY
