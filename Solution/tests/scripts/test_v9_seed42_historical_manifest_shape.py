@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static regression guard for the narrowly scoped frozen seed42 manifest shape.
+"""Static regression guard for the seed42 manifest compatibility in the isolated V9 generator.
 
 This does not replace physical byte-for-byte corpus/gate verification.
 """
@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 MATERIALIZER = (Path(__file__).resolve().parents[2] /
-                "src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs")
+                "src/Jornada.Linkage.SyntheticCorpus.Parametrized/SyntheticCorpusMaterializer.cs")
 
 
 class FrozenSeed42ManifestShapeTests(unittest.TestCase):
