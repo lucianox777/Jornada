@@ -27,10 +27,9 @@ def request_json(repo, endpoint, token):
 def evaluate(protection, rulesets):
     """Return an audit, never infer protection from workflow definitions."""
     sources = []
-    if isinstance(protection, dict):
-        checks = protection.get("required_status_checks") or {}
-        if isinstance(checks, dict):
-            # GitHub exposes both legacy contexts and app-bound checks. A
+    checks = protection.get("required_status_checks") if isinstance(protection, dict) else None
+    if isinstance(checks, dict):
+        # GitHub exposes both legacy contexts and app-bound checks. A
             # partial legacy list must not hide required checks in the latter.
             legacy = checks.get("contexts")
             bound = checks.get("checks")
@@ -55,8 +54,7 @@ def evaluate(protection, rulesets):
             "required_contexts": sorted(REQUIRED),
             "verified_sources": [name for name, contexts in sources if REQUIRED <= contexts],
             "rulesets_require_manual_scope_review": bool(rulesets),
-            "classic_strict_setting": (protection.get("required_status_checks") or {}).get("strict")
-            if isinstance(protection, dict) else None,
+            "classic_strict_setting": checks.get("strict") if isinstance(checks, dict) else None,
             "scope": "classic_required_checks_only_not_full_merge_protection"}
 
 
