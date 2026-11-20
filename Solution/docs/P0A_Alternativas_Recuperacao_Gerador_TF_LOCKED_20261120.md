@@ -289,3 +289,12 @@ O commit `242f612` acrescenta teste estrutural para impedir regressão na atribu
 - **Justificativa/impacto:** amplia a cobertura *fail-closed* sem alterar a API, o gerador histórico, os manifests congelados, o contrato de partições ou a contagem de 20 marcadores `PASS` do workflow diagnóstico.
 - **Precedência e rastreabilidade:** implementação subordinada à decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` e à política GOV-DOC-01; não constitui nova decisão do PO e não altera o índice de decisões vigentes.
 - **Validação:** aguarda execução do diagnóstico CI para o novo commit; não representa autorização para merge nem para TRAIN/TEST científico.
+
+
+### Ajuste de cobertura executável — caso isolado de população zero (2026-11-20)
+
+- **Contexto:** o caso de população zero havia sido inserido dentro do bloco de captura de percentuais inválidos, reduzindo a independência diagnóstica.
+- **Implementação:** `ebb80a4` separa `ExpectZeroPopulationRejected` como caso autônomo; `74da19e` exige **21 marcadores PASS distintos** no workflow diagnóstico; `5e1bfd9` atualiza a verificação estrutural do contrato.
+- **Justificativa:** cada rejeição deve ter resultado independente, evitando que a cobertura seja contabilizada indiretamente por outro cenário.
+- **Impacto:** somente testes e workflow diagnóstico; nenhuma alteração no gerador histórico, manifests LOCKED, execução científica ou arquitetura. **Validação CI pendente** para o novo HEAD.
+- **Precedência/rastreabilidade:** complementa a decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` sob GOV-DOC-01; sem nova decisão do PO ou mudança no índice.
