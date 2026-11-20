@@ -25,6 +25,19 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_operational_parity_rejects_invalid_frozen_universe(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        start = parity.index("if (frozenRows.Count is < 2")
+        end = parity.index("var expected = new HashSet", start)
+        guard = parity[start:end]
+        self.assertIn("row is null || row.PessoaObservacaoId <= 0", guard)
+        self.assertIn("row.Observation is null || row.Observation.Cpf is not null", guard)
+        self.assertIn(
+            "frozenRows.Select(row => row.PessoaObservacaoId).Distinct().Count() != frozenRows.Count",
+            guard,
+        )
+        self.assertIn("string.IsNullOrWhiteSpace(manager)", guard)
+
     def test_frozen_silver_manager_ids_fail_closed(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         start = scorer.index("var managers = new Dictionary<long, string>();")
