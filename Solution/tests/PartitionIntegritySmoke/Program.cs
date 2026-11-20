@@ -49,25 +49,29 @@ async Task ExpectInvalidOptions()
     {
         if (Directory.Exists(output))
             throw new InvalidOperationException("Created output directory before invalid options rejection");
-        // Direct materialization must reject zero population before creating output.
-        var zeroPopulation = new SyntheticCorpusGeneration([person], [Observation("O1")],
-            new Dictionary<string, SyntheticEmpiricalM>(),
-            new SyntheticCorpusOptions(People: 0));
-        var zeroOutput = Path.Combine(root, "zero-population");
-        try
-        {
-            await SyntheticCorpusMaterializer.WriteAsync(zeroOutput, zeroPopulation,
-                (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers
-                    .GetUninitializedObject(typeof(SyntheticCorpusNominalSource)), "TEST");
-            throw new InvalidOperationException("Accepted zero population");
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            if (Directory.Exists(zeroOutput))
-                throw new InvalidOperationException("Created output directory before zero population rejection");
-        }
         Console.WriteLine("PASS invalid-options");
     }
+}
+async Task ExpectZeroPopulationRejected()
+{
+    // Direct materialization must reject zero population before creating output.
+    var zeroPopulation = new SyntheticCorpusGeneration([person], [Observation("O1")],
+        new Dictionary<string, SyntheticEmpiricalM>(),
+        new SyntheticCorpusOptions(People: 0));
+    var zeroOutput = Path.Combine(root, "zero-population");
+    try
+    {
+        await SyntheticCorpusMaterializer.WriteAsync(zeroOutput, zeroPopulation,
+            (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers
+                .GetUninitializedObject(typeof(SyntheticCorpusNominalSource)), "TEST");
+        throw new InvalidOperationException("Accepted zero population");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+        if (Directory.Exists(zeroOutput))
+            throw new InvalidOperationException("Created output directory before zero population rejection");
+    }
+    Console.WriteLine("PASS zero-population");
 }
 async Task ExpectValidMaterialization()
 {
@@ -176,6 +180,7 @@ try
 {
     await ExpectValidMaterialization();
     await ExpectInvalidOptions();
+    await ExpectZeroPopulationRejected();
     await ExpectRejected("empty-people-with-observation", [], [Observation("O1")]);
     await ExpectRejected("duplicate-person-cross-partition",
         [person, new SyntheticPerson { BasePersonId = "P1", Partition = "TEST", Name = "Teste",
