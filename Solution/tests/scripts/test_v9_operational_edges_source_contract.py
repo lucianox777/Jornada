@@ -110,11 +110,25 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("ResolvePinnedV9FrozenTestCohortAsync("),
         )
 
+    def test_operational_candidate_read_is_bounded_and_fail_closed(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        start = parity.index("var directions = new Dictionary")
+        end = parity.index("if (directions.Values.Any(value => value != 3))", start)
+        query = parity[start:end]
+        self.assertIn("planner.BuildCandidateUuidQuery(cmd,", query)
+        self.assertIn("JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid", query)
+        self.assertIn("WHERE g.estado_identidade=N'REFERENCIA'", query)
+        self.assertIn("if (!fromSource.Add(candidateUuid))", query)
+        self.assertIn("if (!byUuid.TryGetValue(candidateUuid, out var candidate))", query)
+        self.assertIn("Consulta candidata SQL retornou conteúdo Gold adulterado.", query)
+        self.assertIn("string.Equals(candidate.Manager,", query)
+        self.assertIn("directions.Count > V9FrozenCohortSqlCandidateGraph.MaximumPairIncidences", query)
+        self.assertIn("ct.ThrowIfCancellationRequested();", query)
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         self.assertIn("OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy", parity)
-        self.assertIn("Array.AsReadOnly(directions.Keys.OrderBy", parity)
         self.assertIn("if (!expected.SetEquals(directions.Keys))", parity)
         self.assertIn("directions.Values.Any(value => value != 3)", parity)
         self.assertIn("edges = operational.OperationalEdges.ToList();", scorer)
