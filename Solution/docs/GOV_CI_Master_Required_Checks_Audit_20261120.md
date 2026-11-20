@@ -11,3 +11,6 @@ O script não altera branch protection, não concede permissões, não modifica 
 
 ## Validação e decisão
 Testes unitários offline cobrem ausência, configuração parcial, estrita completa e ruleset sem escopo. Proposta em PR Draft, sem aprovação do PO. Execução autenticada e validação dos contextos reais pendentes; merge requer autorização explícita.
+
+## Revisão técnica de implementação
+A API de proteção pode expor os contextos exigidos em `required_status_checks.contexts` (legado) e `required_status_checks.checks` (vinculados a apps). A auditoria considera a **união** dessas duas listas, evitando falso negativo quando ambas estão preenchidas parcialmente. Testes cobrem união completa e ausência de um contexto. Essa correção não muda o requisito de comprovação do escopo da proteção da master nem autoriza merge.
