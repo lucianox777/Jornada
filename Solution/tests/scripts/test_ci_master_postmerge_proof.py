@@ -22,6 +22,25 @@ class PostmergeProofTests(unittest.TestCase):
                                   item("jornada-pr-required-fast", 2)], SHA)
         self.assertTrue(result["verified"])
 
+    def test_newer_failed_or_pending_run_cannot_be_masked_by_old_success(self):
+        for status, conclusion, expected in (
+            ("completed", "failure", "failed_or_inconclusive"),
+            ("in_progress", None, "pending"),
+        ):
+            with self.subTest(status=status):
+                runs = [item("jornada-ci", 100),
+                        item("jornada-ci", 101, status, conclusion),
+                        item("jornada-pr-required-fast", 102)]
+                result = module.evaluate(runs, SHA)
+                self.assertFalse(result["verified"])
+                self.assertEqual(result["workflows"]["jornada-ci"]["state"], expected)
+
+    def test_newer_success_supersedes_older_failure(self):
+        runs = [item("jornada-ci", 100, "completed", "failure"),
+                item("jornada-ci", 101),
+                item("jornada-pr-required-fast", 102)]
+        self.assertTrue(module.evaluate(runs, SHA)["verified"])
+
     def test_missing_workflow_fails_closed(self):
         result = module.evaluate([item("jornada-ci", 1)], SHA)
         self.assertFalse(result["verified"])
