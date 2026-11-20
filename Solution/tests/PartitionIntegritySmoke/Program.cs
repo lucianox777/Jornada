@@ -68,6 +68,7 @@ try
     await ExpectRejected("empty-observation-id", [person], [Observation("")]);
     await ExpectRejected("partition-case-sensitive", [person], [Observation("O1", partition: "train")]);
     await ExpectRejected("whitespace-observation-id", [person], [Observation("  ")]);
+    await ExpectRejected("null-base-id", [person], [Observation("O1", baseId: null!)]);
     await ExpectRejected("whitespace-base-id", [person], [Observation("O1", baseId: "  ")]);
     await ExpectRejected("excess-multiplicity", [person],
         Enumerable.Range(0, SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity + 1)
