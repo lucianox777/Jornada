@@ -81,6 +81,8 @@ class IsolatedPartitionContractTests(unittest.TestCase):
                     f'Percent("{cli}", "{config}", {fallback})',
                     program,
                 )
+        self.assertIn('values.ContainsKey("people") ? GetInt(values, "people", 30_000) : ConfigPeople()', program)
+        self.assertIn("People: People()", program)
         self.assertIn("values.ContainsKey(cliKey)", program)
         self.assertIn("? GetDouble(values, cliKey, fallback)", program)
         self.assertIn(": ConfigPercent(configKey, fallback)", program)
