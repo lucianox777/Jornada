@@ -76,10 +76,16 @@ async Task ExpectValidMaterialization()
     var observationsCsv = await File.ReadAllTextAsync(result.ObservationsPath);
     // These controlled fixtures contain no CSV delimiters or embedded newlines.
     // Compare complete rows rather than substring matches that could hide extra records.
-    var peopleRows = peopleCsv.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-        .Select(line => line.TrimEnd('\r')).ToArray();
-    var observationRows = observationsCsv.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-        .Select(line => line.TrimEnd('\r')).ToArray();
+    static string[] StrictCsvRows(string csv)
+    {
+        var rows = csv.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+        if (rows.Length != 5 || rows[^1] != "" ||
+            rows.Take(rows.Length - 1).Any(string.IsNullOrEmpty))
+            throw new InvalidOperationException("CSV contains blank records or missing final newline");
+        return rows[..^1];
+    }
+    var peopleRows = StrictCsvRows(peopleCsv);
+    var observationRows = StrictCsvRows(observationsCsv);
     if (peopleRows.Length != 4 || observationRows.Length != 4)
         throw new InvalidOperationException("Unexpected CSV record count");
     var peopleHeader = peopleRows[0].Split(',');
