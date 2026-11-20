@@ -95,7 +95,7 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn("Jornada.Linkage.SyntheticCorpus.Parametrized.csproj", project)
         self.assertIn("PartitionIntegritySmoke/PartitionIntegritySmoke.csproj", workflow)
         self.assertIn("await ExpectInvalidOptions();", harness)
-        self.assertEqual(harness.count("await ExpectRejected("), 11)
+        self.assertEqual(harness.count("await ExpectRejected("), 13)
         self.assertIn("using Jornada.Contracts;", harness)
         self.assertNotIn("throw new Exception(", harness)
 
