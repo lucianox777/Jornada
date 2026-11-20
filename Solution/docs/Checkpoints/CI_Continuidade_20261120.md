@@ -61,3 +61,10 @@ Consulta de runs por SHA via conector (somente evento PR, primeira página; **n�
 - `master`: busca de commits recentes ainda lista `3a329e494d8d4feabd951181c29020bc12d61cd7` como mais recente, mas busca não substitui consulta autoritativa da ref. Sem inventário de jobs `push` para esse SHA.
 - Escopo da #1769 continua com 34 arquivos e 261 commits; **revisão de escopo antes de integração** permanece obrigatória. #1759 tem base antiga `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb`; verificar atualização de base e checks no SHA final.
 **Governança:** este checkpoint corrige interpretação factual, não aprova decisão nova. Sem merge ou ação científica nesta rodada.
+
+## Atualização — P0-A seis execuções concluídas com sucesso (escopo estrito)
+- PR #1769 HEAD `d97966033af2634a9381c688de1d66d41f5cf329`: consulta por SHA retornou **seis runs PR completed/success**: #44792630858 (comparação bytes), #44792631148 (contrato), #44792630722 (required-fast), #44792630791 (smoke não publicador), #44792630873 (auditoria diagnóstica) e #44792630803 (pin IBGE).
+- Run #44792630803: job `independent-ibge-pin` #136483970457 **completed/success**. Inspeção dos steps confirma success para materialização/verificação de proveniência IBGE, preservação apenas de pin/manifesto e remoção do SQL descartável, além de build/setup. Corrige a pendência anterior; **não significa aprovação de campanha científica ou saúde da master**.
+- Evidência obtida via consulta de runs por SHA restrita à primeira página de eventos PR. Resultado **VERDE COMPROVADO apenas para as seis execuções observadas nesse SHA**, sem alegação de inventário completo, cobertura de todos os attempts ou push pós-merge.
+- PR #1759 segue aberta/draft com base `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` antiga; deve ser atualizada/reconciliada com master e checks antes de qualquer integração.
+- Plano oficial relido: P0-A (#1734) → validação separada DT-10 (#1706, integrada) → P0-B. A aprovação de CI da PR #1769 **não substitui** os critérios P0-A de master nem a validação física pós-merge DT-10. Não iniciar TRAIN/TEST, alterar LOCK ou ativar V9.
