@@ -19,6 +19,17 @@ def run(run_id, status="completed", conclusion="success"):
 
 
 class InventoryTests(unittest.TestCase):
+    def test_empty_window_is_complete_and_non_utc_rejected(self):
+        result = mod.enumerate_runs(
+            lambda _: {"total_count": 0, "workflow_runs": []}, START, END)
+        self.assertEqual(result, {})
+        local = dt.datetime(2026, 11, 19, tzinfo=dt.timezone(dt.timedelta(hours=-3)))
+        with self.assertRaisesRegex(ValueError, "UTC endpoints"):
+            mod.enumerate_runs(lambda _: {"total_count": 0, "workflow_runs": []}, local, END)
+        naive = dt.datetime(2026, 11, 19)
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            mod.enumerate_runs(lambda _: {"total_count": 0, "workflow_runs": []}, naive, END)
+
     def test_categories_are_mutually_exclusive(self):
         cases = [
             (run(1), "approved"),
