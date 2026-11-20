@@ -1,6 +1,6 @@
 # P0-A — Comparação histórica e alternativas de recuperação do gerador TF LOCKED
 
-**Data:** 20/11/2026. **Estado:** análise técnica e opções **não aprovadas**; sem autorização de implementação da recuperação. **Issue:** #1734. **Precedência:** GOV-DOC-01, os dois manifests LOCKED e o commit histórico de referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
+**Data:** 20/11/2026. **Estado atual:** alternativa A **aprovada pelo PO em 20/11/2026**; alternativas B/C não aprovadas. Implementação e validação pendentes. **Issue:** #1734. **Precedência:** GOV-DOC-01, os dois manifests LOCKED e o commit histórico de referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
 
 ## Evidência verificada
 
@@ -19,7 +19,7 @@ Comparação de arquivos obtidos pelo GitHub no commit histórico `b98a011...` e
 
 A comparação acima é textual e seletiva; **não substitui** diff completo dos 25 arquivos, reconstrução do commit de referência nem teste de compatibilidade funcional.
 
-## Alternativas a deliberar pelo Product Owner
+## Alternativas avaliadas pelo Product Owner
 
 **A — Recuperar a árvore histórica dos 25 arquivos no caminho congelado e mover a parametrização para outro projeto/caminho.** Vantagem: favorece identidade byte a byte com os LOCKED, se as referências também corresponderem. Custo: novo limite de projeto/CLI, testes de consumidores, eventual migração dos workflows atuais. Verificar antes que o commit histórico reproduz exatamente ambos os hashes esperados; não assumir.
 
@@ -37,7 +37,7 @@ A comparação acima é textual e seletiva; **não substitui** diff completo dos
 4. Registrar decisão aprovada, justificativa, precedência, impactos e rollback em documentação oficial e no índice GOV-DOC-01.
 5. Somente depois avaliar adoção de gate obrigatório e eventuais mudanças de branch protection.
 
-**Nenhuma alternativa está aprovada ou implementada por este documento.** A PR #1769 continua limitada à instrumentação diagnóstica.
+**Atualização de precedência:** a alternativa A foi aprovada posteriormente pelo PO, conforme deliberação ao final deste documento; B/C não aprovadas. A PR #1769 permanece limitada à instrumentação diagnóstica até a implementação segregada.
 
 ## Medição comparativa do commit histórico (instrumentação, 20/11/2026)
 
