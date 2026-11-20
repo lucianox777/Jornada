@@ -37,8 +37,7 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         )
         if not has_explicit_transaction:
             self.assertIn("not an atomic Silver/Gold snapshot", parity)
-        self.assertIn("not an atomic Silver/Gold snapshot", parity)
-        self.assertIn("ProductionGoldCertified: false", parity)
+            self.assertIn("ProductionGoldCertified: false", parity)
 
     def test_diagnostic_gold_proof_does_not_claim_atomic_snapshot(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
