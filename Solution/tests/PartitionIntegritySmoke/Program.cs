@@ -74,15 +74,41 @@ async Task ExpectValidMaterialization()
         output, generation, source, "abc123");
     var peopleCsv = await File.ReadAllTextAsync(result.PeoplePath);
     var observationsCsv = await File.ReadAllTextAsync(result.ObservationsPath);
-    if (!peopleCsv.Contains("base_person_id,particao", StringComparison.Ordinal) ||
-        !peopleCsv.Contains("P1,TRAIN", StringComparison.Ordinal) ||
-        !peopleCsv.Contains("P2,VALIDATION", StringComparison.Ordinal) ||
-        !peopleCsv.Contains("P3,TEST", StringComparison.Ordinal) ||
-        !observationsCsv.Contains("observacao_id,base_person_id,particao", StringComparison.Ordinal) ||
-        !observationsCsv.Contains("O1,P1,TRAIN", StringComparison.Ordinal) ||
-        !observationsCsv.Contains("O2,P2,VALIDATION", StringComparison.Ordinal) ||
-        !observationsCsv.Contains("O3,P3,TEST", StringComparison.Ordinal))
-        throw new InvalidOperationException("Valid materialization lost partition CSV columns or values");
+    // These controlled fixtures contain no CSV delimiters or embedded newlines.
+    // Compare complete rows rather than substring matches that could hide extra records.
+    var peopleRows = peopleCsv.Split('\\n', StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.TrimEnd('\\r')).ToArray();
+    var observationRows = observationsCsv.Split('\\n', StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.TrimEnd('\\r')).ToArray();
+    if (peopleRows.Length != 4 || observationRows.Length != 4)
+        throw new InvalidOperationException("Unexpected CSV record count");
+    var peopleHeader = peopleRows[0].Split(',');
+    var observationHeader = observationRows[0].Split(',');
+    if (peopleHeader[0] != "base_person_id" || peopleHeader[1] != "particao" ||
+        observationHeader[0] != "observacao_id" ||
+        observationHeader[1] != "base_person_id" || observationHeader[2] != "particao")
+        throw new InvalidOperationException("Unexpected CSV partition columns");
+    var expectedPeople = new[] { ("P1", "TRAIN"), ("P2", "VALIDATION"), ("P3", "TEST") };
+    var expectedObservations = new[]
+    {
+        ("O1", "P1", "TRAIN"), ("O2", "P2", "VALIDATION"), ("O3", "P3", "TEST")
+    };
+    for (var i = 0; i < expectedPeople.Length; i++)
+    {
+        var row = peopleRows[i + 1].Split(',');
+        if (row.Length != peopleHeader.Length ||
+            row[0] != expectedPeople[i].Item1 || row[1] != expectedPeople[i].Item2)
+            throw new InvalidOperationException($"Unexpected person CSV row {i + 1}");
+    }
+    for (var i = 0; i < expectedObservations.Length; i++)
+    {
+        var row = observationRows[i + 1].Split(',');
+        if (row.Length != observationHeader.Length ||
+            row[0] != expectedObservations[i].Item1 ||
+            row[1] != expectedObservations[i].Item2 ||
+            row[2] != expectedObservations[i].Item3)
+            throw new InvalidOperationException($"Unexpected observation CSV row {i + 1}");
+    }
     using var manifest = System.Text.Json.JsonDocument.Parse(
         await File.ReadAllTextAsync(result.ManifestPath));
     var rootElement = manifest.RootElement;
