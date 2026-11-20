@@ -96,6 +96,20 @@ class PostmergeProofTests(unittest.TestCase):
                              item("jornada-ci", 17),
                              item("jornada-pr-required-fast", 18)], SHA)
 
+    def test_fetch_accepts_complete_page_and_scopes_exact_master_push(self):
+        payload = {"total_count": 2, "workflow_runs": [item("jornada-ci", 1),
+                                                      item("jornada-pr-required-fast", 2)]}
+        response = io.BytesIO(json.dumps(payload).encode("utf-8"))
+        with mock.patch.object(module.urllib.request, "urlopen", return_value=response) as request:
+            runs = module.fetch(SHA, "fake-read-only-token")
+        self.assertTrue(module.evaluate(runs, SHA)["verified"])
+        url = request.call_args.args[0].full_url
+        query = module.urllib.parse.parse_qs(module.urllib.parse.urlparse(url).query)
+        self.assertEqual(query["head_sha"], [SHA])
+        self.assertEqual(query["branch"], ["master"])
+        self.assertEqual(query["event"], ["push"])
+        self.assertEqual(query["per_page"], ["100"])
+
     def test_fetch_rejects_incomplete_pagination(self):
         payload = {"total_count": 101, "workflow_runs": [item("jornada-ci", 1)]}
         response = io.BytesIO(json.dumps(payload).encode("utf-8"))
