@@ -433,3 +433,11 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Limitações e impacto:** trata-se de gate fail-closed no workflow versionado, **não** prova de que o contexto `classify-impact` ou os demais jobs estejam exigidos pelas regras de proteção da master; essa verificação autenticada continua pendente. O workflow obrigatório pode permanecer vermelho na master enquanto a divergência histórica existente não for corrigida via merge autorizado. Não alterar manifests LOCKED para fazê-lo passar.
 - **Stats observados:** revisão `62c839e` retornou seis workflows, cinco `queued` e um `pending`, sem resultados concluídos no momento da consulta. A validação da revisão atual e da execução do gate ainda depende de CI.
 - **Justificativa, precedência e rastreabilidade:** elevar a identidade histórica do diagnóstico informativo à condição de pré-requisito verificável para CI, conforme prioridade da issue #1734 e GOV-DOC-01; respeita a decisão P0 de isolamento, sem autorizar merge, alteração de regras reais, geração de corpus, TRAIN ou TEST.
+
+
+### Robustez do gate obrigatório contra manifests LOCKED malformados (20/11/2026)
+
+- **Contexto:** após conectar a auditoria de identidade ao `classify-impact`, o script de auditoria ainda acessava campos estruturais dos manifests por indexação direta, sem mensagens explícitas quando o JSON fosse lista ou `generation`/`partition_contract` não fossem objetos.
+- **Implementação:** commit `b612df7` valida os objetos estruturais de cada LOCKED e retorna erro explícito antes da comparação de identidade; usa `.get` para atributos opcionais de diagnóstico, mantendo `matches=false` quando status, experimento ou digests não correspondem. Commit `7c74f5b` adiciona regressões negativas para JSON não objeto, `generation` e `partition_contract` inválidos.
+- **Evidência operacional:** revisão `bd277c7` retornou seis workflows, cinco `queued` e um `pending` (required-fast), sem conclusão comprovada na consulta. A revisão atual ainda exige execução e aprovação da CI.
+- **Justificativa, impactos e precedência:** evitar falsos verdes e produzir falha determinística legível no gate de identidade histórico; sem alteração dos dois manifests, dos 25 arquivos históricos, de rulesets ou de experimentos. Vinculação: issue #1734, GOV-DOC-01 e decisão P0 vigente.
