@@ -31,8 +31,29 @@ async Task ExpectRejected(string label, IReadOnlyList<SyntheticPerson> people,
         Console.WriteLine($"PASS {label}");
     }
 }
+async Task ExpectInvalidOptions()
+{
+    var output = Path.Combine(root, "invalid-options");
+    var invalid = new SyntheticCorpusOptions(TrainPercent: 80, ValidationPercent: 20, TestPercent: 20);
+    var generation = new SyntheticCorpusGeneration([person], [Observation("O1")],
+        new Dictionary<string, SyntheticEmpiricalM>(), invalid);
+    try
+    {
+        await SyntheticCorpusMaterializer.WriteAsync(output, generation,
+            (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                typeof(SyntheticCorpusNominalSource)), "TEST");
+        throw new Exception("Accepted invalid partition percentages");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+        if (Directory.Exists(output))
+            throw new Exception("Created output directory before invalid options rejection");
+        Console.WriteLine("PASS invalid-options");
+    }
+}
 try
 {
+    await ExpectInvalidOptions();
     await ExpectRejected("orphan", [person], [Observation("O1", "UNKNOWN")]);
     await ExpectRejected("cross-partition", [person], [Observation("O1", partition: "TEST")]);
     await ExpectRejected("duplicate-person", [person, person], [Observation("O1")]);
