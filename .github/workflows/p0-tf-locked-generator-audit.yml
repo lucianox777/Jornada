@@ -164,6 +164,33 @@ jobs:
           fi
           grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-precedence-valid.log"
           test ! -e "$RUNNER_TEMP/nonexistent-precedence-corpus"
+      - name: Reject nonfinite and out-of-range partition percentages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for bad in -1 101 NaN Infinity; do
+            label="${bad//-/_}"
+            set +e
+            dotnet run --no-build -c Release \
+              --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+              -- generate --train-percent "$bad" --validation-percent 20 --test-percent 80 \
+              --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+              --out "$RUNNER_TEMP/nonexistent-bounds-corpus" \
+              > "$RUNNER_TEMP/parametrized-bounds-${label}.log" 2>&1
+            status=$?
+            set -e
+            test "$status" -ne 0
+            grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-bounds-${label}.log"
+            test ! -e "$RUNNER_TEMP/nonexistent-bounds-corpus"
+          done
+      - name: Upload partition bounds logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-bounds
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-bounds-*.log
       - name: Upload calibration precedence logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
