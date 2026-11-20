@@ -24,10 +24,6 @@ jobs:
           fetch-depth: 0
       - name: Enforce both historical TF LOCKED generator identities before classification
         run: python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .
-      - name: Require both historical TF LOCKED identities before impact classification
-        run: |
-          set -euo pipefail
-          python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .
       - id: classify
         shell: bash
         run: |
