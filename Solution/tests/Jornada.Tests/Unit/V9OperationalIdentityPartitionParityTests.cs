@@ -64,6 +64,40 @@ public sealed class V9OperationalIdentityPartitionParityTests
     }
 
     [Test]
+    public void Missing_observation_is_not_masked_by_identical_remaining_groups()
+    {
+        var shared = Guid.NewGuid();
+        var isolated = Guid.NewGuid();
+        var complete = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = isolated
+        };
+        var dropped = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared
+        };
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(complete),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(dropped)));
+    }
+
+    [Test]
+    public void Singleton_identity_must_not_be_absorbed_into_another_group()
+    {
+        var shared = Guid.NewGuid();
+        var isolated = Guid.NewGuid();
+        var expected = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = isolated
+        };
+        var absorbed = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = shared
+        };
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(expected),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(absorbed)));
+    }
+
+    [Test]
     public void Membership_order_does_not_change_partition()
     {
         var a = Guid.NewGuid();
