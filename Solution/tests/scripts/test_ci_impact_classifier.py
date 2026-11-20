@@ -9,6 +9,26 @@ class CiImpactClassifierTests(unittest.TestCase):
         r=m.classify(["Solution/docs/Dividas_Tecnicas.md"])
         self.assertTrue(r["docs_only"]); self.assertFalse(r["run_full"])
 
+    def test_executable_under_docs_must_not_bypass_full_ci(self):
+        # A directory name alone must never exempt a script/configuration.
+        for path in (
+            "Solution/docs/evidence/replay.py",
+            "Solution/docs/scripts/verify.sh",
+            "Solution/docs/evidence/policy.json",
+            "Solution/docs/evidence/pipeline.yml",
+            "Solution/docs/evidence/migration.sql",
+            "solution/docs/evidence/runner.PY",
+        ):
+            with self.subTest(path=path):
+                r = m.classify([path])
+                self.assertFalse(r["docs_only"])
+                self.assertTrue(r["run_full"])
+
+    def test_plain_text_docs_remain_fast_path(self):
+        for path in ("Solution/docs/decision.md", "Solution/docs/readme.txt", "README.md"):
+            with self.subTest(path=path):
+                self.assertTrue(m.classify([path])["docs_only"])
+
     def test_e2e_baseline_manifest_requires_full_ci(self):
         r=m.classify(["Solution/docs/evidence/E2E_B_Baseline_20261001.yml"])
         self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"]); self.assertFalse(r["run_dt10"])
