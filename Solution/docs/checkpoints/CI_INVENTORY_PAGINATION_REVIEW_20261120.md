@@ -41,6 +41,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `8ded070cd28d534c66ce647b542751d63be3d6ba`: regressões offline verificam rejeição dos dois limites fracionários sem chamar a API.
 - Testes ainda não executados localmente ou certificados na CI; alteração somente de observabilidade, sem efeito em LOCKED ou execução científica.
 
+## Erros de transporte da API
+
+- `b9421b3d45da9b68252cefb25cff1d895fb897ec`: captura explicitamente `urllib.error.URLError` (incluindo HTTPError) na execução CLI, preservando saída 2 e a indicação de inventário incompleto em caso de falha de transporte/HTTP.
+- `6837521bfa5faa60e57d05bfe9eec56b6459d584`: regressão offline simulando HTTP 403, exigindo código 2 e ausência de escrita de snapshot.
+- O teste foi versionado, **não executado** nesta sessão. Não há autorização de rerun ou merge, nem comprovação dos gates no HEAD atualizado.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
