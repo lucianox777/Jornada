@@ -70,7 +70,7 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
             "proof.CanonicalEdgesSha256, proof.DecisionsSha256,",
             "proof.IdentityGroupsSha256);",
         )
-        receipt = rehearsal[rehearsal.index("return new("):]
+        receipt = rehearsal[rehearsal.index("return new("):].split(");", 1)[0] + ");"
         self.assertEqual(
             " ".join(receipt.split()),
             " ".join(" ".join(expected).split()),
