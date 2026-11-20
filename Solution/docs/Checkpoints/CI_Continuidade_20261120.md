@@ -169,3 +169,9 @@ Critérios extraídos da issue #1734, conferidos contra as evidências coletadas
 | Registrar decisão definitiva e sincronizar índice | **PARCIAL** | Propostas e checkpoint em PRs #1759/#1771; documentação pendente de integração e de decisão definitiva do PO. |
 
 **Conclusão operacional:** a issue #1734 permanece aberta e **não atende aos critérios de encerramento**. A prioridade é obter provas observáveis e reconciliar PRs, não multiplicar testes unitários sem execução. Nenhum merge, rerun, alteração de LOCK ou campanha científica foi autorizado nesta rodada.
+
+## Verificação pós-correção de sintaxe e observabilidade — PR #1759
+- Leitura autenticada do arquivo de testes no HEAD `bb617ed5b9d638584ef47a3743aab4b0150b68aa`: as três linhas de `mock.patch` do `with` terminam agora em **exatamente uma** barra invertida (antes: duas). Foram identificados **19 métodos `test_*`** no arquivo. Isto é inspeção textual, **não** execução de `py_compile` ou `unittest`.
+- Consulta `fetch_commit_workflow_runs` ao HEAD acima retornou **zero runs na visão PR limitada do conector**; resultado vazio **não comprova ausência de CI** e não comprova sucesso. A PR permanece `draft=true`, `mergeable=false`.
+- Inspecionado o workflow proposto `jornada-ci-health-monitor.yml`: resolve `refs/heads/master` antes de checkout explícito do SHA, usa permissões `actions:read`/`contents:read`, executa testes antes do verificador e preserva `pipefail`; artefato `postmerge-health.json` é enviado com `if: always()` quando presente. Ainda não integrado/acionado.
+- Acesso ao `raw.githubusercontent.com` no ambiente local de execução falhou por DNS; não é legítimo declarar a suíte do HEAD aprovada sem acesso aos bytes executáveis e resultado. **Próxima ação requerida: CI autenticada no SHA final e reconciliação da branch com a master, sem merge automático.**
