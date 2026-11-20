@@ -1,0 +1,44 @@
+"""Offline tests for GitHub Actions status classification; no API or CI required."""
+import importlib.util
+from pathlib import Path
+import unittest
+
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts/github-actions-status-summary.py"
+spec = importlib.util.spec_from_file_location("github_actions_status_summary", SCRIPT)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+
+class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_mixed_states_are_not_misreported_as_green(self):
+        result = module.summarize({
+            "workflow_runs": [
+                {"id": 1, "name": "P0", "status": "completed", "conclusion": "success"},
+                {"id": 2, "name": "IBGE", "status": "in_progress", "conclusion": None},
+                {"id": 3, "name": "queued", "status": "queued", "conclusion": None},
+                {"id": 4, "name": "failed", "status": "completed", "conclusion": "failure"},
+            ],
+            "jobs_by_run": {"1": [{"status": "completed", "conclusion": "success"}],
+                            "2": [{"status": "in_progress", "conclusion": None}]},
+        })
+        self.assertEqual(result["run_states"], {
+            "failure": 1, "in_progress": 1, "queued": 1, "success": 1})
+        self.assertEqual(result["job_states"], {"in_progress": 1, "success": 1})
+        self.assertFalse(result["all_completed_success"])
+
+    def test_all_success_only_when_every_run_completed(self):
+        self.assertTrue(module.summarize({"workflow_runs": [
+            {"status": "completed", "conclusion": "success"}]})["all_completed_success"])
+        self.assertFalse(module.summarize({"workflow_runs": []})["all_completed_success"])
+        self.assertFalse(module.summarize({"workflow_runs": [
+            {"status": "pending", "conclusion": None}]})["all_completed_success"])
+
+    def test_bad_snapshot_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.summarize({"workflow_runs": {}})
+        with self.assertRaises(ValueError):
+            module.summarize({"workflow_runs": [], "jobs_by_run": {"x": {}}})
+
+
+if __name__ == "__main__":
+    unittest.main()
