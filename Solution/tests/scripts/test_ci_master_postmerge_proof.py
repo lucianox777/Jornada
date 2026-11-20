@@ -59,6 +59,18 @@ class PostmergeProofTests(unittest.TestCase):
                 item("jornada-ci", 3, event="workflow_dispatch")]
         self.assertFalse(module.evaluate(runs, SHA)["verified"])
 
+    def test_malformed_run_entries_fail_closed(self):
+        for malformed in (None, "not a run", {"name": "jornada-ci"},
+                          item("jornada-ci", True), item("jornada-ci", -1)):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(ValueError):
+                    module.evaluate([malformed, item("jornada-pr-required-fast", 2)], SHA)
+
+    def test_duplicate_run_ids_fail_closed(self):
+        with self.assertRaises(ValueError):
+            module.evaluate([item("jornada-ci", 1), item("jornada-ci", 1),
+                             item("jornada-pr-required-fast", 2)], SHA)
+
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
             module.evaluate([], "a" * 7)
