@@ -66,6 +66,16 @@ class PostmergeProofTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.evaluate([malformed, item("jornada-pr-required-fast", 2)], SHA)
 
+    def test_invalid_id_in_filtered_run_fails_closed(self):
+        # Filtering an unrelated SHA/event must not conceal corrupt API data.
+        for invalid_id in (None, True, 0, -1, "123"):
+            with self.subTest(invalid_id=invalid_id):
+                unrelated = item("jornada-ci", invalid_id, head_sha="b" * 40,
+                                 event="pull_request")
+                with self.assertRaises(ValueError):
+                    module.evaluate([unrelated, item("jornada-ci", 1),
+                                     item("jornada-pr-required-fast", 2)], SHA)
+
     def test_duplicate_run_ids_fail_closed(self):
         with self.assertRaises(ValueError):
             module.evaluate([item("jornada-ci", 1), item("jornada-ci", 1),
