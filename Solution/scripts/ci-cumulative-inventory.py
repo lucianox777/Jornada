@@ -197,6 +197,17 @@ def compare_snapshots(previous, current):
             result[run_id] = row
         if len(result) != snapshot.get("total_unique_runs"):
             raise ValueError("Snapshot run total inconsistent")
+        counts = snapshot.get("counts")
+        if counts is not None:
+            if (not isinstance(counts, dict) or set(counts) != set(CATEGORIES)
+                    or any(type(counts[key]) is not int or counts[key] < 0
+                           for key in CATEGORIES)):
+                raise ValueError("Snapshot category counts invalid")
+            observed = {key: 0 for key in CATEGORIES}
+            for row in rows:
+                observed[row["category"]] += 1
+            if counts != observed:
+                raise ValueError("Snapshot category counts inconsistent")
         return result
     old, new = indexed(previous), indexed(current)
     if set(old) - set(new):
