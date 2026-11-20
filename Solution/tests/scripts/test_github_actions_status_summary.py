@@ -10,6 +10,19 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_unmatched_jobs_never_allow_false_green(self):
+        result = module.summarize({
+            "workflow_runs": [{"id": 1, "status": "completed", "conclusion": "success"}],
+            "jobs_by_run": {"999": [
+                {"id": 9, "status": "completed", "conclusion": "success"}]},
+        })
+        self.assertEqual(result["unmatched_job_run_ids"], ["999"])
+        self.assertFalse(result["all_completed_success"])
+        self.assertEqual(
+            result["approval_scope"],
+            "provided_runs_and_jobs_only_not_master_or_branch_protection",
+        )
+
     def test_required_fast_executes_status_regressions(self):
         workflow = (Path(__file__).resolve().parents[3] /
                     ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
