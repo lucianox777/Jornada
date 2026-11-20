@@ -117,6 +117,14 @@ class PostmergeProofTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Incomplete Actions pagination"):
                 module.fetch(SHA, "fake-read-only-token")
 
+    def test_fetch_rejects_non_object_payload(self):
+        for payload in (None, [], "unexpected", 17):
+            with self.subTest(payload=payload):
+                response = io.BytesIO(json.dumps(payload).encode("utf-8"))
+                with mock.patch.object(module.urllib.request, "urlopen", return_value=response):
+                    with self.assertRaisesRegex(ValueError, "Malformed Actions API response"):
+                        module.fetch(SHA, "fake-read-only-token")
+
     def test_fetch_rejects_malformed_total_count(self):
         payload = {"total_count": True, "workflow_runs": []}
         response = io.BytesIO(json.dumps(payload).encode("utf-8"))
