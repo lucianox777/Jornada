@@ -35,7 +35,7 @@ jobs:
           python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
           grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
       - name: Check classification contract
-        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py
+        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py Solution/tests/scripts/test_audit_master_required_checks.py
   unit-runtime:
     needs: classify-impact
     runs-on: ubuntu-latest
