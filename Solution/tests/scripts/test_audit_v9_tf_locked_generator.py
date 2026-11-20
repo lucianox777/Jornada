@@ -48,6 +48,10 @@ class LockedGeneratorAuditTests(unittest.TestCase):
 
     def test_both_manifests_and_generator_are_checked(self):
         self.assertEqual(len(audit_module.LOCKS), 2)
+        self.assertEqual(audit_module.PINNED_GENERATOR_SHA256,
+                         "924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb")
+        self.assertEqual(audit_module.PINNED_PARTITION_SHA256,
+                         "83015950790a5be15a5fb843c8330c8cccb10610f1a208ee46eeb7fc348c18e4")
         self.assertTrue(all("LOCK.json" in name for name in audit_module.LOCKS))
         self.assertEqual(audit_module.PARTITION.split("/")[-1], "SyntheticCorpusGenerator.cs")
 
@@ -87,6 +91,8 @@ class LockedGeneratorAuditTests(unittest.TestCase):
                 doc["generation"]["generator_sha256"] = tree
                 target.write_text(json.dumps(doc))
             self.assertTrue(all(r["matches"] for r in audit_module.audit(repo)))
+            # Self-consistent but newly generated manifest/tree must not redefine seed-43.
+            self.assertTrue(all(not r["matches"] for r in audit_module.audit(repo, require_pinned=True)))
             # A single altered LOCKED expectation must fail independently.
             first_lock = repo / next(iter(audit_module.LOCKS))
             original = first_lock.read_bytes()
@@ -190,6 +196,10 @@ class RequiredFastFrozenIdentityWiringTests(unittest.TestCase):
         self.assertEqual(
             workflow.count("python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo ."),
             1,
+        )
+        self.assertIn(
+            "python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . --require-pinned",
+            workflow,
         )
         self.assertNotIn(
             "python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . || true",
