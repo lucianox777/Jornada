@@ -29,11 +29,14 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
-        self.assertNotIn("BeginTransactionAsync(", physical)
-        self.assertNotIn("BeginTransactionAsync(", parity)
-        self.assertNotIn("BeginTransactionAsync(", scorer)
-        self.assertNotIn("SET TRANSACTION ISOLATION LEVEL SNAPSHOT", physical)
-        self.assertNotIn("SET TRANSACTION ISOLATION LEVEL SNAPSHOT", parity)
+        # Absence of a transaction is a current limitation, not a contract:
+        # introducing a correct consistent snapshot must not fail this test.
+        has_explicit_transaction = any(
+            "BeginTransactionAsync(" in source
+            for source in (physical, parity, scorer)
+        )
+        if not has_explicit_transaction:
+            self.assertIn("not an atomic Silver/Gold snapshot", parity)
         self.assertIn("not an atomic Silver/Gold snapshot", parity)
         self.assertIn("ProductionGoldCertified: false", parity)
 
