@@ -3,7 +3,7 @@
 **ID:** GOV-OPS-MANDATO-JORNADA-RETOMADA-20261120  
 **Projeto/repositório:** Jornada do Cidadão — `lucianox777/Jornada`  
 **Autoridade:** Product Owner, restauração e continuidade entre conversas aprovadas em 20/11/2026.  
-**Estado:** DECIDIDO pelo PO; implementação documental nesta PR #1757, **não vigente na master até integração**.  
+**Estado:** mandato específico aprovado pelo PO; conferir integração e precedência na master. A consolidação operacional pós-CI de 20/11/2026 está proposta em PR documental própria, sem alteração de workflows.  
 **Fonte normativa principal:** [GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md), aditivo específico de 13 etapas, e [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).
 
 ## 1. Escopo e precedência
@@ -68,9 +68,24 @@ Concentrar alterações na PR existente da frente correspondente sempre que tecn
 
 **Instruções do Projeto ChatGPT:** devem conter um apontador curto para o repositório e este mandato, exigindo consulta ao GitHub em cada conversa. Não copiar integralmente o mandato para as Instruções do Projeto nem presumir que um documento versionado altera automaticamente as configurações do ChatGPT.
 
-## 6. Histórico e rastreabilidade
+## 6. Retomada específica por CI Diagnostics e fechamento de integração (ratificação PO, 20/11/2026)
+
+**Decisão GOV-OPS-DIAGNOSTICS-RETOMADA-POSCI-20261120 — DECIDIDA; implementação exclusivamente documental pendente de integração.** Restaurar o ciclo Jornada existente, sem criar monitor, automação, novo checkpoint, workflow, política de exclusão de branch ou fechamento artificial de PR.
+
+- Após **squash merge autorizado**, registrar a PR como **merged** (estado fechado pelo próprio GitHub) e o SHA integrado da `master`. **Não existe segundo fechamento de PR após o Diagnostics**. Não confundir a branch Git remanescente, a PR já integrada e o incidente operacional ainda pendente. Nenhuma exclusão automática adicional de branch foi aprovada.
+- No pós-merge, consultar **primeiro o `jornada-ci-diagnostics` correspondente à execução `jornada-ci` e ao SHA integrado**, quando houver resultado disponível. Relacionar obrigatoriamente `workflow`, `run_id`, `run_attempt`, `head_sha`, resultado e jobs. O `incident_id` é estável para o mesmo run/SHA; o artefato do Diagnostics é **somente leitura**, não autoriza merge, não contém logs completos e expira após sete dias.
+- O Diagnostics é a **porta de entrada do diagnóstico da CI principal**, não a única fonte de verdade nem prova suficiente de sucesso. Consultar os jobs/logs originais, os gates pós-merge exigíveis, checks independentes e o inventário acumulativo do protocolo canônico. Ausência, atraso, expiração, falha do próprio Diagnostics ou execução mais recente de outro SHA **não** significam PASS. Na falta do artefato, recuperar diretamente os registros verificáveis do GitHub e declarar lacunas.
+- Em falha comprovada, priorizar causa, reprodução e correção mínima; reutilizar a PR **se ainda aberta**, ou preparar PR de correção sobre a `master` atual **se a anterior já foi integrada**, sempre com autorização e checks no HEAD exato. Repetir squash e pós-CI; não declarar incidente resolvido sem evidência dos gates aplicáveis. Enquanto aguarda CI, prosseguir em frentes independentes autorizadas.
+- A concorrência da `jornada-ci` é por `github.workflow` e `github.ref`, com `cancel-in-progress: false`; **não garante fila FIFO nem preservação de todas as execuções pendentes**. O Diagnostics dispara por `workflow_run: completed`, mas não bloqueia outros workflows nem tem exclusão global. Artefatos são vinculados a runs, não formam histórico acumulativo permanente. Não consultar somente o último Diagnostics: correlacionar todos os runs relevantes por identidade, janela e transições, com cobertura declarada.
+- Retomada entre conversas significa **consulta efetiva ao GitHub em cada interação operacional**; instruções versionadas não criam execução em segundo plano nem modificam automaticamente as configurações do Projeto ChatGPT. O mandato específico e o protocolo canônico prevalecem sobre propostas genéricas, respeitando GOV-DOC-01 e decisões posteriores integradas.
+
+**Justificativa:** preservar o mecanismo de correção orientada por evidências, impedir perda de incidentes em desenvolvimento paralelo e evitar controles duplicados. **Impacto:** somente explicitação do procedimento; sem alteração de CI, proteção de branch, política científica ou automação. **Precedência:** detalha o protocolo de 11/11 e o aditivo canônico de 19/11 sem substituir suas 13 etapas. **Rastreabilidade:** `.github/workflows/ci.yml`, `.github/workflows/ci-diagnostics.yml`, `Solution/scripts/ci-failure-checkpoint.py`; PR documental desta decisão; SHA e gates de integração pendentes.
+
+## 7. Histórico e rastreabilidade
 
 - **11/11/2026:** GOV-OPS original, CI seletiva, watchdog horário existente e instruções específicas do Projeto.
 - **19/11/2026:** aditivo PO de 13 etapas, documentado na PR #1757.
 - **20/11/2026:** redação genérica deste arquivo e proposta genérica #1771 identificadas como desvio de escopo. O PO aprovou recuperar o mandato **exclusivo do Jornada**, com retomada obrigatória entre conversas e sem novo monitor por padrão.
 - **Estado de integração:** correção proposta na PR #1757; verificar checks, conflitos e precedência da `master` antes de qualquer merge. A decisão GOV-CI-PRESERVAR-MASTER-ENCERRAR-PR1759-20261120 permanece independente e deve ser reconciliada pela PR #1772.
+
+- **20/11/2026:** PO ratifica recuperação do fluxo Jornada por Diagnostics correlacionado a run/SHA, correção e novo squash, sem fechamento adicional de PR, exclusão de branch ou novo workflow; documentação proposta em PR específica, integração pendente.
