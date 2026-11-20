@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "jornada.contracts": {
+        "type": "Project"
+      },
+      "jornada.ingestion": {
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )"
+        }
+      },
+      "jornada.linkage.core": {
+        "type": "Project",
+        "dependencies": {
+          "Jornada.Contracts": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}
