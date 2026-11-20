@@ -183,6 +183,38 @@ jobs:
             grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-bounds-${label}.log"
             test ! -e "$RUNNER_TEMP/nonexistent-bounds-corpus"
           done
+      - name: Accept degenerate valid partition percentages without generating corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          for percentages in "100 0 0" "0 100 0" "0 0 100"; do
+            read -r train validation test_pct <<< "$percentages"
+            label="${train}-${validation}-${test_pct}"
+            set +e
+            dotnet run --no-build -c Release \
+              --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+              -- generate --train-percent "$train" --validation-percent "$validation" --test-percent "$test_pct" \
+              --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+              --out "$RUNNER_TEMP/nonexistent-degenerate-corpus" \
+              > "$RUNNER_TEMP/parametrized-degenerate-${label}.log" 2>&1
+            status=$?
+            set -e
+            test "$status" -ne 0
+            if grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-degenerate-${label}.log"; then
+              echo "::error::Valid degenerate percentages rejected: $label"
+              exit 1
+            fi
+            grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-degenerate-${label}.log"
+            test ! -e "$RUNNER_TEMP/nonexistent-degenerate-corpus"
+          done
+      - name: Upload degenerate partition logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-degenerate
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-degenerate-*.log
       - name: Upload partition bounds logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
