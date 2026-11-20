@@ -16,6 +16,9 @@ jobs:
   classify-impact:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
     steps:
@@ -38,6 +41,25 @@ jobs:
           grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
       - name: Check classification contract
         run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py Solution/tests/scripts/test_audit_master_required_checks.py
+      - name: Observe master required-check protection (read-only, nonblocking)
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 Solution/scripts/audit-master-required-checks.py --repo "${{ github.repository }}" 2>&1 | tee master-protection-observation.txt
+          result=${PIPESTATUS[0]}
+          {
+            echo '### Master required-check protection observation'
+            echo 'Read-only diagnostic; API access failure or ruleset scope uncertainty is **not** proof of protection.'
+            echo 'Exit code:' "$result"
+            echo '```text'
+            cat master-protection-observation.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$result"
   unit-runtime:
     needs: classify-impact
     runs-on: ubuntu-latest
