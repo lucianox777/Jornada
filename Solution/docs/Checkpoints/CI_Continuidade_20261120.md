@@ -68,3 +68,10 @@ Consulta de runs por SHA via conector (somente evento PR, primeira página; **n�
 - Evidência obtida via consulta de runs por SHA restrita à primeira página de eventos PR. Resultado **VERDE COMPROVADO apenas para as seis execuções observadas nesse SHA**, sem alegação de inventário completo, cobertura de todos os attempts ou push pós-merge.
 - PR #1759 segue aberta/draft com base `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` antiga; deve ser atualizada/reconciliada com master e checks antes de qualquer integração.
 - Plano oficial relido: P0-A (#1734) → validação separada DT-10 (#1706, integrada) → P0-B. A aprovação de CI da PR #1769 **não substitui** os critérios P0-A de master nem a validação física pós-merge DT-10. Não iniciar TRAIN/TEST, alterar LOCK ou ativar V9.
+
+## Investigação adicional — evidência física DT-10 e limites do conector
+- Consulta por SHA do merge #1706 `0d150c536ae518f5a1029e25e664e0d63cd23511` retornou **zero runs**; o método do conector é restrito a `pull_request`/primeira página e **não permite inferir ausência de push CI**.
+- Foi inspecionada a run histórica `jornada-ci` #44356060893, explicitamente citada na descrição da PR #1706 como **anterior à correção**. O job `dt10-evidence / dt10-evidence` #134989112336 consta `completed/failure`. Também constam falhas em `unit-runtime`, `harness-smoke` e `unit`; demais jobs mistos success/skipped. **Essa run não pode ser usada como prova pós-merge da correção #1706.**
+- PR #1769 continua open/draft, mergeable, HEAD `d97966033af2634a9381c688de1d66d41f5cf329`, com 34 arquivos; PR #1771 continua open/draft, HEAD antes desta atualização `06097850cae8850e0b88bd68e9f247b104ff798a`.
+- A referência `#1734` no plano é de frente/issue, não uma PR consultável: `get_pr_info(1734)` retornou 404. Não tratar como PR.
+- **Próxima ação de evidência:** obter inventário autenticado de runs `push` no SHA exato do merge e da master atual, com paginação, tentativas e jobs; se indisponível, manter DT-10 e master `NÃO VERIFICADO`. Não promover P0-B com base em runs PR.
