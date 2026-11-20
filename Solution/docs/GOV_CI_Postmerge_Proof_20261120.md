@@ -4,7 +4,7 @@
 
 ## Evidência observada e lacuna
 
-Em consulta por commit no conector GitHub, não foram retornadas execuções para os commits squash `ceef81e` (PR #1754, SHA abreviado) e `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` (PR #1755). **Isso não prova que Actions não executou**: o conector tem cobertura parcial. Os workflows versionados `.github/workflows/ci.yml` (`jornada-ci`) e `.github/workflows/jornada-pr-required-fast.yml` (`jornada-pr-required-fast`) declaram gatilho `push` na `master`. A existência do gatilho também não comprova execução bem-sucedida.
+Uma consulta inicial por commit no conector GitHub não retornou execuções para `ceef81e` (PR #1754, SHA abreviado) nem para `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` (PR #1755); **essa consulta inicial foi posteriormente superada por evidência autenticada para o segundo SHA**. O run `jornada-ci` **#44654406155**, no SHA integral `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb`, foi confirmado como `completed/success`: **21 jobs, 16 success, 5 skipped e 0 failing** (issue #1734, comentário #7027978770; checkpoint #14594211056). Os cinco jobs skipped não equivalem a testes executados. Não foi comprovado nesta análise um run `jornada-pr-required-fast` com evento `push` nesse mesmo SHA; tampouco a situação do commit `ceef81e`. Os workflows versionados `.github/workflows/ci.yml` (`jornada-ci`) e `.github/workflows/jornada-pr-required-fast.yml` (`jornada-pr-required-fast`) declaram gatilho `push` na `master`. A existência do gatilho também não comprova execução bem-sucedida.
 
 ## Proposta implementada
 
@@ -16,7 +16,7 @@ Em consulta por commit no conector GitHub, não foram retornadas execuções par
 GH_TOKEN=<credencial-de-leitura> python3 Solution/scripts/ci-master-postmerge-proof.py --sha <SHA-INTEGRAL-DA-MASTER>
 ```
 
-**Não colocar token em arquivos versionados.** O script valida a presença dos dois workflows, não substitui a análise de jobs/skips, classificadores de impacto, gates físicos e certificação científica. Se houver >100 runs para o SHA, falha fechado. O estado pós-merge dos merges #1754/#1755 permanece **não comprovado** nesta sessão até evidência autenticada ou execução observada.
+**Não colocar token em arquivos versionados.** O script valida a presença dos dois workflows, não substitui a análise de jobs/skips, classificadores de impacto, gates físicos e certificação científica. Se houver >100 runs para o SHA, falha fechado. **Estado de evidência por SHA:** para `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` há prova positiva do `jornada-ci` completo (run #44654406155), **mas não prova conjunta dos dois workflows exigidos por este script**. Para `ceef81e`, permanece sem comprovação específica nesta análise. Não confundir evidência parcial de um workflow com sucesso do verificador combinado.
 
 ## Rastreabilidade e aceite
 
