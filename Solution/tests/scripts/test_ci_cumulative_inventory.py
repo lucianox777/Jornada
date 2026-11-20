@@ -227,6 +227,13 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "category counts invalid"):
             mod.compare_snapshots(old, dict(base, runs=[entry], counts={"approved": 1}))
 
+    def test_delta_rejects_same_wrong_repository(self):
+        base = {"repository": "untrusted/other", "since": START.isoformat(),
+                "until": END.isoformat(), "coverage": "complete_for_created_window",
+                "total_unique_runs": 0, "runs": []}
+        with self.assertRaisesRegex(ValueError, "repository identity invalid"):
+            mod.compare_snapshots(base, dict(base))
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
