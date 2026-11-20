@@ -47,6 +47,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `6837521bfa5faa60e57d05bfe9eec56b6459d584`: regressão offline simulando HTTP 403, exigindo código 2 e ausência de escrita de snapshot.
 - O teste foi versionado, **não executado** nesta sessão. Não há autorização de rerun ou merge, nem comprovação dos gates no HEAD atualizado.
 
+## Proveniência de jobs por tentativa
+
+- `989f9b9f01618316f98d456eed6102d4b592c789`: consulta de jobs falhos agora utiliza o endpoint de uma tentativa específica `/actions/runs/{run_id}/attempts/{attempt}/jobs`, com `run_attempt` observado na enumeração; evita consultar jobs da tentativa mais recente quando o workflow é reexecutado durante a coleta.
+- `6e30fdac417a92c4221269cd7b8e07a9733902fa`: testes de vinculação à tentativa 3 e rejeição de IDs/tentativas inválidos antes de chamada externa.
+- **Limite:** não enumera todas as tentativas históricas; mantém snapshot da tentativa observada, sem declarar cobertura histórica integral. Testes versionados, execução offline e CI ainda não comprovadas.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
