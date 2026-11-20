@@ -160,6 +160,14 @@ class PostmergeProofTests(unittest.TestCase):
         self.assertLess(text.index("ref: ${{ steps.master.outputs.sha }}"),
                         text.index("name: Regression tests for postmerge verifier"))
 
+    def test_malformed_workflow_name_fails_closed(self):
+        for invalid_name in (None, [], {}, 123):
+            with self.subTest(name=invalid_name):
+                with self.assertRaisesRegex(ValueError, "Invalid Actions workflow name"):
+                    module.evaluate([item(invalid_name, 1),
+                                     item("jornada-ci", 2),
+                                     item("jornada-pr-required-fast", 3)], SHA)
+
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
             module.evaluate([], "a" * 7)
