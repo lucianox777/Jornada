@@ -35,6 +35,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `0a32e2c2a2f987925ef1fbd7f6daf686e851174a`: testes negativos para regressão de tentativa e mudança de evento.
 - **Escopo:** invariantes de comparação entre snapshots; **não** é coleta histórica de todas as tentativas, nem substitui leitura paginada da API.
 
+## Precisão dos filtros temporais
+
+- `0c3803947352919f47419550e0f782ce1ef1cecb`: rejeita limites UTC com microssegundos antes de formatar o filtro `created`, que opera com precisão de segundos. Sem a rejeição, o filtro descartaria silenciosamente a fração e a comparação local utilizaria outra janela.
+- `8ded070cd28d534c66ce647b542751d63be3d6ba`: regressões offline verificam rejeição dos dois limites fracionários sem chamar a API.
+- Testes ainda não executados localmente ou certificados na CI; alteração somente de observabilidade, sem efeito em LOCKED ou execução científica.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
