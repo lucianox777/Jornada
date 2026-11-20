@@ -11,6 +11,23 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_missing_and_empty_job_coverage_are_distinct(self):
+        result = module.summarize({
+            "workflow_runs": [
+                {"id": 1, "status": "completed", "conclusion": "success"},
+                {"id": 2, "status": "completed", "conclusion": "success"},
+                {"id": 3, "status": "completed", "conclusion": "success"},
+            ],
+            "jobs_by_run": {
+                "1": [{"id": 10, "status": "completed", "conclusion": "success"}],
+                "2": [],
+            },
+        })
+        self.assertEqual(result["missing_job_run_ids"], ["3"])
+        self.assertEqual(result["empty_job_run_ids"], ["2"])
+        self.assertFalse(result["all_observed_runs_have_jobs"])
+        self.assertFalse(result["job_evidence_complete_for_observed_runs"])
+
     def test_captured_p0_pr_run_and_job_snapshot_is_not_green(self):
         fixture = (Path(__file__).resolve().parents[1] /
                    "fixtures/github-actions-p0-1769-snapshot.json")
@@ -23,6 +40,7 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
         })
         self.assertEqual(sum(result["job_states"].values()), 10)
         self.assertEqual(result["unmatched_job_run_ids"], [])
+        self.assertTrue(result["all_observed_runs_have_jobs"])
         self.assertEqual(len(result["incomplete_run_ids"]), 6)
         self.assertFalse(result["all_completed_success"])
         self.assertEqual(result["job_coverage"], "partial_or_unverified")
