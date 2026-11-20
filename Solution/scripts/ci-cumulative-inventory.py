@@ -179,8 +179,8 @@ def snapshot(get, since, until):
 
 def compare_snapshots(previous, current):
     """Compare identical observation windows without double-counting run IDs."""
-    if previous.get("repository") != current.get("repository"):
-        raise ValueError("Snapshot repositories differ")
+    if previous.get("repository") != REPO or current.get("repository") != REPO:
+        raise ValueError("Snapshot repository identity invalid")
     if previous.get("since") != current.get("since") or previous.get("until") != current.get("until"):
         raise ValueError("Snapshot windows differ; cannot claim exact delta")
     if previous.get("coverage") != "complete_for_created_window" or current.get("coverage") != "complete_for_created_window":
