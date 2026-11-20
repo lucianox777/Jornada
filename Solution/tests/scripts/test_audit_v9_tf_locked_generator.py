@@ -158,5 +158,19 @@ class LockedGeneratorAuditTests(unittest.TestCase):
         return hashlib.sha256(lines.encode()).hexdigest(), len(files)
 
 
+
+class RequiredFastFrozenIdentityWiringTests(unittest.TestCase):
+    def test_required_fast_executes_fail_closed_identity_audit(self):
+        workflow = (Path(__file__).resolve().parents[3] /
+                    ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .",
+            workflow,
+        )
+        self.assertNotIn(
+            "python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . || true",
+            workflow,
+        )
+
 if __name__ == "__main__":
     unittest.main()
