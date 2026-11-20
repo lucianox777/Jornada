@@ -33,3 +33,11 @@ Consulta de runs por SHA via conector (somente evento PR, primeira página; **n�
 - Steps skipped no job de diagnóstico após a falha inicial não constituem aprovação. Nenhum rerun ou merge solicitado.
 
 **Cobertura:** runs consultados por SHA em primeira página, sem paginação total, sem push master, sem inventário histórico, sem comparação temporal de checkpoints. **Saúde master: NÃO VERIFICADO**. Próxima ação: acompanhar checks do commit `d979660...`, inspecionar nova falha se houver e ampliar coleta paginada por API autorizada.
+
+## Atualização — acompanhamento de CI e frente independente pós-merge
+- PR #1769 SHA `d97966033af2634a9381c688de1d66d41f5cf329`: seis runs observados, todos `in_progress` na consulta por SHA; run obrigatório 44792630722 com `classify-impact` success e três jobs em progresso; auditor P0-A run 44792630873 com dois jobs em progresso. **Sem conclusão de gate**.
+- PR #1771 SHA `15d9c7bfeb7978f929d7c1c661b0299a992587bd`: run obrigatório 44792657934 em progresso; `classify-impact` e `deterministic-build` success, `security-guards` e `unit-runtime` em progresso.
+- PR #1759: revisão independente do verificador identificou que entrada de run não dicionário, ID ausente/inválido e duplicidade de ID poderiam causar exceção não controlada ou seleção ambígua. Correção fail-closed em commits `0ae02fd76be3a437109383ea655ee4e91412b6ed` e `dddee976e1a7f1d18c4b55ddbcade1f102f148df`, com testes de regressão para entradas malformadas e IDs duplicados. **Testes não executados nesta rodada; CI do novo HEAD pendente**.
+- A coleta por SHA continua limitada à primeira página de runs `pull_request`; não constitui inventário global nem prova pós-merge `push`. Não houve rerun, merge ou execução científica.
+
+**Próxima ação:** reconsultar os dois SHAs atualizados e respectivos jobs; obter logs de qualquer nova falha; validar testes da PR #1759 e separar observação periódica de inventário cumulativo antes de promover monitor.
