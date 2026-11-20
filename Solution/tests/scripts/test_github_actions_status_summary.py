@@ -11,6 +11,20 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_real_success_snapshot_requires_all_twelve_jobs(self):
+        fixture = (Path(__file__).resolve().parents[1] /
+                   "fixtures/github-actions-p0-1769-success-snapshot.json")
+        snapshot = json.loads(fixture.read_text(encoding="utf-8"))
+        result = module.summarize(snapshot)
+        self.assertEqual(result["total_runs"], 6)
+        self.assertEqual(result["run_states"], {"success": 6})
+        self.assertEqual(result["job_states"], {"success": 12})
+        self.assertTrue(result["all_completed_success"])
+        snapshot["jobs_by_run"].pop("44784777031")
+        missing = module.summarize(snapshot)
+        self.assertFalse(missing["all_completed_success"])
+        self.assertEqual(missing["missing_job_run_ids"], ["44784777031"])
+
     def test_missing_and_empty_job_coverage_are_distinct(self):
         result = module.summarize({
             "workflow_runs": [
