@@ -200,7 +200,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--since", required=True, help="UTC ISO-8601 start (inclusive)")
     parser.add_argument("--until", required=True, help="UTC ISO-8601 end (inclusive)")
-    parser.add_argument("--output", required=True, help="Local JSON snapshot path")\n    parser.add_argument("--previous", help="Prior JSON snapshot of the exact same window")
+    parser.add_argument("--output", required=True, help="Local JSON snapshot path")
+    parser.add_argument("--previous", help="Prior JSON snapshot of the exact same window")
     args = parser.parse_args()
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not token:
