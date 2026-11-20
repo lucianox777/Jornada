@@ -381,3 +381,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Justificativa e impacto:** transformar testes recém-criados em verificações efetivas do fluxo obrigatório, sem depender de SQL, GitHub API ou campanhas científicas. A aprovação desse novo gate só poderá ser declarada após CI no commit correspondente.
 - **Snapshot anterior ao ajuste:** revisão `9fd447e`: cinco workflows retornados (quatro `queued`, um `pending`): standard-linear, seed42, RunAsync e IBGE em `queued`, required-fast em `pending`; o diagnóstico P0 não apareceu na lista retornada nessa consulta. Revisão `9b2340b`: cinco `in_progress`, um `queued`.
 - **Precedência e rastreabilidade:** issue #1734 e GOV-DOC-01; a integração do teste não modifica proteção de branch/ruleset, LOCKED, gerador histórico ou decisões vigentes.
+
+
+### Frente independente — robustez da auditoria read-only de proteção da master (20/11/2026)
+
+- **Contexto:** o script `Solution/scripts/audit-master-required-checks.py` audita contextos obrigatórios por API, sem escrita; listas `contexts` e `checks` de formato inesperado podiam produzir exceções ou contagens enganosas. A mera presença de ruleset não comprova escopo na master.
+- **Implementação:** commit `34380f3` filtra itens não textuais/vazios, trata listas malformadas e rulesets não estruturados sem promover evidência inválida, e informa `observed_classic_contexts` e `missing_classic_contexts`. Commit `e3df215` acrescenta regressões de payload inválido e diagnóstico de contextos faltantes.
+- **Stats consultados:** revisão `0dd105c`: seis workflows retornados, cinco `queued`, um `pending`, nenhum concluído; revisão `9fd447e`: um `cancelled` (required-fast), três `in_progress` (IBGE, RunAsync, seed42), um `queued` (standard-linear); nenhum desses snapshots demonstra estado da master ou proteção efetiva de branch.
+- **Justificativa/impacto:** melhorar diagnóstico fail-closed da obrigatoriedade dos gates, sem alterar branch protection/rulesets nem considerar verificada a configuração real sem resposta autenticada da API. Os testes novos aguardam CI.
+- **Precedência/rastreabilidade:** issue #1734, GOV-DOC-01 e decisão de isolamento do gerador histórico. Não altera manifests LOCKED, código do gerador, dados nem campanhas científicas.
