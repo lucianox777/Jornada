@@ -11,6 +11,28 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_duplicate_identifiers_and_noncanonical_job_keys_fail_closed(self):
+        valid_run = {"id": 1, "status": "completed", "conclusion": "success"}
+        valid_job = {"id": 10, "status": "completed", "conclusion": "success"}
+        for snapshot in (
+            {"workflow_runs": [valid_run, dict(valid_run)]},
+            {"workflow_runs": [valid_run], "jobs_by_run": {"1": [valid_job, dict(valid_job)]}},
+            {"workflow_runs": [valid_run], "jobs_by_run": {"01": [valid_job]}},
+            {"workflow_runs": [{"id": True, "status": "completed", "conclusion": "success"}]},
+        ):
+            with self.subTest(snapshot=snapshot), self.assertRaises(ValueError):
+                module.summarize(snapshot)
+
+    def test_missing_identifiers_cannot_prove_green(self):
+        for snapshot in (
+            {"workflow_runs": [{"status": "completed", "conclusion": "success"}],
+             "jobs_by_run": {"1": [{"id": 10, "status": "completed", "conclusion": "success"}]}},
+            {"workflow_runs": [{"id": 1, "status": "completed", "conclusion": "success"}],
+             "jobs_by_run": {"1": [{"status": "completed", "conclusion": "success"}]}},
+        ):
+            with self.subTest(snapshot=snapshot):
+                self.assertFalse(module.summarize(snapshot)["all_completed_success"])
+
     def test_real_success_snapshot_requires_all_twelve_jobs(self):
         fixture = (Path(__file__).resolve().parents[1] /
                    "fixtures/github-actions-p0-1769-success-snapshot.json")
