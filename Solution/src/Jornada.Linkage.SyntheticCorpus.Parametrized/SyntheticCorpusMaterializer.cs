@@ -42,12 +42,17 @@ public static class SyntheticCorpusMaterializer
         var partitionsByPerson = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var person in generation.People)
         {
-            if (person.Partition is not ("TRAIN" or "VALIDATION" or "TEST") ||
+            if (string.IsNullOrWhiteSpace(person.BasePersonId) ||
+                person.Partition is not ("TRAIN" or "VALIDATION" or "TEST") ||
                 !partitionsByPerson.TryAdd(person.BasePersonId, person.Partition))
                 throw new InvalidDataException("Identidade base duplicada ou partição inválida.");
         }
+        var observationIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var observation in generation.Observations)
         {
+            if (string.IsNullOrWhiteSpace(observation.ObservationId) ||
+                !observationIds.Add(observation.ObservationId))
+                throw new InvalidDataException("Identificador de observação ausente ou duplicado.");
             if (!partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition) ||
                 !string.Equals(observation.Partition, partition, StringComparison.Ordinal))
                 throw new InvalidDataException("Observação órfã ou com partição divergente da identidade base.");
