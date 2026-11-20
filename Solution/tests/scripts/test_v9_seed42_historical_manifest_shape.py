@@ -7,8 +7,46 @@ import re
 import unittest
 from pathlib import Path
 
-MATERIALIZER = (Path(__file__).resolve().parents[2] /
+ROOT = Path(__file__).resolve().parents[2]
+MATERIALIZER = (ROOT /
                 "src/Jornada.Linkage.SyntheticCorpus.Parametrized/SyntheticCorpusMaterializer.cs")
+
+
+class IsolatedPartitionContractTests(unittest.TestCase):
+    """Read-only structural checks; no corpus or scientific campaign is generated."""
+
+    @classmethod
+    def setUpClass(cls):
+        project = ROOT / "src/Jornada.Linkage.SyntheticCorpus.Parametrized"
+        cls.generator = (project / "SyntheticCorpusGenerator.cs").read_text(encoding="utf-8")
+        cls.models = (project / "SyntheticCorpusModels.cs").read_text(encoding="utf-8")
+        cls.materializer = (project / "SyntheticCorpusMaterializer.cs").read_text(encoding="utf-8")
+
+    def test_partition_assignment_uses_configured_thresholds(self):
+        self.assertIn("split < options.TrainPercent / 100d", self.generator)
+        self.assertIn("split < (options.TrainPercent + options.ValidationPercent) / 100d", self.generator)
+        self.assertIn('person.Partition = split < options.TrainPercent / 100d ? "TRAIN"', self.generator)
+        self.assertIn('? "VALIDATION" : "TEST"', self.generator)
+        self.assertIn("var split = random.NextUnitInterval();", self.generator)
+
+    def test_partition_percentages_are_finite_bounded_and_sum_to_100(self):
+        for token in (
+            "double.IsFinite(TrainPercent)",
+            "double.IsFinite(ValidationPercent)",
+            "double.IsFinite(TestPercent)",
+            "TrainPercent < 0", "ValidationPercent < 0", "TestPercent < 0",
+            "TrainPercent > 100", "ValidationPercent > 100", "TestPercent > 100",
+            "Math.Abs(TrainPercent + ValidationPercent + TestPercent - 100) > 1e-9",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, self.models)
+
+    def test_nonhistorical_manifest_retains_partition_declarations(self):
+        self.assertIn('historical.Remove("synthetic_population")', self.materializer)
+        self.assertIn('historical.Remove("partition_percentages")', self.materializer)
+        self.assertIn("generation.Options.TrainPercent == 60", self.materializer)
+        self.assertIn("generation.Options.ValidationPercent == 20", self.materializer)
+        self.assertIn("generation.Options.TestPercent == 20", self.materializer)
 
 
 class FrozenSeed42ManifestShapeTests(unittest.TestCase):
