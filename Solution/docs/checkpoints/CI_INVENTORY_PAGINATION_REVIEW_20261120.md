@@ -53,6 +53,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `6e30fdac417a92c4221269cd7b8e07a9733902fa`: testes de vinculação à tentativa 3 e rejeição de IDs/tentativas inválidos antes de chamada externa.
 - **Limite:** não enumera todas as tentativas históricas; mantém snapshot da tentativa observada, sem declarar cobertura histórica integral. Testes versionados, execução offline e CI ainda não comprovadas.
 
+## Reconciliação de contagens nos checkpoints
+
+- `2995b6c2a515b07c4def943a1ba7fde473bca442`: a comparação de snapshots valida, quando o campo `counts` está presente, as cinco categorias, inteiros não negativos e correspondência exata com os registros por categoria.
+- `42e7645ee44985569931efa380db0cd2f9115a8c`: regressões negativas para distribuição adulterada e categorias ausentes.
+- Snapshots legados sem `counts` ainda são aceitos para comparação por compatibilidade; **não** usar essa tolerância como certificação de reconciliação completa. Testes não executados nesta sessão; PR ainda sem aprovação de gates observável.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
