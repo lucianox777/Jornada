@@ -33,7 +33,7 @@ def is_e2e_baseline_manifest(path: str) -> bool:
 
 def classify(paths: list[str]) -> dict:
     normalized=[(q[2:] if q.startswith("./") else q) for p in paths for q in [p.replace("\\","/")]]
-    docs=[p for p in normalized if (p.lower().startswith("solution/docs/") or p.lower().endswith((".md",".txt"))) and not is_e2e_baseline_manifest(p)]
+    docs=[p for p in normalized if p.lower().endswith((".md", ".txt")) and not is_e2e_baseline_manifest(p)]
     substantive=[p for p in normalized if p not in docs]
     docs_only=bool(normalized) and not substantive
     run_dt10=any(p in DT10_EXACT or p.startswith(DT10_PREFIXES) for p in normalized)
