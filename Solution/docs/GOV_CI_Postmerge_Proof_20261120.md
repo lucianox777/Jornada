@@ -10,6 +10,10 @@ Uma consulta inicial por commit no conector GitHub não retornou execuções par
 
 `Solution/scripts/ci-master-postmerge-proof.py` consulta a API Actions com filtro SHA exato, `master` e evento `push`, e exige runs `completed/success` de **ambos** os workflows. Sem run, sem permissão, paginação incompleta, falha ou execução pendente, retorna não verificado. Testes offline integrados ao job `classify-impact` cobrem sucesso, ausência, pendência, falha, PR/manual e SHA divergente. A prova é read-only, não executa nem reinicia CI.
 
+### Correção de precedência dos runs (20/11/2026)
+
+Na revisão da proposta, foi identificado que a primeira implementação aceitava qualquer run histórico `success` do mesmo workflow/SHA, mesmo diante de um run posterior falho ou pendente. O verificador agora considera **o run de maior ID** entre os candidatos autenticados com mesmo SHA, branch `master` e evento `push`; uma execução mais recente falha ou pendente não pode ser mascarada por sucesso anterior. Um run posterior aprovado pode substituir falha anterior. Testes offline específicos cobrem ambos os sentidos; **CI do HEAD corrigido e execução autenticada ainda precisam ser confirmadas**. A alteração não modifica as exigências de proteção da master nem executa qualquer ação científica.
+
 ## Uso operacional
 
 ```sh
