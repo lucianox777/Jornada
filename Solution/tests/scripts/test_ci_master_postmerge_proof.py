@@ -140,6 +140,18 @@ class PostmergeProofTests(unittest.TestCase):
         self.assertEqual(report["state"], "unverified")
         self.assertNotIn("secret-marker", stdout.getvalue() + stderr.getvalue())
 
+    def test_monitor_checks_out_exact_resolved_master_sha(self):
+        # A manual dispatch from a feature branch must not validate master CI
+        # using unmerged code from that branch.
+        workflow = path.parents[3] / ".github" / "workflows" / "jornada-ci-health-monitor.yml"
+        text = workflow.read_text(encoding="utf-8")
+        self.assertIn('sha="$(gh api "repos/${GH_REPO}/git/ref/heads/master"', text)
+        self.assertIn("ref: ${{ steps.master.outputs.sha }}", text)
+        self.assertLess(text.index("name: Resolve exact master SHA"),
+                        text.index("ref: ${{ steps.master.outputs.sha }}"))
+        self.assertLess(text.index("ref: ${{ steps.master.outputs.sha }}"),
+                        text.index("name: Regression tests for postmerge verifier"))
+
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
             module.evaluate([], "a" * 7)
