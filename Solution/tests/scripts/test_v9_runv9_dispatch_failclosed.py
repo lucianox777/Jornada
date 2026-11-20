@@ -35,6 +35,8 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
 
     def test_general_dispatch_rejects_v9_before_legacy_sql(self):
         gate = self.general.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED")
+        self.assertIn("request.ModelVersion == 9", self.general[:gate])
+        self.assertIn("request.Mode != LinkageRunType.REPLAY", self.general[:gate])
         self.assertIn('configuration["Linkage:V9SelectionFile"]', self.general[:gate])
         self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9',
                       self.general[:gate])
