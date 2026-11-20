@@ -57,7 +57,8 @@ public static class SyntheticCorpusMaterializer
             if (string.IsNullOrWhiteSpace(observation.ObservationId) ||
                 !observationIds.Add(observation.ObservationId))
                 throw new InvalidDataException("Identificador de observação ausente ou duplicado.");
-            if (!partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition) ||
+            if (string.IsNullOrWhiteSpace(observation.BasePersonId) ||
+                !partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition) ||
                 !string.Equals(observation.Partition, partition, StringComparison.Ordinal))
                 throw new InvalidDataException("Observação órfã ou com partição divergente da identidade base.");
         }
