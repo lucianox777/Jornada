@@ -223,6 +223,37 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           path: ${{ runner.temp }}/parametrized-bounds-*.log
+      - name: Verify CLI overrides bypass absent JSON sampling fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/p0-calibrator-incomplete.json"
+          printf '%s\n' '{"syntheticPopulation":25,"sampling":{}}' > "$config"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" \
+            --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-incomplete-corpus" \
+            > "$RUNNER_TEMP/parametrized-incomplete-override.log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          if grep -Eq 'KeyNotFoundException|The given key was not present|Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-incomplete-override.log"; then
+            echo "::error::Explicit CLI override unexpectedly evaluated missing JSON sampling keys"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-incomplete-override.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-incomplete-corpus"
+      - name: Upload incomplete calibration override log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-incomplete-override
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-incomplete-override.log
       - name: Upload calibration precedence logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
