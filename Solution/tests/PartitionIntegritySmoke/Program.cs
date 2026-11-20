@@ -52,8 +52,48 @@ async Task ExpectInvalidOptions()
         Console.WriteLine("PASS invalid-options");
     }
 }
+async Task ExpectValidMaterialization()
+{
+    var output = Path.Combine(root, "valid-materialization");
+    var options = new SyntheticCorpusOptions(People: 1, Seed: 77,
+        TrainPercent: 70, ValidationPercent: 20, TestPercent: 10);
+    var generation = new SyntheticCorpusGeneration([person], [Observation("O1")],
+        new Dictionary<string, SyntheticEmpiricalM>(), options);
+    // This fixture deliberately avoids external IBGE inputs and scientific campaigns.
+    var source = (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers
+        .GetUninitializedObject(typeof(SyntheticCorpusNominalSource));
+    var result = await SyntheticCorpusMaterializer.WriteAsync(
+        output, generation, source, "abc123");
+    var peopleCsv = await File.ReadAllTextAsync(result.PeoplePath);
+    var observationsCsv = await File.ReadAllTextAsync(result.ObservationsPath);
+    if (!peopleCsv.Contains("base_person_id,particao", StringComparison.Ordinal) ||
+        !peopleCsv.Contains("P1,TRAIN", StringComparison.Ordinal) ||
+        !observationsCsv.Contains("observacao_id,base_person_id,particao", StringComparison.Ordinal) ||
+        !observationsCsv.Contains("O1,P1,TRAIN", StringComparison.Ordinal))
+        throw new InvalidOperationException("Valid materialization lost partition CSV columns or values");
+    using var manifest = System.Text.Json.JsonDocument.Parse(
+        await File.ReadAllTextAsync(result.ManifestPath));
+    var rootElement = manifest.RootElement;
+    var percentages = rootElement.GetProperty("partition_percentages");
+    if (rootElement.GetProperty("synthetic_population").GetInt32() != 1 ||
+        percentages.GetProperty("train").GetDouble() != 70 ||
+        percentages.GetProperty("validation").GetDouble() != 20 ||
+        percentages.GetProperty("test").GetDouble() != 10 ||
+        rootElement.GetProperty("input_fingerprint_sha256").GetString() != "ABC123")
+        throw new InvalidOperationException("Valid materialization manifest metadata mismatch");
+    foreach (var outputHash in result.OutputSha256)
+    {
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(output, outputHash.Key));
+        var actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        if (!string.Equals(actual, outputHash.Value, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Materialization hash mismatch: {outputHash.Key}");
+    }
+    Console.WriteLine("PASS valid-materialization");
+}
+
 try
 {
+    await ExpectValidMaterialization();
     await ExpectInvalidOptions();
     await ExpectRejected("empty-people-with-observation", [], [Observation("O1")]);
     await ExpectRejected("duplicate-person-cross-partition",
