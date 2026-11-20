@@ -22,3 +22,14 @@
 4. Prosseguir com DT-10 apenas em atividades independentes seguras; P0-B científica continua sujeita aos gates próprios.
 
 **Persistência:** este checkpoint é proposto na branch da PR #1771; continuidade oficial ainda não garantida até integração. Nenhum segredo, teste científico ou alteração de produção.
+
+## Atualização de investigação — jobs reais e correção proposta
+Consulta de runs por SHA via conector (somente evento PR, primeira página; **não exaustiva**):
+- PR #1759 HEAD `193982db1b68356f11c71a068de29143b9d1b625`: run 44663007640 `jornada-pr-required-fast` completed/success; quatro jobs success.
+- PR #1769 HEAD anterior `960d5ffc8c2e03c6d366d3521397a91bea59c1d8`: seis runs retornados, quatro success e dois failure. Run 44789044996 (`jornada-pr-required-fast`): classify-impact, security-guards e deterministic-build success; unit-runtime failure (job 136471746935). Run 44789044891 (diagnóstico P0-A): job 136471513615 failure e job histórico success.
+- PR #1771 HEAD anterior `4bf91f96238670c0cb2d112e5b432b7e76b7dbed`: run 44792515802 inicialmente queued; consulta subsequente de jobs mostrou classify-impact success e outros três in_progress. **Não extrapolar resultado final.**
+- Jobs 136471513615 e 136471746935: logs recuperados. Ambos falharam no teste `test_required_fast_enforces_frozen_generator_before_impact_classification`. A asserção proibia `continue-on-error: true` em todo o job `classify-impact`, incluindo observador de ruleset explicitamente não bloqueante. O gate LOCKED propriamente dito não usa essa dispensa. Causa reproduzível por inspeção do teste e YAML; outras causas posteriores podem aparecer após esta correção.
+- Correção mínima em #1769 commit `d97966033af2634a9381c688de1d66d41f5cf329`: restringe a asserção ao step `Enforce both historical TF LOCKED generator identities before classification` e exige `--require-pinned`. **Teste local não executado; CI do novo HEAD pendente de observação.**
+- Steps skipped no job de diagnóstico após a falha inicial não constituem aprovação. Nenhum rerun ou merge solicitado.
+
+**Cobertura:** runs consultados por SHA em primeira página, sem paginação total, sem push master, sem inventário histórico, sem comparação temporal de checkpoints. **Saúde master: NÃO VERIFICADO**. Próxima ação: acompanhar checks do commit `d979660...`, inspecionar nova falha se houver e ampliar coleta paginada por API autorizada.
