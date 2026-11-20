@@ -54,12 +54,12 @@ def summarize(snapshot):
             jobs_detail[run_id].append({"id": job.get("id"), "name": job.get("name"), "state": category})
     # A job snapshot may be partial; never infer that every job was inspected.
     observed_run_ids = {str(run["id"]) for run in runs if run.get("id") is not None}
-    unmatched_job_runs = sorted(set(jobs_by_run) - observed_run_ids)
+    unmatched_job_runs = sorted(str(key) for key in jobs_by_run if str(key) not in observed_run_ids)
     incomplete_run_ids = [
         run.get("id") for run in runs
         if run.get("status") != "completed" or run.get("conclusion") != "success"
     ]
-    complete_success = bool(runs) and all(
+    complete_success = bool(runs) and not unmatched_job_runs and all(
         run.get("status") == "completed" and run.get("conclusion") == "success"
         for run in runs
     ) and all(
@@ -76,6 +76,7 @@ def summarize(snapshot):
         "job_coverage": "partial_or_unverified",
         "runs": details,
         "all_completed_success": complete_success,
+        "approval_scope": "provided_runs_and_jobs_only_not_master_or_branch_protection",
     }
 
 
