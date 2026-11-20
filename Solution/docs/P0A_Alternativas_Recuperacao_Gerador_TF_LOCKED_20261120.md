@@ -337,3 +337,13 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 | Governança GOV-DOC-01 | Decisão de isolamento e evidências documentadas | Consolidar aceite final e índice caso haja nova decisão aprovada |
 
 **Precedência:** issue #1734 e diretriz aprovada pelo PO: (1) master verde/LOCKED, (2) gate obrigatório, (3) dt10, (4) V9, (5) documentação/backlog, (6) refatorações. **Justificativa/impacto:** evitar encerramento prematuro baseado somente em sucesso de testes diagnósticos; nenhum gate ou decisão é alterado por este registro. **Restrições:** PR continua draft; sem merge, sem promoção científica e sem TRAIN/TEST.
+
+
+### Desenvolvimento contínuo — frente operacional de estatísticas CI (20/11/2026)
+
+- **Mandato/contexto:** acompanhar os estados reais dos jobs GitHub sem bloquear o desenvolvimento técnico em filas de CI; separar `queued`, `pending`, `in_progress`, `success` e `failure` sem confundir sucesso parcial com aceite total.
+- **Implementação:** `Solution/scripts/github-actions-status-summary.py` (commit `bc9be01`) resume snapshots JSON de workflows/jobs offline, sem credenciais, sem rede e sem mutação de workflows; `Solution/tests/scripts/test_github_actions_status_summary.py` (commit `e45d042`) cobre execução parcial, falha, sucesso completo, lista vazia e payload inválido. Testes novos aguardam CI.
+- **Snapshot verificado na revisão `118ae8e`:** cinco dos seis workflows concluíram `success` (required-fast `44780120762`, P0 `44780120755`, byte comparison `44780120925`, standard-linear `44780120790`, RunAsync `44780120776`); proveniência IBGE `44780121117` estava `in_progress` na materialização. No required-fast, quatro jobs concluíram `success`; no P0, dois jobs concluíram `success`.
+- **Evidência adicional independente:** proveniência IBGE da revisão anterior `5ba058d4`, run `44779757598`, concluiu `success`; esse resultado **não** equivale a conclusão da execução atual nem a certificação científica.
+- **Justificativa/impacto:** fornecer classificação reproduzível de estados para controle operacional e evitar relatos enganosos de CI; nenhuma mudança em geradores, manifests LOCKED, gates, banco ou campanha científica.
+- **Precedência:** GOV-DOC-01, issue #1734 e decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`; ferramenta de observabilidade não altera critério de aceite ou ordem do plano de ação.
