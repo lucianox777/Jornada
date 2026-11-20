@@ -81,6 +81,27 @@ jobs:
       - name: Regression-test read-only isolation migration planner
         working-directory: auditor
         run: python3 -m unittest Solution/tests/scripts/test_plan_tf_locked_generator_isolation.py
+      - name: Inventory historical-to-current generator drift (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Two shallow checkouts cannot provide a shared Git revision history.
+          # Fetch the pinned historical ref into the auditor checkout for git show/ls-tree.
+          git -C auditor fetch --no-tags --depth=1 origin b98a01180737909edf7cbd0bee4ba2757d52fe0f
+          python3 auditor/Solution/scripts/plan-tf-locked-generator-isolation.py \
+            --repo auditor \
+            --historical-ref b98a01180737909edf7cbd0bee4ba2757d52fe0f \
+            --current-ref HEAD \
+            --out "$RUNNER_TEMP/locked-generator-isolation-plan.json"
+          cat "$RUNNER_TEMP/locked-generator-isolation-plan.json"
+      - name: Upload read-only isolation inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-isolation-inventory
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/locked-generator-isolation-plan.json
       - name: Compare historical bytes with frozen contracts
         shell: bash
         run: |
