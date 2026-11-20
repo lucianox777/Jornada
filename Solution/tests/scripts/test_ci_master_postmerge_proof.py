@@ -151,7 +151,7 @@ class PostmergeProofTests(unittest.TestCase):
     def test_monitor_checks_out_exact_resolved_master_sha(self):
         # A manual dispatch from a feature branch must not validate master CI
         # using unmerged code from that branch.
-        workflow = path.parents[3] / ".github" / "workflows" / "jornada-ci-health-monitor.yml"
+        workflow = path.parents[2] / ".github" / "workflows" / "jornada-ci-health-monitor.yml"
         text = workflow.read_text(encoding="utf-8")
         self.assertIn('sha="$(gh api "repos/${GH_REPO}/git/ref/heads/master"', text)
         self.assertIn("ref: ${{ steps.master.outputs.sha }}", text)
