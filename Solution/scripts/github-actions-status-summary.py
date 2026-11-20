@@ -55,6 +55,9 @@ def summarize(snapshot):
     # A job snapshot may be partial; never infer that every job was inspected.
     observed_run_ids = {str(run["id"]) for run in runs if run.get("id") is not None}
     unmatched_job_runs = sorted(str(key) for key in jobs_by_run if str(key) not in observed_run_ids)
+    missing_job_run_ids = sorted(observed_run_ids - {str(key) for key in jobs_by_run})
+    empty_job_run_ids = sorted(str(key) for key, jobs in jobs_by_run.items()
+                               if str(key) in observed_run_ids and not jobs)
     incomplete_run_ids = [
         run.get("id") for run in runs
         if run.get("status") != "completed" or run.get("conclusion") != "success"
@@ -73,7 +76,11 @@ def summarize(snapshot):
         "jobs_by_run": jobs_detail,
         "incomplete_run_ids": incomplete_run_ids,
         "unmatched_job_run_ids": unmatched_job_runs,
+        "missing_job_run_ids": missing_job_run_ids,
+        "empty_job_run_ids": empty_job_run_ids,
+        "all_observed_runs_have_jobs": not missing_job_run_ids and not empty_job_run_ids,
         "job_coverage": "partial_or_unverified",
+        "job_evidence_complete_for_observed_runs": False,
         "runs": details,
         "all_completed_success": complete_success,
         "approval_scope": "provided_runs_and_jobs_only_not_master_or_branch_protection",
