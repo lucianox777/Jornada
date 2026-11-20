@@ -78,9 +78,12 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         ):
             with self.subTest(cli=cli):
                 self.assertIn(
-                    f'GetDouble(values, "{cli}", ConfigPercent("{config}", {fallback}))',
+                    f'Percent("{cli}", "{config}", {fallback})',
                     program,
                 )
+        self.assertIn("values.ContainsKey(cliKey)", program)
+        self.assertIn("? GetDouble(values, cliKey, fallback)", program)
+        self.assertIn(": ConfigPercent(configKey, fallback)", program)
         self.assertLess(program.index("options.Validate();"), program.index("return options;"))
 
     def test_nonhistorical_manifest_retains_partition_declarations(self):
