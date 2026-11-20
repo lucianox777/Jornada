@@ -29,6 +29,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `f49d812f61ebcd5fbecd1aaca59a774e81c6760c`: regressões offline negativas para essas entradas.
 - **Limite adicional:** o inventário representa a tentativa mais recente por run e ainda não recupera o histórico de todas as tentativas; não declarar cobertura histórica completa. A execução offline local está pendente, pois a sessão não dispõe de checkout executável do repositório.
 
+## Comparação segura entre checkpoints
+
+- `4d0dbcae92f3b5768cac96ceceda8de3eff45896`: rejeita regressão ou ausência de `run_attempt` em runs já observados e divergência de metadados imutáveis (`event`, `created_at`) quando presentes nos dois snapshots.
+- `0a32e2c2a2f987925ef1fbd7f6daf686e851174a`: testes negativos para regressão de tentativa e mudança de evento.
+- **Escopo:** invariantes de comparação entre snapshots; **não** é coleta histórica de todas as tentativas, nem substitui leitura paginada da API.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
