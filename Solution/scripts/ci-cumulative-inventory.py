@@ -71,6 +71,8 @@ def enumerate_runs(get, since, until, max_pages=MAX_PAGES):
         raise ValueError("UTC window requires timezone-aware endpoints")
     if since.utcoffset() != dt.timedelta(0) or until.utcoffset() != dt.timedelta(0):
         raise ValueError("UTC window requires UTC endpoints")
+    if since.microsecond or until.microsecond:
+        raise ValueError("UTC window boundaries must use whole seconds")
     if since >= until:
         raise ValueError("since must be before until")
     created = urllib.parse.quote(
