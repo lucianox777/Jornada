@@ -55,6 +55,11 @@ async Task ExpectInvalidOptions()
 try
 {
     await ExpectInvalidOptions();
+    await ExpectRejected("empty-people-with-observation", [], [Observation("O1")]);
+    await ExpectRejected("duplicate-person-cross-partition",
+        [person, new SyntheticPerson { BasePersonId = "P1", Partition = "TEST", Name = "Teste",
+            MotherName = "Mae", BirthDate = new DateOnly(2000, 1, 1), Sex = "F",
+            EvaluationWeight = 1 }], [Observation("O1")]);
     await ExpectRejected("orphan", [person], [Observation("O1", "UNKNOWN")]);
     await ExpectRejected("cross-partition", [person], [Observation("O1", partition: "TEST")]);
     await ExpectRejected("duplicate-person", [person, person], [Observation("O1")]);
