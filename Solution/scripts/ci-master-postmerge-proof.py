@@ -17,6 +17,8 @@ def evaluate(runs, sha):
         raise ValueError("Exact 40-character SHA required")
     relevant = {}
     for run in runs:
+        if not isinstance(run, dict):
+            raise ValueError("Malformed Actions run entry")
         if run.get("head_sha") != sha or run.get("head_branch") != "master":
             continue
         if run.get("event") != "push":
@@ -24,6 +26,8 @@ def evaluate(runs, sha):
         name = run.get("name")
         if name not in REQUIRED:
             continue
+        if type(run.get("id")) is not int or run["id"] <= 0:
+            raise ValueError("Invalid Actions run ID")
         relevant.setdefault(name, []).append(run)
     results = {}
     for name in sorted(REQUIRED):
@@ -31,6 +35,9 @@ def evaluate(runs, sha):
         if not items:
             results[name] = {"state": "missing", "run_ids": []}
         else:
+            ids = [r["id"] for r in items]
+            if len(ids) != len(set(ids)):
+                raise ValueError("Duplicate Actions run ID")
             # A historical green run cannot override a newer failed/pending run.
             # GitHub run IDs are monotonically assigned across workflow runs.
             latest = max(items, key=lambda r: r["id"])
