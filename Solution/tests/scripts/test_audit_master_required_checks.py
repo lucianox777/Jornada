@@ -11,6 +11,14 @@ spec.loader.exec_module(audit)
 
 
 class MasterRequiredChecksAuditTests(unittest.TestCase):
+    def test_non_object_required_checks_are_unverified_not_crash(self):
+        for invalid in ([], ["unit-runtime"], "unit-runtime", 42):
+            with self.subTest(invalid=invalid):
+                result = audit.evaluate({"required_status_checks": invalid}, [])
+                self.assertFalse(result["verified"])
+                self.assertEqual(result["missing_classic_contexts"], sorted(audit.REQUIRED))
+                self.assertIsNone(result["classic_strict_setting"])
+
     def test_missing_protection_never_passes(self):
         self.assertFalse(audit.evaluate({}, [])["verified"])
 
