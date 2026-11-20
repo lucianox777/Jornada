@@ -35,9 +35,11 @@ def summarize(snapshot):
     if not isinstance(jobs_by_run, dict):
         raise ValueError("jobs_by_run must be an object")
     job_counts = Counter()
-    for jobs in jobs_by_run.values():
+    jobs_detail = {}
+    for run_id, jobs in jobs_by_run.items():
         if not isinstance(jobs, list):
             raise ValueError("each jobs_by_run entry must be a list")
+        jobs_detail[run_id] = []
         for job in jobs:
             if not isinstance(job, dict):
                 raise ValueError("each job must be an object")
@@ -49,6 +51,7 @@ def summarize(snapshot):
             else:
                 category = "unknown"
             job_counts[category] += 1
+            jobs_detail[run_id].append({"id": job.get("id"), "name": job.get("name"), "state": category})
     complete_success = bool(runs) and all(
         run.get("status") == "completed" and run.get("conclusion") == "success"
         for run in runs
@@ -60,6 +63,7 @@ def summarize(snapshot):
         "total_runs": len(runs),
         "run_states": dict(sorted(counts.items())),
         "job_states": dict(sorted(job_counts.items())),
+        "jobs_by_run": jobs_detail,
         "runs": details,
         "all_completed_success": complete_success,
     }
