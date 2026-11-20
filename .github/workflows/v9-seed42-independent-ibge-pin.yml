@@ -1,0 +1,64 @@
+name: V9 seed42 independent IBGE pin provenance (disposable, nonpublishing)
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/scripts/v9-tf-prepare-pin.sh'
+      - 'Solution/scripts/v9-tf-ref-provenance-gate.py'
+      - '.github/workflows/v9-seed42-independent-ibge-pin.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  independent-ibge-pin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact checked-out commit
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "${V9_TF_TARGET_SEED:-}"
+      - name: Start isolated disposable SQL (never DEV database)
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build IBGE snapshot worker and physical corpus generator
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Materialize independent IBGE reference and verify complete provenance
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-seed42-independent-pin"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" \
+            --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          echo "PASS: independently exported IBGE SQL pin and immutable seed42 provenance gate; no calibration, TRAIN or TEST."
+      - name: Preserve pin and manifest only (never nominal corpus or credentials)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v9-seed42-independent-ibge-pin-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-seed42-independent-pin/pinned-ibge.json
+            Solution/.local/v9-seed42-independent-pin/people-30k/generation-manifest.json
+      - name: Remove disposable SQL container
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
