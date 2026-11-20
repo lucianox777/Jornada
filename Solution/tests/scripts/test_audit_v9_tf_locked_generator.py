@@ -22,6 +22,30 @@ class LockedGeneratorAuditTests(unittest.TestCase):
         self.assertLess(classify.index(enforce), classify.index("      - id: classify"))
         self.assertNotIn("continue-on-error: true", classify)
 
+    def test_invalid_lock_structure_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            source = repo / audit_module.PARTITION
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"frozen-source")
+            subprocess.run(["git", "-C", str(repo), "add", audit_module.PARTITION], check=True)
+            for relative in audit_module.LOCKS:
+                manifest = repo / relative
+                manifest.parent.mkdir(parents=True, exist_ok=True)
+                manifest.write_text("[]", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "JSON object"):
+                audit_module.audit(repo)
+            first = repo / next(iter(audit_module.LOCKS))
+            for payload, error in (
+                ({"generation": []}, "generation must be an object"),
+                ({"generation": {"partition_contract": []}}, "partition contract must be an object"),
+            ):
+                with self.subTest(payload=payload):
+                    first.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, error):
+                        audit_module.audit(repo)
+
     def test_both_manifests_and_generator_are_checked(self):
         self.assertEqual(len(audit_module.LOCKS), 2)
         self.assertTrue(all("LOCK.json" in name for name in audit_module.LOCKS))
