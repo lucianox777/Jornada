@@ -43,7 +43,7 @@ public sealed class V9OperationalIdentityPartitionParityTests
 
         static string CurrentReceiptDigest(IReadOnlyDictionary<int, Guid> groups)
         {
-            var serialized = string.Join("\\n", groups.OrderBy(x => x.Key)
+            var serialized = string.Join("\n", groups.OrderBy(x => x.Key)
                 .Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}")));
             return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes(serialized))).ToLowerInvariant();
