@@ -21,3 +21,7 @@ GH_TOKEN=<credencial-de-leitura> python3 Solution/scripts/ci-master-postmerge-pr
 ## Rastreabilidade e aceite
 
 Autoridade: pedido de verificação pós-merge do PO nesta conversa. Impacto: aumenta observabilidade, sem mudar políticas de merge nem iniciar TRAIN/TEST. Aceite exige prova no SHA integral da master, inspeção de jobs, relatório com IDs/URLs e documentação dos resultados. PR e testes offline não equivalem a prova pós-merge.
+
+## Monitor periódico proposto na mesma PR
+
+O workflow `.github/workflows/jornada-ci-health-monitor.yml` foi adicionado à PR #1759 com `schedule` horário (`23 * * * *`) e `workflow_dispatch`. Executa o verificador existente contra o SHA atual da `master`, com token `actions:read`/`contents:read`, testes unitários, evidência JSON e falha fechada quando os workflows obrigatórios não forem comprovados. **Estado: implementação em PR, não integrada, agendamento e execução real ainda não comprovados.** O monitor verifica apenas os dois workflows exigidos pelo verificador; **não substitui inventário global cumulativo**, watchdog de recuperação, testes científicos, DR, escala ou release. A limitação de paginação da consulta (100 runs) continua fail-closed e deve ser ampliada em etapa posterior se necessária. A ausência de um dos workflows deve ser investigada antes de tratar como falha de produto.
