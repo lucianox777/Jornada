@@ -104,6 +104,18 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "windows differ"):
             mod.compare_snapshots(old, changed_window)
 
+    def test_jobs_paginate_over_100_and_detect_duplicate(self):
+        jobs = [{"id": i, "name": f"job-{i}", "conclusion": "failure" if i == 101 else "success"}
+                for i in range(1, 102)]
+        def get(path):
+            return {"total_count": 101, "jobs": jobs[:100] if "page=1" in path else jobs[100:]}
+        self.assertEqual(mod.failing_jobs(get, 77), [
+            {"id": 101, "name": "job-101", "conclusion": "failure"}])
+        def duplicate(path):
+            return {"total_count": 101, "jobs": jobs[:100] if "page=1" in path else [jobs[0]]}
+        with self.assertRaisesRegex(ValueError, "duplicate job ID"):
+            mod.failing_jobs(duplicate, 77)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
