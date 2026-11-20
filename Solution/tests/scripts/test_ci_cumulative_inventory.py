@@ -234,6 +234,16 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "repository identity invalid"):
             mod.compare_snapshots(base, dict(base))
 
+    def test_jobs_reject_attempt_mismatch_and_nonpositive_id(self):
+        def fixture(job):
+            return lambda _: {"total_count": 1, "jobs": [job]}
+        with self.assertRaisesRegex(ValueError, "attempt does not match"):
+            mod.failing_jobs(fixture({"id": 15, "run_attempt": 2,
+                                     "conclusion": "failure"}), 10, 3)
+        with self.assertRaisesRegex(ValueError, "Missing or duplicate job ID"):
+            mod.failing_jobs(fixture({"id": 0, "run_attempt": 3,
+                                     "conclusion": "failure"}), 10, 3)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
