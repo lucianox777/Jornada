@@ -41,3 +41,10 @@ Consulta de runs por SHA via conector (somente evento PR, primeira página; **n�
 - A coleta por SHA continua limitada à primeira página de runs `pull_request`; não constitui inventário global nem prova pós-merge `push`. Não houve rerun, merge ou execução científica.
 
 **Próxima ação:** reconsultar os dois SHAs atualizados e respectivos jobs; obter logs de qualquer nova falha; validar testes da PR #1759 e separar observação periódica de inventário cumulativo antes de promover monitor.
+
+## Atualização de acompanhamento — resultados posteriores dos mesmos SHAs
+- PR #1769, HEAD `d97966033af2634a9381c688de1d66d41f5cf329`: run obrigatório `jornada-pr-required-fast` #44792630722 **completed/success**, com quatro jobs success (classify-impact #136483970648, deterministic-build #136484099544, security-guards #136484099563, unit-runtime #136484099837). Diagnóstico P0-A #44792630873 **completed/success**. Outros três runs observados completed/success: #44792630858, #44792631148 e #44792630791. Run #44792630803 (pin IBGE independente) permanecia **in_progress**; job #136483970457 in_progress. Portanto **5 success + 1 in_progress na amostra de 6**, não 6 aprovadas. Cobertura limitada à primeira página de runs de PR; sem certificação científica.
+- PR #1759, HEAD `dddee976e1a7f1d18c4b55ddbcade1f102f148df`: consulta de runs por SHA retornou lista vazia; **não comprova ausência de CI** devido à limitação do conector. Nenhuma aprovação do novo HEAD comprovada.
+- PR #1771, HEAD anterior `14e4a22496a75ffa2392ce3c979670a5daf6fd10`: run obrigatório #44792780913 **completed/success** com quatro jobs success (classify-impact #136484487542, security-guards #136484707860, deterministic-build #136484707929, unit-runtime #136484707969). É CI de PR, não prova de push pós-merge.
+- **Classificação cumulativa:** cobertura parcial; sem paginação, run_attempt completo, inventário por janela UTC ou prova de `master` atual. **Master: NÃO VERIFICADO.**
+- **Próxima ação:** reconsultar #44792630803 e HEAD de #1759; auditar logs se falharem; revisar escopo amplo da #1769 antes de merge. Nenhum rerun, merge ou operação científica nesta atualização.
