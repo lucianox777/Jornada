@@ -16,6 +16,7 @@ def evaluate(runs, sha):
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("Exact 40-character SHA required")
     relevant = {}
+    seen_ids = set()
     for run in runs:
         if not isinstance(run, dict):
             raise ValueError("Malformed Actions run entry")
@@ -23,6 +24,9 @@ def evaluate(runs, sha):
         # disappear and make the proof look complete.
         if type(run.get("id")) is not int or run["id"] <= 0:
             raise ValueError("Invalid Actions run ID")
+        if run["id"] in seen_ids:
+            raise ValueError("Duplicate Actions run ID")
+        seen_ids.add(run["id"])
         if run.get("head_sha") != sha or run.get("head_branch") != "master":
             continue
         if run.get("event") != "push":
