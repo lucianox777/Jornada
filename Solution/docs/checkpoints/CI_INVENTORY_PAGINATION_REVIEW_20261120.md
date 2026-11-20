@@ -23,6 +23,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `8232c97aa1cf484d0a3e25d5dce2b4d834fff58a`: regressões de janela vazia legítima, fuso não UTC e timestamps sem fuso.
 - Janela vazia com resposta `total_count=0` é válida apenas quando obtida da API paginada com filtros e cobertura verificáveis; resposta vazia do conector limitado não é equivalente.
 
+## Identidade de execução e tentativa
+
+- `1d43133eedba6c3b0070ff27325bb2ee000a60c1`: rejeita IDs não positivos, SHA fora do formato hexadecimal de 40 caracteres e `run_attempt` ausente/inválido; evita checkpoints sem proveniência mínima.
+- `f49d812f61ebcd5fbecd1aaca59a774e81c6760c`: regressões offline negativas para essas entradas.
+- **Limite adicional:** o inventário representa a tentativa mais recente por run e ainda não recupera o histórico de todas as tentativas; não declarar cobertura histórica completa. A execução offline local está pendente, pois a sessão não dispõe de checkout executável do repositório.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
