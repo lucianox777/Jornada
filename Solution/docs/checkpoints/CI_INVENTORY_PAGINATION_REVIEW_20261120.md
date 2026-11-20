@@ -59,6 +59,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `42e7645ee44985569931efa380db0cd2f9115a8c`: regressões negativas para distribuição adulterada e categorias ausentes.
 - Snapshots legados sem `counts` ainda são aceitos para comparação por compatibilidade; **não** usar essa tolerância como certificação de reconciliação completa. Testes não executados nesta sessão; PR ainda sem aprovação de gates observável.
 
+## Identidade do repositório em deltas
+
+- `7ab59b083ae6ba167fad1e663622ccf299067ad3`: `compare_snapshots` exige que **ambos** os snapshots indiquem `lucianox777/Jornada`, não apenas que coincidam entre si; rejeita pares consistentes porém provenientes de outro repositório.
+- `452727d17a0cd9c9ffaf4dd631f37de697958b79`: teste negativo com dois snapshots idênticos de repositório incorreto.
+- Verificação de testes/CI ainda pendente. Tentativa de obter o checkout via `raw.githubusercontent.com` falhou por DNS no ambiente local; não inferir aprovação a partir da ausência de resultados na API limitada.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
