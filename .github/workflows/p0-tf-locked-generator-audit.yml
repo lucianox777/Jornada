@@ -7,6 +7,9 @@ on:
       - 'Solution/scripts/audit-v9-tf-locked-generator.py'
       - 'Solution/tests/scripts/test_audit_v9_tf_locked_generator.py'
       - 'Solution/docs/P0A_Auditoria_Identidade_Gerador_TF_LOCKED_20261120.md'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/docs/V9_TF_SEEDS_44_47_LOCK.json'
+      - 'Solution/docs/V9_TF_SEEDS_48_57_LOCK.json'
   workflow_dispatch:
 
 permissions:
