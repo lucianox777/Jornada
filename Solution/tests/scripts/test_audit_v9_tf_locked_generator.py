@@ -54,6 +54,25 @@ class LockedGeneratorAuditTests(unittest.TestCase):
                 doc["generation"]["generator_sha256"] = tree
                 target.write_text(json.dumps(doc))
             self.assertTrue(all(r["matches"] for r in audit_module.audit(repo)))
+            # A single altered LOCKED expectation must fail independently.
+            first_lock = repo / audit_module.LOCKS[0]
+            original = first_lock.read_bytes()
+            tampered = json.loads(original)
+            tampered["generation"]["generator_sha256"] = "0" * 64
+            first_lock.write_text(json.dumps(tampered))
+            results = audit_module.audit(repo)
+            self.assertFalse(results[0]["matches"])
+            self.assertTrue(results[1]["matches"])
+            first_lock.write_bytes(original)
+
+            # Missing tracked file is a hard error, not a silent reduction.
+            missing = source.parent / "tracked-00.txt"
+            missing.unlink()
+            with self.assertRaisesRegex(ValueError, "tracked file missing"):
+                audit_module.audit(repo)
+            missing.write_bytes(b"immutable")
+            self.assertTrue(all(r["matches"] for r in audit_module.audit(repo)))
+
             source.write_bytes(b"modified-source")
             self.assertTrue(all(not r["matches"] for r in audit_module.audit(repo)))
 
