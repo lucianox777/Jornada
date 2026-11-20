@@ -129,6 +129,9 @@ public static class V9OperationalBlockingChaveCohortParity
         // with the same names and birth date. Any stale/missing/extra Gold row
         // is rejected BEFORE the first linkage_resultado batch is persisted.
         var goldCount = 0;
+        // This is a bounded diagnostic proof, not an atomic Silver/Gold snapshot.
+        // Multiple independent SQL reads cannot certify transaction-level
+        // consistency without an explicit isolation contract.
         await using (var gold = new SqlCommand("""
             SELECT pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,
                    estado_identidade
