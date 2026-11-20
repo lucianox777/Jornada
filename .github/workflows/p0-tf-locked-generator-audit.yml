@@ -115,7 +115,8 @@ jobs:
                       "TrainPercent", "ValidationPercent", "TestPercent")
           hits = []
           files = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
-                                 check=True, capture_output=True).stdout.split(b"\\0")
+                                 check=True, capture_output=True).stdout.split(bytes([0]))
+          scanned_files = 0
           for raw in files:
               if not raw:
                   continue
@@ -129,12 +130,15 @@ jobs:
               path = root / relative
               if not path.is_file() or path.stat().st_size > 1_000_000:
                   continue
+              scanned_files += 1
               for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                   found = [p for p in patterns if p in line]
                   if found:
                       hits.append({"path": relative, "line": number, "category": category, "symbols": found})
+          if scanned_files == 0:
+              raise SystemExit("FAIL-CLOSED: no tracked source/config files scanned")
           print(json.dumps({"mode": "READ_ONLY_CONSUMER_INVENTORY",
-                            "patterns": patterns, "hits": hits,
+                            "patterns": patterns, "scanned_files": scanned_files, "hits": hits,
                             "consumer_compatibility_validated": False,
                             "note": "zero hits is not proof of no dynamic consumers"}, indent=2))
           PY
