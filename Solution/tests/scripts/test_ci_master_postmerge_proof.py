@@ -124,6 +124,22 @@ class PostmergeProofTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.fetch(SHA, "fake-read-only-token")
 
+    def test_main_emits_json_evidence_on_api_failure_without_leaking_details(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        from unittest import mock
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with mock.patch.object(module.sys, "argv", ["proof", "--sha", SHA]), \\
+             mock.patch.dict(module.os.environ, {"GH_TOKEN": "fake-token"}), \\
+             mock.patch.object(module, "fetch", side_effect=ValueError("secret-marker")), \\
+             redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = module.main()
+        self.assertEqual(exit_code, 2)
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(report["sha"], SHA)
+        self.assertFalse(report["verified"])
+        self.assertEqual(report["state"], "unverified")
+        self.assertNotIn("secret-marker", stdout.getvalue() + stderr.getvalue())
+
     def test_invalid_sha_rejected(self):
         with self.assertRaises(ValueError):
             module.evaluate([], "a" * 7)
