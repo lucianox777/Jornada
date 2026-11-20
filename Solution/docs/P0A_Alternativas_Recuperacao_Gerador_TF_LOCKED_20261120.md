@@ -298,3 +298,12 @@ O commit `242f612` acrescenta teste estrutural para impedir regressão na atribu
 - **Justificativa:** cada rejeição deve ter resultado independente, evitando que a cobertura seja contabilizada indiretamente por outro cenário.
 - **Impacto:** somente testes e workflow diagnóstico; nenhuma alteração no gerador histórico, manifests LOCKED, execução científica ou arquitetura. **Validação CI pendente** para o novo HEAD.
 - **Precedência/rastreabilidade:** complementa a decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` sob GOV-DOC-01; sem nova decisão do PO ou mudança no índice.
+
+
+### Evidência de CI — revisão com 21 cenários (2026-11-20)
+
+- **Referência validada:** commit `0eaa68c8797f01cab4d7aee366765d9d21fda991`, PR #1769, run diagnóstico `44778995686`.
+- **Resultado observado:** os dois jobs da auditoria P0 concluíram com **success**, incluindo o harness executável de integridade com exigência de **21 marcadores PASS distintos**; a comparação histórica seed42 (`44778995704`), o contrato standard-linear (`44778995766`), o smoke RunAsync (`44778995740`) e os checks obrigatórios (`44778995913`) também concluíram com **success**.
+- **Limitação da evidência:** a proveniência IBGE (`44778995792`) ainda estava **in_progress** no momento da consulta. A aprovação dos checks não autoriza merge nem execução de TRAIN/TEST científico, que seguem sujeitos às condições de governança existentes.
+- **Contexto/justificativa:** consolidar a evidência verificável de validação para impedir que a fila de execuções seja confundida com falha do código ou com certificação científica.
+- **Impacto e precedência:** registro documental de execução, sem alteração dos artefatos LOCKED, dos geradores ou do índice de decisões; subordinado à decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` e à política GOV-DOC-01.
