@@ -198,7 +198,12 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
                     physical.CanonicalEdgesSha256, StringComparison.Ordinal))
                 throw new InvalidDataException(
                     "Digest do grafo operacional V9 divergiu da assinatura física.");
-            edges = physical.Edges.ToList();
+            // The operational INTERSECT/UNION query is the actual scoring input.
+            // The independently materialized signature graph remains an oracle only.
+            if (operational.OperationalEdges.Count != operational.UndirectedSqlEdges
+                || !physical.Edges.SequenceEqual(operational.OperationalEdges))
+                throw new InvalidDataException("Grafo operacional consumido divergiu do oráculo físico.");
+            edges = operational.OperationalEdges.ToList();
             SqlGraphEvidence = physical;
             BlockingChaveParityEvidence = operational;
         }
