@@ -55,7 +55,7 @@ class LockedGeneratorAuditTests(unittest.TestCase):
                 target.write_text(json.dumps(doc))
             self.assertTrue(all(r["matches"] for r in audit_module.audit(repo)))
             # A single altered LOCKED expectation must fail independently.
-            first_lock = repo / audit_module.LOCKS[0]
+            first_lock = repo / next(iter(audit_module.LOCKS))
             original = first_lock.read_bytes()
             tampered = json.loads(original)
             tampered["generation"]["generator_sha256"] = "0" * 64
