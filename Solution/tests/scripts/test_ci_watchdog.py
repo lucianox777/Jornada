@@ -88,6 +88,24 @@ class CiWatchdogTests(unittest.TestCase):
             {**candidate, "head_repository": {"full_name": "fork/repo"}},
             FakeApi(pr=pr), SHA, NOW))
 
+    def test_retry_refuses_duplicate_or_anonymous_job_evidence(self):
+        valid = jobs("failure", "success")
+        invalid_cases = [
+            {**valid, "jobs": [valid["jobs"][0], {**valid["jobs"][1], "id": 5}]},
+            {**valid, "jobs": [{**valid["jobs"][0], "id": True}, valid["jobs"][1]]},
+            {**valid, "jobs": [{**valid["jobs"][0], "id": None}, valid["jobs"][1]]},
+            {**valid, "jobs": [None, valid["jobs"][1]]},
+            {**valid, "total_count": True},
+        ]
+        for payload in invalid_cases:
+            with self.subTest(payload=payload):
+                eligible, _ = watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])
+                self.assertFalse(eligible)
+                api = FakeApi(job_results=payload)
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
+
     def test_ambiguous_error_does_not_retry(self):
         result, why = watch.retryable_jobs(
             jobs("failure", "success"), lambda _: "AssertionError: mismatch")
