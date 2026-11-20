@@ -153,3 +153,19 @@ Issue oficial #1734 permanece **open** e exige cumulativamente: logs das falhas 
 - Comparados diretamente os conteúdos atuais da master e da branch da PR #1759. **Índice GOV-DOC-01:** todo o arquivo da master (203.801 caracteres; 607 linhas) é sufixo byte-a-byte da versão da PR (204.681 caracteres; 610 linhas). O único prefixo são duas entradas explícitas de **proposta não aprovada/não integrada**; nenhuma decisão aprovada da master foi substituída.
 - **Gate `jornada-pr-required-fast.yml`:** ambos os arquivos têm 195 linhas; a primeira diferença observada é exclusivamente a adição de `Solution/tests/scripts/test_ci_master_postmerge_proof.py` à linha de comando do job `classify-impact`. Os três testes introduzidos na master e anteriormente omitidos pela branch foram preservados no conteúdo reconciliado.
 - **Limite:** preservação de conteúdo não prova ausência de conflitos de merge Git. PR #1759 segue `draft`, `mergeable=false` e sem reviews; a divergência de ancestralidade (35 ahead / 5 behind na última comparação) exige resolução explícita antes da integração. Não foram executados merge, rebase, CI, TRAIN/TEST ou alterações de LOCK.
+
+## Matriz de aceite P0-A #1734 — auditoria de bloqueios (20/11/2026)
+
+Critérios extraídos da issue #1734, conferidos contra as evidências coletadas (não confundir propostas de PR com gates integrados):
+
+| Critério #1734 | Estado verificável | Evidência / lacuna |
+| --- | --- | --- |
+| Diagnosticar jobs/logs master e impacto #1721 | **PARCIAL** | Falhas históricas e logs de DT-10 analisados; causalidade de #1721 no gerador LOCKED ainda não comprovada por diff/log completo. |
+| Comparar gerador e manifestos LOCKED byte-a-byte e semanticamente | **PENDENTE** | Gate fail-closed identificado; não há neste checkpoint prova conclusiva de igualdade byte/semântica no SHA atual da master. |
+| Corrigir por PR sem regenerar LOCKED | **EM PROPOSTA** | PR #1769 em draft, HEAD `d97966033af2634a9381c688de1d66d41f5cf329`, `mergeable=true`, mas escopo de 261 commits/34 arquivos exige auditoria antes de integração. |
+| Verificar checks obrigatórios e rulesets | **PARCIAL** | Índice master registra auditoria de três checks diretos e dívida técnica #1765; não há prova neste checkpoint da aplicação efetiva em todos os cenários de PR. |
+| Provar CI master verde no SHA exato | **NÃO VERIFICADO** | PR #1759 propõe monitor; está `draft`, `mergeable=false`, HEAD `4846f9be56337328491258b56319e225e4fcb087`. Prova histórica de um workflow não equivale a prova conjunta atual. |
+| Validar DT-10 #1706 separadamente | **NÃO VERIFICADO** | Merge `0d150c536ae518f5a1029e25e664e0d63cd23511`; sem evidência física pós-merge autenticada. |
+| Registrar decisão definitiva e sincronizar índice | **PARCIAL** | Propostas e checkpoint em PRs #1759/#1771; documentação pendente de integração e de decisão definitiva do PO. |
+
+**Conclusão operacional:** a issue #1734 permanece aberta e **não atende aos critérios de encerramento**. A prioridade é obter provas observáveis e reconciliar PRs, não multiplicar testes unitários sem execução. Nenhum merge, rerun, alteração de LOCK ou campanha científica foi autorizado nesta rodada.
