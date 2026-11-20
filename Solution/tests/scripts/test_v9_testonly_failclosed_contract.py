@@ -24,14 +24,14 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
             marker = "V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"
             self.assertIn(marker, stage)
             self.assertLess(stage.index(marker), stage.index(start))
-        self.assertIn('productionRunnerFullPipelineParityCertified"] is False', workflow)
+        self.assertEqual(\n            workflow.count('productionRunnerFullPipelineParityCertified"] is False'), 2,\n            "Both synthetic and external-db TEST reports must remain uncertified",\n        )
 
     def test_runner_refuses_v9_production_fallback(self):
         runner = RUNNER.read_text(encoding="utf-8")
         run = runner.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1]
         guard = run.split("var drainTimeoutSeconds", 1)[0]
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", guard)
-        self.assertIn("request.ModelVersion == 9", guard)
+        self.assertIn("request.ModelVersion == 9", guard)\n        self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9', guard)
         self.assertIn('configuration["Linkage:V9SelectionFile"]', guard)
         self.assertIn("request.Publish || request.Mode != LinkageRunType.MODEL_VALIDATION", guard)
         self.assertIn('"JornadaHarness"', guard)
@@ -52,7 +52,7 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
             test.index("V9OperationalPinnedCohortRuntime.LoadPinnedAsync("),
             test.index("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)"),
         )
-        self.assertIn("EvaluateFrozenTestAsync(", test)
+        self.assertIn("EvaluateFrozenTestAsync(", test)\n        self.assertIn("evaluated.Refitted", test)\n        self.assertIn("evaluated.SnapshotSha256 != winnerSha", test)\n        self.assertIn("operationalModelActive = false", test)\n        self.assertIn("operationalModelPublished = false", test)
         self.assertIn("productionRunnerFullPipelineParityCertified = false", test)
         self.assertNotIn("ProbabilisticLinkageBatchRunner.RunAsync", test)
 
