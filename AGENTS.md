@@ -13,3 +13,7 @@ Esta instrução vale para toda futura atividade de desenvolvimento, documentaç
 ## Correções, squash merge e separação de CI (PO, 2026-11-11)
 
 Aplicar o protocolo [GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111](Solution/docs/Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md): diagnosticar e reproduzir falhas antes de corrigir; testes e checks rápidos no HEAD de PR; integrar por **squash merge**; executar instalador Windows e validação independente somente na master, com controles de SHA e CI/30k pós-merge. Nenhum 100k automático. Este é um apontador; consultar o documento canônico e a GOV-DOC-01, sem duplicar integralmente as regras.
+
+## Execução de cada interação com IA e inventário acumulativo de CI (PO, 2026-11-19)
+
+Aplicar o [aditivo GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119](Solution/docs/Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md): em **cada interação**, consultar estado vivo do GitHub, manter inventário deduplicado de runs/jobs por estado e SHA, investigar falhas individuais e comparar transições, desenvolver em paralelo, validar PR e pós-merge e documentar decisões segundo GOV-DOC-01. Se a ferramenta não fornecer listagem global paginada, declarar inventário **parcial**, nunca inventar totais. Não prometer vigilância entre mensagens sem automação confirmada; não contornar gates ou autorizações científicas.
