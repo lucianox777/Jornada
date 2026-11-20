@@ -45,3 +45,7 @@ Revisão do caminho de falha fechada identificou que `fetch()` chamava `payload.
 ## Validação de nomes de workflows em respostas malformadas (20/11/2026)
 
 A avaliação usava `name not in REQUIRED` diretamente, sem garantir que `name` fosse texto. Um nome de workflow recebido como lista ou objeto provocava `TypeError` não capturado por `main()`, interrompendo a emissão de evidência JSON `unverified`. A correção rejeita nomes não textuais com `ValueError("Invalid Actions workflow name")`, preservando saída JSON mínima e código de saída 2. Teste parametrizado cobre `null`, lista, objeto e número, mesmo quando os dois workflows válidos também estão presentes. Commits `44a9906f117d54ecb2244cf2d8d2364998b5a2ab` e `07d158e9c4823af9b7963bad0f54c1f1a213d3cd`. **Sem comprovação de execução do teste no HEAD novo.**
+
+## Correção de sintaxe bloqueante na suíte offline (20/11/2026)
+
+Inspeção textual autenticada da suíte `Solution/tests/scripts/test_ci_master_postmerge_proof.py` identificou **três linhas de continuação terminadas em duas barras invertidas** no `with` de `test_main_emits_json_evidence_on_api_failure_without_leaking_details`. Em Python, a continuação explícita exige **uma** barra imediatamente antes da quebra de linha; a forma anterior impede o parsing do arquivo e, portanto, a execução da suíte. Commit `c8f3a7ea93604f3c5588526f4fdcdedefd659c3d` reduz cada terminação a uma barra. A inspeção detectou e corrigiu a causa estrutural, **mas não substitui execução de `py_compile`/unittest no HEAD novo**, ainda pendente.
