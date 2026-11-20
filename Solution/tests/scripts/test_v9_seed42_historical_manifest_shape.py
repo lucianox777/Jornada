@@ -88,6 +88,22 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn(": ConfigPercent(configKey, fallback)", program)
         self.assertLess(program.index("options.Validate();"), program.index("return options;"))
 
+    def test_materializer_rejects_cross_partition_or_orphan_observations_before_io(self):
+        for token in (
+            "new Dictionary<string, string>(StringComparer.Ordinal)",
+            'person.Partition is not ("TRAIN" or "VALIDATION" or "TEST")',
+            "!partitionsByPerson.TryAdd(person.BasePersonId, person.Partition)",
+            "!partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition)",
+            "!string.Equals(observation.Partition, partition, StringComparison.Ordinal)",
+            'throw new InvalidDataException("Observação órfã ou com partição divergente da identidade base.")',
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, self.materializer)
+        self.assertLess(
+            self.materializer.index("var partitionsByPerson ="),
+            self.materializer.index("Directory.CreateDirectory(outputDirectory);"),
+        )
+
     def test_observations_inherit_base_person_partition_and_csv_exports_it(self):
         # Prevent identity leakage across partitions in the isolated generator.
         self.assertIn("Partition = person.Partition,", self.generator)
