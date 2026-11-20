@@ -441,3 +441,11 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Implementação:** commit `b612df7` valida os objetos estruturais de cada LOCKED e retorna erro explícito antes da comparação de identidade; usa `.get` para atributos opcionais de diagnóstico, mantendo `matches=false` quando status, experimento ou digests não correspondem. Commit `7c74f5b` adiciona regressões negativas para JSON não objeto, `generation` e `partition_contract` inválidos.
 - **Evidência operacional:** revisão `bd277c7` retornou seis workflows, cinco `queued` e um `pending` (required-fast), sem conclusão comprovada na consulta. A revisão atual ainda exige execução e aprovação da CI.
 - **Justificativa, impactos e precedência:** evitar falsos verdes e produzir falha determinística legível no gate de identidade histórico; sem alteração dos dois manifests, dos 25 arquivos históricos, de rulesets ou de experimentos. Vinculação: issue #1734, GOV-DOC-01 e decisão P0 vigente.
+
+
+### Eliminação de invocação duplicada do gate histórico (20/11/2026)
+
+- **Contexto:** inspeção direta de `.github/workflows/jornada-pr-required-fast.yml` após a introdução do gate revelou duas etapas consecutivas de auditoria `audit-v9-tf-locked-generator.py --repo .` em `classify-impact`. O teste estrutural preexistente exigia precisamente uma invocação e, portanto, essa duplicação bloquearia a CI da PR.
+- **Correção:** commit `51160b1` remove a etapa duplicada, preservando a auditoria obrigatória imediatamente após o checkout e antes de `id: classify`. Commit `4a9a2b2` fortalece a regressão adicional para exigir contagem exatamente igual a um.
+- **Estatísticas:** revisão `8d370dd` retornou seis workflows: cinco `queued`, um `pending` (`jornada-pr-required-fast`); não havia resultado conclusivo na consulta. A revisão corrigida aguarda CI.
+- **Justificativa, impacto e precedência:** evitar execução redundante e falha determinística do contrato estrutural, mantendo a identidade LOCKED fail-closed como pré-condição. Rastreabilidade GOV-DOC-01, issue #1734 e decisão P0 de isolamento. Sem alteração de manifests, gerador, proteção real ou execução científica.
