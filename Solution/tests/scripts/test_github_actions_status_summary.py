@@ -1,5 +1,6 @@
 """Offline tests for GitHub Actions status classification; no API or CI required."""
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -10,6 +11,22 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_captured_p0_pr_run_and_job_snapshot_is_not_green(self):
+        fixture = (Path(__file__).resolve().parents[1] /
+                   "fixtures/github-actions-p0-1769-snapshot.json")
+        snapshot = json.loads(fixture.read_text(encoding="utf-8"))
+        result = module.summarize(snapshot)
+        self.assertEqual(result["total_runs"], 6)
+        self.assertEqual(result["run_states"], {"in_progress": 3, "queued": 3})
+        self.assertEqual(result["job_states"], {
+            "in_progress": 4, "queued": 5, "success": 1,
+        })
+        self.assertEqual(sum(result["job_states"].values()), 10)
+        self.assertEqual(result["unmatched_job_run_ids"], [])
+        self.assertEqual(len(result["incomplete_run_ids"]), 6)
+        self.assertFalse(result["all_completed_success"])
+        self.assertEqual(result["job_coverage"], "partial_or_unverified")
+
     def test_unmatched_jobs_never_allow_false_green(self):
         result = module.summarize({
             "workflow_runs": [{"id": 1, "status": "completed", "conclusion": "success"}],
