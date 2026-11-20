@@ -23,11 +23,12 @@ def summarize(snapshot):
         if not isinstance(run, dict):
             raise ValueError("each workflow_run must be an object")
         run_id = run.get("id")
-        if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0:
-            raise ValueError("each workflow_run requires a positive integer id")
-        if run_id in run_ids:
-            raise ValueError("duplicate workflow_run id: " + str(run_id))
-        run_ids.add(run_id)
+        if run_id is not None:
+            if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0:
+                raise ValueError("workflow_run id must be a positive integer")
+            if run_id in run_ids:
+                raise ValueError("duplicate workflow_run id: " + str(run_id))
+            run_ids.add(run_id)
         status = run.get("status")
         conclusion = run.get("conclusion")
         if status == "completed":
@@ -54,11 +55,12 @@ def summarize(snapshot):
             if not isinstance(job, dict):
                 raise ValueError("each job must be an object")
             job_id = job.get("id")
-            if not isinstance(job_id, int) or isinstance(job_id, bool) or job_id <= 0:
-                raise ValueError("each job requires a positive integer id")
-            if job_id in job_ids:
-                raise ValueError("duplicate job id: " + str(job_id))
-            job_ids.add(job_id)
+            if job_id is not None:
+                if not isinstance(job_id, int) or isinstance(job_id, bool) or job_id <= 0:
+                    raise ValueError("job id must be a positive integer")
+                if job_id in job_ids:
+                    raise ValueError("duplicate job id: " + str(job_id))
+                job_ids.add(job_id)
             if job.get("status") == "completed":
                 conclusion = job.get("conclusion")
                 category = conclusion if conclusion in ("success", "failure", "cancelled", "skipped", "timed_out") else "other_completed"
@@ -80,7 +82,9 @@ def summarize(snapshot):
     ]
     # A success verdict requires job evidence for every identified run.
     # Missing/empty job lists cannot silently pass via vacuous all([]).
-    complete_success = bool(runs) and not unmatched_job_runs and not missing_job_run_ids and not empty_job_run_ids and all(
+    complete_success = bool(runs) and len(run_ids) == len(runs) and all(
+        job.get("id") is not None for jobs in jobs_by_run.values() for job in jobs
+    ) and not unmatched_job_runs and not missing_job_run_ids and not empty_job_run_ids and all(
         run.get("status") == "completed" and run.get("conclusion") == "success"
         for run in runs
     ) and all(
