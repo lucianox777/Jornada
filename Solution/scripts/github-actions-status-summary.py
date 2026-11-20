@@ -40,6 +40,9 @@ def summarize(snapshot):
         counts[category] += 1
         details.append({"id": run.get("id"), "name": run.get("name"), "state": category})
     jobs_by_run = snapshot.get("jobs_by_run", {})
+    # Explicitly mark impossible mixed-time snapshots without changing raw states.
+    run_by_id = {str(run["id"]): run for run in runs if run.get("id") is not None}
+    inconsistent_run_job_ids = []
     if not isinstance(jobs_by_run, dict):
         raise ValueError("jobs_by_run must be an object")
     job_counts = Counter()
@@ -70,6 +73,12 @@ def summarize(snapshot):
                 category = "unknown"
             job_counts[category] += 1
             jobs_detail[run_id].append({"id": job.get("id"), "name": job.get("name"), "state": category})
+    for run_id, jobs in jobs_by_run.items():
+        run = run_by_id.get(run_id)
+        if run and run.get("status") == "completed" and any(
+            job.get("status") != "completed" for job in jobs
+        ):
+            inconsistent_run_job_ids.append(run_id)
     # A job snapshot may be partial; never infer that every job was inspected.
     observed_run_ids = {str(run["id"]) for run in runs if run.get("id") is not None}
     unmatched_job_runs = sorted(str(key) for key in jobs_by_run if str(key) not in observed_run_ids)
@@ -82,7 +91,7 @@ def summarize(snapshot):
     ]
     # A success verdict requires job evidence for every identified run.
     # Missing/empty job lists cannot silently pass via vacuous all([]).
-    complete_success = bool(runs) and len(run_ids) == len(runs) and all(
+    complete_success = bool(runs) and not inconsistent_run_job_ids and len(run_ids) == len(runs) and all(
         job.get("id") is not None for jobs in jobs_by_run.values() for job in jobs
     ) and not unmatched_job_runs and not missing_job_run_ids and not empty_job_run_ids and all(
         run.get("status") == "completed" and run.get("conclusion") == "success"
@@ -97,6 +106,7 @@ def summarize(snapshot):
         "job_states": dict(sorted(job_counts.items())),
         "jobs_by_run": jobs_detail,
         "incomplete_run_ids": incomplete_run_ids,
+        "inconsistent_run_job_ids": sorted(inconsistent_run_job_ids),
         "unmatched_job_run_ids": unmatched_job_runs,
         "missing_job_run_ids": missing_job_run_ids,
         "empty_job_run_ids": empty_job_run_ids,
