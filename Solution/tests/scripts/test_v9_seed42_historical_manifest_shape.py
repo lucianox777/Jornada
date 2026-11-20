@@ -41,6 +41,23 @@ class IsolatedPartitionContractTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, self.models)
 
+    def test_cli_config_and_explicit_percentage_precedence(self):
+        program = (ROOT / "src/Jornada.Linkage.SyntheticCorpus.Parametrized/Program.cs").read_text(encoding="utf-8")
+        self.assertIn('Get(values, "calibrator-config")', program)
+        self.assertIn('JsonDocument.Parse(File.ReadAllText(calibratorConfigPath))', program)
+        self.assertIn('c.GetProperty("sampling").GetProperty(key).GetDouble()', program)
+        for cli, config, fallback in (
+            ("train-percent", "trainPercent", 60),
+            ("validation-percent", "validationPercent", 20),
+            ("test-percent", "testPercent", 20),
+        ):
+            with self.subTest(cli=cli):
+                self.assertIn(
+                    f'GetDouble(values, "{cli}", ConfigPercent("{config}", {fallback}))',
+                    program,
+                )
+        self.assertLess(program.index("options.Validate();"), program.index("return options;"))
+
     def test_nonhistorical_manifest_retains_partition_declarations(self):
         self.assertIn('historical.Remove("synthetic_population")', self.materializer)
         self.assertIn('historical.Remove("partition_percentages")', self.materializer)
