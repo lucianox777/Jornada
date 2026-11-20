@@ -93,8 +93,12 @@ def enumerate_runs(get, since, until, max_pages=MAX_PAGES):
             raise ValueError("Run count changed during pagination: retry snapshot")
         for run in items:
             run_id = run.get("id")
-            if type(run_id) is not int or not run.get("head_sha"):
-                raise ValueError("Run without ID/SHA")
+            sha = run.get("head_sha")
+            attempt = run.get("run_attempt")
+            if type(run_id) is not int or run_id <= 0 or not isinstance(sha, str) or len(sha) != 40 or any(ch not in "0123456789abcdefABCDEF" for ch in sha):
+                raise ValueError("Run without valid ID/SHA")
+            if type(attempt) is not int or attempt < 1:
+                raise ValueError("Run without valid attempt")
             created_at = parse_time(run.get("created_at"))
             if not since <= created_at <= until:
                 raise ValueError("Run outside requested created-at window")
