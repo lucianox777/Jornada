@@ -50,6 +50,24 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
         self.assertTrue(audit.evaluate(p, [])["verified"])
         self.assertIs(audit.evaluate(p, [])["classic_strict_setting"], False)
 
+    def test_malformed_api_lists_are_not_mistaken_for_required_contexts(self):
+        p = {"required_status_checks": {
+            "contexts": "unit-runtime",
+            "checks": {"context": "security-guards"},
+        }}
+        result = audit.evaluate(p, [None, {"enforcement": "active"}])
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["observed_classic_contexts"], [])
+        self.assertEqual(result["missing_classic_contexts"], sorted(audit.REQUIRED))
+        self.assertTrue(result["rulesets_require_manual_scope_review"])
+
+    def test_missing_classic_contexts_are_reported(self):
+        p = {"required_status_checks": {"contexts": ["unit-runtime"], "checks": []}}
+        result = audit.evaluate(p, [])
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["missing_classic_contexts"],
+                         sorted(audit.REQUIRED - {"unit-runtime"}))
+
     def test_classify_impact_is_indirect_not_fourth_direct_check(self):
         self.assertNotIn("classify-impact", audit.REQUIRED)
 
