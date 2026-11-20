@@ -29,19 +29,21 @@ def evaluate(protection, rulesets):
     sources = []
     checks = protection.get("required_status_checks") if isinstance(protection, dict) else None
     if isinstance(checks, dict):
-        # GitHub exposes both legacy contexts and app-bound checks. A
-            # partial legacy list must not hide required checks in the latter.
-            legacy = checks.get("contexts")
-            bound = checks.get("checks")
-            # Malformed API payloads are unknown, never evidence of protection.
-            if not isinstance(legacy, list) or not isinstance(bound, list):
-                legacy = legacy if isinstance(legacy, list) else []
-                bound = bound if isinstance(bound, list) else []
-            contexts = {name for name in legacy if isinstance(name, str) and name}
-            contexts.update(item["context"] for item in bound
-                            if isinstance(item, dict) and isinstance(item.get("context"), str)
-                            and item["context"])
-            sources.append(("branch_protection", contexts))
+        # GitHub exposes both legacy contexts and app-bound checks.
+        # A partial legacy list must not hide required checks in the latter.
+        legacy = checks.get("contexts")
+        bound = checks.get("checks")
+        # Malformed API payloads are unknown, never evidence of protection.
+        legacy = legacy if isinstance(legacy, list) else []
+        bound = bound if isinstance(bound, list) else []
+        contexts = {name for name in legacy if isinstance(name, str) and name}
+        contexts.update(
+            item["context"] for item in bound
+            if isinstance(item, dict)
+            and isinstance(item.get("context"), str)
+            and item["context"]
+        )
+        sources.append(("branch_protection", contexts))
     for ruleset in rulesets if isinstance(rulesets, list) else []:
         if not isinstance(ruleset, dict) or ruleset.get("enforcement") != "active":
             continue
