@@ -33,6 +33,33 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
         self.assertFalse(module.summarize({"workflow_runs": [
             {"status": "pending", "conclusion": None}]})["all_completed_success"])
 
+    def test_successful_run_with_failed_or_running_job_is_not_green(self):
+        for status, conclusion in (("completed", "failure"), ("in_progress", None)):
+            with self.subTest(status=status):
+                result = module.summarize({
+                    "workflow_runs": [{"id": 7, "status": "completed", "conclusion": "success"}],
+                    "jobs_by_run": {"7": [{"status": status, "conclusion": conclusion}]},
+                })
+                self.assertFalse(result["all_completed_success"])
+                self.assertEqual(result["job_states"][conclusion or status], 1)
+
+    def test_malformed_entries_are_rejected(self):
+        for snapshot in (
+            None,
+            {"workflow_runs": [None]},
+            {"workflow_runs": [], "jobs_by_run": {"1": [None]}},
+        ):
+            with self.subTest(snapshot=snapshot), self.assertRaises(ValueError):
+                module.summarize(snapshot)
+
+    def test_unknown_job_conclusion_does_not_count_as_success(self):
+        result = module.summarize({
+            "workflow_runs": [{"status": "completed", "conclusion": "success"}],
+            "jobs_by_run": {"1": [{"status": "completed", "conclusion": "unexpected"}]},
+        })
+        self.assertEqual(result["job_states"], {"other_completed": 1})
+        self.assertFalse(result["all_completed_success"])
+
     def test_bad_snapshot_is_rejected(self):
         with self.assertRaises(ValueError):
             module.summarize({"workflow_runs": {}})
