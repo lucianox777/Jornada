@@ -35,6 +35,7 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertLess(gold_count, query)
         self.assertLess(query, score_input)
         self.assertIn("!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)", parity)
+        self.assertIn("reader.IsDBNull(5)", parity)
         self.assertIn("reader.GetString(5) != \"REFERENCIA\"", parity)
         self.assertIn("Manifesto Gold V9 incompleto para coorte congelada.", parity)
         self.assertIn("Consulta candidata SQL retornou conteúdo Gold adulterado.", parity)
