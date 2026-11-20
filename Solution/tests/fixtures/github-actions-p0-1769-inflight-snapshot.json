@@ -1,0 +1,122 @@
+{
+  "source": "GitHub connector PR first-page non-atomic run/job snapshot",
+  "commit_sha": "e9c3bcddb5b751f9e6fbe9c821b440e5b2c19318",
+  "workflow_runs": [
+    {
+      "id": 44786479939,
+      "name": "P0-A TF LOCKED generator identity diagnostic (nonblocking)",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 44786480136,
+      "name": "v9-seed42-generator-byte-comparison",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 44786479921,
+      "name": "jornada-pr-required-fast",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 44786480282,
+      "name": "V9 seed42 independent IBGE pin provenance",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 44786479918,
+      "name": "v9-standard-linear-contract-ci",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 44786480007,
+      "name": "V9 full-schema real RunAsync smoke",
+      "status": "in_progress",
+      "conclusion": null
+    }
+  ],
+  "jobs_by_run": {
+    "44786479939": [
+      {
+        "id": 136462572896,
+        "name": "Compare frozen manifests with pinned historical checkout",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 136462573343,
+        "name": "Audit frozen generator bytes",
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "44786480136": [
+      {
+        "id": 136462573511,
+        "name": "compare-historical-and-current",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "44786479921": [
+      {
+        "id": 136463016623,
+        "name": "classify-impact",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136463138989,
+        "name": "security-guards",
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 136463139018,
+        "name": "unit-runtime",
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 136463139103,
+        "name": "deterministic-build",
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "44786480282": [
+      {
+        "id": 136462574090,
+        "name": "independent-ibge-pin",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "44786479918": [
+      {
+        "id": 136462572737,
+        "name": "V9 standard: syntax and PREPARE transfer contract",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136463269341,
+        "name": "PREPARE smoke: upload synthetic fixture artifact",
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "44786480007": [
+      {
+        "id": 136462573078,
+        "name": "full-schema-runasync-nonpublish",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ]
+  }
+}
