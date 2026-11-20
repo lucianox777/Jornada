@@ -13,6 +13,15 @@ spec.loader.exec_module(audit_module)
 
 
 class LockedGeneratorAuditTests(unittest.TestCase):
+    def test_required_fast_enforces_frozen_generator_before_impact_classification(self):
+        workflow = (Path(__file__).resolve().parents[3] /
+                    ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        enforce = "python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo ."
+        self.assertEqual(workflow.count(enforce), 1)
+        classify = workflow.split("  classify-impact:\n", 1)[1].split("  unit-runtime:\n", 1)[0]
+        self.assertLess(classify.index(enforce), classify.index("      - id: classify"))
+        self.assertNotIn("continue-on-error: true", classify)
+
     def test_both_manifests_and_generator_are_checked(self):
         self.assertEqual(len(audit_module.LOCKS), 2)
         self.assertTrue(all("LOCK.json" in name for name in audit_module.LOCKS))
