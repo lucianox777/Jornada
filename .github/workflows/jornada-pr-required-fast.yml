@@ -61,6 +61,8 @@ jobs:
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
           # Audit regression tests use a temporary Git repository; do not gate on the known master LOCKED drift here.
           python3 -m unittest Solution/tests/scripts/test_audit_v9_tf_locked_generator.py
+          # P0 mandatory byte identity: unlike the separate diagnostic, a mismatch fails required-fast.
+          python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .
           python3 -m unittest Solution/tests/scripts/test_v9_tf_ref_provenance_gate.py
           # Exact historical manifest shape is a narrow offline guard, not a physical SHA proof.
           python3 -m unittest Solution/tests/scripts/test_v9_seed42_historical_manifest_shape.py
