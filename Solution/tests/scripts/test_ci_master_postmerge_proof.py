@@ -136,9 +136,9 @@ class PostmergeProofTests(unittest.TestCase):
         from contextlib import redirect_stdout, redirect_stderr
         from unittest import mock
         stdout, stderr = io.StringIO(), io.StringIO()
-        with mock.patch.object(module.sys, "argv", ["proof", "--sha", SHA]), \\
-             mock.patch.dict(module.os.environ, {"GH_TOKEN": "fake-token"}), \\
-             mock.patch.object(module, "fetch", side_effect=ValueError("secret-marker")), \\
+        with mock.patch.object(module.sys, "argv", ["proof", "--sha", SHA]), \
+             mock.patch.dict(module.os.environ, {"GH_TOKEN": "fake-token"}), \
+             mock.patch.object(module, "fetch", side_effect=ValueError("secret-marker")), \
              redirect_stdout(stdout), redirect_stderr(stderr):
             exit_code = module.main()
         self.assertEqual(exit_code, 2)
