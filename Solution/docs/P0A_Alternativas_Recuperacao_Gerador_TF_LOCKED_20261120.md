@@ -320,3 +320,20 @@ O commit `242f612` acrescenta teste estrutural para impedir regressão na atribu
 | Integração / ciência | PR #1769 em draft, issue #1734 | Sem merge; TRAIN/TEST científico não autorizado |
 
 **Contexto e justificativa:** manter o plano de ação explicitamente rastreável mesmo com filas de CI e commits documentais, distinguindo implementação, evidência aprovada em revisão anterior e pendências atuais. **Impacto:** atualização somente documental, sem mudar a precedência da decisão `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`, os LOCKED ou o índice de decisões. **Próxima condição de avanço:** verificar conclusão de proveniência IBGE e dos checks da revisão atual, avaliar logs de falhas reais e submeter integração ao PO; não fazer merge automaticamente.
+
+
+### Critérios de encerramento da issue #1734 — lacunas ainda abertas (20/11/2026)
+
+A consulta direta à issue #1734 confirma que seus **sete critérios de aceite permanecem desmarcados**. A aprovação da auditoria diagnóstica P0 não substitui os gates de integração ou o estado da master. A PR #1769 não possui reviews submetidos nem threads de revisão registrados no momento desta consulta.
+
+| Critério da issue | Evidência disponível | Lacuna / ação exigida |
+| --- | --- | --- |
+| Diagnóstico das falhas da master e impacto de #1721 | Investigação de divergência byte-a-byte documentada nesta análise | Confrontar jobs/logs da master; não declarar master recuperada apenas por CI da PR |
+| Compatibilidade histórica e manifests LOCKED | Auditoria P0 `44779757587` concluída com dois jobs `success`; seed42 `44779757761` `success` | Preservar verificação obrigatória no checkout efetivamente integrado |
+| Correção via PR sem regravar LOCKED | Implementação isolada na PR #1769 | Revisão e autorização explícita do PO antes do merge |
+| Gates obrigatórios de integridade | Workflow diagnóstico atual é não bloqueante | Verificar e, mediante aprovação, configurar branch protection/rulesets; não confundir job verde com gate obrigatório |
+| Reexecução CI e master verde | Standard-linear `44779757545` `success`; demais checks da revisão `5ba058d4` em execução na consulta | Comprovar todos os checks relevantes e depois a CI da master |
+| dt10 (#1706) | Não validado neste checkpoint | Validar separadamente após estabilização P0 |
+| Governança GOV-DOC-01 | Decisão de isolamento e evidências documentadas | Consolidar aceite final e índice caso haja nova decisão aprovada |
+
+**Precedência:** issue #1734 e diretriz aprovada pelo PO: (1) master verde/LOCKED, (2) gate obrigatório, (3) dt10, (4) V9, (5) documentação/backlog, (6) refatorações. **Justificativa/impacto:** evitar encerramento prematuro baseado somente em sucesso de testes diagnósticos; nenhum gate ou decisão é alterado por este registro. **Restrições:** PR continua draft; sem merge, sem promoção científica e sem TRAIN/TEST.
