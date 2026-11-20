@@ -192,6 +192,28 @@ class InventoryTests(unittest.TestCase):
              mock.patch("builtins.open", side_effect=AssertionError("must not write")):
             self.assertEqual(mod.main(), 2)
 
+    def test_jobs_are_pinned_to_observed_attempt(self):
+        item = run(52, "completed", "failure")
+        item["run_attempt"] = 3
+        seen = []
+        def get(path):
+            seen.append(path)
+            if "/jobs?" in path:
+                return {"total_count": 1, "jobs": [
+                    {"id": 502, "name": "failure", "conclusion": "failure"}]}
+            return {"total_count": 1, "workflow_runs": [item]}
+        result = mod.snapshot(get, START, END)
+        self.assertEqual(result["failed_jobs"][0]["jobs"][0]["id"], 502)
+        self.assertTrue(any("/actions/runs/52/attempts/3/jobs?" in path for path in seen))
+
+    def test_jobs_reject_invalid_attempt_before_query(self):
+        def forbidden(_):
+            self.fail("invalid attempt must not reach API")
+        with self.assertRaisesRegex(ValueError, "Invalid run ID or attempt"):
+            mod.failing_jobs(forbidden, 52, 0)
+        with self.assertRaisesRegex(ValueError, "Invalid run ID or attempt"):
+            mod.failing_jobs(forbidden, 0, 1)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
