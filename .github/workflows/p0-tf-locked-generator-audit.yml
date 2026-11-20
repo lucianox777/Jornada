@@ -78,6 +78,9 @@ jobs:
           persist-credentials: false
           ref: b98a01180737909edf7cbd0bee4ba2757d52fe0f
           path: historical
+      - name: Regression-test read-only isolation migration planner
+        working-directory: auditor
+        run: python3 -m unittest Solution/tests/scripts/test_plan_tf_locked_generator_isolation.py
       - name: Compare historical bytes with frozen contracts
         shell: bash
         run: |
