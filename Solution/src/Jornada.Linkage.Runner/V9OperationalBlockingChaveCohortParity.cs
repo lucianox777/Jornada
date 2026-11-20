@@ -141,7 +141,8 @@ public static class V9OperationalBlockingChaveCohortParity
             {
                 var uuid = reader.GetGuid(0);
                 if (!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)
-                    || !reader.IsDBNull(1) || reader.GetString(5) != "REFERENCIA")
+                    || !reader.IsDBNull(1) || reader.IsDBNull(5)
+                    || reader.GetString(5) != "REFERENCIA")
                     throw new InvalidDataException(
                         "Gold V9 contém UUID externo, duplicado, CPF ou referência inválida.");
                 var frozen = frozenRows[candidate.Index - 1].Observation;
