@@ -18,6 +18,35 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
         cls.typed = source[start:end]
         cls.general = source[end:]
 
+    def test_pinned_rehearsal_remains_noncertifying_and_reconciled(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        start = source.index(
+            "public async Task<V9NonPublishingBatchExecutionReceipt> "
+            "RehearseV9PinnedFileNonPublishingAsync(")
+        end = source.index(
+            "public async Task<V9NonPublishingBatchExecutionReceipt> "
+            "RehearseV9NonPublishingSyntheticTestAsync(", start)
+        rehearsal = source[start:end]
+        sql_open = rehearsal.index("operationalSql.OpenAsync(")
+        for guard in (
+            "ArgumentNullException.ThrowIfNull(boundary);",
+            "ArgumentNullException.ThrowIfNull(syntheticTest);",
+            "ArgumentNullException.ThrowIfNull(physicalSqlEdges);",
+            "cancellationToken.ThrowIfCancellationRequested();",
+            "ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);",
+            "ArgumentOutOfRangeException.ThrowIfGreaterThan(",
+            "syntheticTest.Count is < 2 or >",
+        ):
+            self.assertIn(guard, rehearsal[:sql_open])
+        self.assertIn("V9OperationalCandidateGraphParityAudit.CompareTestAsync(", rehearsal)
+        self.assertIn("proof.ProductionBatchPipelineCertified", rehearsal)
+        self.assertIn("proof.WinnerSha256 != boundary.Runtime.WinnerSha256", rehearsal)
+        self.assertIn("proof.DecisionsSha256 is not { Length: 64 }", rehearsal)
+        self.assertIn("proof.IdentityGroupsSha256 is not { Length: 64 }", rehearsal)
+        self.assertIn("LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO", rehearsal)
+        for forbidden in ("PublishAsync(", "PersistBatchAsync(", "EnsureProductiveCertified("):
+            self.assertNotIn(forbidden, rehearsal)
+
     def test_typed_dispatch_rejects_replay_and_wrong_version(self):
         self.assertIn("request.Mode == LinkageRunType.REPLAY", self.typed)
         self.assertIn("request.ModelVersion is int version && version != 9", self.typed)
