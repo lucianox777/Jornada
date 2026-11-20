@@ -40,6 +40,15 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
             self.assertIn(guard, rehearsal[:sql_open])
         self.assertIn("V9OperationalCandidateGraphParityAudit.CompareTestAsync(", rehearsal)
         self.assertIn("proof.ProductionBatchPipelineCertified", rehearsal)
+        for invariant in (
+            "proof.ObservationCount != syntheticTest.Count",
+            "proof.ObservationCount != proof.Resolved + proof.Unresolved + proof.Conflicts",
+            "proof.NoCandidateInBlock > proof.Unresolved",
+            "proof.CanonicalEdgesSha256.Length != 64",
+        ):
+            self.assertIn(invariant, rehearsal)
+        self.assertIn("proof.BatchSize, proof.BatchCount", rehearsal)
+        self.assertIn("proof.CanonicalEdgesSha256, proof.DecisionsSha256", rehearsal)
         self.assertIn("proof.WinnerSha256 != boundary.Runtime.WinnerSha256", rehearsal)
         self.assertIn("proof.DecisionsSha256 is not { Length: 64 }", rehearsal)
         self.assertIn("proof.IdentityGroupsSha256 is not { Length: 64 }", rehearsal)
