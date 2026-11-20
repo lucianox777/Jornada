@@ -12,13 +12,16 @@ LOCKS = {
 }
 GENERATOR = "Solution/src/Jornada.Linkage.SyntheticCorpus"
 PARTITION = GENERATOR + "/SyntheticCorpusGenerator.cs"
+# Independent seed-43 identity anchors: manifests cannot redefine these values.
+PINNED_GENERATOR_SHA256 = "924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb"
+PINNED_PARTITION_SHA256 = "83015950790a5be15a5fb843c8330c8cccb10610f1a208ee46eeb7fc348c18e4"
 
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def audit(repo, locks_root=None):
+def audit(repo, locks_root=None, require_pinned=False):
     repo = repo.resolve()
     locks_root = (locks_root or repo).resolve()
     tracked = subprocess.run(
@@ -61,6 +64,10 @@ def audit(repo, locks_root=None):
                 and len(tracked) == 25
                 and tree == expected_tree
                 and partition == expected_partition
+                and (not require_pinned or (
+                    expected_tree == PINNED_GENERATOR_SHA256
+                    and expected_partition == PINNED_PARTITION_SHA256
+                ))
             ),
         }
         results.append(result)
@@ -71,8 +78,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path("."))
     parser.add_argument("--locks-root", type=Path, help="Read frozen manifests from a separate checkout")
+    parser.add_argument("--require-pinned", action="store_true",
+                        help="also require independent seed-43 SHA256 anchors")
     args = parser.parse_args()
-    results = audit(args.repo, args.locks_root)
+    results = audit(args.repo, args.locks_root, require_pinned=args.require_pinned)
     print(json.dumps({"audit": "READ_ONLY_NO_CORPUS", "locks": results}, indent=2))
     if not all(result["matches"] for result in results):
         raise SystemExit(1)
