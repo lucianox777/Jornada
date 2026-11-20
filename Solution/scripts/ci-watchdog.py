@@ -238,6 +238,8 @@ def summarize_checkpoint(payload: dict) -> str:
         return "checkpoint unverified"
     if len(jobs) != payload["total_count"]:
         return "checkpoint incomplete"
+    if any(not isinstance(job, dict) for job in jobs):
+        return "checkpoint unverified"
     passed = sum(j.get("conclusion") == "success" for j in jobs)
     failed = sum(j.get("conclusion") in ("failure", "timed_out", "cancelled", "action_required") for j in jobs)
     skipped = sum(j.get("conclusion") == "skipped" for j in jobs)
