@@ -372,3 +372,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Implementação:** `40d5ace` adiciona `incomplete_run_ids`, `unmatched_job_run_ids` e indicador explícito `job_coverage=partial_or_unverified` ao utilitário offline. `11cd6e6` adiciona regressão para run em fila, job sem run correspondente e cobertura parcial. O campo `all_completed_success` continua restrito às entradas efetivamente fornecidas; **não** atesta completude da API nem branch protection.
 - **Stats verificados:** revisão `9b2340b`: seis workflows, três `queued`, um `pending`, dois `in_progress`, nenhum `completed/failure`; revisão anterior `77d5ff0`: dois `success` (required-fast e RunAsync), três `in_progress` (IBGE, P0 e byte comparison), um `queued` (standard-linear). Esses snapshots são temporais e não substituem resultados finais.
 - **Impactos e precedência:** melhoria de transparência operacional sem modificar geradores, LOCKED, gates, dados ou campanhas científicas; vinculada à issue #1734, GOV-DOC-01 e decisão P0 vigente. Testes dos commits novos pendem de CI.
+
+
+### Correção da lacuna de execução dos testes operacionais na CI (20/11/2026)
+
+- **Contexto:** a suíte `test_github_actions_status_summary.py` existia, mas o workflow `jornada-pr-required-fast` enumerava testes explicitamente e **não a executava**. Portanto, aprovação anterior do required-fast não provava as regressões da ferramenta operacional.
+- **Implementação:** commit `e4c4efd` adiciona a execução offline da suíte ao job `unit-runtime` de `.github/workflows/jornada-pr-required-fast.yml`; commit `32be6af` adiciona teste estrutural que impede a remoção acidental dessa invocação.
+- **Justificativa e impacto:** transformar testes recém-criados em verificações efetivas do fluxo obrigatório, sem depender de SQL, GitHub API ou campanhas científicas. A aprovação desse novo gate só poderá ser declarada após CI no commit correspondente.
+- **Snapshot anterior ao ajuste:** revisão `9fd447e`: cinco workflows retornados (quatro `queued`, um `pending`): standard-linear, seed42, RunAsync e IBGE em `queued`, required-fast em `pending`; o diagnóstico P0 não apareceu na lista retornada nessa consulta. Revisão `9b2340b`: cinco `in_progress`, um `queued`.
+- **Precedência e rastreabilidade:** issue #1734 e GOV-DOC-01; a integração do teste não modifica proteção de branch/ruleset, LOCKED, gerador histórico ou decisões vigentes.
