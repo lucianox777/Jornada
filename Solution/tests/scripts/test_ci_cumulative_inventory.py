@@ -76,6 +76,34 @@ class InventoryTests(unittest.TestCase):
             mod.enumerate_runs(lambda _: {"total_count": 1, "workflow_runs": [outside]},
                                START, END)
 
+    def test_snapshot_delta_transitions_and_new_runs(self):
+        def entry(run_id, state, attempt=1):
+            return {"run_id": run_id, "sha": "a" * 40,
+                    "category": state, "attempt": attempt}
+        base = {"repository": mod.REPO, "since": START.isoformat(),
+                "until": END.isoformat(), "coverage": "complete_for_created_window"}
+        old = dict(base, runs=[entry(1, "queued"), entry(2, "failed")],
+                   total_unique_runs=2)
+        new = dict(base, runs=[entry(1, "approved"), entry(2, "running", 2),
+                               entry(3, "queued")], total_unique_runs=3)
+        delta = mod.compare_snapshots(old, new)
+        self.assertEqual(delta["new_run_ids"], [3])
+        self.assertEqual(len(delta["transitions"]), 2)
+        self.assertEqual(delta["transitions"][1]["attempt_after"], 2)
+
+    def test_snapshot_delta_rejects_mismatched_windows_and_missing_runs(self):
+        base = {"repository": mod.REPO, "since": START.isoformat(),
+                "until": END.isoformat(), "coverage": "complete_for_created_window"}
+        old = dict(base, runs=[{"run_id": 1, "sha": "a" * 40,
+                                "category": "queued", "attempt": 1}],
+                   total_unique_runs=1)
+        new = dict(base, runs=[], total_unique_runs=0)
+        with self.assertRaisesRegex(ValueError, "disappeared"):
+            mod.compare_snapshots(old, new)
+        changed_window = dict(new, since="2026-11-18T00:00:00+00:00")
+        with self.assertRaisesRegex(ValueError, "windows differ"):
+            mod.compare_snapshots(old, changed_window)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
