@@ -44,7 +44,10 @@ def evaluate(protection, rulesets):
     return {"verified": any(REQUIRED <= contexts for _, contexts in sources),
             "required_contexts": sorted(REQUIRED),
             "verified_sources": [name for name, contexts in sources if REQUIRED <= contexts],
-            "rulesets_require_manual_scope_review": bool(rulesets),\n            "classic_strict_setting": (protection.get("required_status_checks") or {}).get("strict")\n            if isinstance(protection, dict) else None,\n            "scope": "classic_required_checks_only_not_full_merge_protection"}
+            "rulesets_require_manual_scope_review": bool(rulesets),
+            "classic_strict_setting": (protection.get("required_status_checks") or {}).get("strict")
+            if isinstance(protection, dict) else None,
+            "scope": "classic_required_checks_only_not_full_merge_protection"}
 
 
 def main():
