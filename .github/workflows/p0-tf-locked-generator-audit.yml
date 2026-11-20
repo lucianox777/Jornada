@@ -254,13 +254,13 @@ jobs:
           set -euo pipefail
           dotnet run -c Release --project Solution/tests/PartitionIntegritySmoke/PartitionIntegritySmoke.csproj | tee "$RUNNER_TEMP/p0-partition-integrity-smoke.log"
           passed="$(grep -c '^PASS ' "$RUNNER_TEMP/p0-partition-integrity-smoke.log" || true)"
-          if [[ "$passed" -ne 17 ]]; then
-            echo "::error::Expected 17 runtime PASS lines; got $passed"
+          if [[ "$passed" -ne 19 ]]; then
+            echo "::error::Expected 19 runtime PASS lines; got $passed"
             exit 1
           fi
           unique_passed="$(grep '^PASS ' "$RUNNER_TEMP/p0-partition-integrity-smoke.log" | LC_ALL=C sort -u | wc -l | tr -d '[:space:]')"
-          if [[ "$unique_passed" -ne 17 ]]; then
-            echo "::error::Expected 17 distinct runtime PASS labels; got $unique_passed"
+          if [[ "$unique_passed" -ne 19 ]]; then
+            echo "::error::Expected 19 distinct runtime PASS labels; got $unique_passed"
             exit 1
           fi
       - name: Verify population CLI override bypasses absent JSON population
