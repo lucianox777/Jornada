@@ -33,8 +33,10 @@ public sealed record V9FrozenRunObservation(long PessoaObservacaoId, IdentityObs
 /// <summary>
 /// TEST-only adapter that binds the real RunAsync lifecycle to one globally
 /// scored V9 BLIND_FS_COMPLETE_LINK_CANDIDATES cohort (never per-row Resolve).
-/// Candidate edges are EXPLICIT SYNTHETIC fixture input; this class does NOT
-/// certify operational SQL candidate retrieval or production DI integration.
+/// In explicit-fixture mode, candidate edges are synthetic inputs. In physical
+/// SQL smoke mode, the actual operational blocking_chave query supplies edges
+/// only after exact comparison with an independently materialized SQL oracle.
+/// Neither mode certifies production-scale retrieval or production DI integration.
 /// Strictly JornadaHarness, never any Gold/Serving publication.
 /// </summary>
 public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFrozenCohortScorer
