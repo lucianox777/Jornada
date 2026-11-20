@@ -64,6 +64,8 @@ jobs:
           python3 -m unittest Solution/tests/scripts/test_v9_tf_ref_provenance_gate.py
           # Exact historical manifest shape is a narrow offline guard, not a physical SHA proof.
           python3 -m unittest Solution/tests/scripts/test_v9_seed42_historical_manifest_shape.py
+          # Parse the read-only master protection auditor before running its unit suite.
+          python3 -m py_compile Solution/scripts/audit-master-required-checks.py
           # Offline GitHub Actions status reporting must remain fail-closed.
           python3 -m unittest Solution/tests/scripts/test_github_actions_status_summary.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py Solution/tests/scripts/test_v9_tf_workflow_protocol.py Solution/tests/scripts/test_v9_orchestrator.py
