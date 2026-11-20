@@ -132,3 +132,8 @@ Issue oficial #1734 permanece **open** e exige cumulativamente: logs das falhas 
 - Revisão do código `Solution/scripts/ci-master-postmerge-proof.py` e testes da branch #1759 confirmou consulta `head_sha=<SHA>`, `branch=master`, `event=push`, `per_page=100`, com validação de `total_count`.
 - Acrescentado teste positivo com resposta HTTP simulada de página completa (dois workflows aprovados), incluindo asserções sobre todos os filtros de URL e a avaliação `verified=true`. Commit `5430f23d22ffaa9656c2580943cc64e2703301f6`. Complementa os testes negativos de paginação, sem credenciais reais ou execução de CI.
 - Testes implementados, **execução não observada**; PR segue sem aprovação para integração. A comprovação física pós-merge permanece não verificada.
+
+## Correção de proveniência do código do monitor — PR #1759
+- Revisão do workflow `.github/workflows/jornada-ci-health-monitor.yml` encontrou divergência potencial em `workflow_dispatch` na branch: o checkout padrão obtinha o ref do evento, enquanto a prova consultava SHA da `master`. Isso permitiria executar o verificador de código diferente daquele cuja CI se pretendia comprovar.
+- Corrigido para **resolver primeiro** `refs/heads/master` e fazer `actions/checkout` com `ref: ${{ steps.master.outputs.sha }}`, garantindo que script e testes executem no mesmo commit de master consultado. Commit `1be091b225ac7f1bc809b73e4115305c7a0078db` na PR #1759.
+- Limite preservado: esse workflow só poderá executar o código do monitor **depois de integrado na master**; dispatch em branch de proposta não é evidência de implantação. Consulta do HEAD anterior `5430f23d22ffaa9656c2580943cc64e2703301f6` retornou zero runs pelo conector PR-only; CI continua não verificada. Sem merge ou campanhas.
