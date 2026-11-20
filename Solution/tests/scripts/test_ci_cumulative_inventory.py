@@ -3,6 +3,8 @@ import datetime as dt
 import importlib.util
 import pathlib
 import unittest
+import urllib.error
+from unittest import mock
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ci-cumulative-inventory.py"
 spec = importlib.util.spec_from_file_location("ci_cumulative_inventory", SCRIPT)
@@ -179,6 +181,16 @@ class InventoryTests(unittest.TestCase):
         altered = dict(entry, event="push")
         with self.assertRaisesRegex(ValueError, "immutable metadata"):
             mod.compare_snapshots(old, dict(base, runs=[altered]))
+
+    def test_main_fails_closed_on_github_http_error(self):
+        args = ["inventory", "--since", START.isoformat(),
+                "--until", END.isoformat(), "--output", "/tmp/never-write-ci-inventory.json"]
+        with mock.patch.object(mod.sys, "argv", args), \
+             mock.patch.dict(mod.os.environ, {"GH_TOKEN": "offline-fixture"}), \
+             mock.patch.object(mod, "api_get", side_effect=urllib.error.HTTPError(
+                 "https://api.github.com", 403, "rate limited", {}, None)), \
+             mock.patch("builtins.open", side_effect=AssertionError("must not write")):
+            self.assertEqual(mod.main(), 2)
 
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
