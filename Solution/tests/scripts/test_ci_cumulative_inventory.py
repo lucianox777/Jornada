@@ -156,6 +156,21 @@ class InventoryTests(unittest.TestCase):
                         lambda _: {"total_count": 1, "workflow_runs": [item]},
                         START, END)
 
+    def test_delta_rejects_attempt_regression_and_identity_drift(self):
+        base = {"repository": mod.REPO, "since": START.isoformat(),
+                "until": END.isoformat(), "coverage": "complete_for_created_window",
+                "total_unique_runs": 1}
+        entry = {"run_id": 11, "sha": "a" * 40, "category": "approved",
+                 "attempt": 2, "event": "pull_request",
+                 "created_at": "2026-11-19T12:00:00Z"}
+        old = dict(base, runs=[entry])
+        regressed = dict(entry, attempt=1)
+        with self.assertRaisesRegex(ValueError, "attempt invalid or regressed"):
+            mod.compare_snapshots(old, dict(base, runs=[regressed]))
+        altered = dict(entry, event="push")
+        with self.assertRaisesRegex(ValueError, "immutable metadata"):
+            mod.compare_snapshots(old, dict(base, runs=[altered]))
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
