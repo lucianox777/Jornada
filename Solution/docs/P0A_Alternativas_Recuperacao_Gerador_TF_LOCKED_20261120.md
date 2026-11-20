@@ -37,7 +37,7 @@ A comparação acima é textual e seletiva; **não substitui** diff completo dos
 4. Registrar decisão aprovada, justificativa, precedência, impactos e rollback em documentação oficial e no índice GOV-DOC-01.
 5. Somente depois avaliar adoção de gate obrigatório e eventuais mudanças de branch protection.
 
-**Atualização de precedência:** a alternativa A foi aprovada posteriormente pelo PO, conforme deliberação ao final deste documento; B/C não aprovadas. A PR #1769 permanece limitada à instrumentação diagnóstica até a implementação segregada.
+**Atualização de precedência:** a alternativa A foi aprovada posteriormente pelo PO, conforme deliberação ao final deste documento; B/C não aprovadas. A restrição à instrumentação diagnóstica descrevia a fase anterior à implementação segregada; a implementação da alternativa A já está presente na PR #1769, sem que isso implique aprovação de CI, autorização de merge ou certificação científica.
 
 ## Medição comparativa do commit histórico (instrumentação, 20/11/2026)
 
@@ -545,3 +545,13 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Regressão:** commit `5930afe` verifica offline o wiring, permissão de leitura, caráter não bloqueante e publicação do sumário. A confirmação depende de execução da CI no HEAD novo e acesso efetivo da API de branch protection/rulesets; `UNKNOWN` ou regras de escopo não inspecionado permanecem **não verificados**.
 - **Observação anterior no commit `cf2d0f9`:** seis workflows (4 `completed/success`, 2 `in_progress`); doze jobs: **10 success, 2 in_progress**, nenhum failed no instante da coleta. IBGE e required-fast ainda não concluídos; não extrapolar para master.
 - **Justificativa, impacto e precedência:** avanço diretamente relacionado ao checklist da issue #1734 e GOV-DOC-01; não altera a política de proteção da master nem os manifests LOCKED. Sem merge, bypass, rerun, TRAIN ou TEST científico.
+
+
+### Checkpoint de integração P0-A — reconciliação de 20/11/2026
+
+- **Decisão vigente:** alternativa A aprovada pelo PO; gerador histórico mantido no caminho congelado e gerador parametrizado em projeto separado. Alternativas B/C não aprovadas. Nenhuma decisão nova é criada por este checkpoint.
+- **Estado observado:** PR #1769 aberta em draft, HEAD `fb69f6949fca0ba20de7bb7508aa5d044ad868f5`, `mergeable=false`; comparação com `master` apontou 268 commits à frente e quatro atrás. A causa de `mergeable=false` não foi isolada.
+- **Reconciliação documental:** os cinco documentos operacionais compartilhados examinados apresentam conteúdo idêntico entre `master` e a branch; o índice de decisões na branch contém todos os identificadores GOV da `master` e a decisão P0-A adicional. Evidência de comparação de identificadores não equivale à revisão semântica integral.
+- **Limite da evidência técnica:** a auditoria física com os dois LOCKED `matches=true`, 25 arquivos e builds/testes anteriores refere-se ao SHA `d97966033af2634a9381c688de1d66d41f5cf329`, **não** ao HEAD atual nem ao commit que adiciona este checkpoint. Consultas disponíveis por SHA não retornaram runs do HEAD; cobertura de CI/Diagnostics **PARCIAL**, não interpretável como aprovação ou falha.
+- **Pendências e impactos:** reconciliar ancestralidade Git de forma segura, verificar o diff e os checks obrigatórios no novo HEAD, revalidar ambos os contratos LOCKED e revisar os diagnósticos pós-CI antes de qualquer pedido de integração. Preservar a dívida #1765, os manifests, seeds, fingerprints, regras de proteção e o estado draft. Sem TRAIN/TEST, merge em `master` ou encerramento da issue #1734.
+- **Precedência/rastreabilidade:** GOV-DOC-01, GOV-SYNTH-IDENTIDADE-MANTER-20261120, GOV-CI-RULESET-AUDITOR-DEFER-20261120, PR #1769, issue #1734 e checkpoint na conversa da PR (comentário `7052500972`).
