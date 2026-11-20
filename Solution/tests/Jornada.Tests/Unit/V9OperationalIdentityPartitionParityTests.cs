@@ -25,6 +25,36 @@ public sealed class V9OperationalIdentityPartitionParityTests
     }
 
     [Test]
+    public void Guid_sensitive_receipt_digest_can_differ_for_equivalent_partitions()
+    {
+        // Characterization only: do not change the existing receipt contract.
+        var first = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        var relabeled = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000004")
+        };
+
+        static string CurrentReceiptDigest(IReadOnlyDictionary<int, Guid> groups)
+        {
+            var serialized = string.Join("\n", groups.OrderBy(x => x.Key)
+                .Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}")));
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(serialized))).ToLowerInvariant();
+        }
+
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(first),
+            Is.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(relabeled)));
+        Assert.That(CurrentReceiptDigest(first), Is.Not.EqualTo(CurrentReceiptDigest(relabeled)));
+    }
+
+    [Test]
     public void Split_or_merge_is_detected()
     {
         var a = Guid.NewGuid();
@@ -36,6 +66,65 @@ public sealed class V9OperationalIdentityPartitionParityTests
             Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(baseline)));
         Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(merged),
             Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(baseline)));
+    }
+
+    [Test]
+    public void Same_group_sizes_with_different_memberships_are_not_equivalent()
+    {
+        // Counts alone cannot detect a cross-batch identity swap.
+        var first = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            [4] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        var swapped = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            [4] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        Assert.That(first.Values.Distinct().Count(), Is.EqualTo(swapped.Values.Distinct().Count()));
+        Assert.That(first.Values.GroupBy(id => id).Select(g => g.Count()).OrderBy(n => n),
+            Is.EqualTo(swapped.Values.GroupBy(id => id).Select(g => g.Count()).OrderBy(n => n)));
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(first),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(swapped)));
+    }
+
+    [Test]
+    public void Missing_observation_is_not_masked_by_identical_remaining_groups()
+    {
+        var shared = Guid.NewGuid();
+        var isolated = Guid.NewGuid();
+        var complete = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = isolated
+        };
+        var dropped = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared
+        };
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(complete),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(dropped)));
+    }
+
+    [Test]
+    public void Singleton_identity_must_not_be_absorbed_into_another_group()
+    {
+        var shared = Guid.NewGuid();
+        var isolated = Guid.NewGuid();
+        var expected = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = isolated
+        };
+        var absorbed = new Dictionary<int, Guid>
+        {
+            [1] = shared, [2] = shared, [3] = shared
+        };
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(expected),
+            Is.Not.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(absorbed)));
     }
 
     [Test]

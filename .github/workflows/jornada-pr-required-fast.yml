@@ -35,7 +35,7 @@ jobs:
           python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
           grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
       - name: Check classification contract
-        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py
+        run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py Solution/tests/scripts/test_audit_master_required_checks.py
   unit-runtime:
     needs: classify-impact
     runs-on: ubuntu-latest
@@ -51,6 +51,9 @@ jobs:
         name: Full current offline impact suite before merge (no SQL or physical calibration)
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_csharp_comment_escaped_newline_gate.py
+          # Keep TEST fail-closed until full production RunAsync parity is certified.
+          python3 -m unittest Solution/tests/scripts/test_v9_testonly_failclosed_contract.py
+          python3 -m unittest Solution/tests/scripts/test_v9_runv9_dispatch_failclosed.py
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_synthetic_multiseed_gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
