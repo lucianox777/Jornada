@@ -25,6 +25,12 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_diagnostic_gold_proof_does_not_claim_atomic_snapshot(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        self.assertIn("not an atomic Silver/Gold snapshot", parity)
+        self.assertIn("ProductionGoldCertified: false", parity)
+        self.assertNotIn("ProductionGoldCertified: true", parity)
+
     def test_gold_manifest_is_verified_before_operational_candidates(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         gold = parity.index("SELECT pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,")
