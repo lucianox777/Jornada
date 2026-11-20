@@ -43,6 +43,21 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
                 self.assertFalse(result["all_completed_success"])
                 self.assertEqual(result["job_states"][conclusion or status], 1)
 
+    def test_job_identifiers_are_preserved_per_run(self):
+        result = module.summarize({
+            "workflow_runs": [{"id": 10, "name": "audit", "status": "in_progress"}],
+            "jobs_by_run": {"10": [
+                {"id": 101, "name": "frozen-bytes", "status": "completed", "conclusion": "success"},
+                {"id": 102, "name": "runtime", "status": "in_progress", "conclusion": None},
+            ]},
+        })
+        self.assertEqual(result["jobs_by_run"]["10"], [
+            {"id": 101, "name": "frozen-bytes", "state": "success"},
+            {"id": 102, "name": "runtime", "state": "in_progress"},
+        ])
+        self.assertEqual(result["job_states"], {"in_progress": 1, "success": 1})
+        self.assertFalse(result["all_completed_success"])
+
     def test_malformed_entries_are_rejected(self):
         for snapshot in (
             None,
