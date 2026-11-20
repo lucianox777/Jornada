@@ -246,6 +246,37 @@ jobs:
           fi
           grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-incomplete-override.log"
           test ! -e "$RUNNER_TEMP/nonexistent-incomplete-corpus"
+      - name: Verify population CLI override bypasses absent JSON population
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/p0-calibrator-no-population.json"
+          printf '%s\n' '{"sampling":{}}' > "$config"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" --people 25 \
+            --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-population-override-corpus" \
+            > "$RUNNER_TEMP/parametrized-population-override.log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          if grep -Eq 'KeyNotFoundException|The given key was not present|Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-population-override.log"; then
+            echo "::error::Explicit population or partition override evaluated absent JSON fields"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-population-override.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-population-override-corpus"
+      - name: Upload population override log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-population-override
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-population-override.log
       - name: Upload incomplete calibration override log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
