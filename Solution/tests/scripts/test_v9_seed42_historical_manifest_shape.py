@@ -88,6 +88,15 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn(": ConfigPercent(configKey, fallback)", program)
         self.assertLess(program.index("options.Validate();"), program.index("return options;"))
 
+    def test_observations_inherit_base_person_partition_and_csv_exports_it(self):
+        # Prevent identity leakage across partitions in the isolated generator.
+        self.assertIn("Partition = person.Partition,", self.generator)
+        self.assertIn("BasePersonId = person.BasePersonId,", self.generator)
+        self.assertIn('"base_person_id", "particao", "nome"', self.materializer)
+        self.assertIn('"observacao_id", "base_person_id", "particao", "gestor"', self.materializer)
+        self.assertIn("person.Partition,", self.materializer)
+        self.assertIn("observation.Partition,", self.materializer)
+
     def test_manifest_partition_metadata_uses_validated_options(self):
         for expected in (
             "synthetic_population = generation.Options.People",
