@@ -105,3 +105,28 @@ Inspecionados diretamente no SHA master `1734ee976dfb8940689bd4ba9480b4e5f6c7d9c
 **Lacuna de engenharia precisamente delimitada:** não basta compartilhar `V9OperationalPinnedCohortRuntime` ou JSON; é necessário demonstrar o mesmo caminho de materialização, blocking, scoring, agrupamento, resolução, lote e persistência **não publicadora** do Runner real, com prova negativa de que nunca há fallback ao modelo legado, refit, seleção de winner, publicação, leitura de TRAIN/VALIDATION ou escrita operacional. Implementar um adaptador `TEST_ONLY` tipado e explicitamente segregado, com validação do banco descartável e artefato SHA, somente após reconciliação de P0-A e definição de critérios de aceite de #1575/#1584. Preservar os bloqueios `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` até prova física de ponta a ponta; não promover `ProductionBatchPipelineCertified` por inferência.
 
 **Estado:** diagnóstico de código e plano de implementação, não entrega do adaptador. Sem decisão nova de PO, sem TEST/TRAIN físico e sem modificação de LOCK.
+
+### P0-B — contrato verificável proposto para o adaptador TEST_ONLY (20/11/2026)
+
+**Especificação de implementação, ainda não aprovada como nova decisão:** decompor a execução em núcleo comum de lote e fronteiras explícitas de I/O. O caminho de TEST deve invocar o **mesmo núcleo real** usado por `ProbabilisticLinkageBatchRunner.RunAsync`, não somente um simulador com algoritmos parecidos. Antes de qualquer leitura da coorte: (a) validar arquivo único `<sha>.operational.json` e SHA byte-exato; (b) carregar apenas modelo pinado no SQL descartável `JornadaHarness`; (c) rejeitar modelo ativo, seleção implícita, parâmetros não congelados, fallback legado, banco não autorizado e modo de publicação. Manter um contexto `TEST_ONLY` imutável, não inferido de variáveis ambientais permissivas.
+
+**Contrato de lote:** materializar uma única coorte imutável, garantir ordenação e unicidade dos IDs, projetar candidatos com o mesmo blocking SQL/versionamento, aplicar scoring e agrupamento globais antes de persistir o primeiro lote, processar cada observação uma vez e reconciliar `eligible == evaluated == resolved + unresolved + conflicts` e `noCandidateInBlock <= unresolved`. Gerar hashes canônicos de pares, decisões e grupos; comparar com o caminho operacional usando os mesmos dados e winner, sem leitura de labels/gabarito no scorer. O diagnóstico atual de até 128/512 observações não autoriza extrapolação a 100 mil sem prova de escala.
+
+**Fronteira de escrita:** o modo TEST_ONLY deve operar em SQL descartável e ledger segregado, sem tocar tabelas operacionais de publicação nem `identidade.v_vinculo_corrente`, sem promover `linkage_run` a PUBLICADO e sem reutilizar `RunV9Async` produtivo enquanto não certificado. Persistência deve ser atômica por contrato e idempotência comprovada; falhas e cancelamento não podem deixar evidência parcial publicável. Separar evidência de equivalência algorítmica, equivalência de pipeline e certificação de produção — são três afirmações diferentes.
+
+**Matriz mínima de testes negativos antes de retirar sentinelas:**
+
+| Caso | Resultado exigido |
+| --- | --- |
+| Winner ausente, arquivo renomeado ou SHA divergente | Falhar antes de abrir coorte/SQL de scoring |
+| JSON operacional diferente do SQL pinado | Falhar antes de abrir TEST |
+| Banco diferente de `JornadaHarness` | Recusar sem escrita/leitura científica |
+| `Publish=true`, modo produtivo ou fallback legado | Recusar antes de lease/run/tabela |
+| Seleção de novo vencedor, refit ou leitura TRAIN/VALIDATION | Recusar; nenhum resultado TEST válido |
+| IDs duplicados, páginas fora de ordem ou lote incompleto | Falhar e não publicar |
+| Grupos que mudam com tamanho/ordem dos lotes | Falhar paridade; comparar hashes canônicos |
+| Erro de SQL, timeout ou cancelamento entre lotes | Rollback/estado não publicável, sem side effects produtivos |
+| Tentativa de reuso de coorte TEST one-use | Recusar antes de execução |
+| Evidência sem igualdade de blocking, scoring, grupos e decisões | `productionRunnerFullPipelineParityCertified=false` |
+
+**Gate de promoção:** adicionar testes C# de integração e prova SQL física no mesmo SHA, verificar invariância por batch size e por reordenação de entrada, produzir recibo com hashes, denominadores, esquema, SHA do winner, commits e status de publicação; auditar artefatos sem expor gabarito à execução. Só então propor revisão das sentinelas, mediante critérios #1575/#1584/#1488/#1478, verificação de P0-A e autorização científica aplicável. Até esse gate, conservar `productionRunnerFullPipelineParityCertified=false` e os dois `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED`.
