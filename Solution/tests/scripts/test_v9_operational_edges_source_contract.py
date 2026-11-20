@@ -25,6 +25,20 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_gold_manifest_is_verified_before_operational_candidates(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        gold = parity.index("SELECT pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,")
+        gold_count = parity.index("if (goldCount != frozenRows.Count)")
+        query = parity.index("var candidateQuery = planner.BuildCandidateUuidQuery(")
+        score_input = parity.index("OperationalEdges = Array.AsReadOnly(")
+        self.assertLess(gold, gold_count)
+        self.assertLess(gold_count, query)
+        self.assertLess(query, score_input)
+        self.assertIn("!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)", parity)
+        self.assertIn("reader.GetString(5) != \"REFERENCIA\"", parity)
+        self.assertIn("Manifesto Gold V9 incompleto para coorte congelada.", parity)
+        self.assertIn("Consulta candidata SQL retornou conteúdo Gold adulterado.", parity)
+
     def test_operational_parity_rejects_invalid_frozen_universe(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         start = parity.index("if (frozenRows.Count is < 2")
