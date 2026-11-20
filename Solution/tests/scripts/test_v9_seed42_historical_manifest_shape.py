@@ -88,6 +88,23 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn(": ConfigPercent(configKey, fallback)", program)
         self.assertLess(program.index("options.Validate();"), program.index("return options;"))
 
+    def test_manifest_partition_metadata_uses_validated_options(self):
+        for expected in (
+            "synthetic_population = generation.Options.People",
+            "train = generation.Options.TrainPercent",
+            "validation = generation.Options.ValidationPercent",
+            "test = generation.Options.TestPercent",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, self.materializer)
+        self.assertIn("options.Validate();", (
+            ROOT / "src/Jornada.Linkage.SyntheticCorpus.Parametrized/Program.cs"
+        ).read_text(encoding="utf-8"))
+        self.assertIn("options.Validate();", self.generator)
+        self.assertIn("generation.Options.People == 30000", self.materializer)
+        self.assertIn('generation.Options.ErrorProfile == "clean"', self.materializer)
+        self.assertIn("source.Demographic is not null", self.materializer)
+
     def test_nonhistorical_manifest_retains_partition_declarations(self):
         self.assertIn('historical.Remove("synthetic_population")', self.materializer)
         self.assertIn('historical.Remove("partition_percentages")', self.materializer)
