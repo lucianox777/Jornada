@@ -96,6 +96,48 @@ jobs:
             exit 1
           fi
           test ! -e "$RUNNER_TEMP/nonexistent-corpus"
+      - name: Validate parameterized partition percentages without corpus generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --train-percent 80 --validation-percent 20 --test-percent 20 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-partition-corpus" \
+            > "$RUNNER_TEMP/parametrized-partitions-invalid.log" 2>&1
+          invalid_status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-partitions-invalid.log"
+          test "$invalid_status" -ne 0
+          grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-partitions-invalid.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-partition-corpus"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-partition-corpus" \
+            > "$RUNNER_TEMP/parametrized-partitions-valid.log" 2>&1
+          valid_status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-partitions-valid.log"
+          test "$valid_status" -ne 0
+          if grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-partitions-valid.log"; then
+            echo "::error::Valid partition percentages were rejected"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-partitions-valid.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-partition-corpus"
+      - name: Upload partition CLI validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-partition-cli-validation
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-partitions-*.log
       - name: Upload parameterized CLI smoke log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
