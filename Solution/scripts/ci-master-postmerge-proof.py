@@ -86,7 +86,12 @@ def main():
     try:
         report = evaluate(fetch(args.sha, token), args.sha)
     except (ValueError, OSError) as exc:
-        print("UNVERIFIED: " + str(exc), file=sys.stderr)
+        # Keep a machine-readable failure artifact even when the API is
+        # unavailable or returns malformed/incomplete data. Never emit tokens.
+        print(json.dumps({"sha": args.sha, "verified": False,
+                          "state": "unverified", "error_type": type(exc).__name__},
+                         indent=2))
+        print("UNVERIFIED: " + type(exc).__name__, file=sys.stderr)
         return 2
     print(json.dumps(report, indent=2))
     return 0 if report["verified"] else 1
