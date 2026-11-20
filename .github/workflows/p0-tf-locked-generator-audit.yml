@@ -122,18 +122,21 @@ jobs:
               relative = raw.decode("utf-8")
               if not relative.endswith((".cs", ".py", ".yml", ".yaml", ".sh", ".json", ".md")):
                   continue
-              if relative.startswith(("Solution/docs/", "Solution/tests/", ".github/")):
-                  continue
+              category = ("test" if relative.startswith("Solution/tests/") else
+                          "workflow" if relative.startswith(".github/") else
+                          "documentation" if relative.startswith("Solution/docs/") else
+                          "source_or_config")
               path = root / relative
               if not path.is_file() or path.stat().st_size > 1_000_000:
                   continue
               for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                   found = [p for p in patterns if p in line]
                   if found:
-                      hits.append({"path": relative, "line": number, "symbols": found})
+                      hits.append({"path": relative, "line": number, "category": category, "symbols": found})
           print(json.dumps({"mode": "READ_ONLY_CONSUMER_INVENTORY",
                             "patterns": patterns, "hits": hits,
-                            "consumer_compatibility_validated": False}, indent=2))
+                            "consumer_compatibility_validated": False,
+                            "note": "zero hits is not proof of no dynamic consumers"}, indent=2))
           PY
           cat "$RUNNER_TEMP/locked-generator-consumers.json"
       - name: Upload parameterized consumer inventory
