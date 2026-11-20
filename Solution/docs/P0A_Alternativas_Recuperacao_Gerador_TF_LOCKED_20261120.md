@@ -400,3 +400,11 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Limite de comprovação:** a presença de um gate no workflow **não comprova** que a branch protection/ruleset da master exige os contextos do required-fast. A configuração remota e a recuperação da CI da master permanecem critérios de aceite separados da issue #1734.
 - **Stats verificados:** revisão `950a90a`, seis workflows retornados: cinco `queued`, um `pending`, nenhum concluído. Revisão `0dd105c`: quatro `queued`, um `pending`, um `in_progress` (seed42); o required-fast dessa revisão depois apareceu como `cancelled`. Snapshots não constituem aprovação de integração.
 - **Precedência e rastreabilidade:** decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`, GOV-DOC-01 e issue #1734; nenhuma decisão nova, índice vigente inalterado.
+
+
+### Continuidade — auditoria read-only com payload de proteção não estruturado (20/11/2026)
+
+- **Contexto e falha:** a auditoria de proteção da master ainda chamava `.get("strict")` em `required_status_checks` mesmo quando a API retornasse um valor truthy não estruturado (lista/string), causando exceção em vez de resultado verificável.
+- **Correção e testes:** commit `5cb9827` normaliza a leitura do objeto de checks antes da extração de `strict`; commit `7757a8d` cobre lista vazia/não vazia, string e número. Ausência de objeto válido permanece `verified=false`, com contextos faltantes explícitos. Os testes foram adicionados à suíte existente de auditoria, já invocada pelo required-fast, mas ainda aguardam CI deste commit.
+- **Estatísticas verificadas:** revisão `950a90a`, seis workflows: cinco `queued`, um `completed/cancelled` (required-fast), nenhum `success` ou `failure` concluído na consulta; revisão `0dd105c`: quatro `queued`, um `in_progress` (seed42), um `completed/cancelled` (required-fast). Cancelamentos não certificam regressão funcional, mas impedem aprovação da revisão.
+- **Justificativa, impactos e precedência:** preservar resultado fail-closed e diagnóstico reprodutível sem inferir que a master está protegida; GOV-DOC-01, issue #1734 e decisão de isolamento P0 permanecem aplicáveis. Sem alterações em rulesets reais, gerador histórico, manifests LOCKED ou campanha científica.
