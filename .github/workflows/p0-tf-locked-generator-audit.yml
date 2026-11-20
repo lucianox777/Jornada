@@ -82,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py --repo historical > "$RUNNER_TEMP/historical-locked-generator-audit.json"
+          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py --repo historical --locks-root auditor > "$RUNNER_TEMP/historical-locked-generator-audit.json"
           audit_status=$?
           set -e
           cat "$RUNNER_TEMP/historical-locked-generator-audit.json"
