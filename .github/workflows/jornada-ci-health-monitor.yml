@@ -1,0 +1,49 @@
+name: jornada-ci-health-monitor
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: jornada-ci-health-monitor
+  cancel-in-progress: false
+
+jobs:
+  verify-master:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Resolve exact master SHA
+        id: master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/${GH_REPO}/git/ref/heads/master" --jq '.object.sha')"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid master SHA" >&2; exit 2; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Regression tests for postmerge verifier
+        run: python3 -m unittest discover -s Solution/tests/scripts -p 'test_ci_master_postmerge_proof.py'
+      - name: Verify required master workflows (read-only, fail-closed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          python3 Solution/scripts/ci-master-postmerge-proof.py --sha "${{ steps.master.outputs.sha }}" | tee postmerge-health.json
+      - name: Upload monitor evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: master-postmerge-health
+          path: postmerge-health.json
+          if-no-files-found: warn
+          retention-days: 14
