@@ -55,9 +55,17 @@ async Task ExpectInvalidOptions()
 async Task ExpectValidMaterialization()
 {
     var output = Path.Combine(root, "valid-materialization");
-    var options = new SyntheticCorpusOptions(People: 1, Seed: 77,
+    var options = new SyntheticCorpusOptions(People: 3, Seed: 77,
         TrainPercent: 70, ValidationPercent: 20, TestPercent: 10);
-    var generation = new SyntheticCorpusGeneration([person], [Observation("O1")],
+    SyntheticPerson PartitionPerson(string id, string partition) => new()
+    {
+        BasePersonId = id, Partition = partition, Name = "Teste", MotherName = "Mae",
+        BirthDate = new DateOnly(2000, 1, 1), Sex = "F", EvaluationWeight = 1
+    };
+    var generation = new SyntheticCorpusGeneration(
+        [person, PartitionPerson("P2", "VALIDATION"), PartitionPerson("P3", "TEST")],
+        [Observation("O1"), Observation("O2", "P2", "VALIDATION"),
+            Observation("O3", "P3", "TEST")],
         new Dictionary<string, SyntheticEmpiricalM>(), options);
     // This fixture deliberately avoids external IBGE inputs and scientific campaigns.
     var source = (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers
@@ -68,14 +76,18 @@ async Task ExpectValidMaterialization()
     var observationsCsv = await File.ReadAllTextAsync(result.ObservationsPath);
     if (!peopleCsv.Contains("base_person_id,particao", StringComparison.Ordinal) ||
         !peopleCsv.Contains("P1,TRAIN", StringComparison.Ordinal) ||
+        !peopleCsv.Contains("P2,VALIDATION", StringComparison.Ordinal) ||
+        !peopleCsv.Contains("P3,TEST", StringComparison.Ordinal) ||
         !observationsCsv.Contains("observacao_id,base_person_id,particao", StringComparison.Ordinal) ||
-        !observationsCsv.Contains("O1,P1,TRAIN", StringComparison.Ordinal))
+        !observationsCsv.Contains("O1,P1,TRAIN", StringComparison.Ordinal) ||
+        !observationsCsv.Contains("O2,P2,VALIDATION", StringComparison.Ordinal) ||
+        !observationsCsv.Contains("O3,P3,TEST", StringComparison.Ordinal))
         throw new InvalidOperationException("Valid materialization lost partition CSV columns or values");
     using var manifest = System.Text.Json.JsonDocument.Parse(
         await File.ReadAllTextAsync(result.ManifestPath));
     var rootElement = manifest.RootElement;
     var percentages = rootElement.GetProperty("partition_percentages");
-    if (rootElement.GetProperty("synthetic_population").GetInt32() != 1 ||
+    if (rootElement.GetProperty("synthetic_population").GetInt32() != 3 ||
         percentages.GetProperty("train").GetDouble() != 70 ||
         percentages.GetProperty("validation").GetDouble() != 20 ||
         percentages.GetProperty("test").GetDouble() != 10 ||
@@ -83,8 +95,8 @@ async Task ExpectValidMaterialization()
         throw new InvalidOperationException("Valid materialization manifest metadata mismatch");
     using var truth = System.Text.Json.JsonDocument.Parse(
         await File.ReadAllTextAsync(result.TruthPath));
-    if (truth.RootElement.GetProperty("people").GetInt32() != 1 ||
-        truth.RootElement.GetProperty("observations").GetInt32() != 1 ||
+    if (truth.RootElement.GetProperty("people").GetInt32() != 3 ||
+        truth.RootElement.GetProperty("observations").GetInt32() != 3 ||
         truth.RootElement.GetProperty("seed").GetUInt64() != 77 ||
         truth.RootElement.GetProperty("input_fingerprint_sha256").GetString() != "ABC123")
         throw new InvalidOperationException("Valid materialization truth metadata mismatch");
