@@ -1,0 +1,462 @@
+using System.Globalization;
+using System.Text.Json;
+using Jornada.Contracts;
+using Jornada.Linkage.SyntheticCorpus;
+
+if (args.Length == 0)
+{
+    PrintUsage();
+    return 64;
+}
+
+if (string.Equals(args[0], "fingerprint-inputs", StringComparison.Ordinal))
+{
+    var referenceRoot = args.Length >= 2
+        ? args[1]
+        : Path.Combine(AppContext.BaseDirectory, "data", "reference", "ibge-nomes-2022");
+    var seed = args.Length >= 3
+        ? ulong.Parse(args[2], NumberStyles.None, CultureInfo.InvariantCulture)
+        : 42UL;
+
+    var manifest = await IbgeProjectionReader.ReadManifestAsync(referenceRoot);
+    var fingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(seed, manifest.Files);
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        generatorVersion = SyntheticCorpusInputIdentity.GeneratorVersion,
+        rulesetVersion = SyntheticCorpusV2Rules.RulesetVersion,
+        rngVersion = Xoshiro256StarStar.AlgorithmVersion,
+        seed,
+        referenceCode = manifest.ReferenceCode,
+        inputFingerprintSha256 = fingerprint,
+        files = manifest.Files
+            .OrderBy(x => x.Path, StringComparer.Ordinal)
+            .Select(x => new
+            {
+                x.Path,
+                x.Kind,
+                x.Required,
+                sha256 = x.Sha256.ToUpperInvariant(),
+                canonicalContentSha256 = x.CanonicalContentSha256.ToUpperInvariant(),
+                x.RowCount
+            })
+    }));
+    return 0;
+}
+
+if (string.Equals(args[0], "generate", StringComparison.Ordinal))
+{
+    var values = ParseNamedArguments(args.Skip(1).ToArray());
+    var referenceRoot = ResolveReferenceRoot(values);
+    var output = Get(values, "out") ?? Path.Combine(Environment.CurrentDirectory, "corpus-v2-csharp");
+    var options = ParseCorpusOptions(values);
+    var loaded = await GenerateAsync(referenceRoot, options, values);
+    var materialized = await SyntheticCorpusMaterializer.WriteAsync(
+        output,
+        loaded.Generation,
+        loaded.Nominal,
+        loaded.InputFingerprint);
+
+    if (string.Equals(Get(values, "v9-support-summary"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        var support = SyntheticJointSupportReportV9.Build(
+            loaded.Generation.People,
+            loaded.Generation.Observations,
+            options.Seed,
+            loaded.InputFingerprint);
+        await File.WriteAllTextAsync(Path.Combine(output, "v9-joint-support.json"),
+            JsonSerializer.Serialize(support, SyntheticCorpusCliJson.Indented) + "\n");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            support.Version,
+            support.Status,
+            support.People,
+            trainCellsWithoutBilateralObservation = support.Partitions
+                .Single(x => x.Partition == "TRAIN").CellsWithoutBilateralObservation
+        }));
+    }
+
+    // These CLI switches are independent. A functional decision probe MUST
+    // run even when the optional 81-cell support summary is not requested.
+    if (string.Equals(Get(values, "v9-functional-probe"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        var frozenInput = Get(values, "v9-frozen-model-input");
+        SyntheticV9FrozenModelV1? frozen = null;
+        if (frozenInput is not null)
+        {
+            frozen = JsonSerializer.Deserialize<SyntheticV9FrozenModelV1>(
+                await File.ReadAllTextAsync(Path.GetFullPath(frozenInput)))
+                ?? throw new InvalidOperationException("Modelo congelado V9 não é um objeto válido.");
+        }
+        var probe = SyntheticV9FunctionalProbe.Analyze(
+            loaded.Generation.People, loaded.Generation.Observations,
+            options.Seed, loaded.InputFingerprint, frozen);
+        if (frozen is null)
+        {
+            // Serialize the canonical unindented payload; the exact bytes,
+            // excluding trailing newline, are hashed in the scoring report.
+            await File.WriteAllTextAsync(Path.Combine(output, "v9-frozen-model.json"),
+                JsonSerializer.Serialize(probe.FrozenModel) + "\n");
+        }
+        await File.WriteAllTextAsync(Path.Combine(output, "v9-functional-probe.json"),
+            JsonSerializer.Serialize(probe, SyntheticCorpusCliJson.Indented) + "\n");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            probe.Version, probe.SyntheticProxyVerdict, probe.OperationalConclusion,
+            probe.Test.Tp, probe.Test.Fp, probe.Test.Fn, probe.Test.Tn,
+            probe.Test.Recall, probe.Test.Fpr, probe.Test.Precision, probe.Test.Fdr
+        }));
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        generatorVersion = SyntheticCorpusInputIdentity.GeneratorVersion,
+        rulesetVersion = SyntheticCorpusV2Rules.RulesetVersion,
+        rngVersion = Xoshiro256StarStar.AlgorithmVersion,
+        options.Seed,
+        people = loaded.Generation.People.Count,
+        observations = loaded.Generation.Observations.Count,
+        inputFingerprintSha256 = loaded.InputFingerprint,
+        outputDirectory = Path.GetFullPath(output),
+        outputs = materialized.OutputSha256,
+        empiricalMExact = loaded.Generation.EmpiricalMExact
+    }, SyntheticCorpusCliJson.Indented));
+    return 0;
+}
+
+if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal)
+    || string.Equals(args[0], "generate-ingestion-waves", StringComparison.Ordinal))
+{
+    var values = ParseNamedArguments(args.Skip(1).ToArray());
+    var referenceRoot = ResolveReferenceRoot(values);
+    var output = Get(values, "out")
+        ?? Path.Combine(Environment.CurrentDirectory, "synthetic-ingestion");
+    var options = ParseCorpusOptions(values);
+    var dataReferencia = DateTimeOffset.Parse(
+        GetRequired(values, "data-referencia"),
+        CultureInfo.InvariantCulture,
+        DateTimeStyles.None);
+    var keyEnvironment = Get(values, "pseudonymization-key-env")
+        ?? "JORNADA_SYNTH_PSEUDONYMIZATION_KEY";
+    var pseudonymizationKey = Environment.GetEnvironmentVariable(keyEnvironment);
+    if (string.IsNullOrWhiteSpace(pseudonymizationKey))
+        throw new InvalidOperationException(
+            $"Defina a variável de ambiente {keyEnvironment} com a chave de pseudonimização do ensaio.");
+
+    var loaded = await GenerateAsync(referenceRoot, options, values);
+    var corpusDirectory = Path.Combine(output, "corpus");
+    var ingestionDirectory = Path.Combine(output, "ingestion");
+    await SyntheticCorpusMaterializer.WriteAsync(
+        corpusDirectory,
+        loaded.Generation,
+        loaded.Nominal,
+        loaded.InputFingerprint);
+
+    var bridgeOptions = new SyntheticIngestionBridgeOptions(
+        GetInt(values, "pessoa-schema-versao", ContractVersions.CurrentPersonSchemaVersion),
+        dataReferencia,
+        pseudonymizationKey);
+    if (string.Equals(args[0], "generate-ingestion-waves", StringComparison.Ordinal))
+    {
+        var scenario = new SyntheticWaveScenario(
+            WaveCount: GetInt(values, "wave-count", 3),
+            DelayedArrivalProbability: GetDouble(values, "wave-delayed-arrival-rate", .25),
+            CpfRevealProbability: GetDouble(values, "wave-cpf-reveal-rate", .75),
+            NameCorrectionProbability: GetDouble(values, "wave-name-correction-rate", .35),
+            MotherCorrectionProbability: GetDouble(values, "wave-mother-correction-rate", .35),
+            BirthDateRecoveryProbability: GetDouble(values, "wave-birth-recovery-rate", .70));
+        var waves = SyntheticIngestionWavePlanner.Plan(loaded.Generation, scenario);
+        var reports = new List<object>();
+        var initialSources = loaded.Generation.Observations
+            .GroupBy(x => (x.BasePersonId, x.Gestor))
+            .Select(x => x.OrderBy(y => y.ObservationId, StringComparer.Ordinal).First())
+            .ToArray();
+
+        foreach (var wave in waves)
+        {
+            var currentOptions = bridgeOptions with
+            {
+                StableSourceIdentity = true,
+                WaveNumber = wave.WaveNumber,
+                DataReferencia = dataReferencia.AddDays(wave.WaveNumber)
+            };
+            var current = SyntheticIngestionBridge.Build(wave.Generation, currentOptions);
+            var directory = Path.Combine(
+                ingestionDirectory, "wave-" + (wave.WaveNumber + 1).ToString("D2", CultureInfo.InvariantCulture));
+            var materializedWave = await SyntheticIngestionBridgeMaterializer.WriteAsync(
+                directory, current, currentOptions, loaded.InputFingerprint);
+            reports.Add(new
+            {
+                wave = wave.WaveNumber + 1,
+                currentOptions.DataReferencia,
+                wave.NewSourceCount,
+                wave.UpdatedSourceCount,
+                wave.CpfRevealedCount,
+                wave.BirthDateRecoveredCount,
+                current.SourceObservationCount,
+                current.MaterializedObservationCount,
+                current.ExcludedObservationCount,
+                manifestSha256 = materializedWave.ManifestSha256,
+                truthSha256 = materializedWave.TruthSha256,
+                packages = current.Packages.Select(x => new { x.GestorCodigo, x.FileName, x.Sha256, x.PeopleCount })
+            });
+        }
+
+        Directory.CreateDirectory(ingestionDirectory);
+        var wavesManifest = Path.Combine(ingestionDirectory, "waves-manifest.json");
+        await File.WriteAllTextAsync(wavesManifest,
+            SyntheticWaveManifestSerializer.Serialize(
+                options.Seed,
+                loaded.InputFingerprint,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(pseudonymizationKey))),
+                initialSources.Count(x => x.Cpf is not null),
+                initialSources.Count(x => x.Cpf is null),
+                scenario,
+                reports));
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            outputDirectory = Path.GetFullPath(output),
+            wavesManifest,
+            waveCount = waves.Count,
+            waves = reports
+        }, SyntheticCorpusCliJson.Indented));
+        return 0;
+    }
+
+    var bridge = SyntheticIngestionBridge.Build(loaded.Generation, bridgeOptions);
+    var bridgeMaterialized = await SyntheticIngestionBridgeMaterializer.WriteAsync(
+        ingestionDirectory,
+        bridge,
+        bridgeOptions,
+        loaded.InputFingerprint);
+
+    Console.WriteLine(JsonSerializer.Serialize(new
+    {
+        generatorVersion = SyntheticCorpusInputIdentity.GeneratorVersion,
+        bridgeVersion = SyntheticIngestionBridge.BridgeVersion,
+        options.Seed,
+        sourceObservations = bridge.SourceObservationCount,
+        materializedObservations = bridge.MaterializedObservationCount,
+        excludedObservations = bridge.ExcludedObservationCount,
+        pessoaSchemaVersao = bridgeOptions.PessoaSchemaVersao,
+        dataReferencia = bridgeOptions.DataReferencia,
+        corpusInputFingerprintSha256 = loaded.InputFingerprint,
+        pseudonymizationKeySha256 = bridge.PseudonymizationKeySha256,
+        outputDirectory = Path.GetFullPath(output),
+        bridgeManifest = bridgeMaterialized.ManifestPath,
+        bridgeTruth = bridgeMaterialized.TruthPath,
+        packages = bridge.Packages.Select(x => new
+        {
+            x.GestorCodigo,
+            x.CodigoSistemaOrigem,
+            x.FileName,
+            x.Sha256,
+            x.PeopleCount
+        })
+    }, SyntheticCorpusCliJson.Indented));
+    return 0;
+}
+
+PrintUsage();
+return 64;
+
+static Dictionary<string, string> ParseNamedArguments(string[] values)
+{
+    var result = new Dictionary<string, string>(StringComparer.Ordinal);
+    for (var i = 0; i < values.Length; i++)
+    {
+        var token = values[i];
+        if (!token.StartsWith("--", StringComparison.Ordinal) || token.Length <= 2)
+            throw new ArgumentException($"Argumento inválido: {token}.");
+        if (i + 1 >= values.Length || values[i + 1].StartsWith("--", StringComparison.Ordinal))
+            throw new ArgumentException($"Valor ausente para {token}.");
+
+        var key = token[2..];
+        if (!result.TryAdd(key, values[++i]))
+            throw new ArgumentException($"Argumento duplicado: --{key}.");
+    }
+    return result;
+}
+
+static string? Get(IReadOnlyDictionary<string, string> values, string key)
+    => values.TryGetValue(key, out var value) ? value : null;
+
+static string GetRequired(IReadOnlyDictionary<string, string> values, string key)
+    => values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+        ? value
+        : throw new ArgumentException($"Argumento obrigatório ausente: --{key}.");
+
+static string ResolveReferenceRoot(IReadOnlyDictionary<string, string> values)
+    => Get(values, "reference-root")
+        ?? Path.Combine(AppContext.BaseDirectory, "data", "reference", "ibge-nomes-2022");
+
+static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, string> values)
+{
+    // Optional V9 calibrator configuration; explicit CLI values take precedence.
+    var calibratorConfigPath = Get(values, "calibrator-config");
+    using var configDocument = calibratorConfigPath is null ? null : JsonDocument.Parse(File.ReadAllText(calibratorConfigPath));
+    var config = configDocument?.RootElement;
+    int ConfigPeople() => config is { } c ? c.GetProperty("syntheticPopulation").GetInt32() : 30_000;
+    double ConfigPercent(string key, double fallback) => config is { } c
+        ? c.GetProperty("sampling").GetProperty(key).GetDouble() : fallback;
+    int People() => values.ContainsKey("people") ? GetInt(values, "people", 30_000) : ConfigPeople();
+    double Percent(string cliKey, string configKey, double fallback) => values.ContainsKey(cliKey)
+        ? GetDouble(values, cliKey, fallback)
+        : ConfigPercent(configKey, fallback);
+    var options = new SyntheticCorpusOptions(
+        People: People(),
+        Seed: GetUlong(values, "seed", 42),
+        ErrorProfile: Get(values, "error-profile") ?? "clean",
+        MinFrequency: GetLong(values, "min-freq", 20),
+        TailOversample: GetDouble(values, "tail-oversample", 1.0),
+        CpfBasePrevalence: GetDouble(values, "cpf-base-prevalence", .22),
+        CnsBasePrevalence: GetDouble(values, "cns-base-prevalence", .55),
+        CpfObservationRetention: GetDouble(values, "cpf-observation-retention", .55),
+        CnsObservationRetention: GetDouble(values, "cns-observation-retention", .70),
+        CnsInvalidRate: GetDouble(values, "cns-invalid-rate", .01),
+        CnsReuseRate: GetDouble(values, "cns-reuse-rate", .01),
+        CnsDobConflictRate: GetDouble(values, "cns-dob-conflict-rate", .01),
+        Gestores: GetInt(values, "gestores", 4),
+        BrazilianNameErrors: Get(values, "brazilian-name-errors-config") is { } configPath
+            ? SyntheticBrazilianNameErrorConfig.ReadFile(configPath)
+            : null,
+        StratifiedErrors: Get(values, "stratified-errors-config") is { } strataPath
+            ? SyntheticStratifiedErrorConfig.ReadFile(strataPath)
+            : null,
+        TrainPercent: Percent("train-percent", "trainPercent", 60),
+        ValidationPercent: Percent("validation-percent", "validationPercent", 20),
+        TestPercent: Percent("test-percent", "testPercent", 20));
+    options.Validate();
+    return options;
+}
+
+static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalSource Nominal, string InputFingerprint)> GenerateAsync(
+    string referenceRoot,
+    SyntheticCorpusOptions options,
+    IReadOnlyDictionary<string, string> values)
+{
+    var manifest = await IbgeProjectionReader.ReadManifestAsync(referenceRoot);
+    var profile = Get(values, "population-profile") ?? "demographic-primary";
+    if (string.Equals(profile, "legacy", StringComparison.Ordinal))
+    {
+        var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
+            options.Seed, manifest.Files, options.BrazilianNameErrors, options.StratifiedErrors);
+        var nominal = await SyntheticCorpusSourceLoader.LoadBrasilTotalAsync(referenceRoot, options);
+        var generation = new SyntheticCorpusGenerator(nominal.FirstNames, nominal.Surnames).Generate(options);
+        return (generation, nominal, inputFingerprint);
+    }
+
+    if (!string.Equals(profile, "demographic-primary", StringComparison.Ordinal))
+        throw new ArgumentException("population-profile deve ser legacy ou demographic-primary.");
+
+    var birthPath = GetRequired(values, "birth-daily-source");
+    var birth = await SyntheticDailyBirthDistribution.LoadAsync(birthPath);
+    var demographic = await SyntheticCorpusSourceLoader.LoadDemographicPrimaryAsync(referenceRoot, options);
+    var demographicFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
+        options.Seed,
+        manifest.Files,
+        options.BrazilianNameErrors,
+        options.StratifiedErrors,
+        new[]
+        {
+            $"population_profile=DEMOGRAPHIC_PRIMARY_V1",
+            $"person_geography=MUNICIPIO_SP_3550308",
+            $"mother_first_geography=BRASIL_FEMININO",
+            $"mother_surname_geography=BRASIL_TODOS",
+            $"birth_schema={birth.Provenance.SchemaVersion}",
+            $"birth_source={birth.Provenance.Source}",
+            $"birth_reference_period={birth.Provenance.ReferencePeriod}",
+            $"birth_geography={birth.Provenance.Geography}",
+            $"birth_sha256={birth.Provenance.Sha256}",
+            $"birth_rows={birth.Provenance.RowCount}"
+        });
+    var materializationSource = demographic.ToMaterializationSource(birth.Provenance);
+    var demographicGeneration = new SyntheticCorpusGenerator(
+        demographic.PersonFirstNames,
+        demographic.PersonSurnames,
+        demographic.MotherFirstNames,
+        demographic.MotherSurnames,
+        birth).Generate(options);
+    return (demographicGeneration, materializationSource, demographicFingerprint);
+}
+
+static int GetInt(IReadOnlyDictionary<string, string> values, string key, int fallback)
+    => values.TryGetValue(key, out var value)
+        ? int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)
+        : fallback;
+
+static long GetLong(IReadOnlyDictionary<string, string> values, string key, long fallback)
+    => values.TryGetValue(key, out var value)
+        ? long.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)
+        : fallback;
+
+static ulong GetUlong(IReadOnlyDictionary<string, string> values, string key, ulong fallback)
+    => values.TryGetValue(key, out var value)
+        ? ulong.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)
+        : fallback;
+
+static double GetDouble(IReadOnlyDictionary<string, string> values, string key, double fallback)
+    => values.TryGetValue(key, out var value)
+        ? double.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)
+        : fallback;
+
+static void PrintUsage()
+{
+    Console.Error.WriteLine(
+        """
+        uso:
+          Jornada.Linkage.SyntheticCorpus fingerprint-inputs [referenceRoot] [seed]
+
+          Jornada.Linkage.SyntheticCorpus generate
+            [--reference-root <dir>]
+            [--population-profile demographic-primary|legacy (default demographic-primary)]
+            [--birth-daily-source <arquivo.json> (obrigatório em demographic-primary; sem fallback uniforme)]
+            [--out <dir>]
+            [--people <N> (default 30000; corpus demografico primario)]
+            [--seed <N>]
+            [--error-profile clean|independent|correlated|field]
+            [--min-freq <N>]
+            [--tail-oversample <N>]
+            [--cpf-base-prevalence <0..1>]
+            [--cns-base-prevalence <0..1>]
+            [--cpf-observation-retention <0..1>]
+            [--cns-observation-retention <0..1>]
+            [--cns-invalid-rate <0..1>]
+            [--cns-reuse-rate <0..1>]
+            [--cns-dob-conflict-rate <0..1>]
+            [--gestores <N>]
+            [--brazilian-name-errors-config <arquivo.json> (experimental, sem taxas presumidas)]
+            [--stratified-errors-config <arquivo.json> (overlay experimental por CPF observado/Gestor)]
+
+          Jornada.Linkage.SyntheticCorpus generate-ingestion-waves
+            --data-referencia <ISO-8601 com offset>
+            [--wave-count <2..12>]
+            [--wave-delayed-arrival-rate <0..1>]
+            [--wave-cpf-reveal-rate <0..1>]
+            [--wave-name-correction-rate <0..1>]
+            [--wave-mother-correction-rate <0..1>]
+            [--wave-birth-recovery-rate <0..1>]
+            [--pseudonymization-key-env <ENV_NAME>]
+            [--reference-root <dir>]
+            [--out <dir>]
+            [demais parâmetros de generate]
+
+          Jornada.Linkage.SyntheticCorpus generate-ingestion
+            --data-referencia <ISO-8601 com offset>
+            [--pseudonymization-key-env <ENV_NAME>]
+            [--pessoa-schema-versao <N>]
+            [--reference-root <dir>]
+            [--out <dir>]
+            [demais parâmetros de generate]
+
+        Ambos os modos de ingestão leem a chave HMAC somente da variável de ambiente
+        (default JORNADA_SYNTH_PSEUDONYMIZATION_KEY) e nunca a grava nos artefatos.
+        """);
+}
+
+
+internal static class SyntheticCorpusCliJson
+{
+    public static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+}

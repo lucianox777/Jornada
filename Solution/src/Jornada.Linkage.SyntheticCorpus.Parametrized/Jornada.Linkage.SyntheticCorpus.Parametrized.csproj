@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Jornada.Linkage.SyntheticCorpus.Parametrized</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Shared unchanged historical sources are compiled, not referenced as an assembly. -->
+    <Compile Include="../Jornada.Linkage.SyntheticCorpus/**/*.cs"
+             Exclude="../Jornada.Linkage.SyntheticCorpus/Program.cs;../Jornada.Linkage.SyntheticCorpus/SyntheticCorpusGenerator.cs;../Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs;../Jornada.Linkage.SyntheticCorpus/SyntheticCorpusModels.cs;../Jornada.Linkage.SyntheticCorpus/**/obj/**/*.cs;../Jornada.Linkage.SyntheticCorpus/**/bin/**/*.cs" />
+    <ProjectReference Include="../Jornada.Linkage.Core/Jornada.Linkage.Core.csproj" />
+    <ProjectReference Include="../Jornada.Contracts/Jornada.Contracts.csproj" />
+    <ProjectReference Include="../Jornada.Ingestion/Jornada.Ingestion.csproj" />
+    <None Include="../../data/reference/ibge-nomes-2022/**/*"
+          Link="data/reference/ibge-nomes-2022/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="Never" />
+  </ItemGroup>
+</Project>

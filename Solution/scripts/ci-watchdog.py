@@ -153,30 +153,56 @@ def is_current_run(run: dict, api: Any, master_sha: str, now: dt.datetime) -> bo
     sha = run.get("head_sha")
     if run["event"] == "push":
         return run.get("head_branch") == "master" and sha == master_sha
-    if run.get("head_repository", {}).get("full_name") != REPO:
+    origin = run.get("head_repository")
+    if not isinstance(origin, dict) or origin.get("full_name") != REPO:
         return False
-    prs = run.get("pull_requests") or []
-    if len(prs) != 1:
+    prs = run.get("pull_requests")
+    if not isinstance(prs, list) or len(prs) != 1 or not isinstance(prs[0], dict):
         return False
     number = prs[0].get("number")
-    if not isinstance(number, int):
+    if type(number) is not int or number <= 0:
         return False
-    pr = api.request(f"/pulls/{number}")
+    try:
+        pr = api.request(f"/pulls/{number}")
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
+    if not isinstance(pr, dict):
+        return False
+    base, head = pr.get("base"), pr.get("head")
+    if not isinstance(base, dict) or not isinstance(head, dict):
+        return False
+    head_repo = head.get("repo")
     return (
         pr.get("state") == "open"
-        and pr.get("base", {}).get("ref") == "master"
-        and pr.get("head", {}).get("sha") == sha
-        and pr.get("head", {}).get("repo", {}).get("full_name") == REPO
+        and base.get("ref") == "master"
+        and head.get("sha") == sha
+        and isinstance(head_repo, dict)
+        and head_repo.get("full_name") == REPO
     )
 
 
 def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
     """Retry only if EVERY failed job has explicit runner-infrastructure evidence."""
     jobs = payload.get("jobs", [])
-    if not isinstance(jobs, list) or payload.get("total_count") != len(jobs):
+    if (not isinstance(jobs, list) or type(payload.get("total_count")) is not int
+            or payload["total_count"] != len(jobs)):
         return False, "incomplete job listing"
+    if any(not isinstance(job, dict) for job in jobs):
+        return False, "invalid job entry"
+    identifiers = [job.get("id") for job in jobs]
+    if (any(type(job_id) is not int or job_id <= 0 for job_id in identifiers)
+            or len(identifiers) != len(set(identifiers))):
+        return False, "invalid or duplicate job ids"
     if any(job.get("status") != "completed" for job in jobs):
         return False, "jobs still running"
+    # An unknown/absent conclusion cannot be silently ignored when deciding
+    # whether to POST a selective rerun of an otherwise failed workflow.
+    recognized = {"success", "failure", "skipped", "neutral"}
+    if any(job.get("conclusion") not in recognized for job in jobs):
+        return False, "unrecognized or blocked job conclusion"
+    if any(not isinstance(job.get("name"), str) or not job["name"].strip()
+           for job in jobs):
+        return False, "missing job name"
     failed = [
         j for j in jobs
         if j.get("conclusion") in ("failure", "timed_out", "action_required", "cancelled")
@@ -195,7 +221,13 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         name = job.get("name")
         if not isinstance(job.get("id"), int):
             return False, "invalid failed job id"
-        text = logs(job["id"]).lower()
+        try:
+            evidence = logs(job["id"])
+        except (OSError, ValueError, TypeError, KeyError):
+            return False, "runner log evidence unavailable"
+        if not isinstance(evidence, str):
+            return False, "runner log evidence malformed"
+        text = evidence.lower()
         if any(marker in text for marker in INFRA_LOG_MARKERS):
             infra_failed.add(job["id"])
         elif failed_dependency_assertion(job):
@@ -231,6 +263,8 @@ def summarize_checkpoint(payload: dict) -> str:
         return "checkpoint unverified"
     if len(jobs) != payload["total_count"]:
         return "checkpoint incomplete"
+    if any(not isinstance(job, dict) for job in jobs):
+        return "checkpoint unverified"
     passed = sum(j.get("conclusion") == "success" for j in jobs)
     failed = sum(j.get("conclusion") in ("failure", "timed_out", "cancelled", "action_required") for j in jobs)
     skipped = sum(j.get("conclusion") == "skipped" for j in jobs)

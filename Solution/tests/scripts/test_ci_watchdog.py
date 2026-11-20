@@ -30,7 +30,7 @@ def jobs(*conclusions):
     return {
         "total_count": len(conclusions),
         "jobs": [
-            {"id": i + 5, "status": "completed", "conclusion": value}
+            {"id": i + 5, "name": f"job-{i + 5}", "status": "completed", "conclusion": value}
             for i, value in enumerate(conclusions)
         ],
     }
@@ -72,6 +72,35 @@ class CiWatchdogTests(unittest.TestCase):
         self.assertFalse(watch.is_current_run(run(conclusion="cancelled"), api, SHA, NOW))
         self.assertFalse(watch.is_current_run(run(created_at="2026-10-10T10:00:00Z"), api, SHA, NOW))
 
+    def test_malformed_pr_provenance_fails_closed_without_retry(self):
+        candidate = run(event="pull_request", head_branch="feature",
+                        pull_requests=[{"number": 10}])
+        valid = {
+            "state": "open", "base": {"ref": "master"},
+            "head": {"sha": SHA, "repo": {"full_name": watch.REPO}},
+        }
+        malformed = [
+            {**candidate, "head_repository": None},
+            {**candidate, "pull_requests": "invalid"},
+            {**candidate, "pull_requests": [None]},
+            {**candidate, "pull_requests": [{"number": True}]},
+            {**candidate, "pull_requests": [{"number": 0}]},
+        ]
+        for item in malformed:
+            with self.subTest(run=item):
+                self.assertFalse(watch.is_current_run(item, FakeApi(pr=valid), SHA, NOW))
+        for pr in (None, [], {"state": "open", "base": None, "head": {}},
+                   {"state": "open", "base": {"ref": "master"}, "head": {"sha": SHA, "repo": None}}):
+            with self.subTest(pr=pr):
+                class Api:
+                    def request(self, path):
+                        return pr
+                self.assertFalse(watch.is_current_run(candidate, Api(), SHA, NOW))
+        class Unavailable:
+            def request(self, path):
+                raise OSError("GitHub unavailable")
+        self.assertFalse(watch.is_current_run(candidate, Unavailable(), SHA, NOW))
+
     def test_pull_request_head_must_match_open_same_repository(self):
         pr = {
             "state": "open", "base": {"ref": "master"},
@@ -87,6 +116,54 @@ class CiWatchdogTests(unittest.TestCase):
         self.assertFalse(watch.is_current_run(
             {**candidate, "head_repository": {"full_name": "fork/repo"}},
             FakeApi(pr=pr), SHA, NOW))
+
+    def test_runner_log_evidence_failure_never_authorizes_retry(self):
+        payload = jobs("failure", "success")
+        def unavailable(_):
+            raise OSError("log endpoint unavailable")
+        for reader in (unavailable, lambda _: None, lambda _: b"runner has received a shutdown signal"):
+            with self.subTest(reader=reader):
+                allowed, reason = watch.retryable_jobs(payload, reader)
+                self.assertFalse(allowed)
+                self.assertIn("evidence", reason)
+
+    def test_retry_refuses_ambiguous_completed_job_conclusions_and_names(self):
+        for bad in (None, "action_required", "timed_out", "cancelled", "mystery"):
+            with self.subTest(conclusion=bad):
+                payload = jobs("failure", "success")
+                payload["jobs"][1]["conclusion"] = bad
+                api = FakeApi(job_results=payload)
+                self.assertFalse(watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])[0])
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
+        for name in (None, "", "  "):
+            with self.subTest(name=name):
+                payload = jobs("failure", "success")
+                payload["jobs"][0]["name"] = name
+                api = FakeApi(job_results=payload)
+                self.assertFalse(watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])[0])
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
+
+    def test_retry_refuses_duplicate_or_anonymous_job_evidence(self):
+        valid = jobs("failure", "success")
+        invalid_cases = [
+            {**valid, "jobs": [valid["jobs"][0], {**valid["jobs"][1], "id": 5}]},
+            {**valid, "jobs": [{**valid["jobs"][0], "id": True}, valid["jobs"][1]]},
+            {**valid, "jobs": [{**valid["jobs"][0], "id": None}, valid["jobs"][1]]},
+            {**valid, "jobs": [None, valid["jobs"][1]]},
+            {**valid, "total_count": True},
+        ]
+        for payload in invalid_cases:
+            with self.subTest(payload=payload):
+                eligible, _ = watch.retryable_jobs(
+                    payload, lambda _: watch.INFRA_LOG_MARKERS[0])
+                self.assertFalse(eligible)
+                api = FakeApi(job_results=payload)
+                watch.supervise(api, True, NOW)
+                self.assertEqual(api.posts, [])
 
     def test_ambiguous_error_does_not_retry(self):
         result, why = watch.retryable_jobs(

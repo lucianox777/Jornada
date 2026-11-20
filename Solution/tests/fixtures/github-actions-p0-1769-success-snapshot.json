@@ -1,0 +1,128 @@
+{
+  "source": "GitHub connector PR commit first-page snapshot; not master proof",
+  "commit_sha": "420814152b20f8c10d3a2e372605355d27a58f60",
+  "workflow_runs": [
+    {
+      "id": 44784776890,
+      "name": "v9-seed42-generator-byte-comparison",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 44784776982,
+      "name": "v9-standard-linear-contract-ci",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 44784777042,
+      "name": "P0-A TF LOCKED generator identity diagnostic (nonblocking)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 44784776936,
+      "name": "V9 full-schema real RunAsync smoke (nonpublishing, no scientific TEST)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 44784777025,
+      "name": "V9 seed42 independent IBGE pin provenance",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 44784777031,
+      "name": "jornada-pr-required-fast",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "jobs_by_run": {
+    "44784776890": [
+      {
+        "id": 136456591089,
+        "name": "compare-historical-and-current",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "44784776982": [
+      {
+        "id": 136456592092,
+        "name": "V9 standard: syntax and PREPARE transfer contract",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136457402351,
+        "name": "PREPARE smoke: upload synthetic fixture artifact",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136457568054,
+        "name": "TRAIN smoke: download and verify PREPARE artifact",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "44784777042": [
+      {
+        "id": 136456591630,
+        "name": "Compare frozen manifests with pinned historical checkout",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136456592327,
+        "name": "Audit frozen generator bytes",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "44784776936": [
+      {
+        "id": 136456591628,
+        "name": "full-schema-runasync-nonpublish",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "44784777025": [
+      {
+        "id": 136456591556,
+        "name": "independent-ibge-pin",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "44784777031": [
+      {
+        "id": 136457241663,
+        "name": "classify-impact",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136457378841,
+        "name": "security-guards",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136457378870,
+        "name": "unit-runtime",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136457378877,
+        "name": "deterministic-build",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+}

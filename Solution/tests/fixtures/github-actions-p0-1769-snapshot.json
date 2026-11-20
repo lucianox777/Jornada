@@ -1,0 +1,116 @@
+{
+  "source": "GitHub connector PR commit first-page snapshot; nonexhaustive",
+  "commit_sha": "fc78c8a9b6140e9348689b1f418f6bb45484251c",
+  "workflow_runs": [
+    {
+      "id": 44783540048,
+      "name": "v9-seed42-generator-byte-comparison",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 44783540171,
+      "name": "v9-standard-linear-contract-ci",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 44783540318,
+      "name": "P0-A TF LOCKED generator identity diagnostic (nonblocking)",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 44783540743,
+      "name": "V9 seed42 independent IBGE pin provenance",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 44783540553,
+      "name": "V9 full-schema real RunAsync smoke",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 44783540298,
+      "name": "jornada-pr-required-fast",
+      "status": "queued",
+      "conclusion": null
+    }
+  ],
+  "jobs_by_run": {
+    "44783540048": [
+      {
+        "id": 136452255726,
+        "name": "compare-historical-and-current",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "44783540171": [
+      {
+        "id": 136452256353,
+        "name": "V9 standard: syntax and PREPARE transfer contract",
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "44783540318": [
+      {
+        "id": 136452256991,
+        "name": "Compare frozen manifests with pinned historical checkout",
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 136452257215,
+        "name": "Audit frozen generator bytes",
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "44783540743": [
+      {
+        "id": 136452259886,
+        "name": "independent-ibge-pin",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "44783540553": [
+      {
+        "id": 136452257587,
+        "name": "full-schema-runasync-nonpublish",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "44783540298": [
+      {
+        "id": 136454147366,
+        "name": "classify-impact",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 136454514578,
+        "name": "security-guards",
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 136454514629,
+        "name": "unit-runtime",
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 136454514717,
+        "name": "deterministic-build",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ]
+  }
+}

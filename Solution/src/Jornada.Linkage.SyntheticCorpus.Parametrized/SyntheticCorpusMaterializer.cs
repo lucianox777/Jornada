@@ -1,0 +1,522 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Jornada.Contracts;
+
+namespace Jornada.Linkage.SyntheticCorpus;
+
+public sealed record SyntheticCorpusMaterializationResult(
+    string PeoplePath,
+    string ObservationsPath,
+    string TruthPath,
+    string ManifestPath,
+    IReadOnlyDictionary<string, string> OutputSha256);
+
+public static class SyntheticCorpusMaterializer
+{
+    private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true };
+
+    public static async Task<SyntheticCorpusMaterializationResult> WriteAsync(
+        string outputDirectory,
+        SyntheticCorpusGeneration generation,
+        SyntheticCorpusNominalSource source,
+        string inputFingerprintSha256,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
+        ArgumentNullException.ThrowIfNull(generation);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputFingerprintSha256);
+
+        // Materialization is a public entry point: reject invalid options even
+        // when a generation was constructed outside the CLI/generator.
+        generation.Options.Validate();
+
+        // Imported collections may contain null entries despite their C# element annotations.
+        // Reject these before GroupBy or field access, without touching the output directory.
+        if (generation.People.Any(person => person is null) ||
+            generation.Observations.Any(observation => observation is null))
+            throw new InvalidDataException("Geração contém pessoa ou observação nula.");
+
+        // Reject imported/expanded generations before writing any output. The
+        // hard support is not the largest cluster observed in this particular run.
+        if (generation.Observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
+            .Any(g => g.Count() > SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity))
+            throw new InvalidDataException("Geração excede o suporte declarado de observações por pessoa.");
+
+        // Fail closed before writing files: one base identity belongs to exactly
+        // one partition, and every observation must inherit that partition.
+        var partitionsByPerson = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var person in generation.People)
+        {
+            if (string.IsNullOrWhiteSpace(person.BasePersonId) ||
+                person.Partition is not ("TRAIN" or "VALIDATION" or "TEST") ||
+                !partitionsByPerson.TryAdd(person.BasePersonId, person.Partition))
+                throw new InvalidDataException("Identidade base duplicada ou partição inválida.");
+        }
+        var observationIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var observation in generation.Observations)
+        {
+            if (string.IsNullOrWhiteSpace(observation.ObservationId) ||
+                !observationIds.Add(observation.ObservationId))
+                throw new InvalidDataException("Identificador de observação ausente ou duplicado.");
+            if (string.IsNullOrWhiteSpace(observation.BasePersonId) ||
+                !partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition) ||
+                !string.Equals(observation.Partition, partition, StringComparison.Ordinal))
+                throw new InvalidDataException("Observação órfã ou com partição divergente da identidade base.");
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+        var peoplePath = Path.Combine(outputDirectory, "pessoas_verdade.csv");
+        var observationsPath = Path.Combine(outputDirectory, "observacoes.csv");
+        var truthPath = Path.Combine(outputDirectory, "gabarito.json");
+        var manifestPath = Path.Combine(outputDirectory, "generation-manifest.json");
+
+        await File.WriteAllTextAsync(
+            peoplePath,
+            BuildPeopleCsv(generation.People),
+            Utf8NoBom,
+            cancellationToken);
+        await File.WriteAllTextAsync(
+            observationsPath,
+            BuildObservationsCsv(generation.Observations),
+            Utf8NoBom,
+            cancellationToken);
+        await File.WriteAllTextAsync(
+            truthPath,
+            BuildTruthJson(generation, source, inputFingerprintSha256),
+            Utf8NoBom,
+            cancellationToken);
+
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["pessoas_verdade.csv"] = await HashFileAsync(peoplePath, cancellationToken),
+            ["observacoes.csv"] = await HashFileAsync(observationsPath, cancellationToken),
+            ["gabarito.json"] = await HashFileAsync(truthPath, cancellationToken)
+        };
+
+        var declaredErrorProfile = SyntheticCorpusV2Rules.Profiles[generation.Options.ErrorProfile];
+        var manifest = new
+        {
+            schema_version = 1,
+            error_profile = generation.Options.ErrorProfile,
+            error_profile_provenance = generation.Options.ErrorProfile == "clean"
+                ? "PROVISIONAL_SYNTHETIC_CLEAN_BOOTSTRAP_NOT_BRAZILIAN_DATA_QUALITY_ESTIMATE"
+                : "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE",
+            declared_corruption_rates_per_observation = new
+            {
+                common_joint_attempt = declaredErrorProfile.CommonCorruptionProbability,
+                name_independent_attempt = declaredErrorProfile.NameCorruptionProbability,
+                mother_independent_attempt = declaredErrorProfile.MotherCorruptionProbability,
+                birth_independent_attempt = declaredErrorProfile.DateCorruptionProbability,
+                mother_missing_attempt = declaredErrorProfile.MissingMotherProbability,
+                birth_missing_attempt = declaredErrorProfile.MissingDateProbability
+            },
+            generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
+            observation_multiplicity = new
+            {
+                contract_version = SyntheticObservationMultiplicityContract.Version,
+                maximum_observations_per_base_identity = SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity,
+                support = SyntheticObservationMultiplicityContract.Counts,
+                weights = SyntheticObservationMultiplicityContract.Weights,
+                scope = "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES",
+                decision_cluster_iid_certified = false
+            },
+            ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
+            rng_version = Xoshiro256StarStar.AlgorithmVersion,
+            frequency_sampler_version = SyntheticFrequencySampler.MethodVersion,
+            date_corruption_version = SyntheticCorpusV2Rules.DateCorruptionVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
+            seed = generation.Options.Seed,
+            synthetic_population = generation.Options.People,
+            partition_percentages = new
+            {
+                train = generation.Options.TrainPercent,
+                validation = generation.Options.ValidationPercent,
+                test = generation.Options.TestPercent
+            },
+            input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
+            reference_code = source.ReferenceCode,
+            outputs = hashes
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(x => new { path = x.Key, sha256 = x.Value })
+                .ToArray()
+        };
+        var manifestJson = JsonSerializer.Serialize(
+            manifest,
+            IndentedJsonOptions) + "\n";
+        // The frozen seed42/30k clean demographic reference hashes historical
+        // manifest bytes. Partition metadata added by PR #1721 changes those
+        // bytes even when the generated corpus is identical. Restore the old
+        // manifest shape ONLY for the exact historical default configuration;
+        // all other runs retain the new partition declarations.
+        if (generation.Options.Seed == 42 &&
+            generation.Options.People == 30000 &&
+            generation.Options.ErrorProfile == "clean" &&
+            source.Demographic is not null &&
+            generation.Options.TrainPercent == 60 &&
+            generation.Options.ValidationPercent == 20 &&
+            generation.Options.TestPercent == 20 &&
+            generation.Options.BrazilianNameErrors is null &&
+            generation.Options.StratifiedErrors is null)
+        {
+            var historical = JsonNode.Parse(manifestJson)!.AsObject();
+            historical.Remove("synthetic_population");
+            historical.Remove("partition_percentages");
+            manifestJson = JsonSerializer.Serialize(historical, IndentedJsonOptions) + "\n";
+        }
+        if (source.Demographic is { } demographic)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["demographic_primary"] = JsonSerializer.SerializeToNode(new
+            {
+                mode = "DEMOGRAPHIC_PRIMARY_V1",
+                person_geography = demographic.PersonGeography,
+                person_source_path = demographic.PersonSourcePath,
+                person_source_physical_sha256 = demographic.PersonPhysicalSha256,
+                person_source_canonical_sha256 = demographic.PersonCanonicalContentSha256,
+                mother_first_geography = demographic.MotherFirstGeography,
+                mother_first_source_path = demographic.MotherFirstSourcePath,
+                mother_first_source_physical_sha256 = demographic.MotherFirstPhysicalSha256,
+                mother_first_source_canonical_sha256 = demographic.MotherFirstCanonicalContentSha256,
+                mother_surname_geography = demographic.MotherSurnameGeography,
+                mother_surname_source_path = demographic.MotherSurnameSourcePath,
+                mother_surname_source_physical_sha256 = demographic.MotherSurnamePhysicalSha256,
+                mother_surname_source_canonical_sha256 = demographic.MotherSurnameCanonicalContentSha256,
+                birth_schema_version = demographic.Birth.SchemaVersion,
+                birth_source = demographic.Birth.Source,
+                birth_reference_period = demographic.Birth.ReferencePeriod,
+                birth_geography = demographic.Birth.Geography,
+                birth_path = demographic.Birth.Path,
+                birth_sha256 = demographic.Birth.Sha256,
+                birth_row_count = demographic.Birth.RowCount
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.BrazilianNameErrors is { } experimental)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["brazilian_name_errors"] = JsonSerializer.SerializeToNode(new
+            {
+                version = experimental.Version,
+                config_sha256 = experimental.ConfigSha256(),
+                source = "synthetic_configured_rates_not_empirical"
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            var annotated = JsonNode.Parse(manifestJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonSerializer.SerializeToNode(new
+            {
+                version = stratumConfig.Version,
+                config_sha256 = stratumConfig.ConfigSha256(),
+                source = "synthetic_additive_overlay_not_empirical",
+                stratum_basis = "observed_cpf_after_retention"
+            });
+            manifestJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        await File.WriteAllTextAsync(manifestPath, manifestJson, Utf8NoBom, cancellationToken);
+
+        return new SyntheticCorpusMaterializationResult(
+            peoplePath,
+            observationsPath,
+            truthPath,
+            manifestPath,
+            hashes);
+    }
+
+    private static string BuildPeopleCsv(IReadOnlyList<SyntheticPerson> people)
+    {
+        var builder = new StringBuilder();
+        AppendCsvRow(builder,
+            "base_person_id", "particao", "nome", "nome_mae", "data_nascimento",
+            "sexo", "cpf", "cns", "cns_scenario", "evaluation_weight");
+        foreach (var person in people)
+        {
+            AppendCsvRow(
+                builder,
+                person.BasePersonId,
+                person.Partition,
+                person.Name,
+                person.MotherName,
+                person.BirthDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                person.Sex,
+                person.Cpf,
+                person.Cns,
+                person.CnsScenario,
+                FormatWeight(person.EvaluationWeight));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildObservationsCsv(IReadOnlyList<SyntheticObservation> observations)
+    {
+        var builder = new StringBuilder();
+        AppendCsvRow(builder,
+            "observacao_id", "base_person_id", "particao", "gestor", "nome", "nome_mae",
+            "data_nascimento", "sexo", "cpf", "cns", "corrupcoes", "evaluation_weight");
+        foreach (var observation in observations)
+        {
+            AppendCsvRow(
+                builder,
+                observation.ObservationId,
+                observation.BasePersonId,
+                observation.Partition,
+                observation.Gestor,
+                observation.Name,
+                observation.MotherName,
+                observation.BirthDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                observation.Sex,
+                observation.Cpf,
+                observation.Cns,
+                observation.Corruptions,
+                FormatWeight(observation.EvaluationWeight));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildTruthJson(
+        SyntheticCorpusGeneration generation,
+        SyntheticCorpusNominalSource source,
+        string inputFingerprintSha256)
+    {
+        var profile = SyntheticCorpusV2Rules.Profiles[generation.Options.ErrorProfile];
+        var empirical = generation.EmpiricalMExact
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .ToDictionary(
+                x => x.Key,
+                x => new
+                {
+                    eligible_pairs = x.Value.EligiblePairs,
+                    exact_pairs = x.Value.ExactPairs,
+                    m_exact_empirical = x.Value.MExactEmpirical,
+                    m_exact_empirical_reweighted = x.Value.MExactEmpiricalReweighted
+                },
+                StringComparer.Ordinal);
+
+        var truth = new
+        {
+            generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
+            ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
+            rng_version = Xoshiro256StarStar.AlgorithmVersion,
+            population_profile = source.Demographic is null
+                ? "LEGACY_ENGINEERING_FIXTURE"
+                : "DEMOGRAPHIC_PRIMARY_V1",
+            seed = generation.Options.Seed,
+            people = generation.People.Count,
+            observations = generation.Observations.Count,
+            error_profile = generation.Options.ErrorProfile,
+            input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
+            ibge = new
+            {
+                reference_code = source.ReferenceCode,
+                source_path = source.SourcePath,
+                // Compatibilidade semântica com gen_corpus_v2.py: esses dois campos
+                // historicamente hashavam os bytes NDJSON descomprimidos, não o gzip físico.
+                source_sha256_name_pass = source.CanonicalContentSha256,
+                source_sha256_surname_pass = source.CanonicalContentSha256,
+                source_physical_sha256 = source.PhysicalSha256,
+                source_canonical_sha256 = source.CanonicalContentSha256,
+                min_freq = generation.Options.MinFrequency,
+                tail_oversample = generation.Options.TailOversample,
+                first_name_rows = source.FirstNameCount,
+                surname_rows = source.SurnameCount
+            },
+            identifier_model = new
+            {
+                cpf_base_prevalence = generation.Options.CpfBasePrevalence,
+                cns_base_prevalence = generation.Options.CnsBasePrevalence,
+                cpf_observation_retention = generation.Options.CpfObservationRetention,
+                cns_observation_retention = generation.Options.CnsObservationRetention,
+                cns_invalid_rate = generation.Options.CnsInvalidRate,
+                cns_reuse_rate = generation.Options.CnsReuseRate,
+                cns_dob_conflict_rate = generation.Options.CnsDobConflictRate
+            },
+            declared_corruption_rates = new
+            {
+                p_name = profile.NameCorruptionProbability,
+                p_mother = profile.MotherCorruptionProbability,
+                p_date = profile.DateCorruptionProbability,
+                p_common = profile.CommonCorruptionProbability,
+                p_missing_mother = profile.MissingMotherProbability,
+                p_missing_date = profile.MissingDateProbability
+            },
+            empirical_m_exact = empirical,
+            invariants = new[]
+            {
+                "base_person_id is truth-only; forbidden in blocking/scoring",
+                "missing pairs excluded from field m denominator",
+                "CPF/CNS label source and derivatives forbidden from candidate generation and scoring",
+                "CNS scenarios are benchmark evidence only and never authorize UUID resolution",
+                "date corruption attempts are effective; invalid day/month transpose never silently becomes no-op"
+            }
+        };
+
+        var truthJson = JsonSerializer.Serialize(
+            truth,
+            IndentedJsonOptions) + "\n";
+        if (source.Demographic is { } demographic)
+        {
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["demographic_primary"] = JsonSerializer.SerializeToNode(new
+            {
+                mode = "DEMOGRAPHIC_PRIMARY_V1",
+                person_geography = demographic.PersonGeography,
+                mother_first_geography = demographic.MotherFirstGeography,
+                mother_surname_geography = demographic.MotherSurnameGeography,
+                birth_schema_version = demographic.Birth.SchemaVersion,
+                birth_source = demographic.Birth.Source,
+                birth_reference_period = demographic.Birth.ReferencePeriod,
+                birth_geography = demographic.Birth.Geography,
+                birth_sha256 = demographic.Birth.Sha256,
+                birth_row_count = demographic.Birth.RowCount,
+                no_uniform_birth_fallback = true
+            });
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.BrazilianNameErrors is { } experimental)
+        {
+            // Somente no gabarito, inacessível ao calibrador antes do RASCUNHO.
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["brazilian_name_errors"] = JsonNode.Parse(experimental.CanonicalJson());
+            annotated["brazilian_name_errors_config_sha256"] = experimental.ConfigSha256();
+            annotated["brazilian_name_errors_rates_source"] = "synthetic_configured_rates_not_empirical";
+            annotated["brazilian_name_errors_cpf_stratum"] = "observed_cpf_after_retention";
+            var realized = generation.Observations
+                .SelectMany(observation => observation.Corruptions
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(label => label.StartsWith("NOME_BR_", StringComparison.Ordinal)
+                        || label.StartsWith("MAE_BR_", StringComparison.Ordinal))
+                    .Select(label => observation.Gestor + "/" +
+                        (observation.Cpf is null ? "WITHOUT_CPF" : "WITH_CPF") + "/" + label))
+                .GroupBy(label => label, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            annotated["brazilian_name_errors_realized_label_counts"] = JsonSerializer.SerializeToNode(realized);
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        if (generation.Options.StratifiedErrors is { } stratumConfig)
+        {
+            // Só pós-RASCUNHO: segmentação observada e contagens, sem expor BasePersonId ao scoring.
+            var annotated = JsonNode.Parse(truthJson)!.AsObject();
+            annotated["stratified_error_overlay"] = JsonNode.Parse(stratumConfig.CanonicalJson());
+            annotated["stratified_error_overlay_sha256"] = stratumConfig.ConfigSha256();
+            annotated["stratified_error_rates_source"] = "synthetic_additive_overlay_not_empirical";
+            annotated["stratified_error_stratum_basis"] = "observed_cpf_after_retention";
+            var counts = generation.Observations
+                .SelectMany(o => o.Corruptions
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(label => label.Contains("_STRAT_", StringComparison.Ordinal))
+                    .Select(label => o.Gestor + "/" +
+                        (o.Cpf is null ? "WITHOUT_CPF" : "WITH_CPF") + "/" + label))
+                .GroupBy(label => label, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+            annotated["stratified_error_realized_label_counts"] = JsonSerializer.SerializeToNode(counts);
+            truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
+        }
+        // This diagnostic is truth-only. No training labels or base identifiers
+        // appear in the generated observation payloads or runtime FS inputs.
+        // VALIDATION and TEST remain untouched by this diagnostic.
+        var birthAudit = SyntheticBirthDistanceAuditBuilderV9.Analyze(generation);
+        var withBirthAudit = JsonNode.Parse(truthJson)!.AsObject();
+        withBirthAudit["birth_date_distance_train_audit"] = JsonSerializer.SerializeToNode(new
+        {
+            version = birthAudit.Version,
+            status = birthAudit.Status,
+            partition = birthAudit.Partition,
+            training_base_people = birthAudit.BasePeopleInTraining,
+            training_observations = birthAudit.ObservationsInTraining,
+            missing_birth_observations = birthAudit.MissingBirthObservations,
+            exact_birth_observations = birthAudit.ExactBirthObservations,
+            differing_birth_observations = birthAudit.DifferingBirthObservations,
+            same_day_month_different_year = birthAudit.SameDayMonthDifferentYear,
+            adjacent_year_same_day_month = birthAudit.AdjacentYearSameDayMonth,
+            last_two_year_digits_swapped_same_day_month =
+                birthAudit.LastTwoYearDigitsSwappedSameDayMonth,
+            conventional_day_one_or_fifteen_from_different_truth =
+                birthAudit.ConventionalDayOneOrFifteenFromDifferentTruth,
+            digit_distances = birthAudit.DigitDistances,
+            semantic_states = birthAudit.SemanticStates,
+            component_agreement_masks = birthAudit.ComponentAgreementMasks,
+            // Full 7 x 9 aggregate, including zero-count cells, from TRAIN only.
+            semantic_distance_cells = birthAudit.SemanticDistanceCells.Select(cell => new
+            {
+                semantic_state = cell.SemanticState,
+                digit_distance = cell.DigitDistance,
+                observation_count = cell.ObservationCount,
+                // Distinct synthetic people, not inferred independence or ESS.
+                distinct_training_people = cell.DistinctTrainingPeople
+            }).ToArray(),
+            // Source-conditioned diagnostics stay only in this truth sidecar.
+            // No names, identifiers, CPF, or population error-rate claims.
+            source_profiles = birthAudit.SourceProfiles.Select(profile => new
+            {
+                source = profile.Source,
+                observations = profile.Observations,
+                missing_birth_observations = profile.MissingBirthObservations,
+                exact_birth_observations = profile.ExactBirthObservations,
+                differing_birth_observations = profile.DifferingBirthObservations,
+                distinct_training_people = profile.DistinctTrainingPeople,
+                semantic_distance_cells = profile.SemanticDistanceCells.Select(cell => new
+                {
+                    semantic_state = cell.SemanticState,
+                    digit_distance = cell.DigitDistance,
+                    observation_count = cell.ObservationCount,
+                    distinct_training_people = cell.DistinctTrainingPeople
+                }).ToArray()
+            }).ToArray(),
+            // TRAIN-only source sharing: report only anonymous aggregates.
+            // Not a measure of statistical independence or effective sample size.
+            training_people_with_observations = birthAudit.TrainingPeopleWithObservations,
+            training_people_in_multiple_sources = birthAudit.TrainingPeopleInMultipleSources,
+            source_multiplicity = birthAudit.SourceMultiplicity.Select(cell => new
+            {
+                distinct_sources = cell.DistinctSources,
+                distinct_training_people = cell.DistinctTrainingPeople
+            }).ToArray(),
+            source_overlaps = birthAudit.SourceOverlaps.Select(pair => new
+            {
+                left_source = pair.LeftSource,
+                right_source = pair.RightSource,
+                shared_training_people = pair.SharedTrainingPeople
+            }).ToArray()
+        });
+        return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";
+    }
+
+    private static void AppendCsvRow(StringBuilder builder, params string?[] fields)
+    {
+        for (var i = 0; i < fields.Length; i++)
+        {
+            if (i > 0)
+                builder.Append(',');
+            builder.Append(EscapeCsv(fields[i] ?? string.Empty));
+        }
+        builder.Append('\n');
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (!value.Contains(',') && !value.Contains('"') && !value.Contains('\r') && !value.Contains('\n'))
+            return value;
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
+    }
+
+    private static string FormatWeight(double value)
+        => value.ToString("0.########", CultureInfo.InvariantCulture);
+
+    private static async Task<string> HashFileAsync(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
+    }
+}

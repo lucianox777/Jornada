@@ -21,6 +21,17 @@ class StandardLinearWorkflowTests(unittest.TestCase):
         self.assertEqual(text.count('V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION")'), 3)
         self.assertEqual(text.count('config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed'), 3)
 
+    def test_all_three_calibrated_cohorts_use_isolated_generator(self):
+        text = self.workflow
+        new_project = "src/Jornada.Linkage.SyntheticCorpus.Parametrized"
+        historical_project = "src/Jornada.Linkage.SyntheticCorpus"
+        self.assertEqual(text.count(f"--project {new_project} -- generate"), 3)
+        self.assertEqual(text.count(
+            f"dotnet build -c Release {new_project}/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj"), 3)
+        self.assertNotIn(f"--project {historical_project} -- generate", text)
+        self.assertNotIn(
+            f"dotnet build -c Release {historical_project}/Jornada.Linkage.SyntheticCorpus.csproj", text)
+
     def test_only_scientific_test_option(self):
         text = self.workflow
         self.assertNotIn("test_required:", text)

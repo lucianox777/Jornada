@@ -1,0 +1,509 @@
+name: P0-A TF LOCKED generator identity diagnostic (nonblocking)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p0-tf-locked-generator-audit.yml'
+      - 'Solution/scripts/audit-v9-tf-locked-generator.py'
+      - 'Solution/tests/scripts/test_audit_v9_tf_locked_generator.py'
+      - 'Solution/docs/P0A_Auditoria_Identidade_Gerador_TF_LOCKED_20261120.md'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/**'
+      - '.github/workflows/v9-standard-linear-100k.yml'
+      - 'Solution/docs/V9_TF_SEEDS_44_47_LOCK.json'
+      - 'Solution/docs/V9_TF_SEEDS_48_57_LOCK.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-identity:
+    name: Audit frozen generator bytes (diagnostic, not scientific)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run offline contract tests
+        run: python3 -m unittest Solution/tests/scripts/test_audit_v9_tf_locked_generator.py
+      - name: Compare checked-out generator to both LOCKED contracts
+        shell: bash
+        run: |
+          set +e
+          python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . > "$RUNNER_TEMP/locked-generator-audit.json"
+          audit_status=$?
+          set -e
+          cat "$RUNNER_TEMP/locked-generator-audit.json"
+          {
+            echo "### P0-A — Frozen generator identity (diagnostic only)"
+            echo ""
+            echo "| Field | Result |"
+            echo "| --- | --- |"
+            echo "| Audit process exit code | \`$audit_status\` |"
+            if [ "$audit_status" -eq 0 ]; then
+              echo "| LOCKED identity | **MATCH (both contracts)** |"
+            else
+              echo "| LOCKED identity | **MISMATCH / ERROR — NOT VALIDATED** |"
+            fi
+            echo ""
+            echo "Workflow success is NOT evidence of LOCKED integrity. Inspect the JSON artifact for each manifest's matches field."
+            echo "No corpus generated; no TRAIN/TEST, regeneration, publication or certification authorized."
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Divergence is recorded, not hidden and not yet a new required check.
+          if [ "$audit_status" -ne 0 ]; then
+            echo "::warning title=LOCKED identity NOT VALIDATED::Audit exit $audit_status; inspect JSON artifact and issue #1734"
+          fi
+      - name: Set up pinned .NET SDK for both generators
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile historical and parameterized executables (no corpus generation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release --nologo
+          dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj -c Release --nologo
+      - name: Smoke-test parameterized CLI options (no corpus generation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$RUNNER_TEMP/nonexistent-calibrator.json" \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-corpus" \
+            > "$RUNNER_TEMP/parametrized-cli-smoke.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-cli-smoke.log"
+          echo "Exit status: $status"
+          test "$status" -ne 0
+          # Fail closed: require the exception to identify the exact calibration file.
+          # Any unrelated failure (e.g. missing reference root) is NOT evidence of parsing.
+          if ! grep -Fq "$RUNNER_TEMP/nonexistent-calibrator.json" "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::CLI did not reach calibration configuration file loading"
+            exit 1
+          fi
+          if ! grep -Eq 'FileNotFoundException|DirectoryNotFoundException' "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::CLI failed for an unexpected reason"
+            exit 1
+          fi
+          if grep -Eiq 'unknown option|unrecognized option|unknown argument|unrecognized argument' "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::Parameterized CLI rejected a known calibration option"
+            exit 1
+          fi
+          test ! -e "$RUNNER_TEMP/nonexistent-corpus"
+      - name: Test read-only corpus partition verifier with disposable fixtures
+        run: python3 -m unittest Solution/tests/scripts/test_verify_parametrized_corpus_partitions.py
+      - name: Validate parameterized partition percentages without corpus generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --train-percent 80 --validation-percent 20 --test-percent 20 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-partition-corpus" \
+            > "$RUNNER_TEMP/parametrized-partitions-invalid.log" 2>&1
+          invalid_status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-partitions-invalid.log"
+          test "$invalid_status" -ne 0
+          grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-partitions-invalid.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-partition-corpus"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-partition-corpus" \
+            > "$RUNNER_TEMP/parametrized-partitions-valid.log" 2>&1
+          valid_status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-partitions-valid.log"
+          test "$valid_status" -ne 0
+          if grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-partitions-valid.log"; then
+            echo "::error::Valid partition percentages were rejected"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-partitions-valid.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-partition-corpus"
+      - name: Verify calibration JSON is read and CLI overrides take precedence
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/p0-calibrator-precedence.json"
+          printf '%s\n' '{"syntheticPopulation":25,"sampling":{"trainPercent":80,"validationPercent":20,"testPercent":20}}' > "$config"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-precedence-corpus" \
+            > "$RUNNER_TEMP/parametrized-precedence-invalid.log" 2>&1
+          invalid_status=$?
+          set -e
+          test "$invalid_status" -ne 0
+          grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-precedence-invalid.log"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" \
+            --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-precedence-corpus" \
+            > "$RUNNER_TEMP/parametrized-precedence-valid.log" 2>&1
+          valid_status=$?
+          set -e
+          test "$valid_status" -ne 0
+          if grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-precedence-valid.log"; then
+            echo "::error::CLI percentages did not override the invalid JSON percentages"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-precedence-valid.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-precedence-corpus"
+      - name: Reject nonfinite and out-of-range partition percentages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for bad in -1 101 NaN Infinity; do
+            label="${bad//-/_}"
+            set +e
+            dotnet run --no-build -c Release \
+              --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+              -- generate --train-percent "$bad" --validation-percent 20 --test-percent 80 \
+              --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+              --out "$RUNNER_TEMP/nonexistent-bounds-corpus" \
+              > "$RUNNER_TEMP/parametrized-bounds-${label}.log" 2>&1
+            status=$?
+            set -e
+            test "$status" -ne 0
+            grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-bounds-${label}.log"
+            test ! -e "$RUNNER_TEMP/nonexistent-bounds-corpus"
+          done
+      - name: Accept degenerate valid partition percentages without generating corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          for percentages in "100 0 0" "0 100 0" "0 0 100"; do
+            read -r train validation test_pct <<< "$percentages"
+            label="${train}-${validation}-${test_pct}"
+            set +e
+            dotnet run --no-build -c Release \
+              --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+              -- generate --train-percent "$train" --validation-percent "$validation" --test-percent "$test_pct" \
+              --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+              --out "$RUNNER_TEMP/nonexistent-degenerate-corpus" \
+              > "$RUNNER_TEMP/parametrized-degenerate-${label}.log" 2>&1
+            status=$?
+            set -e
+            test "$status" -ne 0
+            if grep -Fq 'Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-degenerate-${label}.log"; then
+              echo "::error::Valid degenerate percentages rejected: $label"
+              exit 1
+            fi
+            grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-degenerate-${label}.log"
+            test ! -e "$RUNNER_TEMP/nonexistent-degenerate-corpus"
+          done
+      - name: Upload degenerate partition logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-degenerate
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-degenerate-*.log
+      - name: Upload partition bounds logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-bounds
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-bounds-*.log
+      - name: Verify CLI overrides bypass absent JSON sampling fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/p0-calibrator-incomplete.json"
+          printf '%s\n' '{"syntheticPopulation":25,"sampling":{}}' > "$config"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" \
+            --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-incomplete-corpus" \
+            > "$RUNNER_TEMP/parametrized-incomplete-override.log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          if grep -Eq 'KeyNotFoundException|The given key was not present|Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-incomplete-override.log"; then
+            echo "::error::Explicit CLI override unexpectedly evaluated missing JSON sampling keys"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-incomplete-override.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-incomplete-corpus"
+      - name: Run real prewrite partition-integrity rejection harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run -c Release --project Solution/tests/PartitionIntegritySmoke/PartitionIntegritySmoke.csproj | tee "$RUNNER_TEMP/p0-partition-integrity-smoke.log"
+          passed="$(grep -c '^PASS ' "$RUNNER_TEMP/p0-partition-integrity-smoke.log" || true)"
+          if [[ "$passed" -ne 21 ]]; then
+            echo "::error::Expected 21 runtime PASS lines; got $passed"
+            exit 1
+          fi
+          unique_passed="$(grep '^PASS ' "$RUNNER_TEMP/p0-partition-integrity-smoke.log" | LC_ALL=C sort -u | wc -l | tr -d '[:space:]')"
+          if [[ "$unique_passed" -ne 21 ]]; then
+            echo "::error::Expected 21 distinct runtime PASS labels; got $unique_passed"
+            exit 1
+          fi
+      - name: Verify population CLI override bypasses absent JSON population
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/p0-calibrator-no-population.json"
+          printf '%s\n' '{"sampling":{}}' > "$config"
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$config" --people 25 \
+            --train-percent 70 --validation-percent 20 --test-percent 10 \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-population-override-corpus" \
+            > "$RUNNER_TEMP/parametrized-population-override.log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          if grep -Eq 'KeyNotFoundException|The given key was not present|Percentuais TRAIN/VALIDATION/TEST devem somar 100' "$RUNNER_TEMP/parametrized-population-override.log"; then
+            echo "::error::Explicit population or partition override evaluated absent JSON fields"
+            exit 1
+          fi
+          grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-population-override.log"
+          test ! -e "$RUNNER_TEMP/nonexistent-population-override-corpus"
+      - name: Upload population override log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-population-override
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-population-override.log
+      - name: Upload incomplete calibration override log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-incomplete-override
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-incomplete-override.log
+      - name: Upload calibration precedence logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-precedence
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-precedence-*.log
+      - name: Upload partition CLI validation logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-partition-cli-validation
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-partitions-*.log
+      - name: Upload parameterized CLI smoke log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-cli-smoke
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-cli-smoke.log
+      - name: Upload read-only audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-identity-audit
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/locked-generator-audit.json
+
+  historical-reference:
+    name: Compare frozen manifests with pinned historical checkout (diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout audit implementation from PR
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          path: auditor
+      - name: Checkout immutable generator reference
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: b98a01180737909edf7cbd0bee4ba2757d52fe0f
+          path: historical
+      - name: Regression-test read-only isolation migration planner
+        working-directory: auditor
+        run: python3 -m unittest Solution/tests/scripts/test_plan_tf_locked_generator_isolation.py
+      - name: Inventory historical-to-current generator drift (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Two shallow checkouts cannot provide a shared Git revision history.
+          # Fetch the pinned historical ref into the auditor checkout for git show/ls-tree.
+          git -C auditor fetch --no-tags --depth=1 origin b98a01180737909edf7cbd0bee4ba2757d52fe0f
+          python3 auditor/Solution/scripts/plan-tf-locked-generator-isolation.py \
+            --repo auditor \
+            --historical-ref b98a01180737909edf7cbd0bee4ba2757d52fe0f \
+            --current-ref HEAD \
+            --out "$RUNNER_TEMP/locked-generator-isolation-plan.json"
+          cat "$RUNNER_TEMP/locked-generator-isolation-plan.json"
+      - name: Upload read-only isolation inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-isolation-inventory
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/locked-generator-isolation-plan.json
+      - name: Inventory parameterized generator consumers (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > "$RUNNER_TEMP/locked-generator-consumers.json"
+          import json
+          import subprocess
+          from pathlib import Path
+          root = Path("auditor")
+          patterns = ("calibrator-config", "train-percent", "validation-percent", "test-percent",
+                      "TrainPercent", "ValidationPercent", "TestPercent")
+          hits = []
+          files = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
+                                 check=True, capture_output=True).stdout.split(bytes([0]))
+          scanned_files = 0
+          for raw in files:
+              if not raw:
+                  continue
+              relative = raw.decode("utf-8")
+              if not relative.endswith((".cs", ".py", ".yml", ".yaml", ".sh", ".json", ".md")):
+                  continue
+              category = ("test" if relative.startswith("Solution/tests/") else
+                          "workflow" if relative.startswith(".github/") else
+                          "documentation" if relative.startswith("Solution/docs/") else
+                          "source_or_config")
+              path = root / relative
+              if not path.is_file() or path.stat().st_size > 1_000_000:
+                  continue
+              scanned_files += 1
+              for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                  found = [p for p in patterns if p in line]
+                  if found:
+                      hits.append({"path": relative, "line": number, "category": category, "symbols": found})
+          if scanned_files == 0:
+              raise SystemExit("FAIL-CLOSED: no tracked source/config files scanned")
+          print(json.dumps({"mode": "READ_ONLY_CONSUMER_INVENTORY",
+                            "patterns": patterns, "scanned_files": scanned_files, "hits": hits,
+                            "consumer_compatibility_validated": False,
+                            "note": "zero hits is not proof of no dynamic consumers"}, indent=2))
+          PY
+          cat "$RUNNER_TEMP/locked-generator-consumers.json"
+      - name: Upload parameterized consumer inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-consumers
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/locked-generator-consumers.json
+      - name: Simulate four-file historical restoration in disposable checkout (no commit)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a auditor "$RUNNER_TEMP/restored-generator"
+          for file in Program.cs SyntheticCorpusGenerator.cs SyntheticCorpusMaterializer.cs SyntheticCorpusModels.cs; do
+            cp "historical/Solution/src/Jornada.Linkage.SyntheticCorpus/$file" \
+               "$RUNNER_TEMP/restored-generator/Solution/src/Jornada.Linkage.SyntheticCorpus/$file"
+          done
+          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py \
+            --repo "$RUNNER_TEMP/restored-generator" --locks-root auditor \
+            > "$RUNNER_TEMP/restored-generator-audit.json"
+          cat "$RUNNER_TEMP/restored-generator-audit.json"
+          python3 - "$RUNNER_TEMP/restored-generator-audit.json" <<'PY'
+          import json
+          import sys
+          result = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert len(result["locks"]) == 2
+          assert all(lock["matches"] and lock["tracked_file_count"] == 25
+                     for lock in result["locks"]), "Restored checkout does not match both LOCKED contracts"
+          PY
+      - name: Set up pinned .NET for historical compile-only rehearsal
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile restored historical generator (no execution)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build "$RUNNER_TEMP/restored-generator/Solution/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj" \
+            --configuration Release --nologo \
+            -p:RestoreIgnoreFailedSources=true \
+            > "$RUNNER_TEMP/restored-generator-build.log" 2>&1 || {
+              cat "$RUNNER_TEMP/restored-generator-build.log"
+              exit 1
+            }
+          tail -n 35 "$RUNNER_TEMP/restored-generator-build.log"
+      - name: Upload restored historical compile log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-restored-build
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/restored-generator-build.log
+      - name: Upload disposable restoration audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-restoration-simulation
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/restored-generator-audit.json
+      - name: Compare historical bytes with frozen contracts
+        shell: bash
+        run: |
+          set +e
+          python3 auditor/Solution/scripts/audit-v9-tf-locked-generator.py --repo historical --locks-root auditor > "$RUNNER_TEMP/historical-locked-generator-audit.json"
+          audit_status=$?
+          set -e
+          cat "$RUNNER_TEMP/historical-locked-generator-audit.json"
+          {
+            echo "### Historical reference audit (diagnostic only)"
+            echo ""
+            echo "Reference: \`b98a01180737909edf7cbd0bee4ba2757d52fe0f\`"
+            echo ""
+            if [ "$audit_status" -eq 0 ]; then
+              echo "**MATCH** — historical checkout satisfies both current frozen manifests."
+            else
+              echo "**MISMATCH / ERROR — NOT VALIDATED** — historical checkout does not satisfy both current frozen manifests."
+              echo "::warning title=Historical reference identity NOT VALIDATED::Audit exit $audit_status; inspect JSON artifact and issue #1734"
+            fi
+            echo ""
+            echo "Exit code: \`$audit_status\`. No scientific run, manifest rewrite, or approval."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload historical read-only audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-locked-generator-historical-reference
+          retention-days: 30
+          if-no-files-found: error
+          path: ${{ runner.temp }}/historical-locked-generator-audit.json

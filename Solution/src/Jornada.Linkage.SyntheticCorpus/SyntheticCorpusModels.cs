@@ -15,18 +15,10 @@ public sealed record SyntheticCorpusOptions(
     double CnsDobConflictRate = .01,
     int Gestores = 4,
     SyntheticBrazilianNameErrorConfig? BrazilianNameErrors = null,
-    SyntheticStratifiedErrorConfig? StratifiedErrors = null,
-    double TrainPercent = 60,
-    double ValidationPercent = 20,
-    double TestPercent = 20)
+    SyntheticStratifiedErrorConfig? StratifiedErrors = null)
 {
     public void Validate()
     {
-        if (!double.IsFinite(TrainPercent) || !double.IsFinite(ValidationPercent) || !double.IsFinite(TestPercent)
-            || TrainPercent < 0 || ValidationPercent < 0 || TestPercent < 0
-            || TrainPercent > 100 || ValidationPercent > 100 || TestPercent > 100
-            || Math.Abs(TrainPercent + ValidationPercent + TestPercent - 100) > 1e-9)
-            throw new ArgumentOutOfRangeException(nameof(TrainPercent), "Percentuais TRAIN/VALIDATION/TEST devem somar 100 e estar em [0,100].");
         if (People <= 0)
             throw new ArgumentOutOfRangeException(nameof(People));
         if (!SyntheticCorpusV2Rules.Profiles.ContainsKey(ErrorProfile))

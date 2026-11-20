@@ -16,12 +16,17 @@ jobs:
   classify-impact:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+      - name: Enforce both historical TF LOCKED generator identities before classification
+        run: python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . --require-pinned
       - id: classify
         shell: bash
         run: |
@@ -36,6 +41,25 @@ jobs:
           grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
       - name: Check classification contract
         run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py Solution/tests/scripts/test_audit_master_required_checks.py
+      - name: Observe master required-check protection (read-only, nonblocking)
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 Solution/scripts/audit-master-required-checks.py --repo "${{ github.repository }}" 2>&1 | tee master-protection-observation.txt
+          result=${PIPESTATUS[0]}
+          {
+            echo '### Master required-check protection observation'
+            echo 'Read-only diagnostic; API access failure or ruleset scope uncertainty is **not** proof of protection.'
+            echo 'Exit code:' "$result"
+            echo '```text'
+            cat master-protection-observation.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$result"
   unit-runtime:
     needs: classify-impact
     runs-on: ubuntu-latest
@@ -57,9 +81,15 @@ jobs:
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_synthetic_multiseed_gate.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
+          # Audit regression tests use a temporary Git repository; do not gate on the known master LOCKED drift here.
+          python3 -m unittest Solution/tests/scripts/test_audit_v9_tf_locked_generator.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_ref_provenance_gate.py
           # Exact historical manifest shape is a narrow offline guard, not a physical SHA proof.
           python3 -m unittest Solution/tests/scripts/test_v9_seed42_historical_manifest_shape.py
+          # Parse the read-only master protection auditor before running its unit suite.
+          python3 -m py_compile Solution/scripts/audit-master-required-checks.py
+          # Offline GitHub Actions status reporting must remain fail-closed.
+          python3 -m unittest Solution/tests/scripts/test_github_actions_status_summary.py
           python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py Solution/tests/scripts/test_v9_tf_workflow_protocol.py Solution/tests/scripts/test_v9_orchestrator.py
           python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py Solution/tests/scripts/test_ci_built_binary_gate.py Solution/tests/scripts/test_ci_failure_checkpoint.py Solution/tests/scripts/test_nuget_product_inventory.py
           python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py

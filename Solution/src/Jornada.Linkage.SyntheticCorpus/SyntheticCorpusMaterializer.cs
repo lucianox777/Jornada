@@ -101,13 +101,6 @@ public static class SyntheticCorpusMaterializer
                 ? "LEGACY_ENGINEERING_FIXTURE"
                 : "DEMOGRAPHIC_PRIMARY_V1",
             seed = generation.Options.Seed,
-            synthetic_population = generation.Options.People,
-            partition_percentages = new
-            {
-                train = generation.Options.TrainPercent,
-                validation = generation.Options.ValidationPercent,
-                test = generation.Options.TestPercent
-            },
             input_fingerprint_sha256 = inputFingerprintSha256.ToUpperInvariant(),
             reference_code = source.ReferenceCode,
             outputs = hashes
@@ -118,26 +111,6 @@ public static class SyntheticCorpusMaterializer
         var manifestJson = JsonSerializer.Serialize(
             manifest,
             IndentedJsonOptions) + "\n";
-        // The frozen seed42/30k clean demographic reference hashes historical
-        // manifest bytes. Partition metadata added by PR #1721 changes those
-        // bytes even when the generated corpus is identical. Restore the old
-        // manifest shape ONLY for the exact historical default configuration;
-        // all other runs retain the new partition declarations.
-        if (generation.Options.Seed == 42 &&
-            generation.Options.People == 30000 &&
-            generation.Options.ErrorProfile == "clean" &&
-            source.Demographic is not null &&
-            generation.Options.TrainPercent == 60 &&
-            generation.Options.ValidationPercent == 20 &&
-            generation.Options.TestPercent == 20 &&
-            generation.Options.BrazilianNameErrors is null &&
-            generation.Options.StratifiedErrors is null)
-        {
-            var historical = JsonNode.Parse(manifestJson)!.AsObject();
-            historical.Remove("synthetic_population");
-            historical.Remove("partition_percentages");
-            manifestJson = JsonSerializer.Serialize(historical, IndentedJsonOptions) + "\n";
-        }
         if (source.Demographic is { } demographic)
         {
             var annotated = JsonNode.Parse(manifestJson)!.AsObject();

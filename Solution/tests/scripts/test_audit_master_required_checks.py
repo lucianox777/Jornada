@@ -11,6 +11,14 @@ spec.loader.exec_module(audit)
 
 
 class MasterRequiredChecksAuditTests(unittest.TestCase):
+    def test_non_object_required_checks_are_unverified_not_crash(self):
+        for invalid in ([], ["unit-runtime"], "unit-runtime", 42):
+            with self.subTest(invalid=invalid):
+                result = audit.evaluate({"required_status_checks": invalid}, [])
+                self.assertFalse(result["verified"])
+                self.assertEqual(result["missing_classic_contexts"], sorted(audit.REQUIRED))
+                self.assertIsNone(result["classic_strict_setting"])
+
     def test_missing_protection_never_passes(self):
         self.assertFalse(audit.evaluate({}, [])["verified"])
 
@@ -49,6 +57,35 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
         p = {"required_status_checks": {"strict": False, "contexts": sorted(audit.REQUIRED)}}
         self.assertTrue(audit.evaluate(p, [])["verified"])
         self.assertIs(audit.evaluate(p, [])["classic_strict_setting"], False)
+
+    def test_malformed_api_lists_are_not_mistaken_for_required_contexts(self):
+        p = {"required_status_checks": {
+            "contexts": "unit-runtime",
+            "checks": {"context": "security-guards"},
+        }}
+        result = audit.evaluate(p, [None, {"enforcement": "active"}])
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["observed_classic_contexts"], [])
+        self.assertEqual(result["missing_classic_contexts"], sorted(audit.REQUIRED))
+        self.assertTrue(result["rulesets_require_manual_scope_review"])
+
+    def test_missing_classic_contexts_are_reported(self):
+        p = {"required_status_checks": {"contexts": ["unit-runtime"], "checks": []}}
+        result = audit.evaluate(p, [])
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["missing_classic_contexts"],
+                         sorted(audit.REQUIRED - {"unit-runtime"}))
+
+    def test_required_fast_emits_read_only_protection_observation(self):
+        root = Path(__file__).resolve().parents[3]
+        workflow = (root / ".github/workflows/jornada-pr-required-fast.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("Observe master required-check protection (read-only, nonblocking)", workflow)
+        self.assertIn("python3 Solution/scripts/audit-master-required-checks.py", workflow)
+        self.assertIn("continue-on-error: true", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn("GITHUB_STEP_SUMMARY", workflow)
+        self.assertNotIn("actions: write", workflow)
 
     def test_classify_impact_is_indirect_not_fourth_direct_check(self):
         self.assertNotIn("classify-impact", audit.REQUIRED)
