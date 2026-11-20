@@ -65,6 +65,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 - `452727d17a0cd9c9ffaf4dd631f37de697958b79`: teste negativo com dois snapshots idênticos de repositório incorreto.
 - Verificação de testes/CI ainda pendente. Tentativa de obter o checkout via `raw.githubusercontent.com` falhou por DNS no ambiente local; não inferir aprovação a partir da ausência de resultados na API limitada.
 
+## Validação cruzada da tentativa do job
+
+- `d35b98d833974ba10fcbb888473f008ed804b066`: IDs de job devem ser positivos; quando o payload de job apresenta `run_attempt`, esse número precisa coincidir com a tentativa consultada. A ausência do campo é tolerada para compatibilidade com respostas sem essa propriedade; não declarar prova cruzada nesse caso.
+- `f2350c94298d7087824ff171ea37e43f4db05ec5`: testes negativos para tentativa divergente e ID zero.
+- Execução offline e CI do HEAD **não verificadas**: o checkout remoto não está acessível no ambiente de execução, e a leitura limitada de workflows não certifica gates. Não houve merge ou autorização científica.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
