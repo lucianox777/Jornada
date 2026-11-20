@@ -37,6 +37,22 @@ public static class SyntheticCorpusMaterializer
             .Any(g => g.Count() > SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity))
             throw new InvalidDataException("Geração excede o suporte declarado de observações por pessoa.");
 
+        // Fail closed before writing files: one base identity belongs to exactly
+        // one partition, and every observation must inherit that partition.
+        var partitionsByPerson = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var person in generation.People)
+        {
+            if (person.Partition is not ("TRAIN" or "VALIDATION" or "TEST") ||
+                !partitionsByPerson.TryAdd(person.BasePersonId, person.Partition))
+                throw new InvalidDataException("Identidade base duplicada ou partição inválida.");
+        }
+        foreach (var observation in generation.Observations)
+        {
+            if (!partitionsByPerson.TryGetValue(observation.BasePersonId, out var partition) ||
+                !string.Equals(observation.Partition, partition, StringComparison.Ordinal))
+                throw new InvalidDataException("Observação órfã ou com partição divergente da identidade base.");
+        }
+
         Directory.CreateDirectory(outputDirectory);
         var peoplePath = Path.Combine(outputDirectory, "pessoas_verdade.csv");
         var observationsPath = Path.Combine(outputDirectory, "observacoes.csv");
