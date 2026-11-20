@@ -108,6 +108,8 @@ def enumerate_runs(get, since, until, max_pages=MAX_PAGES):
 def failing_jobs(get, run_id):
     found = []
     total = None
+    seen_jobs = set()
+    scanned = 0
     for page in range(1, MAX_PAGES + 1):
         payload = get(f"/actions/runs/{run_id}/jobs?per_page={PAGE_SIZE}&page={page}")
         items = payload.get("jobs")
@@ -119,12 +121,17 @@ def failing_jobs(get, run_id):
         elif total != count:
             raise ValueError("Jobs changed during pagination")
         for job in items:
+            job_id = job.get("id")
+            if type(job_id) is not int or job_id in seen_jobs:
+                raise ValueError("Missing or duplicate job ID during pagination")
+            seen_jobs.add(job_id)
             if job.get("conclusion") in ("failure", "timed_out", "action_required"):
                 found.append({"id": job.get("id"), "name": job.get("name"),
                               "conclusion": job.get("conclusion")})
-        if (page - 1) * PAGE_SIZE + len(items) == total:
+        scanned += len(items)
+        if scanned == total:
             return found
-        if not items:
+        if not items or scanned > total:
             raise ValueError("Incomplete jobs pagination")
     raise ValueError("Job pagination limit reached")
 
