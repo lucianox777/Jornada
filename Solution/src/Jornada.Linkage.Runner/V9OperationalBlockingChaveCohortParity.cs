@@ -23,7 +23,11 @@ public static class V9OperationalBlockingChaveCohortParity
         int UndirectedSqlEdges,
         string CanonicalEdgesSha256,
         int GoldReferenceRows,
-        bool ProductionGoldCertified = false);
+        bool ProductionGoldCertified = false)
+    {
+        // Canonical, complete edges read through the operational candidate query.
+        public IReadOnlyList<(int A, int B)> OperationalEdges { get; init; } = Array.Empty<(int A, int B)>();
+    }
 
     public static async Task<Receipt> VerifyAsync(
         SqlConnection connection,
@@ -48,9 +52,11 @@ public static class V9OperationalBlockingChaveCohortParity
 
         if (frozenRows.Count is < 2 or > V9FrozenCohortSqlCandidateGraph.MaximumObservations
             || managers.Count != frozenRows.Count
-            || frozenRows.Any(row => row.PessoaObservacaoId <= 0 || row.Observation.Cpf is not null
+            || frozenRows.Any(row => row is null || row.PessoaObservacaoId <= 0
+                || row.Observation is null || row.Observation.Cpf is not null
                 || !managers.TryGetValue(row.PessoaObservacaoId, out var manager)
-                || string.IsNullOrWhiteSpace(manager)))
+                || string.IsNullOrWhiteSpace(manager))
+            || frozenRows.Select(row => row.PessoaObservacaoId).Distinct().Count() != frozenRows.Count)
             throw new InvalidDataException(
                 "Paridade blocking_chave exige universo Silver integral com gestores.");
 
@@ -123,6 +129,9 @@ public static class V9OperationalBlockingChaveCohortParity
         // with the same names and birth date. Any stale/missing/extra Gold row
         // is rejected BEFORE the first linkage_resultado batch is persisted.
         var goldCount = 0;
+        // This is a bounded diagnostic proof, not an atomic Silver/Gold snapshot.
+        // Multiple independent SQL reads cannot certify transaction-level
+        // consistency without an explicit isolation contract.
         await using (var gold = new SqlCommand("""
             SELECT pessoa_uuid,cpf,nome_completo,data_nascimento,nome_mae,
                    estado_identidade
@@ -135,7 +144,8 @@ public static class V9OperationalBlockingChaveCohortParity
             {
                 var uuid = reader.GetGuid(0);
                 if (!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)
-                    || !reader.IsDBNull(1) || reader.GetString(5) != "REFERENCIA")
+                    || !reader.IsDBNull(1) || reader.IsDBNull(5)
+                    || reader.GetString(5) != "REFERENCIA")
                     throw new InvalidDataException(
                         "Gold V9 contém UUID externo, duplicado, CPF ou referência inválida.");
                 var frozen = frozenRows[candidate.Index - 1].Observation;
@@ -211,7 +221,10 @@ public static class V9OperationalBlockingChaveCohortParity
         var digest = Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
         return new(directions.Count * 2, directions.Count, digest, goldCount,
-            ProductionGoldCertified: false);
+            ProductionGoldCertified: false)
+        {
+            OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray())
+        };
     }
 
     public static Guid DiagnosticUuid(int observationIndex)

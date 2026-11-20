@@ -32,8 +32,9 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertIn("operational.UndirectedSqlEdges != physical.Edges.Count", s)
         self.assertIn("operational.CanonicalEdgesSha256", s)
         self.assertIn("physical.CanonicalEdgesSha256", s)
-        self.assertIn("edges = physical.Edges.ToList();", s)
-        self.assertLess(s.index("edges = physical.Edges.ToList();"),
+        self.assertIn("edges = operational.OperationalEdges.ToList();", s)
+        self.assertIn("physical.Edges.SequenceEqual(operational.OperationalEdges)", s)
+        self.assertLess(s.index("edges = operational.OperationalEdges.ToList();"),
                         s.index("var global = await operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync("))
         self.assertIn("global.SnapshotSha256 != pinnedWinnerSha", s)
         self.assertIn("global.Decisions.Count != cohort.Length", s)

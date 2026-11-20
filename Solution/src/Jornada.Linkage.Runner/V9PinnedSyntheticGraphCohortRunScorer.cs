@@ -33,8 +33,10 @@ public sealed record V9FrozenRunObservation(long PessoaObservacaoId, IdentityObs
 /// <summary>
 /// TEST-only adapter that binds the real RunAsync lifecycle to one globally
 /// scored V9 BLIND_FS_COMPLETE_LINK_CANDIDATES cohort (never per-row Resolve).
-/// Candidate edges are EXPLICIT SYNTHETIC fixture input; this class does NOT
-/// certify operational SQL candidate retrieval or production DI integration.
+/// In explicit-fixture mode, candidate edges are synthetic inputs. In physical
+/// SQL smoke mode, the actual operational blocking_chave query supplies edges
+/// only after exact comparison with an independently materialized SQL oracle.
+/// Neither mode certifies production-scale retrieval or production DI integration.
 /// Strictly JornadaHarness, never any Gold/Serving publication.
 /// </summary>
 public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFrozenCohortScorer
@@ -155,8 +157,16 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                if (!managers.TryAdd(reader.GetInt64(0), reader.GetString(1)))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                    throw new InvalidDataException("Universo SQL V9 com ID ou gestor nulo.");
+                var observationId = reader.GetInt64(0);
+                var manager = reader.GetString(1);
+                if (observationId <= 0 || string.IsNullOrWhiteSpace(manager))
+                    throw new InvalidDataException("Universo SQL V9 com ID ou gestor inválido.");
+                if (!managers.TryAdd(observationId, manager))
                     throw new InvalidDataException("Universo SQL V9 com ID duplicado.");
+            }
         }
         if (managers.Count != frozenRows.Count
             || frozenRows.Any(row => !managers.ContainsKey(row.PessoaObservacaoId)))
@@ -198,7 +208,12 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
                     physical.CanonicalEdgesSha256, StringComparison.Ordinal))
                 throw new InvalidDataException(
                     "Digest do grafo operacional V9 divergiu da assinatura física.");
-            edges = physical.Edges.ToList();
+            // The operational INTERSECT/UNION query is the actual scoring input.
+            // The independently materialized signature graph remains an oracle only.
+            if (operational.OperationalEdges.Count != operational.UndirectedSqlEdges
+                || !physical.Edges.SequenceEqual(operational.OperationalEdges))
+                throw new InvalidDataException("Grafo operacional consumido divergiu do oráculo físico.");
+            edges = operational.OperationalEdges.ToList();
             SqlGraphEvidence = physical;
             BlockingChaveParityEvidence = operational;
         }
