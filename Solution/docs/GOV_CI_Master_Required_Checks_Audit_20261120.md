@@ -14,3 +14,6 @@ Testes unitários offline cobrem ausência, configuração parcial, estrita comp
 
 ## Revisão técnica de implementação
 A API de proteção pode expor os contextos exigidos em `required_status_checks.contexts` (legado) e `required_status_checks.checks` (vinculados a apps). A auditoria considera a **união** dessas duas listas, evitando falso negativo quando ambas estão preenchidas parcialmente. Testes cobrem união completa e ausência de um contexto. Essa correção não muda o requisito de comprovação do escopo da proteção da master nem autoriza merge.
+
+## Vinculação à CI obrigatória
+A suíte `test_audit_master_required_checks.py` foi explicitamente adicionada ao job `classify-impact` do workflow `jornada-pr-required-fast`, inclusive para PRs docs-only. A mudança evita que os novos testes fiquem apenas no repositório sem execução pelos gates requeridos. A execução autenticada de auditoria continua separada e pendente; nenhum token é exposto no teste offline.
