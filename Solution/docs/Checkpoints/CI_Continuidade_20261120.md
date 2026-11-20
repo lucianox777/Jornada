@@ -127,3 +127,8 @@ Issue oficial #1734 permanece **open** e exige cumulativamente: logs das falhas 
 - Comparação autenticada após reconciliação de workflow/índice: branch #1759 ainda `diverged`, **22 commits à frente e 5 atrás** da master; PR `draft` e `mergeable=false`. Os dois arquivos de sobreposição foram reconciliados por conteúdo, mas a ancestralidade Git não foi atualizada.
 - Acrescentados testes unitários com resposta HTTP simulada (sem rede nem disparar workflows) para rejeitar `total_count` maior que a página retornada e `total_count=True` (booleano indevido). Commit `1b7bbfe518a375a1a07d9a71cbb1fcb6f97d102e` na PR #1759. Cobertura adicional **implementada, execução de CI pendente**.
 - Consulta de runs do HEAD anterior `85f0af876d147ff2a1e22ffeaf0438f8efc7241a` retornou lista vazia pelo conector limitado a PR; isso não comprova ausência de execução. Sem merge, rebase, rerun, LOCK, TRAIN ou TEST.
+
+## Teste positivo de escopo da consulta REST — PR #1759
+- Revisão do código `Solution/scripts/ci-master-postmerge-proof.py` e testes da branch #1759 confirmou consulta `head_sha=<SHA>`, `branch=master`, `event=push`, `per_page=100`, com validação de `total_count`.
+- Acrescentado teste positivo com resposta HTTP simulada de página completa (dois workflows aprovados), incluindo asserções sobre todos os filtros de URL e a avaliação `verified=true`. Commit `5430f23d22ffaa9656c2580943cc64e2703301f6`. Complementa os testes negativos de paginação, sem credenciais reais ou execução de CI.
+- Testes implementados, **execução não observada**; PR segue sem aprovação para integração. A comprovação física pós-merge permanece não verificada.
