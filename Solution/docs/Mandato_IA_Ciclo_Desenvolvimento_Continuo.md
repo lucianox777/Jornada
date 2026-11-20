@@ -101,11 +101,59 @@ PRÓXIMA AÇÃO: <passo objetivo>
 
 Não divulgar credenciais, dados pessoais ou logs sensíveis. Evitar contagens históricas apresentadas como atuais.
 
-## 6. Limites e precedência
+## 6. Continuidade entre conversas, recuperação de ponteiros e fallback obrigatório
+
+**Regra geral:** o estado operacional de um agente não pode depender da duração, do histórico acessível ou da memória de uma conversa. A cada nova sessão, reinício de ferramenta, transferência de agente ou mudança de contexto, executar o protocolo abaixo **antes de retomar ações mutáveis**. Este procedimento é aplicável a qualquer projeto, sem pressupor plataforma ou nomes de arquivos.
+
+### 6.1 Contrato de persistência durável
+
+Manter um **registro de continuidade** em local persistente e autorizado pelo projeto (por exemplo, arquivo versionado, issue operacional, banco de estado ou artefato com retenção suficiente). O local, formato, responsável e política de atualização devem ser descobertos ou definidos explicitamente. O registro deve conter, no mínimo:
+
+- Identificador do projeto/repositório e ambiente; branch principal e SHA observado; instante UTC, versão do esquema e origem da observação.
+- Objetivo atual, tarefa em curso, estado da tarefa, último passo **efetivamente concluído** e próxima ação executável.
+- Ponteiros verificáveis: branches, PRs, issues, commits, workflows, `run_id`, `run_attempt`, `job_id`, artefatos, documentos e links relevantes; campos não aplicáveis podem ficar vazios, nunca inventados.
+- Resultados e cobertura de testes, gates exigíveis, falhas abertas, hipóteses não confirmadas, dependências e bloqueios.
+- Autorizações e limites com **referência à fonte oficial**; não transportar supostas permissões apenas por lembrança de conversa.
+- Checkpoint anterior, chave de deduplicação, janela/cursor de inventário, integridade/versão e estado de sincronização.
+
+Atualizar o registro após marcos relevantes (mudança de SHA, abertura/merge de PR, novo resultado de CI, conclusão ou bloqueio de tarefa) e **antes de encerrar a rodada**, quando houver permissão. Usar escrita atômica ou controle de versão/conflitos; preservar histórico e não sobrescrever evidências. Não gravar credenciais, dados pessoais ou logs sensíveis. Se a persistência falhar, comunicar explicitamente **continuidade não garantida**, indicando o último estado confirmado; não declarar que o checkpoint foi salvo.
+
+### 6.2 Bootstrap obrigatório em toda nova conversa ou início de trabalho
+
+1. Descobrir o repositório/ambiente e localizar o registro de continuidade segundo as convenções do projeto; consultar também decisões, plano e backlog oficiais.
+2. Validar existência, formato, integridade, versão, timestamp, identidade do projeto e permissões de leitura. Nunca tomar um checkpoint como verdade atual sem reconciliação.
+3. Ler ponteiros e **revalidá-los na fonte primária**: SHA atual, PRs/branches/issues, execuções e jobs, tentativas, artefatos e condições de integração.
+4. Reconciliar divergências e identificar mudanças desde o último checkpoint; classificar cada ponteiro como **válido**, **substituído**, **inacessível**, **desatualizado** ou **não localizado**, com evidência.
+5. Recuperar tarefa e próxima ação apenas quando ainda autorizadas, aplicáveis e não concluídas por outro processo; evitar repetição de operações não idempotentes.
+6. Publicar um breve **resumo de retomada** com origem do checkpoint, instante, SHA, tarefa, pendências, divergências, confiança e próxima ação; depois continuar o trabalho autorizado.
+
+A abertura de uma conversa nova **não reinicia automaticamente o plano**, não encerra tarefas pendentes e não transforma resultados anteriores em provas atuais.
+
+### 6.3 Fallback escalonado para job, execução ou ponteiro não encontrado
+
+Aplicar uma busca com cobertura declarada, preferencialmente nesta ordem:
+
+1. Identificador exato e tentativa (`run_id`/`run_attempt`, `job_id`, PR ou commit) na API nativa.
+2. SHA integral, evento, branch, workflow, janela temporal UTC e listagem paginada de execuções; expandir a janela de modo limitado e documentado.
+3. Jobs, steps, checks, status, logs, relatórios e artefatos associados; validar que um relatório não é a própria suíte de testes.
+4. Checkpoints persistidos, índices, issues/PRs e registros de incidentes, usando seus links como **pistas** a revalidar na fonte primária.
+5. Outras interfaces autorizadas (UI oficial, CLI, API alternativa ou operador humano), registrando limites de acesso e retenção.
+
+**Critério de parada:** somente declarar **NÃO LOCALIZADO / NÃO VERIFICADO** após documentar fontes, filtros, páginas, intervalo, permissões, erros e evidências consultadas. Resposta vazia de uma API parcial, artefato expirado ou ausência de permissão **não prova inexistência**. Se o workflow exigível não existir, distinguir **não configurado** de **não disparado**; se a execução ainda não iniciou, distinguir **aguardando gatilho**, **enfileirada** e **ausente**, sem inventar resultado. Não criar workflow duplicado nem disparar execução especial automaticamente como substituto da investigação.
+
+### 6.4 Recuperação quando o checkpoint inexiste, expira ou diverge
+
+Executar **reconstrução controlada**: descobrir branch principal e HEAD; inventariar PRs/issues, commits recentes, pipelines e artefatos dentro da janela disponível; consultar documentos oficiais e decisões vigentes; montar um **checkpoint reconstruído** com origem e grau de cobertura explícitos. Identificar o que **não pode ser recuperado**, especialmente autorizações, trabalhos locais não versionados e execuções cujos artefatos expiraram. Solicitar confirmação humana apenas quando necessária para ação irreversível ou autorização ausente; tarefas seguras de leitura podem prosseguir. Não atribuir ao checkpoint reconstruído a mesma confiabilidade de um registro persistido e reconciliado.
+
+### 6.5 Testes de aceite da continuidade
+
+Validar pelo menos: retomada em conversa sem histórico; checkpoint ausente, corrompido ou antigo; branch/PR substituída; SHA alterado; job não localizado na primeira consulta mas recuperado por run/artefato; API paginada incompleta; artefato expirado; permissões insuficientes; tentativa reexecutada; tarefa já concluída por outro agente; conflito de escrita e impossibilidade de persistir. Demonstrar recuperação sem duplicar ações e sem declarar sucesso sem evidência.
+
+## 7. Limites e precedência
 
 Respeitar autorização humana, políticas de segurança, branch protection, requisitos regulatórios, gates de qualidade e restrições de custo. Testes destrutivos, cargas elevadas, produção, publicação, migrações irreversíveis ou experimentos restritos dependem de autorização específica. Este mandato não substitui procedimentos técnicos, critérios científicos ou regras de governança próprios de cada organização.
 
-## 7. Critérios de conclusão
+## 8. Critérios de conclusão
 
 - Mudança técnica: código e regressões versionados, checks correspondentes verificados no HEAD, documentação atualizada.
 - Integração: merge autorizado, SHA integrado identificado e verificações pós-merge aplicáveis comprovadas.
@@ -113,6 +161,6 @@ Respeitar autorização humana, políticas de segurança, branch protection, req
 - Governança: decisão registrada e indexada conforme regras locais; PR não integrada deve ser declarada como tal.
 - Resposta: escopo, evidência, incertezas e limites apresentados sem extrapolação.
 
-## 8. Histórico de revisão do modelo
+## 9. Histórico de revisão do modelo
 
-**Revisão genérica — 20/11/2026:** removidas referências a produto, repositório, números de PR, execuções, tecnologias, campanhas e workflows específicos. Incorporados aprendizados reutilizáveis: zero resultados de consulta parcial não implica ausência de CI; evidência de relatório não equivale a teste; `skipped` exige análise de aplicabilidade; saúde é atestada por SHA e cobertura; monitor periódico precisa ser **efetivamente implementado**, não apenas descrito. Evidências concretas e decisões locais devem permanecer nos documentos e registros específicos de cada repositório, fora deste modelo genérico.
+**Revisão genérica e protocolo de retomada — 20/11/2026:** removidas referências a produto, repositório, números de PR, execuções, tecnologias, campanhas e workflows específicos. Incorporados aprendizados reutilizáveis: zero resultados de consulta parcial não implica ausência de CI; evidência de relatório não equivale a teste; `skipped` exige análise de aplicabilidade; saúde é atestada por SHA e cobertura; monitor periódico precisa ser **efetivamente implementado**, não apenas descrito. Evidências concretas e decisões locais devem permanecer nos documentos e registros específicos de cada repositório, fora deste modelo genérico.
