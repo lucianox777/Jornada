@@ -27,6 +27,7 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
         self.assertEqual(result["empty_job_run_ids"], ["2"])
         self.assertFalse(result["all_observed_runs_have_jobs"])
         self.assertFalse(result["job_evidence_complete_for_observed_runs"])
+        self.assertFalse(result["all_completed_success"])
 
     def test_captured_p0_pr_run_and_job_snapshot_is_not_green(self):
         fixture = (Path(__file__).resolve().parents[1] /
@@ -83,8 +84,13 @@ class GithubActionsStatusSummaryTests(unittest.TestCase):
         self.assertFalse(result["all_completed_success"])
 
     def test_all_success_only_when_every_run_completed(self):
+        self.assertFalse(module.summarize({"workflow_runs": [
+            {"id": 1, "status": "completed", "conclusion": "success"}]})["all_completed_success"])
         self.assertTrue(module.summarize({"workflow_runs": [
-            {"status": "completed", "conclusion": "success"}]})["all_completed_success"])
+            {"id": 1, "status": "completed", "conclusion": "success"}],
+            "jobs_by_run": {"1": [
+                {"id": 10, "status": "completed", "conclusion": "success"}]}
+        })["all_completed_success"])
         self.assertFalse(module.summarize({"workflow_runs": []})["all_completed_success"])
         self.assertFalse(module.summarize({"workflow_runs": [
             {"status": "pending", "conclusion": None}]})["all_completed_success"])
