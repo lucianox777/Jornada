@@ -18,8 +18,9 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def audit(repo):
+def audit(repo, locks_root=None):
     repo = repo.resolve()
+    locks_root = (locks_root or repo).resolve()
     tracked = subprocess.run(
         ["git", "-C", str(repo), "ls-files", "--", GENERATOR],
         check=True, capture_output=True, text=True,
@@ -33,7 +34,7 @@ def audit(repo):
     partition = sha256(repo / PARTITION)
     results = []
     for relative in LOCKS:
-        lock = json.loads((repo / relative).read_bytes())
+        lock = json.loads((locks_root / relative).read_bytes())
         generation = lock["generation"]
         expected_tree = generation["generator_sha256"]
         expected_partition = generation["partition_contract"]["generator_file_sha256"]
@@ -62,8 +63,9 @@ def audit(repo):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path("."))
+    parser.add_argument("--locks-root", type=Path, help="Read frozen manifests from a separate checkout")
     args = parser.parse_args()
-    results = audit(args.repo)
+    results = audit(args.repo, args.locks_root)
     print(json.dumps({"audit": "READ_ONLY_NO_CORPUS", "locks": results}, indent=2))
     if not all(result["matches"] for result in results):
         raise SystemExit(1)
