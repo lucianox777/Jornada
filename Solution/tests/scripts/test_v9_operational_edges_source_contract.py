@@ -25,6 +25,17 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_both_edge_receipts_reject_mutable_array_exposure(self):
+        parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
+        physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
+        self.assertIn(
+            "OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy",
+            parity,
+        )
+        self.assertIn("return new(edges.AsReadOnly(), signatures.Count, digest,", physical)
+        self.assertNotIn("OperationalEdges = directions.Keys.ToArray()", parity)
+        self.assertNotIn("return new(edges.ToArray(), signatures.Count, digest,", physical)
+
     def test_physical_smoke_never_falls_back_to_fixture_edges(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         start = scorer.index("if (readPhysicalSqlGraph)")
