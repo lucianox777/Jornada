@@ -22,6 +22,24 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
         p = {"required_status_checks": {"strict": True, "contexts": sorted(audit.REQUIRED)}}
         self.assertTrue(audit.evaluate(p, [])["verified"])
 
+    def test_split_legacy_and_app_bound_checks_are_combined(self):
+        required = sorted(audit.REQUIRED)
+        p = {"required_status_checks": {
+            "strict": True,
+            "contexts": required[:2],
+            "checks": [{"context": name, "app_id": 123} for name in required[2:]],
+        }}
+        self.assertTrue(audit.evaluate(p, [])["verified"])
+
+    def test_missing_check_across_both_lists_is_not_verified(self):
+        required = sorted(audit.REQUIRED)
+        p = {"required_status_checks": {
+            "strict": True,
+            "contexts": required[:1],
+            "checks": [{"context": name, "app_id": 123} for name in required[1:-1]],
+        }}
+        self.assertFalse(audit.evaluate(p, [])["verified"])
+
     def test_inactive_or_unscoped_rulesets_do_not_prove_master(self):
         rules = [{"name": "master protection", "enforcement": "active"}]
         self.assertFalse(audit.evaluate({}, rules)["verified"])
