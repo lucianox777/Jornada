@@ -1,4 +1,5 @@
 using Jornada.Linkage.SyntheticCorpus;
+using Jornada.Contracts;
 
 var root = Path.Combine(Path.GetTempPath(), "p0-partition-integrity-" + Guid.NewGuid().ToString("N"));
 var person = new SyntheticPerson
@@ -22,12 +23,12 @@ async Task ExpectRejected(string label, IReadOnlyList<SyntheticPerson> people,
         await SyntheticCorpusMaterializer.WriteAsync(output, generation,
             (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                 typeof(SyntheticCorpusNominalSource)), "TEST");
-        throw new Exception($"Accepted invalid fixture: {label}");
+        throw new InvalidOperationException($"Accepted invalid fixture: {label}");
     }
     catch (InvalidDataException)
     {
         if (Directory.Exists(output))
-            throw new Exception($"Created output directory before rejection: {label}");
+            throw new InvalidOperationException($"Created output directory before rejection: {label}");
         Console.WriteLine($"PASS {label}");
     }
 }
@@ -42,12 +43,12 @@ async Task ExpectInvalidOptions()
         await SyntheticCorpusMaterializer.WriteAsync(output, generation,
             (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                 typeof(SyntheticCorpusNominalSource)), "TEST");
-        throw new Exception("Accepted invalid partition percentages");
+        throw new InvalidOperationException("Accepted invalid partition percentages");
     }
     catch (ArgumentOutOfRangeException)
     {
         if (Directory.Exists(output))
-            throw new Exception("Created output directory before invalid options rejection");
+            throw new InvalidOperationException("Created output directory before invalid options rejection");
         Console.WriteLine("PASS invalid-options");
     }
 }
