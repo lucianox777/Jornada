@@ -62,7 +62,9 @@ def summarize(snapshot):
         run.get("id") for run in runs
         if run.get("status") != "completed" or run.get("conclusion") != "success"
     ]
-    complete_success = bool(runs) and not unmatched_job_runs and all(
+    # A success verdict requires job evidence for every identified run.
+    # Missing/empty job lists cannot silently pass via vacuous all([]).
+    complete_success = bool(runs) and not unmatched_job_runs and not missing_job_run_ids and not empty_job_run_ids and all(
         run.get("status") == "completed" and run.get("conclusion") == "success"
         for run in runs
     ) and all(
