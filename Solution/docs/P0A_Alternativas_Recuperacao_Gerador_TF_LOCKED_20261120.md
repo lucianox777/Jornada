@@ -280,3 +280,12 @@ O commit `242f612` acrescenta teste estrutural para impedir regressão na atribu
 ## Endurecimento da leitura de CSV no smoke positivo (20/11/2026)
 
 **Contexto:** o uso de `StringSplitOptions.RemoveEmptyEntries` no harness poderia ocultar linhas em branco produzidas por regressão, fazendo a contagem de registros aparentar correta. **Implementação:** commit `7060584` introduz `StrictCsvRows`, que exige cinco segmentos separados por newline (cabeçalho, três registros e terminador vazio), rejeita registros em branco e exige newline final, preservando as asserções de campos e partições. Commit `a62eae7` acrescenta guarda estrutural. **Justificativa:** não mascarar artefatos malformados durante a validação positiva. **Impacto:** somente harness e teste estrutural; nenhum código de produção, gerador histórico ou manifest LOCKED alterado. **Limitação:** parser deliberadamente restrito à fixture sem vírgulas ou newlines em campos, não substitui parser CSV geral; execução CI pendente. **Rastreabilidade:** issue #1734, PR #1769, commits `7060584` e `a62eae7`. **Acompanhamento:** no commit `db53f8f`, cinco workflows estavam em fila e checks obrigatórios pendentes.
+
+
+### Continuidade técnica — validação de população zero (2026-11-20)
+
+- **Contexto:** na PR #1769, o smoke executável do materializador parametrizado já cobria percentuais inválidos e 19 casos de integridade; faltava exercitar a rejeição de população sintética zero por chamada direta ao materializador.
+- **Implementação:** commit `cae7785939198ad46e97d109390e1f50321559e4` acrescentou subcaso `People: 0` ao teste `ExpectInvalidOptions` em `Solution/tests/PartitionIntegritySmoke/Program.cs`, exigindo `ArgumentOutOfRangeException` antes de criar o diretório de saída.
+- **Justificativa/impacto:** amplia a cobertura *fail-closed* sem alterar a API, o gerador histórico, os manifests congelados, o contrato de partições ou a contagem de 20 marcadores `PASS` do workflow diagnóstico.
+- **Precedência e rastreabilidade:** implementação subordinada à decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120` e à política GOV-DOC-01; não constitui nova decisão do PO e não altera o índice de decisões vigentes.
+- **Validação:** aguarda execução do diagnóstico CI para o novo commit; não representa autorização para merge nem para TRAIN/TEST científico.
