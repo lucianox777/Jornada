@@ -35,6 +35,12 @@ public static class SyntheticCorpusMaterializer
         // when a generation was constructed outside the CLI/generator.
         generation.Options.Validate();
 
+        // Imported collections may contain null entries despite their C# element annotations.
+        // Reject these before GroupBy or field access, without touching the output directory.
+        if (generation.People.Any(person => person is null) ||
+            generation.Observations.Any(observation => observation is null))
+            throw new InvalidDataException("Geração contém pessoa ou observação nula.");
+
         // Reject imported/expanded generations before writing any output. The
         // hard support is not the largest cluster observed in this particular run.
         if (generation.Observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
