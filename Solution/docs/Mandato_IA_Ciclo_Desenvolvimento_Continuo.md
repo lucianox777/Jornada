@@ -3,7 +3,7 @@
 **ID:** GOV-OPS-MANDATO-JORNADA-RETOMADA-20261120  
 **Projeto/repositório:** Jornada do Cidadão — `lucianox777/Jornada`  
 **Autoridade:** Product Owner, restauração e continuidade entre conversas aprovadas em 20/11/2026.  
-**Estado:** mandato específico aprovado pelo PO; conferir integração e precedência na master. A consolidação operacional pós-CI de 20/11/2026 está proposta em PR documental própria, sem alteração de workflows.  
+**Estado:** mandato aprovado e integrado pela PR #1773 (squash `5d8fcb3dffb8ad04203414224278933bce70db1b`); comprovação de gates pós-merge permanece separada da integração.  
 **Fonte normativa principal:** [GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md), aditivo específico de 13 etapas, e [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).
 
 ## 1. Escopo e precedência
@@ -29,6 +29,21 @@ Toda interação operacional, inclusive após limite de contexto, troca de agent
 3. Identificar a **PR da frente de trabalho efetivamente em andamento**, por evidências e decisões documentadas; reutilizá-la preferencialmente para correções e continuidade. **Não presumir que #1757 seja PR permanente de desenvolvimento**: ela é a frente documental deste mandato. Nenhuma PR numericamente fixa foi comprovada como destino universal das alterações.
 4. Recuperar do documento/PR/checkpoint **já existente** o objetivo, a última etapa comprovadamente concluída, pendências, bloqueios, referências de SHA/run/job/artefato e próxima ação. Reconciliar sempre com `master` e decisões posteriores. Se a PR tiver sido integrada/fechada, localizar a sucessora por evidência, sem inventá-la.
 5. Quando o estado não puder ser recuperado integralmente, declarar a lacuna e reconstruir somente a partir de registros verificáveis. Não repetir decisões, reabrir tarefas concluídas ou criar PRs, arquivos de estado, bancos ou monitores novos apenas porque a conversa anterior terminou.
+
+### Reconciliação bidirecional obrigatória na inicialização — decisão PO de 20/11/2026
+
+**ID:** GOV-OPS-RECONCILIACAO-INICIAL-CI-PRS-20261120. **Estado:** DECIDIDO pelo PO; implementação documental nesta PR, ainda não integrada. **Contexto:** a troca de conversas pode perder o vínculo entre incidentes de CI, PRs abertas ou integradas, decisões e próximos passos, mesmo quando os registros individuais existem. **Justificativa:** tornar executável e verificável o contrato já aprovado nas 13 etapas, sem duplicar mecanismos.
+
+Na abertura de **cada interação operacional**, antes de iniciar nova implementação, executar a reconciliação **nos dois sentidos**, dentro de uma janela de observação declarada e com cobertura verificável:
+
+1. Ler HEAD exato da master, índices e decisões integradas, PRs e issues relevantes, checkpoint anterior e a janela retrospectiva necessária para incluir runs ainda ativos; inventariar runs globais com paginação **quando a interface permitir**, deduplicando por `run_id` e preservando `run_attempt`, workflow, evento, branch, SHA, timestamps, conclusão e jobs.
+2. Para cada run crítico, falho, bloqueado ou com skips, correlacionar o `jornada-ci-diagnostics` ao run original e SHA quando existir; consultar os jobs/gates originais. O Diagnostics é evidência **somente leitura**, limitada à `jornada-ci` concluída, com artefato de retenção de sete dias; não é inventário de PRs nem prova autônoma de aprovação.
+3. **CI → PR:** procurar PR(s) relacionadas por evidência verificável de SHA, evento, commits e merge; distinguir SHA de HEAD de PR do SHA de squash da master. Associação ambígua permanece indeterminada; não inferir uma única PR apenas pelo SHA.
+4. **PR → CI:** percorrer PRs abertas e as encerradas/integradas relevantes à janela e às pendências; conferir Draft/Ready, revisão, conflito, checks no HEAD exato, substituições, decisões e, para merges, gates pós-merge no SHA integrado. PR sem run ou sem Diagnostics continua no inventário como pendência, não como PASS.
+5. Confrontar ambos os inventários com o checkpoint anterior, decisões vigentes, issues e documentação; identificar lacunas, transições, incidentes ainda abertos, validações pendentes e a **próxima atividade autorizada**. Não reabrir tarefa concluída nem transformar falha em retry sem classificação.
+6. Reportar janela, horário, cobertura total ou **PARCIAL**, contagens verificáveis, relações confirmadas/ambíguas, PRs sem prova, jobs falhos, SHA/run/attempt, pendências e próximo passo. Se a integração não listar runs globais paginados, declarar explicitamente a limitação e **não** certificar reconciliação total.
+
+**Impacto e limites:** apenas esclarecimento do procedimento inicial existente; não cria workflow, monitor, banco, novo checkpoint, execução científica, autorização de merge ou alteração de gates. A PR #1758 permanece proposta independente de inventário read-only, sem aprovação implícita. **Precedência:** detalha a inicialização deste mandato e as etapas 2–7, 10–13 do protocolo canônico de 13 etapas, sem substituí-las; GOV-DOC-01 permanece obrigatório. **Rastreabilidade:** PR #1773, #1757, #1758; `.github/workflows/ci-diagnostics.yml`; `Solution/scripts/ci-failure-checkpoint.py`; índice de decisões vigente; CI e SHA da presente PR a registrar após execução.
 
 A PR é um ponto de continuidade **não exclusivo**; `master`, decisões e evidências reais continuam fontes de verdade. Checkpoints operacionais existentes podem ser atualizados no próprio fluxo documental autorizado, sem sistema paralelo.
 
@@ -70,7 +85,7 @@ Concentrar alterações na PR existente da frente correspondente sempre que tecn
 
 ## 6. Retomada específica por CI Diagnostics e fechamento de integração (ratificação PO, 20/11/2026)
 
-**Decisão GOV-OPS-DIAGNOSTICS-RETOMADA-POSCI-20261120 — DECIDIDA; implementação exclusivamente documental pendente de integração.** Restaurar o ciclo Jornada existente, sem criar monitor, automação, novo checkpoint, workflow, política de exclusão de branch ou fechamento artificial de PR.
+**Decisão GOV-OPS-DIAGNOSTICS-RETOMADA-POSCI-20261120 — DECIDIDA; integrada pela PR #1773 (squash `5d8fcb3dffb8ad04203414224278933bce70db1b`), sem inferir validação pós-merge.** Restaurar o ciclo Jornada existente, sem criar monitor, automação, novo checkpoint, workflow, política de exclusão de branch ou fechamento artificial de PR.
 
 - Após **squash merge autorizado**, registrar a PR como **merged** (estado fechado pelo próprio GitHub) e o SHA integrado da `master`. **Não existe segundo fechamento de PR após o Diagnostics**. Não confundir a branch Git remanescente, a PR já integrada e o incidente operacional ainda pendente. Nenhuma exclusão automática adicional de branch foi aprovada.
 - No pós-merge, consultar **primeiro o `jornada-ci-diagnostics` correspondente à execução `jornada-ci` e ao SHA integrado**, quando houver resultado disponível. Relacionar obrigatoriamente `workflow`, `run_id`, `run_attempt`, `head_sha`, resultado e jobs. O `incident_id` é estável para o mesmo run/SHA; o artefato do Diagnostics é **somente leitura**, não autoriza merge, não contém logs completos e expira após sete dias.
