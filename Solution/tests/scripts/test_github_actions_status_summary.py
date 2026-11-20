@@ -11,6 +11,21 @@ spec.loader.exec_module(module)
 
 
 class GithubActionsStatusSummaryTests(unittest.TestCase):
+    def test_completed_run_with_active_job_flags_nonatomic_snapshot(self):
+        snapshot = {
+            "workflow_runs": [{"id": 7, "status": "completed", "conclusion": "success"}],
+            "jobs_by_run": {"7": [
+                {"id": 70, "status": "in_progress", "conclusion": None},
+            ]},
+        }
+        result = module.summarize(snapshot)
+        self.assertEqual(result["inconsistent_run_job_ids"], ["7"])
+        self.assertFalse(result["all_completed_success"])
+        snapshot["jobs_by_run"]["7"][0].update(status="completed", conclusion="success")
+        consistent = module.summarize(snapshot)
+        self.assertEqual(consistent["inconsistent_run_job_ids"], [])
+        self.assertTrue(consistent["all_completed_success"])
+
     def test_duplicate_identifiers_and_noncanonical_job_keys_fail_closed(self):
         valid_run = {"id": 1, "status": "completed", "conclusion": "success"}
         valid_job = {"id": 10, "status": "completed", "conclusion": "success"}
