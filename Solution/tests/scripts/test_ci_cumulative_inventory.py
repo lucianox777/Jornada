@@ -30,6 +30,15 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
             mod.enumerate_runs(lambda _: {"total_count": 0, "workflow_runs": []}, naive, END)
 
+    def test_subsecond_window_rejected_before_query(self):
+        fractional = START + dt.timedelta(microseconds=1)
+        def forbidden(_):
+            self.fail("API must not be queried for truncated time boundaries")
+        with self.assertRaisesRegex(ValueError, "whole seconds"):
+            mod.enumerate_runs(forbidden, fractional, END)
+        with self.assertRaisesRegex(ValueError, "whole seconds"):
+            mod.enumerate_runs(forbidden, START, END + dt.timedelta(microseconds=1))
+
     def test_categories_are_mutually_exclusive(self):
         cases = [
             (run(1), "approved"),
