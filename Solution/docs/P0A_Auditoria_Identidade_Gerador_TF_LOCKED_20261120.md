@@ -17,3 +17,7 @@ O teste offline `Solution/tests/scripts/test_audit_v9_tf_locked_generator.py` ex
 Impacto restrito a diagnóstico auditável, sem mudança científica. A existência do script não resolve a incompatibilidade LOCKED e não autoriza TRAIN, TEST, merge ou certificação. A correção arquitetural (preservar fonte histórica e eventual gerador parametrizado) depende de escolha explícita do PO e documentação subsequente. Não atualizar manifests para passar gates.
 
 Rastreabilidade: issue #1734; PR desta branch `fix/p0-locked-generator-diagnostic-20261120`; commits `079e5b9` e `1be549e`.
+
+## Integração de regressões à CI (20/11/2026)
+
+A PR incorpora agora o teste offline isolado ao job obrigatório `unit-runtime` em `.github/workflows/jornada-pr-required-fast.yml` (commit `ac9bd1e`). **Somente os testes em Git temporário são executados na CI**, não a auditoria do gerador da master, cuja divergência histórica é conhecida. O teste adicional (commit `ecbf9c4`) cobre alteração de apenas um dos dois LOCKED e ausência física de arquivo rastreado; preserva fail-closed sem mudar os manifests reais. Justificativa: garantir regressão do próprio auditor antes de sua adoção operacional, sem confundir testes unitários sintéticos com prova do digest real. Impactos: tempo pequeno de testes Python e nenhuma execução científica; gate de integridade real continua pendente de decisão de recuperação P0-A #1734. Os commits precisam de CI verde; nenhuma aprovação do PO foi presumida.
