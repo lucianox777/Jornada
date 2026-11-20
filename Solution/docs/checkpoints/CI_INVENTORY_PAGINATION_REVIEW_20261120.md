@@ -17,6 +17,12 @@ Em `Solution/scripts/ci-cumulative-inventory.py`, `failing_jobs` comparava `(pag
 
 - `721bd7e72dc4c91ed802eeb8753e09eda9bc2b44`: rejeição de job sem ID e alteração de `total_count` durante paginação. Testes adicionados, ainda não certificados no HEAD.
 
+## Invariantes de janela UTC
+
+- `baf8239b2a200b16b76c526342d105153c9b225a`: exige limites temporais com fuso UTC explícito antes da consulta.
+- `8232c97aa1cf484d0a3e25d5dce2b4d834fff58a`: regressões de janela vazia legítima, fuso não UTC e timestamps sem fuso.
+- Janela vazia com resposta `total_count=0` é válida apenas quando obtida da API paginada com filtros e cobertura verificáveis; resposta vazia do conector limitado não é equivalente.
+
 ## Limites
 Código e testes versionados na branch da PR #1758. Não houve execução local independente nem comprovação de aprovação no novo HEAD nesta rodada. O conector de Actions disponível é limitado à primeira página de execuções por SHA de PR e à primeira página dos jobs por run; não comprova inventário global. Não houve rerun, merge, alteração de ruleset, LOCKED ou campanha científica.
 
