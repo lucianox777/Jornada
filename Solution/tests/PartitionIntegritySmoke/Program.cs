@@ -19,7 +19,9 @@ async Task ExpectRejected(string label, IReadOnlyList<SyntheticPerson> people,
         new Dictionary<string, SyntheticEmpiricalM>(), new SyntheticCorpusOptions());
     try
     {
-        await SyntheticCorpusMaterializer.WriteAsync(output, generation, null!, "TEST");
+        await SyntheticCorpusMaterializer.WriteAsync(output, generation,
+            (SyntheticCorpusNominalSource)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
+                typeof(SyntheticCorpusNominalSource)), "TEST");
         throw new Exception($"Accepted invalid fixture: {label}");
     }
     catch (InvalidDataException)
