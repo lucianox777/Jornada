@@ -88,6 +88,17 @@ class IsolatedPartitionContractTests(unittest.TestCase):
         self.assertIn(": ConfigPercent(configKey, fallback)", program)
         self.assertLess(program.index("options.Validate();"), program.index("return options;"))
 
+    def test_partition_integrity_runtime_harness_is_wired_to_diagnostic_ci(self):
+        harness = (ROOT / "tests/PartitionIntegritySmoke/Program.cs").read_text(encoding="utf-8")
+        project = (ROOT / "tests/PartitionIntegritySmoke/PartitionIntegritySmoke.csproj").read_text(encoding="utf-8")
+        workflow = (ROOT.parent / ".github/workflows/p0-tf-locked-generator-audit.yml").read_text(encoding="utf-8")
+        self.assertIn("Jornada.Linkage.SyntheticCorpus.Parametrized.csproj", project)
+        self.assertIn("PartitionIntegritySmoke/PartitionIntegritySmoke.csproj", workflow)
+        self.assertIn("await ExpectInvalidOptions();", harness)
+        self.assertEqual(harness.count("await ExpectRejected("), 11)
+        self.assertIn("using Jornada.Contracts;", harness)
+        self.assertNotIn("throw new Exception(", harness)
+
     def test_materializer_rejects_cross_partition_or_orphan_observations_before_io(self):
         for token in (
             "new Dictionary<string, string>(StringComparer.Ordinal)",
