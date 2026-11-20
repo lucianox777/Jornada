@@ -38,3 +38,7 @@ A comparação acima é textual e seletiva; **não substitui** diff completo dos
 5. Somente depois avaliar adoção de gate obrigatório e eventuais mudanças de branch protection.
 
 **Nenhuma alternativa está aprovada ou implementada por este documento.** A PR #1769 continua limitada à instrumentação diagnóstica.
+
+## Medição comparativa do commit histórico (instrumentação, 20/11/2026)
+
+O commit `6d2efe7` adiciona um segundo job diagnóstico ao workflow P0-A. O job faz dois checkouts separados: o código do auditor da PR e o repositório no SHA histórico **fixo** `b98a01180737909edf7cbd0bee4ba2757d52fe0f`. Executa o auditor somente em leitura sobre a árvore histórica e compara seus bytes com os dois manifests presentes naquele checkout; publica JSON próprio (`p0-tf-locked-generator-historical-reference`) e resumo explícito de MATCH/MISMATCH. Justificativa: verificar fisicamente se o commit indicado como origem reproduz as identidades registradas antes de escolher a alternativa A, B ou C. Limitação: o teste compara com os manifests **da revisão histórica**; deve-se também confrontar seus valores com os manifests atuais antes de alegar equivalência completa. O sucesso do job não substitui `matches=true`. O resultado ainda não estava disponível na criação deste registro. Nenhum checkout executa geração científica ou modifica LOCKED.
