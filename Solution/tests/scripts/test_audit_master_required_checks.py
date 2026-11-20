@@ -76,6 +76,17 @@ class MasterRequiredChecksAuditTests(unittest.TestCase):
         self.assertEqual(result["missing_classic_contexts"],
                          sorted(audit.REQUIRED - {"unit-runtime"}))
 
+    def test_required_fast_emits_read_only_protection_observation(self):
+        root = Path(__file__).resolve().parents[3]
+        workflow = (root / ".github/workflows/jornada-pr-required-fast.yml").read_text(
+            encoding="utf-8")
+        self.assertIn("Observe master required-check protection (read-only, nonblocking)", workflow)
+        self.assertIn("python3 Solution/scripts/audit-master-required-checks.py", workflow)
+        self.assertIn("continue-on-error: true", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn("GITHUB_STEP_SUMMARY", workflow)
+        self.assertNotIn("actions: write", workflow)
+
     def test_classify_impact_is_indirect_not_fourth_direct_check(self):
         self.assertNotIn("classify-impact", audit.REQUIRED)
 
