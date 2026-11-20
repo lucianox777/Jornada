@@ -56,6 +56,26 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
         for forbidden in ("PublishAsync(", "PersistBatchAsync(", "EnsureProductiveCertified("):
             self.assertNotIn(forbidden, rehearsal)
 
+    def test_pinned_receipt_preserves_audit_fields_without_reclassification(self):
+        source = RUNNER.read_text(encoding="utf-8")
+        start = source.index("RehearseV9PinnedFileNonPublishingAsync(")
+        end = source.index("RehearseV9NonPublishingSyntheticTestAsync(", start)
+        rehearsal = source[start:end]
+        expected = (
+            "return new(boundary.Runtime.ModelId, proof.WinnerSha256,",
+            "LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO,",
+            "proof.ObservationCount, proof.ObservationCount,",
+            "proof.Resolved, proof.Unresolved, proof.Conflicts,",
+            "proof.NoCandidateInBlock, proof.BatchSize, proof.BatchCount,",
+            "proof.CanonicalEdgesSha256, proof.DecisionsSha256,",
+            "proof.IdentityGroupsSha256);",
+        )
+        receipt = rehearsal[rehearsal.index("return new("):]
+        self.assertEqual(
+            " ".join(receipt.split()),
+            " ".join(" ".join(expected).split()),
+        )
+
     def test_typed_dispatch_rejects_replay_and_wrong_version(self):
         self.assertIn("request.Mode == LinkageRunType.REPLAY", self.typed)
         self.assertIn("request.ModelVersion is int version && version != 9", self.typed)
