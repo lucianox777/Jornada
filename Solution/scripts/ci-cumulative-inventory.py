@@ -157,11 +157,50 @@ def snapshot(get, since, until):
             "runs": rows, "failed_jobs": failures}
 
 
+def compare_snapshots(previous, current):
+    """Compare identical observation windows without double-counting run IDs."""
+    if previous.get("repository") != current.get("repository"):
+        raise ValueError("Snapshot repositories differ")
+    if previous.get("since") != current.get("since") or previous.get("until") != current.get("until"):
+        raise ValueError("Snapshot windows differ; cannot claim exact delta")
+    if previous.get("coverage") != "complete_for_created_window" or current.get("coverage") != "complete_for_created_window":
+        raise ValueError("Cannot compare incomplete snapshots")
+    def indexed(snapshot):
+        rows = snapshot.get("runs")
+        if not isinstance(rows, list):
+            raise ValueError("Snapshot runs missing")
+        result = {}
+        for row in rows:
+            run_id = row.get("run_id")
+            if type(run_id) is not int or run_id in result or row.get("category") not in CATEGORIES:
+                raise ValueError("Invalid or duplicated run ID in snapshot")
+            result[run_id] = row
+        if len(result) != snapshot.get("total_unique_runs"):
+            raise ValueError("Snapshot run total inconsistent")
+        return result
+    old, new = indexed(previous), indexed(current)
+    if set(old) - set(new):
+        raise ValueError("Previously observed run disappeared from same window")
+    transitions = []
+    for run_id in sorted(set(old) & set(new)):
+        before, after = old[run_id], new[run_id]
+        if before.get("sha") != after.get("sha"):
+            raise ValueError("Run SHA changed between observations")
+        if before.get("category") != after.get("category") or before.get("attempt") != after.get("attempt"):
+            transitions.append({
+                "run_id": run_id,
+                "from": before.get("category"), "to": after.get("category"),
+                "attempt_before": before.get("attempt"), "attempt_after": after.get("attempt"),
+            })
+    return {"new_run_ids": sorted(set(new) - set(old)), "transitions": transitions,
+            "previous_total": len(old), "current_total": len(new)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--since", required=True, help="UTC ISO-8601 start (inclusive)")
     parser.add_argument("--until", required=True, help="UTC ISO-8601 end (inclusive)")
-    parser.add_argument("--output", required=True, help="Local JSON snapshot path")
+    parser.add_argument("--output", required=True, help="Local JSON snapshot path")\n    parser.add_argument("--previous", help="Prior JSON snapshot of the exact same window")
     args = parser.parse_args()
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not token:
@@ -169,6 +208,10 @@ def main():
     try:
         report = snapshot(lambda path: api_get(path, token),
                           parse_time(args.since), parse_time(args.until))
+        if args.previous:
+            with open(args.previous, encoding="utf-8") as stream:
+                prior = json.load(stream)
+            report["delta"] = compare_snapshots(prior, report)
         with open(args.output, "w", encoding="utf-8") as stream:
             json.dump(report, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
