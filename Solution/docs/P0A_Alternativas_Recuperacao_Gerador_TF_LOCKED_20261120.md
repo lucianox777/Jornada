@@ -509,3 +509,12 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Teste:** commit `006c5c1` injeta evidências malformadas na política de retry e em `supervise(..., apply=True)`, exigindo **zero POSTs**. A aprovação da nova revisão em CI ainda precisa ser verificada; nenhuma reexecução real foi solicitada.
 - **Coleta do commit `0c9315e`:** seis runs: cinco `completed/success` e um IBGE `in_progress` na consulta inicial. Jobs correspondentes: **11 success, 1 in_progress**, nenhum failed. O workflow standard-linear inclui smoke de transferência de artefato sintético PREPARE→TRAIN, **não** TRAIN científico. Não certificar CI master nem branch protection a partir de PR.
 - **Precedência/impactos:** GOV-DOC-01 e decisão P0/issue #1734. Preserva o watchdog da master e reforça seus guardrails; nenhuma alteração dos manifests LOCKED, merge ou execução científica.
+
+
+### Continuidade do watchdog — conclusões ambíguas bloqueiam retry (20/11/2026)
+
+- **Contexto:** a supervisão já existente na master deve continuar sendo o mecanismo único de reexecução. A política `retryable_jobs` reconhecia falhas diretas e agregadas, mas poderia ignorar jobs `completed` com conclusão ausente/desconhecida, permitindo POST de retry seletivo sobre evidência incompleta.
+- **Correção:** commit `33207bd` exige que todos os jobs concluídos possuam conclusão reconhecida (`success`, `failure`, `skipped` ou `neutral`) e nome não vazio antes de qualquer autorização de retry. `cancelled`, `timed_out`, `action_required`, desconhecidos e ausentes bloqueiam o replay, inclusive quando outro job apresenta marcador de falha de runner.
+- **Teste:** commit `f0e63b8` ajusta fixtures para nomes explícitos e exercita conclusões desconhecidas/bloqueadas e nomes inválidos com `supervise(..., apply=True)`, exigindo zero POSTs. Testes registrados, execução no novo HEAD pendente.
+- **Coleta de jobs do commit `820b76e`:** seis workflows (3 `in_progress`, 2 `queued`, 1 `pending`) e sete jobs retornados: **1 success**, **5 in_progress**, **1 queued**; o required-fast ainda não apresentava jobs no momento da coleta. A contagem é uma amostra parcial, não CI verde nem certificação de master.
+- **Justificativa/impacto/precedência:** preservar retry fail-closed e checkpoint por SHA conforme watchdog anterior, GOV-DOC-01, issue #1734 e decisão P0. Sem reexecução real, merge, alteração LOCKED ou campanha científica.
