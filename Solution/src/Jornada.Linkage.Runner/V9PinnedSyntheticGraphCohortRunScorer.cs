@@ -157,8 +157,16 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                if (!managers.TryAdd(reader.GetInt64(0), reader.GetString(1)))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                    throw new InvalidDataException("Universo SQL V9 com ID ou gestor nulo.");
+                var observationId = reader.GetInt64(0);
+                var manager = reader.GetString(1);
+                if (observationId <= 0 || string.IsNullOrWhiteSpace(manager))
+                    throw new InvalidDataException("Universo SQL V9 com ID ou gestor inválido.");
+                if (!managers.TryAdd(observationId, manager))
                     throw new InvalidDataException("Universo SQL V9 com ID duplicado.");
+            }
         }
         if (managers.Count != frozenRows.Count
             || frozenRows.Any(row => !managers.ContainsKey(row.PessoaObservacaoId)))
