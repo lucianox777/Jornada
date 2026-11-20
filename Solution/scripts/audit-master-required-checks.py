@@ -29,10 +29,12 @@ def evaluate(protection, rulesets):
     sources = []
     if isinstance(protection, dict):
         checks = protection.get("required_status_checks") or {}
-        if checks.get("strict") and checks.get("contexts"):
-            sources.append(("branch_protection", set(checks["contexts"])))
-        elif checks.get("strict") and checks.get("checks"):
-            sources.append(("branch_protection", {x["context"] for x in checks["checks"]}))
+        if checks.get("strict"):
+            # GitHub exposes both legacy contexts and app-bound checks. A
+            # partial legacy list must not hide required checks in the latter.
+            contexts = set(checks.get("contexts") or [])
+            contexts.update(item["context"] for item in (checks.get("checks") or []))
+            sources.append(("branch_protection", contexts))
     for ruleset in rulesets:
         if ruleset.get("enforcement") != "active":
             continue
