@@ -35,13 +35,20 @@ def audit(repo, locks_root=None):
     results = []
     for relative in LOCKS:
         lock = json.loads((locks_root / relative).read_bytes())
-        generation = lock["generation"]
-        expected_tree = generation["generator_sha256"]
-        expected_partition = generation["partition_contract"]["generator_file_sha256"]
+        if not isinstance(lock, dict):
+            raise ValueError("LOCKED manifest must be a JSON object: " + relative)
+        generation = lock.get("generation")
+        if not isinstance(generation, dict):
+            raise ValueError("LOCKED generation must be an object: " + relative)
+        contract = generation.get("partition_contract")
+        if not isinstance(contract, dict):
+            raise ValueError("LOCKED partition contract must be an object: " + relative)
+        expected_tree = generation.get("generator_sha256")
+        expected_partition = contract.get("generator_file_sha256")
         result = {
             "manifest": relative,
-            "experiment_id": lock["experiment_id"],
-            "status": lock["status"],
+            "experiment_id": lock.get("experiment_id"),
+            "status": lock.get("status"),
             "tracked_file_count": len(tracked),
             "expected_file_count": 25,
             "actual_generator_sha256": tree,
@@ -49,8 +56,8 @@ def audit(repo, locks_root=None):
             "actual_partition_sha256": partition,
             "expected_partition_sha256": expected_partition,
             "matches": (
-                lock["status"] == "LOCKED"
-                and lock["experiment_id"] == LOCKS[relative]
+                lock.get("status") == "LOCKED"
+                and lock.get("experiment_id") == LOCKS[relative]
                 and len(tracked) == 25
                 and tree == expected_tree
                 and partition == expected_partition
