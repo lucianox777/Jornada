@@ -32,7 +32,7 @@ class LockedGeneratorAuditTests(unittest.TestCase):
                 target = repo / lock
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(json.dumps({
-                    "experiment_id": lock, "status": "LOCKED",
+                    "experiment_id": audit_module.LOCKS[lock], "status": "LOCKED",
                     "generation": {
                         "generator_sha256": tree,
                         "partition_contract": {
@@ -79,6 +79,15 @@ class LockedGeneratorAuditTests(unittest.TestCase):
             unlocked = json.loads(original)
             unlocked["status"] = "DRAFT"
             first_lock.write_text(json.dumps(unlocked))
+            results = audit_module.audit(repo)
+            self.assertFalse(results[0]["matches"])
+            self.assertTrue(results[1]["matches"])
+            first_lock.write_bytes(original)
+
+            # An unexpected experiment ID cannot masquerade as the locked campaign.
+            wrong_experiment = json.loads(original)
+            wrong_experiment["experiment_id"] = "UNREGISTERED"
+            first_lock.write_text(json.dumps(wrong_experiment))
             results = audit_module.audit(repo)
             self.assertFalse(results[0]["matches"])
             self.assertTrue(results[1]["matches"])
