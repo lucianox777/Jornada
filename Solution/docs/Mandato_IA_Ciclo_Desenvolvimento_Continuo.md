@@ -111,3 +111,39 @@ A automação `.github/workflows/ci-watchdog.yml` e a política de recuperação
 ## 8. Rastreabilidade
 
 Origem: decisão do PO de recuperar o controle acumulativo da CI por interação, seguida de pedido de mandato Markdown detalhado. Complementa `GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111`, `GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119`, `GOV-DOC-01` e [CI — Reuso e agente de reparo](CI_Reuso_Release_e_Agente_Reparo.md). Não substitui o documento canônico de decisão.
+
+
+## 9. Aditivo de evidência e mandato de supervisão no GitHub — 20/11/2026
+
+**Origem e autoridade:** solicitação do PO nesta interação para incorporar o aprendizado da verificação efetiva da `master` e estabelecer um job automatizado que continue verificando execuções. **Estado:** orientação operacional aprovada pelo pedido do PO; especificação da automação **a implementar e validar**; o presente arquivo e o índice permanecem em PR #1757 até integração. **Precedência:** GOV-DOC-01 e limites científicos/securitários deste mandato prevalecem; não autoriza merge, rerun de ciência ou mudança de branch protection.
+
+### 9.1 Evidência observada: não confundir relatório e execução testada
+
+- `master` HEAD confirmado: `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` (integração #1755).
+- Execução de suíte principal **`jornada-ci` #44654406155**: 21 jobs, **16 `success`, 5 `skipped`, zero falhas**, conclusão global `success`. Evidência obtida consultando diretamente os 21 jobs. URL: https://github.com/lucianox777/Jornada/actions/runs/44654406155.
+- Jobs aprovados: `impact`, `dependency-lock`, `ddl-upgrade`, `unit-runtime`, `security-guards`, `security-codeql`, `harness-smoke`, `unit-contracts`, `deterministic-build`, `e2e-console`, `e2e-private-sql`, `dt10-evidence / dt10-evidence`, `integration-sql`, `security-analysis`, `e2e`, `unit`.
+- Jobs ignorados: `scale-harness`, `bronze-restore-drill`, `rc-evidence`, `release-promotion`, `rc-publish`. **Não são PASS**; verificar condições e exigibilidade antes de certificar cobertura estendida.
+- Execução **#44657285672**: job `report` `success`, artefato `ci-failure-checkpoints` ID **14594211056**, vinculado ao mesmo SHA da `master`. É uma **execução de relatório/observabilidade**, não a suíte completa. URL: https://github.com/lucianox777/Jornada/actions/runs/44657285672.
+- Aprendizado: consultas `fetch_commit_workflow_runs` e status combinados podem retornar zero mesmo quando uma execução real é comprovada por `run_id`, jobs e artefatos. **Zero retornado não prova ausência de CI.** Buscar a listagem de Actions, jobs, artefatos e proveniência antes de concluir. A evidência `jornada-ci` GREEN é **restrita ao SHA e aos jobs aplicáveis**; não certifica automaticamente `jornada-pr-required-fast` pós-merge, escala, DR, RC/release, Windows externo ou ciência.
+- Evidência de diagnóstico e correção de status registrada na issue #1734. O registro posterior complementa o anterior, sem apagar o histórico.
+
+### 9.2 Workflows existentes e função distinta
+
+1. **`.github/workflows/ci.yml` — `jornada-ci`:** suíte principal, acionada por `push` na `master` ou `workflow_dispatch` (perfil padrão `smoke`). É a fonte primária de testes integrados; um `report` bem-sucedido não a substitui.
+2. **`.github/workflows/jornada-pr-required-fast.yml` — `jornada-pr-required-fast`:** gates rápidos em PR e `push` na `master`; exigir evidência separada quando aplicável.
+3. **`.github/workflows/ci-watchdog.yml` — `jornada-ci-watchdog`:** **já existe** e roda por conclusão com falha de `jornada-ci`, cron horário (`17 * * * *`) e disparo manual; supervisão/recuperação de falhas infraestruturais dentro de limites. Não confundir com inventário global nem com prova de saúde integral.
+4. **Relatório `report` observado na execução #44657285672:** publica checkpoint e perfil read-only. Sua aprovação isolada **não certifica** a suíte principal.
+
+### 9.3 Novo job permanente exigido — especificação para implementação
+
+**Nome proposto:** `jornada-ci-health-monitor`. **Estado:** **PENDENTE DE CRIAÇÃO/INTEGRAÇÃO**; não afirmar que já roda automaticamente. Criar workflow próprio em `.github/workflows/jornada-ci-health-monitor.yml` com `schedule` periódico e `workflow_dispatch`, usando exclusivamente código confiável da `master`, `permissions: actions: read, contents: read`, sem segredos externos, sem reexecução ou cancelamento de runs, sem alterações de PRs/branches.
+
+A cada rodada, deve: (a) resolver HEAD integral da `master`; (b) inventariar runs por API Actions paginada com janela UTC, `run_id` único e `run_attempt` distinto, incluindo `jornada-ci`, `jornada-pr-required-fast` e observadores, com checkpoint persistente e reconciliação sem duplicidade; (c) inspecionar jobs e conclusões, distinguir `success`/`skipped`/`failure`/`pending`/`missing` e separar relatórios de testes; (d) comprovar no SHA da `master` os workflows aplicáveis, verificar condições dos skips e registrar os gates não cobertos; (e) publicar artefato JSON e resumo com URLs, SHA, run IDs, contagens, transições e cobertura; (f) falhar fechado em API incompleta, janela truncada, permissão insuficiente, job exigível ausente ou execução reprovada; (g) sinalizar **UNVERIFIED** se não houver evidência, nunca `GREEN` por inferência.
+
+**Critérios de aceite:** testes offline de classificação, paginação, deduplicação, mudança de tentativa, ausência de workflow, distinção `report` versus `jornada-ci`, skips e SHA divergente; primeira execução real no GitHub com artefato e evidência dos jobs; confirmação de agendamento; documentação e índice atualizados e PR integrada. Não iniciar automaticamente campanhas científicas, perfis `medium`/`million`, DR ou promoção de release. O job de monitoramento é observacional e **não substitui** os testes da `master`.
+
+**Dependências existentes, ainda não integradas:** PR #1758 propõe inventário paginado e reconciliação de snapshots; PR #1759 propõe verificador pós-merge no SHA exato. Reutilizar e integrar com cuidado, evitando duplicação de lógica e exigindo CI verde no HEAD final. Enquanto não houver implementação integrada e rodada comprovada, informar explicitamente **monitor permanente pendente**.
+
+### 9.4 Atualização do critério de saúde da master
+
+Relatar separadamente: **CI principal GREEN comprovado** (quando `jornada-ci` terminou `success` no SHA com jobs exigíveis aprovados), **cobertura parcial** (jobs condicionais `skipped`, workflows não consultados), **saúde ampliada não certificada** (DR, escala, RC, validações físicas/Windows adicionais). Nunca rebaixar evidência comprovada a “nenhuma execução” apenas por uma consulta parcial; nunca extrapolar o `success` de `report` para a aplicação. Guardar a proveniência `run_id → job_id → artifact_id → head_sha`.
