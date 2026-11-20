@@ -173,8 +173,15 @@ def is_current_run(run: dict, api: Any, master_sha: str, now: dt.datetime) -> bo
 def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
     """Retry only if EVERY failed job has explicit runner-infrastructure evidence."""
     jobs = payload.get("jobs", [])
-    if not isinstance(jobs, list) or payload.get("total_count") != len(jobs):
+    if (not isinstance(jobs, list) or type(payload.get("total_count")) is not int
+            or payload["total_count"] != len(jobs)):
         return False, "incomplete job listing"
+    if any(not isinstance(job, dict) for job in jobs):
+        return False, "invalid job entry"
+    identifiers = [job.get("id") for job in jobs]
+    if (any(type(job_id) is not int or job_id <= 0 for job_id in identifiers)
+            or len(identifiers) != len(set(identifiers))):
+        return False, "invalid or duplicate job ids"
     if any(job.get("status") != "completed" for job in jobs):
         return False, "jobs still running"
     failed = [
