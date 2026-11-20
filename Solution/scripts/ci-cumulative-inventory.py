@@ -12,6 +12,7 @@ import datetime as dt
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -243,7 +244,7 @@ def main():
             stream.write("\n")
         print(json.dumps({"total": report["total_unique_runs"],
                           "counts": report["counts"], "coverage": report["coverage"]}))
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, urllib.error.URLError) as exc:
         print("INCOMPLETE INVENTORY: " + str(exc), file=sys.stderr)
         return 2
     return 0
