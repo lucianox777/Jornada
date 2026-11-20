@@ -248,6 +248,11 @@ jobs:
           fi
           grep -Fq "$RUNNER_TEMP/nonexistent-reference" "$RUNNER_TEMP/parametrized-incomplete-override.log"
           test ! -e "$RUNNER_TEMP/nonexistent-incomplete-corpus"
+      - name: Run real prewrite partition-integrity rejection harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run -c Release --project Solution/tests/PartitionIntegritySmoke/PartitionIntegritySmoke.csproj
       - name: Verify population CLI override bypasses absent JSON population
         shell: bash
         run: |
