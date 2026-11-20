@@ -390,3 +390,13 @@ A consulta direta à issue #1734 confirma que seus **sete critérios de aceite p
 - **Stats consultados:** revisão `0dd105c`: seis workflows retornados, cinco `queued`, um `pending`, nenhum concluído; revisão `9fd447e`: um `cancelled` (required-fast), três `in_progress` (IBGE, RunAsync, seed42), um `queued` (standard-linear); nenhum desses snapshots demonstra estado da master ou proteção efetiva de branch.
 - **Justificativa/impacto:** melhorar diagnóstico fail-closed da obrigatoriedade dos gates, sem alterar branch protection/rulesets nem considerar verificada a configuração real sem resposta autenticada da API. Os testes novos aguardam CI.
 - **Precedência/rastreabilidade:** issue #1734, GOV-DOC-01 e decisão de isolamento do gerador histórico. Não altera manifests LOCKED, código do gerador, dados nem campanhas científicas.
+
+
+### P0 — identidade TF LOCKED promovida a gate fail-closed no required-fast (20/11/2026)
+
+- **Contexto e justificativa:** a auditoria P0 dedicada era explicitamente diagnóstica/não bloqueante. A issue #1734 exige impedir integração com divergência dos geradores históricos. O script `audit-v9-tf-locked-generator.py` já valida os dois manifests LOCKED, os 25 arquivos rastreados e seus hashes, com exit code não zero quando há divergência.
+- **Implementação:** commit `a211b09` invoca `python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .` no job `classify-impact` de `jornada-pr-required-fast`, **antes** da classificação de impacto e portanto também para PRs documentais. Sem `continue-on-error`: divergência impede o sucesso desse job e dos jobs dependentes. Commit `302dc8b` adiciona regressão estrutural que exige uma única invocação, anterior à classificação e sem tolerância explícita a erro.
+- **Impactos:** gate real dentro do workflow required-fast, sem geração de corpus, sem execução científica, sem alterar os LOCKED ou a árvore histórica. A auditoria P0 diagnóstica permanece separada; a validação da alteração pela CI está pendente.
+- **Limite de comprovação:** a presença de um gate no workflow **não comprova** que a branch protection/ruleset da master exige os contextos do required-fast. A configuração remota e a recuperação da CI da master permanecem critérios de aceite separados da issue #1734.
+- **Stats verificados:** revisão `950a90a`, seis workflows retornados: cinco `queued`, um `pending`, nenhum concluído. Revisão `0dd105c`: quatro `queued`, um `pending`, um `in_progress` (seed42); o required-fast dessa revisão depois apareceu como `cancelled`. Snapshots não constituem aprovação de integração.
+- **Precedência e rastreabilidade:** decisão vigente `GOV-P0-TF-LOCKED-ISOLAMENTO-GERADOR-HISTORICO-20261120`, GOV-DOC-01 e issue #1734; nenhuma decisão nova, índice vigente inalterado.
