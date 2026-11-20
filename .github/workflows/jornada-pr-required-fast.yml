@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Enforce both historical TF LOCKED generator identities before classification
-        run: python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo .
+        run: python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . --require-pinned
       - id: classify
         shell: bash
         run: |
