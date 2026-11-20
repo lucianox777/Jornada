@@ -112,7 +112,7 @@ jobs:
           fi
           echo "V9_PREPARE_STATISTICAL_REFERENCE=IBGE_DEFAULT"
       - name: Build unchanged synthetic corpus generator
-        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj
       - name: Generate known-seed 100k clean raw TRAIN corpus
         run: |
           set -euo pipefail
@@ -120,7 +120,7 @@ jobs:
           mkdir -p "$root"
           V9_PEOPLE_OVERRIDE=()
           if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus.Parametrized -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --calibrator-config config/calibration/v9-synthetic-sampling.json "${V9_PEOPLE_OVERRIDE[@]}" --seed 42 --out "$root/people-100k"             > "$root/generation.log"
       - name: Package and checksum immutable PREPARE transfer
         run: |
           set -euo pipefail
@@ -566,7 +566,7 @@ jobs:
       - name: Build frozen V9 validator and synthetic holdout generator
         run: |
           set -euo pipefail
-          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
       - name: Download audited frozen finalists from independent AUDIT job
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 pinned
@@ -596,7 +596,7 @@ jobs:
           mkdir -p "$root/validation-people"
           V9_PEOPLE_OVERRIDE=()
           if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus.Parametrized -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
@@ -758,7 +758,7 @@ jobs:
       - name: Build independent physical TEST evaluator and synthetic generator
         run: |
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj
       - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
@@ -814,7 +814,7 @@ jobs:
           mkdir -p "$root/corpus"
           V9_PEOPLE_OVERRIDE=()
           if [[ -n "$V9_SYNTHETIC_POPULATION" ]]; then V9_PEOPLE_OVERRIDE=(--people "$V9_SYNTHETIC_POPULATION"); fi
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus.Parametrized -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
