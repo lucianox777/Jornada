@@ -14,7 +14,7 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         self.assertIn(
-            "OperationalEdges = directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray()",
+            "OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray())",
             parity,
         )
         self.assertIn("ORDER BY a.obs_id,b.obs_id;", physical)
@@ -45,6 +45,7 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         self.assertIn("OperationalEdges = directions.Keys.OrderBy", parity)
+        self.assertIn("Array.AsReadOnly(directions.Keys.OrderBy", parity)
         self.assertIn("if (!expected.SetEquals(directions.Keys))", parity)
         self.assertIn("directions.Values.Any(value => value != 3)", parity)
         self.assertIn("edges = operational.OperationalEdges.ToList();", scorer)
