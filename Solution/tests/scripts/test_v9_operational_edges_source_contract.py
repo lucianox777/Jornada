@@ -25,6 +25,22 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_physical_smoke_never_falls_back_to_fixture_edges(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        start = scorer.index("if (readPhysicalSqlGraph)")
+        end = scorer.index("// EXACTLY one global grouping", start)
+        physical_branch = scorer[start:end]
+        self.assertIn("V9FrozenCohortSqlCandidateGraph.ReadAsync(", physical_branch)
+        self.assertIn("V9OperationalBlockingChaveCohortParity.VerifyAsync(", physical_branch)
+        self.assertIn("edges = operational.OperationalEdges.ToList();", physical_branch)
+        self.assertNotIn("edges = physical.Edges.ToList();", physical_branch)
+        self.assertNotIn("edges = syntheticEdges", physical_branch)
+        self.assertIn("ResolvePinnedV9FrozenTestCohortAsync(", scorer[end:])
+        self.assertLess(
+            scorer.index("edges = operational.OperationalEdges.ToList();"),
+            scorer.index("ResolvePinnedV9FrozenTestCohortAsync("),
+        )
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
