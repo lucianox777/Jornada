@@ -65,6 +65,35 @@ jobs:
           set -euo pipefail
           dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release --nologo
           dotnet build Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj -c Release --nologo
+      - name: Smoke-test parameterized CLI options (no corpus generation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          dotnet run --no-build -c Release \
+            --project Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized \
+            -- generate --calibrator-config "$RUNNER_TEMP/nonexistent-calibrator.json" \
+            --reference-root "$RUNNER_TEMP/nonexistent-reference" \
+            --out "$RUNNER_TEMP/nonexistent-corpus" \
+            > "$RUNNER_TEMP/parametrized-cli-smoke.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/parametrized-cli-smoke.log"
+          echo "Exit status: $status"
+          test "$status" -ne 0
+          if grep -Eiq 'unknown option|unrecognized option|unknown argument|unrecognized argument' "$RUNNER_TEMP/parametrized-cli-smoke.log"; then
+            echo "::error::Parameterized CLI rejected a known calibration option"
+            exit 1
+          fi
+          test ! -e "$RUNNER_TEMP/nonexistent-corpus"
+      - name: Upload parameterized CLI smoke log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: p0-tf-parametrized-cli-smoke
+          retention-days: 30
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/parametrized-cli-smoke.log
       - name: Upload read-only audit report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
