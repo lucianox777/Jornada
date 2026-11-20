@@ -104,6 +104,40 @@ class LockedGeneratorAuditTests(unittest.TestCase):
             source.write_bytes(b"modified-source")
             self.assertTrue(all(not r["matches"] for r in audit_module.audit(repo)))
 
+    def test_historical_source_with_current_lock_root(self):
+        # The historical generator checkout may predate both LOCK manifests.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            historical = root / "historical"
+            current = root / "current"
+            historical.mkdir()
+            current.mkdir()
+            subprocess.run(["git", "init", "-q", str(historical)], check=True)
+            source = historical / audit_module.PARTITION
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"historical-partition")
+            subprocess.run(["git", "-C", str(historical), "add", audit_module.PARTITION], check=True)
+            for i in range(24):
+                extra = source.parent / f"historical-{i:02d}.txt"
+                extra.write_bytes(b"historical")
+                subprocess.run(["git", "-C", str(historical), "add", str(extra.relative_to(historical))], check=True)
+            tree, count = self._expected(historical)
+            self.assertEqual(count, 25)
+            for relative, experiment_id in audit_module.LOCKS.items():
+                manifest = current / relative
+                manifest.parent.mkdir(parents=True, exist_ok=True)
+                manifest.write_text(json.dumps({
+                    "experiment_id": experiment_id, "status": "LOCKED",
+                    "generation": {
+                        "generator_sha256": tree,
+                        "partition_contract": {"generator_file_sha256": audit_module.sha256(source)}
+                    }
+                }))
+            self.assertFalse(any((historical / relative).exists() for relative in audit_module.LOCKS))
+            self.assertTrue(all(r["matches"] for r in audit_module.audit(historical, current)))
+            source.write_bytes(b"historical-tampered")
+            self.assertTrue(all(not r["matches"] for r in audit_module.audit(historical, current)))
+
     @staticmethod
     def _expected(repo):
         files = subprocess.run(
