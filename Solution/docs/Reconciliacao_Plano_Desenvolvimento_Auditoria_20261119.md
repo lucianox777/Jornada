@@ -40,3 +40,13 @@ Registro documental proposto em PR; **nenhuma implementação, correção de tes
 - **Limitação de observabilidade:** a consulta de runs por commit disponível retorna apenas eventos de PR; para o merge SHA da master retornou lista vazia. Isso **não significa ausência ou sucesso** dos workflows de push. É necessário verificar diretamente os runs pós-merge, jobs e branch protection/rulesets.
 
 **Próxima ação única:** obter evidência da CI de push da master no SHA `68ed67c`, verificar gates obrigatórios/rulesets e a PR #1706; então atualizar #1734 com a conclusão estritamente suportada. Até lá, **P0-A permanece aberto**, sem TRAIN novo ou TEST one-use.
+
+## Checkpoint de retomada P0-A → DT-10 — 20/11/2026 (em PR #1757, não integrado)
+
+**Autoridade e ordem:** executar o Plano de Desenvolvimento vigente: P0-A (#1734), validação específica DT-10 (#1706), P0-B V9; P1/P2 posteriores. Esta anotação é evidência operacional, não nova autorização científica nem encerramento de P0-A.
+
+**Estado revalidado:** master HEAD `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb`; PR #1721 integrada pelo commit `008bdb183adbe8c4935c730a99a80ef3bf02ef01`; PR #1706 integrada pelo commit `0d150c536ae518f5a1029e25e664e0d63cd23511`. A execução de push `jornada-ci` #44654406155 teve 21 jobs, 16 success, 5 skipped e nenhum failure; o job `dt10-evidence / dt10-evidence` consta success. A evidência do job geral **não demonstra isoladamente** que a correção específica #1706 foi validada contra seu critério de aceite. A issue #1734 permanece aberta e seus critérios de aceite não estão assinalados como concluídos.
+
+**Lacunas antes de fechar P0-A:** (1) evidência independente da proteção de branch/rulesets e da obrigatoriedade dos gates de integridade; (2) confirmação de que a execução #44654406155 corresponde ao HEAD e evento de push da master, incluindo logs/artefatos dos gates pertinentes; (3) reconciliação do gerador atual com os manifestos LOCKED sem regenerá-los; (4) distinguir checks da PR de provas pós-merge. **Não considerar P0-A concluída** com base em CI global verde.
+
+**Próxima ação executável:** inspecionar checks/rulesets e proveniência LOCKED da P0-A; registrar conclusão com evidências em #1734. Em seguida, conferir diff, testes, jobs e artefatos especificamente atribuíveis à PR #1706 e atualizar o estado DT-10. Só depois retomar P0-B. As PRs de observabilidade #1757–#1759 são auxiliares e não substituem essa ordem. Checkpoint deve ser reconciliado com o HEAD atual em toda nova sessão.
