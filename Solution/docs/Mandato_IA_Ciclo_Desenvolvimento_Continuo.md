@@ -1,149 +1,118 @@
-# Mandato operacional da IA — ciclo de desenvolvimento contínuo da Jornada do Cidadão
+# Mandato operacional genérico para agentes de IA — desenvolvimento contínuo e saúde da integração
 
 **ID:** MANDATO-IA-CICLO-CONTINUO-20261119  
-**Autoridade:** Product Owner, solicitação expressa no chat do Projeto Jornada.  
-**Estado:** mandato operacional aprovado quanto à elaboração e às instruções de acompanhamento; arquivo registrado em PR, ainda não integrado à `master`.  
-**Documento canônico de decisão:** [GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111 e aditivo GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md).  
-**Política superior:** [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).  
-**Aplicação:** toda interação operacional com a IA neste projeto; o mandato não pressupõe que a IA esteja executando entre mensagens.
+**Escopo:** aplicável a qualquer repositório, linguagem, plataforma de CI/CD, equipe ou produto.  
+**Autoridade:** responsável autorizado pelo produto ou repositório, conforme governança local.  
+**Estado:** diretriz operacional solicitada pelo responsável; a adoção e a automação efetiva dependem de integração e validação no ambiente de destino.  
+**Princípio:** a conversa não substitui evidência técnica nem documentação versionada.
 
-## 1. Missão permanente
+## 1. Objetivo e comportamento esperado
 
-Em cada interação, a IA deve executar **simultaneamente** dois ciclos coordenados: **observação contínua e cumulativa do GitHub/CI** e **avanço técnico efetivo do projeto**. A IA não deve limitar-se a repetir status de checks, nem avançar no código ignorando as execuções, os incidentes e a integridade da `master`. O resultado de uma rodada deve ser verificável por links, SHAs, runs, jobs, arquivos, testes e documentos.
+Em cada interação operacional, o agente deve conciliar **(a) observabilidade cumulativa da integração contínua**, **(b) execução de trabalho técnico autorizado** e **(c) documentação rastreável**. Deve identificar riscos, executar verificações disponíveis, investigar falhas, corrigir causas e acompanhar resultados até comprovação no código integrado.
 
-«Continue» significa prosseguir nas tarefas já autorizadas, com iniciativa técnica, respeitando as decisões e as restrições vigentes. Não é autorização para ignorar proteção de branch, executar ciência, promover release, alterar LOCK ou realizar merge fora do mandato aprovado.
+Pedidos como “continue” autorizam a continuidade de tarefas previamente permitidas, mas não concedem permissões novas para merges, publicações, acesso a segredos, alterações destrutivas ou testes especiais sujeitos a autorização.
 
-## 2. Fontes de verdade e precedência
+O agente não trabalha autonomamente entre mensagens sem mecanismo de automação efetivamente instalado. Diferenciar sempre plano, implementação, teste local, execução remota, integração, observação e certificação.
 
-Antes de atuar, consultar os documentos oficiais no GitHub, na versão realmente acessível da `master` e, quando pertinente, na branch de trabalho: `AGENTS.md`, este mandato, [protocolo de correção e integração](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md), [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md), `Indice_Decisoes_Vigentes.md`, `Indice_Acervo_Documental.md`, especificações e documentos técnicos da frente, além de issues/PRs e evidências Actions. Se houver divergência, identificar qual versão está integrada e qual é apenas proposta. O histórico do chat é contexto, **não** prova de execução nem substituto documental.
+## 2. Descoberta do ambiente e fontes de verdade
 
-Este mandato é **instrução operacional derivada**; não revoga decisões científicas, de segurança, produto ou governança. Em conflito, explicitar a precedência e solicitar decisão do PO apenas quando ela for necessária.
+1. Identificar repositório, branch principal, SHA integral, sistema de versionamento, pipelines, linguagens, testes, ambientes, permissões, políticas e responsáveis.
+2. Consultar documentação versionada, regras de contribuição, decisões vigentes, proteção de branch, issues, pull requests, execuções, logs e artefatos.
+3. Descobrir os nomes **reais** dos workflows e seus gatilhos; não pressupor nomes, arquivos, infraestrutura ou suites de testes.
+4. Distinguir documentos já integrados de propostas em branches ou PRs. Resolver conflitos de precedência segundo as regras locais.
+5. Se uma ferramenta tiver cobertura parcial, registrar o limite e buscar outras evidências autorizadas. Uma busca que retorna zero itens **não demonstra ausência** quando a fonte não é exaustiva.
 
-## 3. Algoritmo obrigatório para cada interação
+## 3. Procedimento por interação
 
-### Fase A — entendimento e sincronização
+### A — Sincronizar estado e autoridade
 
-1. Identificar o pedido, o objetivo da rodada, as autorizações expressas já concedidas e seus limites; distinguir proposta, decisão, implementação, medição, validação, integração e ativação.
-2. Consultar a HEAD exata da `master`, branch/ref, data/hora e SHAs relevantes. Conferir PRs abertas, Draft/Ready, conflitos, base, revisões, checks, issues bloqueadoras e dependências.
-3. Verificar se outra PR já resolve a demanda, se há trabalho duplicado ou substituído e se documentos de governança já registram a decisão.
-4. Se o acesso à API estiver indisponível, registrar a limitação; nunca transformar lembrança de rodada anterior em estado atual.
+- Identificar solicitação, escopo, autorização, SHA da branch principal, PRs abertas, checks, conflitos, incidentes e alterações desde o último checkpoint.
+- Não reutilizar resultados antigos para certificar um HEAD novo.
+- Verificar se uma correção já está em andamento antes de criar trabalho duplicado.
 
-### Fase B — inventário acumulativo de GitHub Actions
+### B — Inventariar CI/CD cumulativamente
 
-5. Consultar as execuções **de todo o escopo relevante do repositório**, incluindo `master`, PRs e workflows de engenharia/físicos, e não apenas as últimas PRs. Usar listagem global com paginação e janela temporal explícita, quando disponível. Reconciliar com o checkpoint anterior e manter janela retrospectiva que capture execuções antigas ainda ativas.
-6. Chave única da execução: `run_id`. Registrar também `run_attempt` para diferenciar reexecuções. Campos mínimos: workflow, evento, branch, SHA, PR, timestamps, status, conclusão, URL, jobs, última observação, classe de impacto e observações. Uma reexecução não duplica a contagem de runs; seu histórico de tentativas é mantido à parte.
-7. Classificar cada run **uma única vez** na observação atual:
-   - **Aprovadas:** `completed/success`.
-   - **Em execução:** `in_progress`.
-   - **Enfileiradas/aguardando:** `queued`, `pending`, `waiting`, `requested`.
-   - **Reprovadas/bloqueadas:** `completed/failure`, `timed_out`, `action_required`, com subtipo.
-   - **Outras/indeterminadas:** `cancelled`, `skipped`, `neutral`, `stale`, status/conclusão ausentes ou desconhecidos.
-8. Validar a identidade contábil: `total de run_id distintos = aprovadas + em execução + enfileiradas + reprovadas + outras`. Produzir recortes por SHA, `master`, PR, workflow, categoria e período. Não misturar execução de engenharia com certificação científica.
-9. Inspecionar os jobs e steps das execuções reprovadas, críticas, bloqueadas ou suspeitas, inclusive as que ainda estão em andamento. Um job pode falhar antes da conclusão do workflow; `skipped` não é `success`. Capturar `job_id`, nome, conclusão, step, evidência segura e relação causal. Memory Batch e A2 são **exemplos históricos**, não incidentes presumidamente ativos.
-10. Comparar o inventário com o checkpoint anterior: novas execuções, transições fila→execução→conclusão, falhas novas e resolvidas, runs estagnados, reruns e diferenças por SHA. Sem checkpoint, declarar **linha de base inicial**. Sem API global paginada, declarar **inventário parcial**, com lista do que foi efetivamente consultado; jamais afirmar total global.
-11. Nunca apresentar os valores históricos 19/15/6/1 como atuais. Nunca declarar CI geral verde a partir de apenas três PRs ou de um único SHA.
+- Consultar a API de execuções com paginação completa, janela UTC explícita e escopo declarado; incluir branch principal, PRs, pipelines relevantes e observadores.
+- Usar **identificador único de execução** para deduplicar; preservar separadamente tentativas/reexecuções, workflow, evento, branch, SHA, timestamps, URL, jobs, steps e artefatos.
+- Classificar cada execução em **aprovada**, **em andamento**, **aguardando**, **reprovada/bloqueada** ou **outra/indeterminada**. Não contar `skipped`, `cancelled` ou `neutral` como aprovação.
+- Validar a identidade contábil do inventário. Comparar com checkpoint anterior apenas quando janelas, identidade e cobertura forem compatíveis; caso contrário, declarar linha de base ou comparação parcial.
+- Investigar jobs críticos, falhos e pendentes, inclusive steps e artefatos. Separar resultados de workflows de testes de workflows de relatório/observabilidade.
 
-### Fase C — triagem, investigação e desenvolvimento
+### C — Investigar e desenvolver
 
-12. Priorizar incidentes por risco de integridade, segurança, regressão na `master`, bloqueio de PR, impacto científico e dependências; diferenciar falhas de produto, teste, infraestrutura, permissão, proveniência, segurança e causa desconhecida.
-13. Para cada falha prioritária: identificar `run_id` e `job_id`, SHA, erro mínimo seguro, hipótese causal e evidência; reproduzir em teste/fixture isolada quando possível; propor e implementar correção mínima sem enfraquecer gate.
-14. Preferir corrigir na PR existente. Não abrir branches/PRs redundantes nem empilhar mudanças sem justificativa. Acrescentar teste negativo/de regressão e documentação pertinente.
-15. Enquanto CI estiver em execução, **continuar outra tarefa independente autorizada**: revisar código, melhorar testes, preparar reconciliação, corrigir defeito conhecido ou documentar decisões. Não fazer polling repetitivo sem informação nova; não encerrar a rodada apenas com «CI em andamento» se houver trabalho técnico viável.
-16. Retry somente para erro infraestrutural classificado e nos limites do `jornada-ci-watchdog`. Não cancelar runs válidos, não mascarar erro determinístico como infra, não disparar campanhas físicas caras sem causa corrigida.
+- Priorizar regressões na branch principal, segurança, integridade, disponibilidade e bloqueios relevantes.
+- Registrar evidência mínima reproduzível: execução, job, step, SHA, mensagem de erro segura, hipótese e confirmação causal.
+- Corrigir a causa com a menor mudança compatível com a arquitetura, adicionar regressões e executar testes cabíveis.
+- Continuar trabalho independente autorizado enquanto a CI roda, sem polling excessivo.
+- Reexecutar jobs somente quando permitido por política e após classificar a falha; não mascarar falhas determinísticas como infraestrutura.
 
-### Fase D — validação, integração e pós-merge
+### D — Integrar e verificar pós-merge
 
-17. Verificar no **HEAD exato** da PR os gates rápidos exigidos (`classify-impact`, `unit-runtime`, `security-guards`, `deterministic-build` conforme configuração vigente), regressões específicas, conflitos, revisões e documentação. Status de commit anterior não é prova para HEAD novo.
-18. Integrar por **squash merge** somente quando houver autorização aplicável do PO, elegibilidade e checks. Preservar regras de proteção, não fazer push direto ou forçado à `master`.
-19. Após o merge, registrar SHA de integração e conferir a HEAD atual da `master`. Verificar `jornada-ci`, seed42/30k quando o classificador indicar impacto, Windows e validação independente quando exigíveis, e os demais workflows pertinentes **naquele SHA**. Distinguir `success`, `failure`, `skipped`, não disparado e pendente.
-20. Se falhar, iniciar novo ciclo de triagem e correção; se ainda não houver execução visível, declarar **pós-merge não comprovado**, não `PASS`. Encerrar incidente apenas com critérios e evidências de aceite atendidos.
+- Antes de integrar, confirmar checks obrigatórios no SHA exato, revisões, conflitos, documentação e autorização de merge.
+- Após integrar, obter o **SHA resultante da branch principal** e verificar os pipelines disparados naquele SHA e evento; checks da PR não substituem evidência pós-merge.
+- Examinar conclusão global **e todos os jobs exigíveis**, diferenciando sucesso, falha, pendência, ausência e `skipped`. Um workflow de relatório bem-sucedido não prova que a suíte de testes executou.
+- Classificar a saúde por escopo: **VERDE COMPROVADO** (gates aplicáveis aprovados e cobertura suficiente), **VERMELHO** (falha confirmada), **PENDENTE** (execução ativa), **NÃO VERIFICADO** (evidência ausente/incompleta) ou **COBERTURA PARCIAL** (opcionais/condicionais não executados). Informar o SHA e o conjunto de gates em cada conclusão.
+- Quando um job for ignorado, examinar a condição que o dispensou; não tratar `skipped` automaticamente como falha nem como sucesso.
+- Se não houver acesso para disparar testes, não afirmar que os executou. Preferir o workflow completo **já existente** e explicar a limitação exata; não criar pipeline redundante por reflexo.
 
-### Fase E — documentação e resposta
+### E — Documentar e reportar
 
-21. Para toda decisão do PO, atualizar o documento canônico e o índice de decisões vigentes, além do índice do acervo quando pertinente. Registrar autoridade, data, justificativa, alternativas, impactos, precedência, estados distintos e evidências. Propostas não aprovadas devem ser rotuladas como propostas.
-22. Commitar documentos na mesma PR da implementação sempre que possível. A PR ou o chat não substituem o documento; sem merge, dizer **registrado em PR, não integrado**.
-23. Responder com painel da CI e escopo de cobertura; delta desde a rodada anterior; falhas de jobs e ações; desenvolvimento realmente efetuado; arquivos/PRs/SHAs; resultados de testes; bloqueios; próximo passo objetivo. Não confundir intenção, implementação, CI em andamento e validação comprovada.
+- Registrar decisões aprovadas nos arquivos oficiais e índices exigidos pelo repositório, com autoridade, contexto, justificativa, impacto, precedência, evidências e estado de integração.
+- Distinguir decisões de checkpoints operacionais; evitar transformar cada resultado de CI em decisão de produto.
+- Relatar ações realmente executadas, resultados verificáveis, lacunas, falhas, mudanças, SHA, links e próximos passos. Não confundir uma PR aberta com mudança integrada.
 
-## 4. Modelo de relatório por interação
+## 4. Monitor automatizado de saúde da CI — requisito reutilizável
+
+Se o repositório ainda não possuir supervisão **cumulativa e pós-merge**, especificar e implementar, mediante autorização e política local, um workflow de monitoramento de leitura, com **nome, caminho e periodicidade configuráveis**. Não assumir que o monitor já existe ou está ativo apenas porque foi documentado.
+
+**Gatilhos recomendados:** agenda periódica, acionamento manual e, quando apropriado, eventos de conclusão de pipelines. Usar código confiável da branch protegida, token de escopo mínimo, concorrência controlada, timeout e retenção de artefatos compatível com a política local.
+
+**Funções mínimas:**
+
+1. Resolver SHA atual da branch principal e obter execuções por API paginada, com validação de cobertura e limites de consulta.
+2. Persistir checkpoint versionado/artefato ou armazenamento apropriado, com identificadores únicos e tentativas separadas; conciliar sobreposição de janelas sem duplicidade.
+3. Classificar estados, comparar transições, detectar falhas novas, recuperadas, execuções estagnadas, ausência de gates e mudanças de SHA.
+4. Examinar jobs, steps e artefatos relevantes; registrar proveniência entre execução, job, artefato e commit.
+5. Verificar saúde pós-merge para **pipelines exigíveis configurados por repositório**, sem confundir observadores com suítes de teste.
+6. Publicar resumo legível e relatório estruturado, incluindo cobertura, janela, SHA, URLs, estados, skips e limitações.
+7. Falhar fechado quando a coleta estiver incompleta; declarar **NÃO VERIFICADO** em vez de inferir aprovação.
+8. Não disparar testes caros, reexecutar jobs, modificar código, abrir PRs ou publicar releases por padrão; qualquer ação corretiva automática requer política específica.
+
+**Testes de aceite do monitor:** paginação, limites, duplicidade, tentativas, janela móvel, desaparecimento de execução, estados desconhecidos, erro de permissão, ausência de workflow, SHA divergente, jobs ignorados e distinção entre relatório e suíte. Comprovar a **primeira execução real**, o agendamento e a leitura dos artefatos antes de afirmar monitoramento contínuo.
+
+O monitor é complementar a eventuais watchdogs de recuperação e aos pipelines de teste: **observar não é executar testes**.
+
+## 5. Modelo de checkpoint reutilizável
 
 ```text
-JORNADA — CHECKPOINT DA INTERAÇÃO
-Observado em: <timestamp e fuso>
-master HEAD: <sha verificado ou indisponível>
-Cobertura: GLOBAL COMPLETA / PARCIAL (<janela, filtros, paginação, limitação>)
-Execuções únicas: <N> | Aprovadas <A> | Em execução <E> |
-  Enfileiradas <Q> | Reprovadas <F> | Outras <O>
-Identidade: N = A + E + Q + F + O [verificada/não verificável]
-Delta: <novos runs, transições, falhas e resoluções, ou sem baseline>
-Falhas por job: <run_id/job_id, causa confirmada/hipótese, ação>
-PRs e SHAs: <HEAD, checks, conflitos, autorização, estado>
-Trabalho realizado: <arquivos/commits/testes/PRs, ou nenhum>
-Pós-merge: <SHA, workflows aplicáveis e resultado ou pendência>
-GOV-DOC-01: <decisões, documentos, índice e status de integração>
-Bloqueios: <precisos, sem presumir autorização>
-Próxima ação: <objetiva e executável>
+OBSERVAÇÃO: <instante UTC>
+REPOSITÓRIO / BRANCH / SHA: <identificadores verificados>
+COBERTURA: <global completa | parcial; janela e limitações>
+RUNS ÚNICOS: <total; aprovadas, em andamento, aguardando, reprovadas, outras>
+DELTA: <novos IDs, transições, tentativas, falhas resolvidas>
+PIPELINES EXIGÍVEIS: <nome, evento, SHA, run, resultado, jobs, skips>
+SAÚDE DA BRANCH PRINCIPAL: <verde comprovado | vermelho | pendente | não verificado | parcial>
+EVIDÊNCIAS: <URLs de runs, jobs, artefatos, logs e checks>
+TRABALHO REALIZADO: <commits, testes, PRs, documentos>
+DECISÕES / GOVERNANÇA: <registro, índice, estado de integração>
+BLOQUEIOS: <fato verificável, acesso e dependência>
+PRÓXIMA AÇÃO: <passo objetivo>
 ```
 
-O painel deve incluir categoria **Outras** para não classificar cancelamentos/skips como sucesso. A contagem representa **execuções únicas no recorte informado**, não «total histórico do GitHub» sem consulta completa. Relatar separadamente a quantidade de jobs falhados; ela não é igual à quantidade de workflows falhados.
+Não divulgar credenciais, dados pessoais ou logs sensíveis. Evitar contagens históricas apresentadas como atuais.
 
-## 5. Persistência e não duplicação
+## 6. Limites e precedência
 
-O checkpoint operacional deve permitir retomar observações sem dupla contagem: janela temporal, último cursor/página, timestamp, conjunto de `run_id`, tentativa atual, SHA, estado anterior/atual, jobs críticos e transições. Preservar histórico sem sobrescrever evidência; não registrar segredos, PII ou logs sensíveis. Atualizações transitórias de CI são registros operacionais, não novas decisões do PO.
+Respeitar autorização humana, políticas de segurança, branch protection, requisitos regulatórios, gates de qualidade e restrições de custo. Testes destrutivos, cargas elevadas, produção, publicação, migrações irreversíveis ou experimentos restritos dependem de autorização específica. Este mandato não substitui procedimentos técnicos, critérios científicos ou regras de governança próprios de cada organização.
 
-A automação `.github/workflows/ci-watchdog.yml` e a política de recuperação limitada permanecem independentes. **O chat não executa sozinho entre mensagens**; só afirmar acompanhamento horário ou persistente quando houver automação efetivamente criada e confirmada. Caso a ferramenta não exponha listagem global de Actions, comunicar a cobertura parcial e não fabricar checkpoint global.
+## 7. Critérios de conclusão
 
-## 6. Limites inegociáveis
+- Mudança técnica: código e regressões versionados, checks correspondentes verificados no HEAD, documentação atualizada.
+- Integração: merge autorizado, SHA integrado identificado e verificações pós-merge aplicáveis comprovadas.
+- Monitoramento: workflow implementado, integrado, agendado, testado e com primeira execução e artefatos confirmados.
+- Governança: decisão registrada e indexada conforme regras locais; PR não integrada deve ser declarada como tal.
+- Resposta: escopo, evidência, incertezas e limites apresentados sem extrapolação.
 
-- Não executar TRAIN/TEST confirmatório, 100k, Gold, publicação, ativação, mudança de LOCK/referência ou alteração estatística sem autorização específica e gates correspondentes.
-- Não contornar branch protection, reduzir checks, alterar resultados, desabilitar provenance gate ou tratar `skipped` como aprovado.
-- Não reescrever histórico científico nem expor dados reais, credenciais ou segredos.
-- Não afirmar que um documento está na `master` enquanto estiver apenas em PR.
-- Não prometer execução futura em segundo plano sem ferramenta agendada e confirmação.
+## 8. Histórico de revisão do modelo
 
-## 7. Critérios de aceite deste mandato
-
-- Documento versionado em PR, com link no índice pertinente e apontador de agente.
-- Em cada rodada: consulta real ao GitHub, inventário com cobertura explícita e evidências, acompanhamento por job e avanço técnico quando viável.
-- Contagens sem duplicidade, estados mutuamente exclusivos, deltas apenas com baseline real.
-- Falhas tratadas até prova pós-merge no SHA aplicável, preservadas autorizações e governança.
-- O mandato é considerado **documentado** quando commitado; **integrado** apenas após merge; **operacionalmente comprovado** apenas quando houver checkpoints reais seguindo o procedimento.
-
-## 8. Rastreabilidade
-
-Origem: decisão do PO de recuperar o controle acumulativo da CI por interação, seguida de pedido de mandato Markdown detalhado. Complementa `GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111`, `GOV-OPS-INTERACAO-IA-CI-ACUMULATIVA-20261119`, `GOV-DOC-01` e [CI — Reuso e agente de reparo](CI_Reuso_Release_e_Agente_Reparo.md). Não substitui o documento canônico de decisão.
-
-
-## 9. Aditivo de evidência e mandato de supervisão no GitHub — 20/11/2026
-
-**Origem e autoridade:** solicitação do PO nesta interação para incorporar o aprendizado da verificação efetiva da `master` e estabelecer um job automatizado que continue verificando execuções. **Estado:** orientação operacional aprovada pelo pedido do PO; especificação da automação **a implementar e validar**; o presente arquivo e o índice permanecem em PR #1757 até integração. **Precedência:** GOV-DOC-01 e limites científicos/securitários deste mandato prevalecem; não autoriza merge, rerun de ciência ou mudança de branch protection.
-
-### 9.1 Evidência observada: não confundir relatório e execução testada
-
-- `master` HEAD confirmado: `1734ee976dfb8940689bd4ba9480b4e5f6c7d9cb` (integração #1755).
-- Execução de suíte principal **`jornada-ci` #44654406155**: 21 jobs, **16 `success`, 5 `skipped`, zero falhas**, conclusão global `success`. Evidência obtida consultando diretamente os 21 jobs. URL: https://github.com/lucianox777/Jornada/actions/runs/44654406155.
-- Jobs aprovados: `impact`, `dependency-lock`, `ddl-upgrade`, `unit-runtime`, `security-guards`, `security-codeql`, `harness-smoke`, `unit-contracts`, `deterministic-build`, `e2e-console`, `e2e-private-sql`, `dt10-evidence / dt10-evidence`, `integration-sql`, `security-analysis`, `e2e`, `unit`.
-- Jobs ignorados: `scale-harness`, `bronze-restore-drill`, `rc-evidence`, `release-promotion`, `rc-publish`. **Não são PASS**; verificar condições e exigibilidade antes de certificar cobertura estendida.
-- Execução **#44657285672**: job `report` `success`, artefato `ci-failure-checkpoints` ID **14594211056**, vinculado ao mesmo SHA da `master`. É uma **execução de relatório/observabilidade**, não a suíte completa. URL: https://github.com/lucianox777/Jornada/actions/runs/44657285672.
-- Aprendizado: consultas `fetch_commit_workflow_runs` e status combinados podem retornar zero mesmo quando uma execução real é comprovada por `run_id`, jobs e artefatos. **Zero retornado não prova ausência de CI.** Buscar a listagem de Actions, jobs, artefatos e proveniência antes de concluir. A evidência `jornada-ci` GREEN é **restrita ao SHA e aos jobs aplicáveis**; não certifica automaticamente `jornada-pr-required-fast` pós-merge, escala, DR, RC/release, Windows externo ou ciência.
-- Evidência de diagnóstico e correção de status registrada na issue #1734. O registro posterior complementa o anterior, sem apagar o histórico.
-
-### 9.2 Workflows existentes e função distinta
-
-1. **`.github/workflows/ci.yml` — `jornada-ci`:** suíte principal, acionada por `push` na `master` ou `workflow_dispatch` (perfil padrão `smoke`). É a fonte primária de testes integrados; um `report` bem-sucedido não a substitui.
-2. **`.github/workflows/jornada-pr-required-fast.yml` — `jornada-pr-required-fast`:** gates rápidos em PR e `push` na `master`; exigir evidência separada quando aplicável.
-3. **`.github/workflows/ci-watchdog.yml` — `jornada-ci-watchdog`:** **já existe** e roda por conclusão com falha de `jornada-ci`, cron horário (`17 * * * *`) e disparo manual; supervisão/recuperação de falhas infraestruturais dentro de limites. Não confundir com inventário global nem com prova de saúde integral.
-4. **Relatório `report` observado na execução #44657285672:** publica checkpoint e perfil read-only. Sua aprovação isolada **não certifica** a suíte principal.
-
-### 9.3 Novo job permanente exigido — especificação para implementação
-
-**Nome proposto:** `jornada-ci-health-monitor`. **Estado:** **PENDENTE DE CRIAÇÃO/INTEGRAÇÃO**; não afirmar que já roda automaticamente. Criar workflow próprio em `.github/workflows/jornada-ci-health-monitor.yml` com `schedule` periódico e `workflow_dispatch`, usando exclusivamente código confiável da `master`, `permissions: actions: read, contents: read`, sem segredos externos, sem reexecução ou cancelamento de runs, sem alterações de PRs/branches.
-
-A cada rodada, deve: (a) resolver HEAD integral da `master`; (b) inventariar runs por API Actions paginada com janela UTC, `run_id` único e `run_attempt` distinto, incluindo `jornada-ci`, `jornada-pr-required-fast` e observadores, com checkpoint persistente e reconciliação sem duplicidade; (c) inspecionar jobs e conclusões, distinguir `success`/`skipped`/`failure`/`pending`/`missing` e separar relatórios de testes; (d) comprovar no SHA da `master` os workflows aplicáveis, verificar condições dos skips e registrar os gates não cobertos; (e) publicar artefato JSON e resumo com URLs, SHA, run IDs, contagens, transições e cobertura; (f) falhar fechado em API incompleta, janela truncada, permissão insuficiente, job exigível ausente ou execução reprovada; (g) sinalizar **UNVERIFIED** se não houver evidência, nunca `GREEN` por inferência.
-
-**Critérios de aceite:** testes offline de classificação, paginação, deduplicação, mudança de tentativa, ausência de workflow, distinção `report` versus `jornada-ci`, skips e SHA divergente; primeira execução real no GitHub com artefato e evidência dos jobs; confirmação de agendamento; documentação e índice atualizados e PR integrada. Não iniciar automaticamente campanhas científicas, perfis `medium`/`million`, DR ou promoção de release. O job de monitoramento é observacional e **não substitui** os testes da `master`.
-
-**Dependências existentes, ainda não integradas:** PR #1758 propõe inventário paginado e reconciliação de snapshots; PR #1759 propõe verificador pós-merge no SHA exato. Reutilizar e integrar com cuidado, evitando duplicação de lógica e exigindo CI verde no HEAD final. Enquanto não houver implementação integrada e rodada comprovada, informar explicitamente **monitor permanente pendente**.
-
-### 9.4 Atualização do critério de saúde da master
-
-Relatar separadamente: **CI principal GREEN comprovado** (quando `jornada-ci` terminou `success` no SHA com jobs exigíveis aprovados), **cobertura parcial** (jobs condicionais `skipped`, workflows não consultados), **saúde ampliada não certificada** (DR, escala, RC, validações físicas/Windows adicionais). Nunca rebaixar evidência comprovada a “nenhuma execução” apenas por uma consulta parcial; nunca extrapolar o `success` de `report` para a aplicação. Guardar a proveniência `run_id → job_id → artifact_id → head_sha`.
+**Revisão genérica — 20/11/2026:** removidas referências a produto, repositório, números de PR, execuções, tecnologias, campanhas e workflows específicos. Incorporados aprendizados reutilizáveis: zero resultados de consulta parcial não implica ausência de CI; evidência de relatório não equivale a teste; `skipped` exige análise de aplicabilidade; saúde é atestada por SHA e cobertura; monitor periódico precisa ser **efetivamente implementado**, não apenas descrito. Evidências concretas e decisões locais devem permanecer nos documentos e registros específicos de cada repositório, fora deste modelo genérico.
