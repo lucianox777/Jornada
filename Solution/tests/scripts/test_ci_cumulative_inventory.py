@@ -141,6 +141,21 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Jobs changed"):
             mod.failing_jobs(changed_total, 79)
 
+    def test_run_identity_and_attempt_validation(self):
+        invalid = [
+            dict(run(1), run_attempt=None),
+            dict(run(1), run_attempt=0),
+            dict(run(1), run_attempt=True),
+            dict(run(1), head_sha="not-a-commit"),
+            dict(run(1), id=0),
+        ]
+        for item in invalid:
+            with self.subTest(item=item):
+                with self.assertRaisesRegex(ValueError, "valid ID/SHA|valid attempt"):
+                    mod.enumerate_runs(
+                        lambda _: {"total_count": 1, "workflow_runs": [item]},
+                        START, END)
+
     def test_inconsistent_count_rejected(self):
         data = [run(i) for i in range(1, 102)]
         def get(path):
