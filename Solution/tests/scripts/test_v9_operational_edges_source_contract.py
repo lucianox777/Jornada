@@ -25,6 +25,18 @@ class OperationalEdgesSourceContract(unittest.TestCase):
             scorer.index("edges = operational.OperationalEdges.ToList();"),
         )
 
+    def test_frozen_silver_manager_ids_fail_closed(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        start = scorer.index("var managers = new Dictionary<long, string>();")
+        end = scorer.index("var idToIndex =", start)
+        block = scorer[start:end]
+        self.assertIn("reader.IsDBNull(0) || reader.IsDBNull(1)", block)
+        self.assertIn("observationId <= 0 || string.IsNullOrWhiteSpace(manager)", block)
+        self.assertIn("!managers.TryAdd(observationId, manager)", block)
+        self.assertIn("managers.Count != frozenRows.Count", block)
+        self.assertIn("frozenRows.Any(row => !managers.ContainsKey", block)
+        self.assertLess(end, scorer.index("V9OperationalBlockingChaveCohortParity.VerifyAsync("))
+
     def test_both_edge_receipts_reject_mutable_array_exposure(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         physical = (ROOT / "V9FrozenCohortSqlCandidateGraph.cs").read_text()
