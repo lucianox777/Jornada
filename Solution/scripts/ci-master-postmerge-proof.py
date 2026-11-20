@@ -32,6 +32,8 @@ def evaluate(runs, sha):
         if run.get("event") != "push":
             continue
         name = run.get("name")
+        if not isinstance(name, str):
+            raise ValueError("Invalid Actions workflow name")
         if name not in REQUIRED:
             continue
         relevant.setdefault(name, []).append(run)
