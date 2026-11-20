@@ -65,6 +65,25 @@ class LockedGeneratorAuditTests(unittest.TestCase):
             self.assertTrue(results[1]["matches"])
             first_lock.write_bytes(original)
 
+            # The file-level partition contract must fail independently
+            # even if the aggregate generator digest still matches.
+            partition_tampered = json.loads(original)
+            partition_tampered["generation"]["partition_contract"]["generator_file_sha256"] = "0" * 64
+            first_lock.write_text(json.dumps(partition_tampered))
+            results = audit_module.audit(repo)
+            self.assertFalse(results[0]["matches"])
+            self.assertTrue(results[1]["matches"])
+            first_lock.write_bytes(original)
+
+            # A manifest cannot be treated as frozen if status is changed.
+            unlocked = json.loads(original)
+            unlocked["status"] = "DRAFT"
+            first_lock.write_text(json.dumps(unlocked))
+            results = audit_module.audit(repo)
+            self.assertFalse(results[0]["matches"])
+            self.assertTrue(results[1]["matches"])
+            first_lock.write_bytes(original)
+
             # Missing tracked file is a hard error, not a silent reduction.
             missing = source.parent / "tracked-00.txt"
             missing.unlink()
