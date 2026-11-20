@@ -25,6 +25,36 @@ public sealed class V9OperationalIdentityPartitionParityTests
     }
 
     [Test]
+    public void Guid_sensitive_receipt_digest_can_differ_for_equivalent_partitions()
+    {
+        // Characterization only: do not change the existing receipt contract.
+        var first = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000002")
+        };
+        var relabeled = new Dictionary<int, Guid>
+        {
+            [1] = Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            [2] = Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            [3] = Guid.Parse("00000000-0000-0000-0000-000000000004")
+        };
+
+        static string CurrentReceiptDigest(IReadOnlyDictionary<int, Guid> groups)
+        {
+            var serialized = string.Join("\\n", groups.OrderBy(x => x.Key)
+                .Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}")));
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(serialized))).ToLowerInvariant();
+        }
+
+        Assert.That(V9OperationalCandidateGraphParityAudit.CanonicalGroups(first),
+            Is.EqualTo(V9OperationalCandidateGraphParityAudit.CanonicalGroups(relabeled)));
+        Assert.That(CurrentReceiptDigest(first), Is.Not.EqualTo(CurrentReceiptDigest(relabeled)));
+    }
+
+    [Test]
     public void Split_or_merge_is_detected()
     {
         var a = Guid.NewGuid();
