@@ -210,7 +210,13 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         name = job.get("name")
         if not isinstance(job.get("id"), int):
             return False, "invalid failed job id"
-        text = logs(job["id"]).lower()
+        try:
+            evidence = logs(job["id"])
+        except (OSError, ValueError, TypeError, KeyError):
+            return False, "runner log evidence unavailable"
+        if not isinstance(evidence, str):
+            return False, "runner log evidence malformed"
+        text = evidence.lower()
         if any(marker in text for marker in INFRA_LOG_MARKERS):
             infra_failed.add(job["id"])
         elif failed_dependency_assertion(job):
