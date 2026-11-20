@@ -6,10 +6,10 @@ import json
 import subprocess
 from pathlib import Path
 
-LOCKS = (
-    "Solution/docs/V9_TF_SEEDS_44_47_LOCK.json",
-    "Solution/docs/V9_TF_SEEDS_48_57_LOCK.json",
-)
+LOCKS = {
+    "Solution/docs/V9_TF_SEEDS_44_47_LOCK.json": "V9-TF-ONE-MF-SEEDS-44-47",
+    "Solution/docs/V9_TF_SEEDS_48_57_LOCK.json": "V9-TF-ONE-MF-3SIGMA-SEEDS-48-57",
+}
 GENERATOR = "Solution/src/Jornada.Linkage.SyntheticCorpus"
 PARTITION = GENERATOR + "/SyntheticCorpusGenerator.cs"
 
@@ -49,6 +49,7 @@ def audit(repo):
             "expected_partition_sha256": expected_partition,
             "matches": (
                 lock["status"] == "LOCKED"
+                and lock["experiment_id"] == LOCKS[relative]
                 and len(tracked) == 25
                 and tree == expected_tree
                 and partition == expected_partition
