@@ -217,7 +217,7 @@ public static class V9OperationalBlockingChaveCohortParity
         return new(directions.Count * 2, directions.Count, digest, goldCount,
             ProductionGoldCertified: false)
         {
-            OperationalEdges = directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray()
+            OperationalEdges = Array.AsReadOnly(directions.Keys.OrderBy(x => x.A).ThenBy(x => x.B).ToArray())
         };
     }
 
