@@ -12,6 +12,15 @@ dotnet --version | grep -Fx "$EXPECTED_SDK" >/dev/null || {
   exit 3
 }
 dotnet restore Jornada.sln --use-lock-file --force-evaluate
+# The lock gate inventories every project under src/ and tests/, including
+# standalone projects that are not listed in Jornada.sln.
+# Restore those explicitly so the gate can validate their actual NuGet graph.
+while IFS= read -r -d '' project; do
+  if [[ ! -f "${project%/*}/packages.lock.json" ]]; then
+    echo "NuGet lock bootstrap: restoring standalone project $project"
+    dotnet restore "$project" --use-lock-file --force-evaluate
+  fi
+done < <(find src tests -name '*.csproj' -not -path '*/obj/*' -not -path '*/bin/*' -print0)
 if ! git diff --quiet -- '**/packages.lock.json'; then
   echo "ERRO: force-evaluate alterou packages.lock.json versionado; atualize locks e proveniência." >&2
   git diff --stat -- '**/packages.lock.json' >&2
