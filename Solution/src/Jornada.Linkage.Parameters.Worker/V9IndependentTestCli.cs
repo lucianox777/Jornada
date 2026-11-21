@@ -1,20 +1,21 @@
-using System.Security.Cryptography;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;
-using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
 /// Standalone independent TEST evaluation API: its only caller-supplied
-/// argument is the SHA-pinned winner model. TEST owns its sealed corpus,
+/// argument is the SHA-pinned winner model. TEST owns its independently generated corpus,
 /// predeclared protocol and disposable SQL; it reads no TRAIN/VALIDATION
 /// plan, candidate set, scores, chosen thresholds, or selection envelope.
 /// No fit, winner selection, promotion or activation can run here.
 /// </summary>
 public static class V9IndependentTestCli
 {
+    public const string IsolationContract = "V9_INDEPENDENT_DISPOSABLE_SQL_V1";
+
     private static readonly JsonSerializerOptions ReportJsonOptions = new() { WriteIndented = true };
 
     public static async Task RunAsync(string[] args)
@@ -49,32 +50,11 @@ public static class V9IndependentTestCli
             || fullOutput.StartsWith(fullTestDir + Path.DirectorySeparatorChar, StringComparison.Ordinal)
             || fullTestDir.StartsWith(fullOutput + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             throw new InvalidDataException("Diretório de resultados TEST deve ser novo, separado da coorte e do modelo.");
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
-            ?? throw new InvalidOperationException("SQL próprio da camada TEST não configurado.");
-        if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
-            throw new InvalidDataException("TEST físico aceita somente SQL descartável JornadaHarness.");
-        // TEST receives just the pinned winner identity. It does NOT load
-        // calibration JSON for scoring: it reads the already-converted V9
-        // operational model from its own SQL, via the SAME loader as the Runner.
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync();
-        var operationalModelId = V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winnerSha);
-        // TEST and the production-side Runner use the very same pinned
-        // cohort runtime; the legacy operational model is never a fallback.
-        var runtime = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
-            connection, operationalModelId, winnerSha);
+        await using var connection = await OpenDisposableSqlAsync();
+        var runtime = await LoadExactOperationalRuntimeAsync(connection, validatedFileWinner);
         var winner = runtime.FrozenWinner;
+        var operationalModelId = runtime.ModelId;
         var conversion = V9OperationalSqlModelConverter.VerifyConversion(winner);
-        if (!conversion.ByteExactRoundTrip || conversion.ModelId != operationalModelId
-            || conversion.SourceSnapshotSha256 != winnerSha
-            || !winner.SerializeUtf8().AsSpan().SequenceEqual(validatedFileWinner.SerializeUtf8()))
-            throw new InvalidDataException("TEST exige JSON byte-exato: arquivo VALIDATION, SQL operacional e runtime não coincidem.");
-        // The TEST corpus is opened only AFTER the operational winner passes
-        // its SHA/round-trip check. No VALIDATION measurements are read.
-        var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
-        Directory.CreateDirectory(fullOutput);
-        // Resolve the projection contract from the immutable, SHA-pinned winner.
-        // Never silently substitute the default projection for a V9-fitted model.
         var frozenPrefixLength = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
             winner.Payload.ProjectionSchemaVersion, winner.Payload.ProjectionFingerprintSha256);
         // A one-off DEV-only physical regression may lift the conservative incidence
@@ -94,16 +74,17 @@ public static class V9IndependentTestCli
         }
         // Diagnostic-only repetition override; the scientific protocol remains 20.
         var repetitions = 20;
+        var diagnostic = Environment.GetEnvironmentVariable("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC") == "true";
         var requestedRepetitions = args.Length == 4 ? args[3] : null;
         if (requestedRepetitions is not null)
         {
-            if (!int.TryParse(requestedRepetitions, out repetitions)
-                || repetitions is < 1 or > 200
-                || (repetitions < 20 && (Environment.GetEnvironmentVariable("JORNADA_V9_DIAGNOSTIC_NON_SCIENTIFIC") != "true"
-                    || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV")))
-                throw new InvalidDataException("TEST repetitions: fewer than 20 require explicit DEV non-scientific diagnostic mode.");
+            if (!diagnostic || !int.TryParse(requestedRepetitions, out repetitions)
+                || repetitions is < 1 or > 200)
+                throw new InvalidDataException("Alterar repetições exige diagnóstico TEST explícito em DEV.");
             Console.WriteLine($"V9_TEST_REPETITIONS={repetitions}; SCIENTIFIC_PROTOCOL_MINIMUM=20");
         }
+        // Only inspect the cohort after validating the exact winner, SQL scope and protocol.
+        var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
             EndToEndRepetitions: repetitions, TotalComparedConfigurations: 1,
@@ -113,7 +94,7 @@ public static class V9IndependentTestCli
             connection, corpus.Observations, winner, runtime, execution,
             maximumAcceptedPerIdentity: 4, CancellationToken.None);
         if (evaluated.Refitted || evaluated.SnapshotSha256 != winnerSha
-            || evaluated.Metric.BonferroniComparedConfigurations != 1)
+            || evaluated.Metric.BonferroniComparedConfigurations != 1 || evaluated.TestReplayEvidence is null)
             throw new InvalidDataException("TEST alterou o modelo vencedor ou multiplicidade.");
         var report = new
         {
@@ -126,6 +107,12 @@ public static class V9IndependentTestCli
             operationalModelContract = V9OperationalSqlModelConverter.ContractVersion,
             operationalModelId,
             operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
+            testSqlIsolationContract = IsolationContract,
+            tfSlotCount = conversion.TfSlotCount,
+            jointCellCount = conversion.JointCellCount,
+            blockingPassCount = conversion.BlockingPassCount,
+            projectionFingerprintSha256 = conversion.ProjectionFingerprintSha256,
+            fitFingerprintSha256 = conversion.FitFingerprintSha256,
             operationalModelActive = false,
             operationalModelPublished = false,
             productionRunnerFullPipelineParityCertified = false,
@@ -138,11 +125,14 @@ public static class V9IndependentTestCli
             evaluatedTestObservations = corpus.Observations.Length,
             configurationsEvaluated = 1,
             testEndToEndRepetitions = repetitions,
-            diagnosticNonScientific = repetitions < 20,
+            diagnosticNonScientific = diagnostic,
             evaluationProtocol = evaluated.LatencyProtocol,
             p95Milliseconds = evaluated.P95Milliseconds,
             falseDegreeP99 = evaluated.FalseDegreeP99,
-            metric = evaluated.Metric with { IdentityOutcomes = null, SourceRankInternal = null },
+            replayEvidence = evaluated.TestReplayEvidence,
+            falseNegativeSourceObservations = evaluated.Metric.EligibleSourceObservationsBeforeBlocking
+                - evaluated.Metric.TrueAcceptedSourceObservations,
+            metric = evaluated.Metric with { IdentityOutcomes = null, SourceRankInternal = null, SourceGapAttribution = null },
             validationResultsRead = false,
             trainPlanRead = false,
             refitted = false,
@@ -153,6 +143,7 @@ public static class V9IndependentTestCli
             independentlyCertifiedIid = false,
         };
         var json = JsonSerializer.SerializeToUtf8Bytes(report, ReportJsonOptions);
+        Directory.CreateDirectory(fullOutput);
         await using var result = new FileStream(Path.Combine(fullOutput, "independent-test.json"),
             FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await result.WriteAsync(json);
@@ -160,5 +151,89 @@ public static class V9IndependentTestCli
             status = report.status, winnerSnapshotSha256 = winnerSha, testUsed = true,
             refitted = false, certified = false, activated = false
         }));
+    }
+
+    public static async Task PreflightAsync(string[] args)
+    {
+        if (args.Length != 2 || args[0] != "--v9-independent-test-preflight")
+            throw new ArgumentException("Uso: --v9-independent-test-preflight <sha256.operational.json>.");
+
+        var winner = await V9ValidatedOperationalModelFile.ReadPinnedAsync(args[1]);
+        _ = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
+            winner.Payload.ProjectionSchemaVersion, winner.Payload.ProjectionFingerprintSha256);
+        await using var connection = await OpenDisposableSqlAsync();
+        var receipt = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner);
+        var runtime = await LoadExactOperationalRuntimeAsync(connection, winner);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            status = "V9_TEST_WINNER_READY_BEFORE_COHORT",
+            testSqlIsolationContract = IsolationContract,
+            winnerSnapshotSha256 = runtime.WinnerSha256,
+            operationalModelId = runtime.ModelId,
+            projectionFingerprintSha256 = receipt.ProjectionFingerprintSha256,
+            tfSlotCount = receipt.TfSlotCount,
+            jointCellCount = receipt.JointCellCount,
+            byteExactRoundTrip = receipt.ByteExactRoundTrip,
+            testUsed = false,
+            published = false,
+            activated = false,
+        }));
+    }
+
+    private static async Task<V9OperationalPinnedCohortRuntime> LoadExactOperationalRuntimeAsync(
+        SqlConnection connection, V9FittedSnapshot validatedFileWinner)
+    {
+        var winnerSha = validatedFileWinner.ContentSha256;
+        var modelId = V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winnerSha);
+        var runtime = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(connection, modelId, winnerSha);
+        var winner = runtime.FrozenWinner;
+        var conversion = V9OperationalSqlModelConverter.VerifyConversion(winner);
+        if (!conversion.ByteExactRoundTrip || conversion.ModelId != modelId
+            || conversion.SourceSnapshotSha256 != winnerSha
+            || !winner.SerializeUtf8().AsSpan().SequenceEqual(validatedFileWinner.SerializeUtf8()))
+            throw new InvalidDataException("TEST exige JSON byte-exato: arquivo VALIDATION, SQL operacional e runtime não coincidem.");
+        return runtime;
+    }
+
+    private static async Task<SqlConnection> OpenDisposableSqlAsync()
+    {
+        if (Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV")
+            throw new InvalidDataException("TEST independente só executa em DEV isolado.");
+        var password = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_PASSWORD");
+        var marker = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_MARKER");
+        if (string.IsNullOrWhiteSpace(password) || marker is not { Length: 48 }
+            || !marker.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            throw new InvalidDataException("TEST exige credencial efêmera e marcador de isolamento.");
+
+        var builder = new SqlConnectionStringBuilder
+        {
+            DataSource = "127.0.0.1,1433",
+            InitialCatalog = "JornadaHarness",
+            UserID = "sa",
+            Password = password,
+            TrustServerCertificate = true,
+            Pooling = false,
+        };
+        var connection = new SqlConnection(builder.ConnectionString);
+        try
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT CONVERT(nvarchar(48), value)
+                FROM sys.extended_properties
+                WHERE class = 0 AND name = N'JornadaV9IndependentTest'
+                  AND DB_NAME() = N'JornadaHarness'
+                  AND SCHEMA_ID(N'gold') IS NULL AND SCHEMA_ID(N'serving') IS NULL;
+                """;
+            if (!string.Equals(await command.ExecuteScalarAsync() as string, marker, StringComparison.Ordinal))
+                throw new InvalidDataException("SQL TEST não corresponde ao banco recém-inicializado e isolado.");
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 }

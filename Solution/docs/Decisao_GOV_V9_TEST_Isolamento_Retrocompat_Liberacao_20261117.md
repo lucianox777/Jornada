@@ -1,6 +1,6 @@
 # GOV-V9-TEST-ISOLAMENTO-RETROCOMPAT-20261117 — ratificação e diagnóstico de liberação
 
-**Autoridade:** Product Owner, 17/11/2026. **Estado:** requisitos ratificados; implementação de liberação do TEST científico **PENDENTE**. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 17/11/2026. **Estado vigente:** requisitos ratificados e implementação registrada na [PR #1822](https://github.com/lucianox777/Jornada/pull/1822). A validação de campanha e a autorização científica seguem etapas próprias. **Política:** GOV-DOC-01.
 
 ## Decisão ratificada
 O TEST científico do workflow do calibrador é uma execução **inteiramente isolada do ambiente produtivo**. Recebe **somente o pacote operacional do único vencedor** exportado pela VALIDATION, avalia os parâmetros vencedores em base independente e ambiente descartável controlado pelo workflow, sem acessar ou executar no ambiente do executor. Seu único produto funcional é o **relatório de resultados científicos para avaliação humana**. É proibido modificar ambiente, credenciais, configurações, dados, modelos ativos, Gold, Serving ou publicação da produção. TEST não ajusta parâmetros, não escolhe vencedor e não implanta modelos.
@@ -11,7 +11,7 @@ A **implantação** do pacote é uma operação administrativa **posterior, sepa
 
 O executor deve manter **compatibilidade retroativa com os contratos/modelos anteriores** ao incorporar V9: modelos legados continuam executando sob suas semânticas históricas; V9 exige versão e identidade explícitas. **Nunca** realizar fallback silencioso de V9 inválido para modelo legado, nem adaptar parcialmente TF4/81 a parâmetros antigos.
 
-## Evidência documental e código observado
+## Evidência documental e código observado na decisão original
 - VALIDATION já exporta `<winnerSha>.operational.json` e manifesto do vencedor, independentemente de TEST: `V9NestedCalibrationCli`, `V9ValidatedOperationalModelFile`, decisão `Decisao_GOV_V9_VALIDATION_Arquivo_Operacional_Final_TEST_Nome_20261114.md`.
 - Conversor `V9OperationalSqlModelConverter` persiste payload V9 integral `TEST_ONLY`, valida ID/SHA, sem fallback para ATIVO legado.
 - `SqlProbabilisticIdentityLinkage` preserva blocking legado por nascimento e caminho com ruleset, e oferece entrada V9 opt-in TEST_ONLY não conectada automaticamente ao modelo ATIVO.
@@ -35,7 +35,7 @@ Este registro **esclarece e ratifica**, sem revogar, `Decisao_GOV_V9_TEST_Parida
 ## Início da implementação — 17/11/2026
 O contrato de TEST é independente da retrocompatibilidade do executor. A primeira entrega técnica na PR #1627 adiciona `Solution/tests/scripts/test_v9_test_executor_boundary_contract.py`, com contratos estáticos para: (a) manter o TEST do Standard Linear bloqueado até certificação; (b) exigir que TEST receba o vencedor operacional da VALIDATION sem refit/seleção; (c) preservar rotas legadas no executor e carga V9 explícita sem fallback. **Não constitui paridade física, não libera TEST e não altera o executor de produção.** Próximo incremento: certificação do contrato do arquivo operacional VALIDATION → TEST → importação futura pelo executor, sem execução do TEST no executor; em seguida, preparação independente TEST e closeout.
 
-## Fluxo normativo inequívoco — confirmação final do PO
+## Fluxo registrado em 17/11 antes das decisões supervenientes
 ```text
 PREPARE (dados brutos de TRAIN)
   -> TRAIN (calibração de hipóteses)
@@ -114,3 +114,15 @@ A PR de continuidade da issue #1629 adiciona `.github/workflows/v9-test-credenti
 **Rastreabilidade:** issue #1584; PR #1820 de conciliação documental, sem certificação física. **Estado:** requisitos reafirmados; implementação integral e liberação ainda pendentes.
 
 **Verificação da reconciliação (#1820):** o teste de regressão confirma que `--test-database` é rejeitado no CLI científico antes da leitura do vencedor. A [falha em `unit-runtime`](https://github.com/lucianox777/Jornada/actions/runs/44876986824/job/136764254497) foi reproduzida e rastreada à asserção sobre o retorno do ramo legado removido. A migração do workflow legado segue no escopo da #1584.
+
+## Implementação da issue #1584 — 21/11/2026
+
+**Autoridade e precedência.** A entrega da [PR #1822](https://github.com/lucianox777/Jornada/pull/1822), sobre o squash `ccd7bf06f25041c5de10c4b7876e6908307fae23` da #1820, aplica este contrato, a obrigatoriedade quando há vencedor e a [decisão posterior de relatório independente](Decisao_GOV_V9_TEST_Independente_Relatorio_20261119.md). A coorte nasce no job TEST segundo a [decisão de geração própria](Decisao_GOV_V9_TEST_Geracao_Propria_Sem_Criptografia_20261117.md) e a reserva segue a [decisão de seed GUID, uso único](Decisao_GOV_V9_TEST_Seed_GUID_Unica_20261117.md).
+
+**Handoff e isolamento.** VALIDATION fornece o único `<sha>.operational.json` e seu SHA esperado através da saída do próprio run. TEST confere cardinalidade, nome e bytes, carrega o esquema V3, TF4/81, projeção, blocking, limiares e agrupamento. O preflight materializa uma linha imutável `TEST_ONLY` no SQL efêmero local `JornadaHarness`, verifica seu marcador de inicialização e comprova a equivalência byte a byte pelo loader V9 compartilhado. O modelo auditado permanece vinculado ao arquivo, e o TEST usa apenas credencial própria. As rotas legadas de banco externo falham na admissão. `test_database` pertence ao PREPARE e segue bloqueado com valor preenchido enquanto a #1626 estiver pendente.
+
+**Ordem e controles.** Preflight do modelo precede a reserva atômica da seed, a geração e a abertura da coorte. O recibo associa UUIDv4, seed, tag, vencedor, SHA do código, run e tentativa, com a reserva mantida após falhas. No workflow padrão, a avaliação usa a partição TEST da própria geração e as 20 repetições do protocolo vigente. O relatório agrega TP, FP, FN, recall, FDR, conflitos e P95, com hashes da coorte, projeção, grafo, decisões e do arquivo de relatório. A ausência de vencedor encerra sem reserva do TEST. Quando há vencedor, ausência de execução ou recibo inválido fica explícita no CLOSEOUT, que mantém o SHA escolhido pela VALIDATION.
+
+**Verificação.** A CI rápida executa regressões de handoff, rejeição da rota externa, controle de uso único e CLOSEOUT. O job `independent-test-cli-fixture` exerce o preflight e a execução real do worker em SQL descartável com quatro observações de fixture, incluindo rejeição de SHA alterado, ambiente incorreto e marcador divergente. O ensaio usa seed de fixture, compara os bytes carregados pelo Runner V9 e arquiva o relatório agregado. Os checks físicos do Runner continuam separados. Evidências e resultados verificáveis no [registro de implementação](V9_TEST_Implementacao_Integral_Issue_1584_Plano_PR.md) e nos [checks da PR](https://github.com/lucianox777/Jornada/pull/1822/checks).
+
+**Alcance.** Implementação técnica e evidência de fixture são estados distintos de validação científica, de certificação integral de `RunAsync` e de ativação. A campanha 100k e o uso de coorte científica exigem autorização explícita. A autorização de importação ou ativação continua com o operador MASTER.

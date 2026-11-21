@@ -6,6 +6,13 @@ if [[ -z "${GITHUB_ENV:-}" || -z "${GITHUB_RUN_ID:-}" || -z "${GITHUB_RUN_ATTEMP
   echo "GitHub Actions environment is mandatory for disposable V9 SQL." >&2
   exit 1
 fi
+independent_test=false
+if [[ "$#" == 1 && "$1" == "--independent-test" && "${JORNADA_RUNTIME_MODE:-}" == "DEV" ]]; then
+  independent_test=true
+elif (( $# != 0 )); then
+  echo "Invalid disposable SQL mode." >&2
+  exit 1
+fi
 command -v openssl >/dev/null
 command -v docker >/dev/null
 
@@ -82,10 +89,12 @@ fi
 sql_password="V9aA1!$(openssl rand -hex 24)"
 # Register masking BEFORE any Docker operation that might print expanded args.
 printf '::add-mask::%s\n' "$sql_password"
-{
-  printf 'JORNADA_SQL_SA_PASSWORD=%s\n' "$sql_password"
-  printf 'ConnectionStrings__Jornada=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
-} >> "$GITHUB_ENV"
+if [[ "$independent_test" == "false" ]]; then
+  {
+    printf 'JORNADA_SQL_SA_PASSWORD=%s\n' "$sql_password"
+    printf 'ConnectionStrings__Jornada=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
+  } >> "$GITHUB_ENV"
+fi
 
 # No credential in process arguments: pass a private 0600 file path to
 # Docker rather than --env NAME=<password>, which leaks through process argv.
@@ -112,6 +121,26 @@ for attempt in $(seq 1 60); do
   if docker exec "$sql_name" sh -c \
       'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q "SELECT 1"' \
       >/dev/null 2>&1; then
+    if [[ "$independent_test" == "true" ]]; then
+      test_marker="$(openssl rand -hex 24)"
+      printf '::add-mask::%s\n' "$test_marker"
+      docker exec -i "$sql_name" sh -c \
+          'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -i /dev/stdin' <<SQL
+CREATE DATABASE JornadaHarness;
+GO
+USE JornadaHarness;
+GO
+EXEC sys.sp_addextendedproperty @name=N'JornadaV9IndependentTest', @value=N'$test_marker';
+GO
+SQL
+      docker exec -i "$sql_name" sh -c \
+          'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
+          < "$(dirname "${BASH_SOURCE[0]}")/../database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql"
+      {
+        printf 'JORNADA_V9_TEST_SQL_PASSWORD=%s\n' "$sql_password"
+        printf 'JORNADA_V9_TEST_SQL_MARKER=%s\n' "$test_marker"
+      } >> "$GITHUB_ENV"
+    fi
     echo "PASS: disposable SQL Server healthy; SA credential masked before startup."
     exit 0
   fi

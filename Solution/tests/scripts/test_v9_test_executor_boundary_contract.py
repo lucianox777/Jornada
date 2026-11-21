@@ -49,7 +49,10 @@ class V9TestExecutorBoundaryContract(unittest.TestCase):
 
     def test_scientific_cli_rejects_non_disposable_sql_and_does_not_certify_itself(self):
         cli = (ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs").read_text(encoding="utf-8")
-        self.assertIn('InitialCatalog != "JornadaHarness"', cli)
+        self.assertIn('InitialCatalog = "JornadaHarness"', cli)
+        self.assertIn('DataSource = "127.0.0.1,1433"', cli)
+        self.assertIn("JornadaV9IndependentTest", cli)
+        self.assertNotIn("ConnectionStrings__Jornada", cli)
         self.assertIn('V9OperationalPinnedCohortRuntime.LoadPinnedAsync(', cli)
         self.assertIn('V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(', cli)
         self.assertIn('productionRunnerFullPipelineParityCertified = false', cli)

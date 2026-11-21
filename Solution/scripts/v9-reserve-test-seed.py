@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -59,13 +60,16 @@ def reserve(repository: str, sha: str, run_id: str, attempt: str,
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--winner-sha", required=True)
     args = parser.parse_args()
-    result = reserve(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"],
-                     os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"])
+    if re.fullmatch(r"[0-9a-f]{64}", args.winner_sha) is None:
+        raise RuntimeError("V9_TEST_INVALID_WINNER_SHA")
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    if args.out.exists():
-        raise RuntimeError("V9_TEST_SEED_RECEIPT_ALREADY_EXISTS")
-    args.out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    with args.out.open("x", encoding="utf-8") as receipt:
+        result = reserve(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"],
+                         os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"])
+        result["winnerSnapshotSha256"] = args.winner_sha
+        receipt.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     output = os.environ["GITHUB_OUTPUT"]
     with open(output, "a", encoding="utf-8") as stream:
         stream.write(f"test_seed={result['seed']}\n")

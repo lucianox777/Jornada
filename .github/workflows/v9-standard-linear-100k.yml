@@ -1,6 +1,6 @@
 name: V9 Standard Linear - ADMISSION PREPARE TRAIN AUDIT VALIDATION TEST on winner
 
-# STRICTLY MANUAL. Standard synthetic TRAIN-only chain is enabled.
+# Manual, owner-authorized independent synthetic campaign.
 # TEST is mandatory after successful VALIDATION with winner; no winner skips TEST.
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ on:
         default: ""
         type: string
       security_preflight_approved:
-        description: Confirm one-use SQL, historical credentials not reused, private runner
+        description: Authorize this scientific campaign and one-use TEST after checking disposable SQL and isolation
         required: true
         type: boolean
       test_database:
@@ -518,8 +518,7 @@ jobs:
     needs: audit-100k
     outputs:
       has_winner: ${{ steps.operational_file.outputs.has_model }}
-    # Independent TEST preparation is mandatory before TRAIN; explicit dependency
-    # evaluation avoids implicit ancestor-skip propagation.
+      winner_sha: ${{ steps.operational_file.outputs.winner_sha }}
     # Evaluate the dependency explicitly, but never bypass TRAIN success,
     # audited finalists, owner/preflight checks or workflow cancellation.
     if: ${{ always() && !cancelled() && needs.audit-100k.result == 'success' && needs.audit-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
@@ -649,11 +648,14 @@ jobs:
             --directory "$root/validation-results/validated-operational-model" \
             --expected-contract JORNADA_V9_OPERATIONAL_SQL_MODEL_V1
           if test -s "$root/validation-results/selected-operational-model-reference.json"; then
-            echo "has_model=true" >> "$GITHUB_OUTPUT"
+            winner_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["winnerSnapshotSha256"])' \
+              "$root/validation-results/selected-operational-model-reference.json")"
+            [[ "$winner_sha" =~ ^[a-f0-9]{64}$ ]]
+            printf 'has_model=true\nwinner_sha=%s\n' "$winner_sha" >> "$GITHUB_OUTPUT"
           else
             echo "has_model=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Upload final VALIDATION operational JSON even when TEST is not requested
+      - name: Upload the single final VALIDATION operational JSON
         if: ${{ success() && steps.operational_file.outputs.has_model == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
@@ -726,6 +728,7 @@ jobs:
       actions: read
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
+      V9_VALIDATION_WINNER_SHA: ${{ needs.validation-100k.outputs.winner_sha }}
       DOTNET_ENVIRONMENT: DEV
       ASPNETCORE_ENVIRONMENT: DEV
       JORNADA_RUNTIME_MODE: DEV
@@ -769,36 +772,25 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
           python3 - "$root/winner" <<'PY'
-          import hashlib,pathlib,re,sys
+          import hashlib,os,pathlib,re,sys
           files=list(pathlib.Path(sys.argv[1]).iterdir())
           assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
-          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
+          expected=os.environ["V9_VALIDATION_WINNER_SHA"]
+          assert re.fullmatch(r"[a-f0-9]{64}",expected)
+          assert files[0].name == expected + ".operational.json"
           with files[0].open("rb") as stream:
-              assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
+              assert hashlib.file_digest(stream,"sha256").hexdigest() == expected
           print("ONE_SHA_PINNED_WINNER_ONLY")
           PY
       - name: Start brand-new disposable SQL database only for TEST
-        run: |
-          set -euo pipefail
-          bash scripts/v9-tf-start-disposable-sql.sh
-          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker exec "$sql_name" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
-      - name: Load versioned V9 SQL operational schema (no activation or publication)
-        run: |
-          set -euo pipefail
-          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker exec -i "$sql_name" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
-            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+        run: bash scripts/v9-tf-start-disposable-sql.sh --independent-test
       - name: Convert the ONLY SHA-pinned VALIDATION winner to SQL before TEST exposure
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
-          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
-          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          model="$root/winner/$V9_VALIDATION_WINNER_SHA.operational.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-convert-winner-operational "$model"
+            --v9-independent-test-preflight "$model"
           # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
       - name: Reserve unique GUID-derived TEST seed in global GitHub ledger
         id: test_seed
@@ -806,7 +798,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 scripts/v9-reserve-test-seed.py --out "$PWD/.local/v9-independent-test/test-seed-reservation.json"
+          python3 scripts/v9-reserve-test-seed.py --winner-sha "$V9_VALIDATION_WINNER_SHA" \
+            --out "$PWD/.local/v9-independent-test/test-seed-reservation.json"
       - name: Generate fresh independent TEST 100k after winner is frozen
         run: |
           set -euo pipefail
@@ -827,13 +820,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 - "$PWD/.local/v9-independent-test/test-seed-reservation.json" "$PWD/.local/v9-independent-test/corpus/generation-manifest.json" <<'PY'
-          import json,os,pathlib,sys
+          import hashlib,json,os,pathlib,sys,uuid
           receipt=json.loads(pathlib.Path(sys.argv[1]).read_text())
           manifest=json.loads(pathlib.Path(sys.argv[2]).read_text())
           seed=int(os.environ["RESERVED_SEED"])
           assert seed > 0 and seed not in (42,20261112001,20261113001)
           assert receipt["schema"] == "V9_TEST_SEED_RESERVATION_V2"
+          execution_id=uuid.UUID(receipt["executionGuid"])
+          assert execution_id.version == 4
+          assert int.from_bytes(hashlib.sha256(execution_id.bytes).digest()[:8], "big") == seed
           assert receipt["seed"] == seed == manifest["seed"]
+          assert receipt["winnerSnapshotSha256"] == os.environ["V9_VALIDATION_WINNER_SHA"]
           assert receipt["codeSha"] == os.environ["GITHUB_SHA"]
           assert str(receipt["runId"]) == os.environ["GITHUB_RUN_ID"]
           assert str(receipt["runAttempt"]) == "1" == os.environ["GITHUB_RUN_ATTEMPT"]
@@ -841,7 +838,6 @@ jobs:
           print("V9_TEST_RESERVED_SEED_BOUND_TO_CORPUS")
           PY
       - name: Apply one frozen winner to TEST, no refit and no winner selection
-
         env:
           JORNADA_V9_TEST_RESERVED_SEED: ${{ steps.test_seed.outputs.test_seed }}
           JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
@@ -849,35 +845,30 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
-          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
-          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          model="$root/winner/$V9_VALIDATION_WINNER_SHA.operational.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-independent-test "$model"
           python3 - "$root/results/independent-test.json" <<'PY'
-          import json,sys
-          r=json.load(open(sys.argv[1]))
-          assert r["configurationsEvaluated"]==1
-          assert r["trainPlanRead"] is False and r["validationResultsRead"] is False
-          assert r["refitted"] is False and r["testUsed"] is True
-          assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
-          assert r["operationalModelByteExactRoundTrip"] is True
-          assert r["validatedOperationalJsonSchema"] == "V9_FITTED_SNAPSHOT_V3"
-          assert r["sameOperationalJsonBytesAsProductionSideSqlPayload"] is True
-          assert r["validatedOperationalModelFileName"] == r["winnerSnapshotSha256"] + ".operational.json"
-          assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
-          assert r["productionRunnerFullPipelineParityCertified"] is False
-          assert r["certified"] is False and r["activated"] is False
-          print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",r["winnerSnapshotSha256"])
+          import json,os,runpy,sys
+          from pathlib import Path
+          report=Path(sys.argv[1])
+          winner=os.environ["V9_VALIDATION_WINNER_SHA"]
+          validate=runpy.run_path("scripts/v9-tf4-e2e-closeout.py")["validate_optional_test"]
+          validate(report,winner,strict=True)
+          assert json.loads(report.read_text())["testSeed"] == int(os.environ["JORNADA_V9_TEST_RESERVED_SEED"])
+          print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",winner)
           PY
-      - name: Upload only aggregate TEST result, never raw corpus or truth
-        if: always()
+          (cd "$root/results" && sha256sum independent-test.json > SHA256SUMS)
+      - name: Upload aggregate TEST result and integrity digest
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
           include-hidden-files: true
-          path: Solution/.local/v9-independent-test/results/independent-test.json
+          path: |
+            Solution/.local/v9-independent-test/results/independent-test.json
+            Solution/.local/v9-independent-test/results/SHA256SUMS
       - name: Package independent TEST synthetic corpus using PREPARE format
         if: always()
         run: |
@@ -926,9 +917,6 @@ jobs:
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
       PREPARATION_RESULT: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'success' || 'skipped' }} # legacy closeout compatibility; no separate TEST preparation
       TEST_RESULT: ${{ needs.test-100k.result }}
-      EXTERNAL_PREFLIGHT_RESULT: skipped
-      EXTERNAL_TEST_RESULT: skipped
-      V9_EXTERNAL_DATABASE: ''
       V9_TEST_REQUESTED: ${{ needs.validation-100k.outputs.has_winner == 'true' && 'true' || 'false' }}
       V9_VALIDATION_HAS_WINNER: ${{ needs.validation-100k.outputs.has_winner }}
     steps:
@@ -992,15 +980,13 @@ jobs:
               raise SystemExit("V9_AUDIT_ZERO_FINALISTS_RECEIPT_INVALID")
           PY
           fi
-          if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
+          if [[ "$V9_TEST_REQUESTED" == "true" && "$TEST_RESULT" == "success" ]]; then
             extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
           fi
-          extra+=(--external-preflight "$EXTERNAL_PREFLIGHT_RESULT"
-                  --external-test "$EXTERNAL_TEST_RESULT")
           python3 Solution/scripts/v9-tf4-e2e-closeout.py \
             --physical "$PHYSICAL_RESULT" --audit "$AUDIT_RESULT" \
             --validation "$VALIDATION_RESULT" --preparation "$PREPARATION_RESULT" \
-            --test "$TEST_RESULT" --test-requested "$V9_TEST_REQUESTED" \
+            --test "$TEST_RESULT" --test-requested "$V9_TEST_REQUESTED" --strict-test \
             --validation-file "$RUNNER_TEMP/v9-e2e-closeout/validation/validation-e2e-status.json" \
             "${extra[@]}" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
             --out "$RUNNER_TEMP/v9-e2e-closeout/e2e-status.json"

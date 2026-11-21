@@ -31,7 +31,8 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("var repetitions = 20;",source)
         self.assertIn("var requestedRepetitions = args.Length == 4 ? args[3] : null;",source)
         self.assertIn("repetitions is < 1 or > 200",source)
-        self.assertIn("diagnosticNonScientific = repetitions < 20",source)
+        self.assertIn("diagnosticNonScientific = diagnostic",source)
+        self.assertIn("if (!diagnostic || !int.TryParse(requestedRepetitions",source)
         self.assertIn("JORNADA_V9_TEST_CORPUS_DIR",source)
         self.assertIn("JORNADA_V9_TEST_OUTPUT_DIR",source)
         for bad in ("--v9-calibrate", "--v9-validate-finalists", "finalist-validation.json",

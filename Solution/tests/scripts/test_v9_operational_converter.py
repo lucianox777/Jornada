@@ -81,10 +81,12 @@ class OperationalConverterContract(unittest.TestCase):
         validation=wf.split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)[0]
         self.assertIn("validated-operational-model/*.operational.json",validation)
         self.assertIn("v9-tf4-validated-operational-model-",test)
-        self.assertIn("20261113_V9_Operational_Frozen_Model_Conversion.sql",test)
-        self.assertIn("--v9-convert-winner-operational",test)
+        bootstrap = (ROOT / "scripts/v9-tf-start-disposable-sql.sh").read_text()
+        self.assertIn("20261113_V9_Operational_Frozen_Model_Conversion.sql", bootstrap)
+        self.assertIn("v9-tf-start-disposable-sql.sh --independent-test",test)
+        self.assertIn("--v9-independent-test-preflight",test)
         self.assertIn("--v9-independent-test",test)
-        self.assertLess(test.index("Load versioned V9 SQL operational schema"),
+        self.assertLess(test.index("v9-tf-start-disposable-sql.sh --independent-test"),
                         test.index("Convert the ONLY SHA-pinned"))
         self.assertLess(test.index("Convert the ONLY SHA-pinned"),
                         test.index("Reserve single-use TEST seed"))

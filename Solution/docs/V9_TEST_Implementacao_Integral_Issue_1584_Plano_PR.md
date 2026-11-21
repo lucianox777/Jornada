@@ -1,38 +1,22 @@
-# Execução técnica — TEST científico V9 (issue #1584)
+# Implementação do TEST científico V9 — issue #1584
 
-Status: **implementação em andamento; sem certificação científica**.
+**Estado:** implementação técnica na [PR #1822](https://github.com/lucianox777/Jornada/pull/1822). A PR #1820 reconciliou os contratos na master, no squash [ccd7bf06f250](https://github.com/lucianox777/Jornada/commit/ccd7bf06f25041c5de10c4b7876e6908307fae23).
 
-## Limite desta PR
+| Etapa | Controle | Evidência |
+| --- | --- | --- |
+| VALIDATION | Exporta o arquivo operacional imutável e declara o SHA do único vencedor no próprio run. | Contrato V3, TF4/81 e SHA do arquivo verificados no handoff. |
+| Preflight TEST | SQL local descartável com credencial própria, marcador de inicialização e linha imutável TEST_ONLY. | Preflight C# rejeita formato, conteúdo, projeção, ambiente e marcador incompatíveis. O loader V9 confere os mesmos bytes do arquivo. |
+| Reserva e coorte | O workflow reserva UUIDv4/seed globalmente antes de gerar a coorte. O recibo vincula tag, run, tentativa, código e vencedor. | Registros de SHA do manifesto e observações. TRAIN e VALIDATION permanecem isolados da coorte do TEST. |
+| Avaliação | Executa uma configuração, com a projeção e os parâmetros congelados. Usa o kernel V9 compartilhado em SQL próprio. | Recibo agregado com métricas, SHA do grafo e das decisões por observação, sem registros individuais. |
+| CLOSEOUT | Vencedor obriga TEST. Ausência de vencedor encerra sem preparo nem reserva. | Recibo com o SHA do vencedor e verificação da integridade do relatório. Ausência ou falha de TEST fica explícita. |
+| Rotas legadas | Guardas do TEST histórico preservados. O antigo diagnóstico de banco apontado pelo usuário é recusado antes do TRAIN. | Regressões de admissão. O workflow padrão mantém a referência estatística externa do PREPARE bloqueada até a #1626. |
 
-Esta PR trata exclusivamente da implementação integral do TEST científico V9, separada da PR #1820, que reconcilia o contrato e os testes de regressão existentes. Base inicial: master; após o merge da #1820, reconciliar a segunda PR com master antes de integrar.
+A correção inicial da rota legada está registrada em [1807915](https://github.com/lucianox777/Jornada/commit/1807915). O bloqueio `V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY` foi movido para a admissão, antes de provisionar SQL ou iniciar TRAIN.
 
-## Contrato obrigatório
+## Verificações e rastreabilidade
 
-1. Entrada de modelo: somente o artefato operacional SHA-pinned emitido pela VALIDATION; nenhuma leitura de métricas TRAIN/VALIDATION para escolher ou ajustar o vencedor.
-2. Verificar SHA, esquema TF4/81, projeção, regras de blocking, limiares, agrupamento e round-trip operacional antes de acessar a coorte TEST.
-3. Executar exclusivamente em SQL descartável JornadaHarness e coorte TEST independente; sem execução do TEST no Runner produtivo, sem ativação, publicação ou refit.
-4. Se VALIDATION entregar vencedor válido, TEST deve ser obrigatório; caso contrário, CLOSEOUT explícito sem TEST. Preservar o ledger de uso único.
-5. O parâmetro `test_database` é referência estatística opcional do PREPARE, não é entrada do TEST. Preservar fail-closed onde o adaptador ainda não existe.
-6. Emitir relatório e CLOSEOUT auditáveis, com evidência de integridade, isolamento e privacidade; não declarar certificação ou paridade física sem comprovação.
-7. Preservar a retrocompatibilidade do Runner legado e o V9 opt-in; não exigir equivalência de métricas entre coortes distintas nem execução produtiva do TEST.
+- [CI da PR #1822](https://github.com/lucianox777/Jornada/pull/1822/checks). A suíte rápida verifica o fluxo e os casos negativos, incluindo evidência adulterada e ausência de vencedor.
+- O workflow `v9-operational-model-sql-smoke.yml` executa a CLI científica em modo diagnóstico com fixture de quatro observações e compara o artefato carregado com o loader V9 em banco efêmero. O smoke de `RunAsync` continua como evidência separada de regressão do Runner.
+- [Decisão de isolamento](Decisao_GOV_V9_TEST_Isolamento_Retrocompat_Liberacao_20261117.md), [relatório independente](Decisao_GOV_V9_TEST_Independente_Relatorio_20261119.md) e [índice de decisões vigentes](Indice_Decisoes_Vigentes.md) registram os critérios e a precedência (GOV-DOC-01).
 
-## Sequência verificável
-
-- [ ] Reconciliar esta branch após o merge da PR #1820.
-- [ ] Corrigir dependências de runtime SQL de modo que o artefato congelado seja a única autoridade do modelo, mantendo verificação byte-exata de conversão.
-- [ ] Corrigir caminho legado de workflow incompatível com a CLI científica, sem permitir substituição silenciosa de TEST.
-- [ ] Completar os gates automáticos de admissão, relatório e CLOSEOUT sem remover bloqueios sem evidência.
-- [ ] Adicionar testes unitários, contratuais e de isolamento e executar CI obrigatória.
-- [ ] Atualizar os documentos oficiais e `Solution/docs/Indice_Decisoes_Vigentes.md` conforme GOV-DOC-01 quando houver decisão nova/aprovada; preservar precedências.
-- [ ] Verificar evidências físicas autorizadas antes de declarar certificação; **não iniciar campanha 100k ou consumir TEST one-use apenas para integrar esta PR**.
-
-## Rastreabilidade e precedência
-
-Issue #1584; PR #1820; `Solution/docs/Decisao_GOV_V9_TEST_Isolamento_Retrocompat_Liberacao_20261117.md`; `Solution/docs/Decisao_GOV_V9_TEST_Projecao_Congelada_20261118.md`; `Solution/docs/Indice_Decisoes_Vigentes.md`. Este plano não cria nem substitui decisão de governança.
-
-## Evidência incremental — 2026-11-21
-
-- PR #1820 foi integrada à master; PR #1822 permanece independente e em draft.
-- Removida do workflow legado `v9-v3-four-name-100k.yml` a invocação incompatível `--v9-independent-test ... --test-database ...`; a rota externa agora termina explicitamente com `V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY`, sem encaminhar dados externos ao TEST científico. O workflow já possuía bloqueios de admissão; esta correção elimina a chamada perigosa mesmo se a rota for alcançada. O adaptador PREPARE externo continua pendente (#1626).
-- Atualizado teste contratual para exigir bloqueio explícito e ausência da invocação antiga.
-- Não houve execução científica, certificação, ativação ou publicação. Esta mudança não desbloqueia o gate de paridade física; CI deve confirmar regressões antes do merge.
+Os checks técnicos cobrem implementação, isolamento e compatibilidade do contrato. Validação científica da campanha e certificação integral do pipeline produtivo exigem evidência própria. A campanha 100k e a abertura da coorte científica de uso único exigem autorização específica.

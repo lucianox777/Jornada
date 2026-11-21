@@ -102,7 +102,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         self.assertIn("v9-tf4-test-sealed-",pre)
         self.assertIn("if-no-files-found: error",pre)
         self.assertIn("rm -rf --",pre)
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight]",train)
+        self.assertIn("needs: [legacy-inputs, prepare-test-100k]",train)
         self.assertIn("inputs.test_required != true",train)
         self.assertIn("needs.prepare-test-100k.result == 'success'",train)
         self.assertIn("needs: audit-100k",validation)

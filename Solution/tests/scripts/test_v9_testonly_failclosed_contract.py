@@ -24,10 +24,9 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
             marker = "V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"
             self.assertIn(marker, stage)
             self.assertLess(stage.index(marker), stage.index(start))
-        self.assertEqual(
-            workflow.count('productionRunnerFullPipelineParityCertified"] is False'), 2,
-            "Both synthetic and external-db TEST reports must remain uncertified",
-        )
+        self.assertEqual(workflow.count('productionRunnerFullPipelineParityCertified"] is False'), 1)
+        self.assertNotIn("test-database-readonly:", workflow)
+        self.assertIn("V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY", workflow)
 
     def test_runner_refuses_v9_production_fallback(self):
         runner = RUNNER.read_text(encoding="utf-8")
@@ -48,12 +47,14 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
         test = TEST.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile)", test)
         self.assertIn("validatedFileWinner.ContentSha256 != winnerSha", test)
-        self.assertIn('InitialCatalog != "JornadaHarness"', test)
+        self.assertIn('InitialCatalog = "JornadaHarness"', test)
+        self.assertIn("JornadaV9IndependentTest", test)
+        self.assertNotIn("ConnectionStrings__Jornada", test)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(", test)
         self.assertIn("conversion.ByteExactRoundTrip", test)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)", test)
         self.assertLess(
-            test.index("V9OperationalPinnedCohortRuntime.LoadPinnedAsync("),
+            test.index("await LoadExactOperationalRuntimeAsync(connection, validatedFileWinner)"),
             test.index("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)"),
         )
         self.assertIn("EvaluateFrozenTestAsync(", test)

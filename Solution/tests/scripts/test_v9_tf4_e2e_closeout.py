@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fail closed E2E status/test science/operational file compatibility; no 100k or TEST keys."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -93,6 +94,69 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertFalse(result["certified"])
         self.assertFalse(result["productionPublication"])
         self.assertIsNone(result["winnerSha256"])
+
+    def test_standard_test_receipt_binds_model_isolation_replay_and_digest(self):
+        evidence = test_doc() | {
+            "status": "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
+            "testSqlIsolationContract": "V9_INDEPENDENT_DISPOSABLE_SQL_V1",
+            "tfSlotCount": 4, "jointCellCount": 81, "blockingPassCount": 2,
+            "diagnosticNonScientific": False, "testEndToEndRepetitions": 20,
+            "projectionFingerprintSha256": E, "fitFingerprintSha256": E,
+            "testCorpusManifestSha256": E, "testObservationsSha256": E,
+            "replayEvidence": {
+                "DistinctCandidatePairs": 4,
+                "CandidateEdgesSha256": E, "ObservationDecisionsSha256": E,
+            },
+            "metric": {"OptionId": W, "BonferroniComparedConfigurations": 1},
+        }
+        def check(doc, write_digest=True):
+            self.test.write_text(json.dumps(doc), encoding="utf-8")
+            if write_digest:
+                digest = hashlib.sha256(self.test.read_bytes()).hexdigest()
+                (self.root / "SHA256SUMS").write_text(f"{digest}  {self.test.name}\n")
+            return mod.closeout("success", "success", "success", "success", "success",
+                                True, self.val, self.test, strict_test=True)
+
+        good = check(evidence)
+        self.assertEqual(good["independentTestReportStatus"], "VERIFIED")
+        self.assertEqual(good["productionRequirementsStatus"], "NOT_DEMONSTRATED")
+        for changed in (
+            {"tfSlotCount": 3}, {"jointCellCount": 80}, {"diagnosticNonScientific": True},
+            {"testEndToEndRepetitions": 21}, {"testSqlIsolationContract": "AMBIENT"},
+            {"replayEvidence": None}, {"testObservationsSha256": "modified"},
+            {"metric": evidence["metric"] | {"IdentityOutcomes": []}},
+        ):
+            with self.subTest(changed=changed):
+                result = check(evidence | changed)
+                self.assertEqual(result["winnerSha256"], W)
+                self.assertEqual(result["independentTestReportStatus"], "INVALID_RECEIPT")
+                self.assertEqual(result["independentTestScientificAssessment"], "INCONCLUSIVE")
+        check(evidence)
+        drift = check(evidence | {"blockingPassCount": 3}, write_digest=False)
+        self.assertEqual(drift["independentTestReportStatus"], "INVALID_RECEIPT")
+
+    def test_standard_closeout_fails_workflow_on_skipped_test_but_keeps_winner(self):
+        out = self.root / "closeout-report.json"
+        completed = subprocess.run([
+            sys.executable, str(SCRIPT), "--physical", "success", "--audit", "success",
+            "--validation", "success", "--preparation", "success", "--test", "skipped",
+            "--test-requested", "true", "--strict-test", "--validation-file", str(self.val),
+            "--code-sha", SHA, "--run-id", "12", "--out", str(out),
+        ], check=False, capture_output=True, text=True)
+        self.assertEqual(completed.returncode, 1)
+        report = json.loads(out.read_text())
+        self.assertEqual(report["winnerSha256"], W)
+        self.assertEqual(report["reason"], "V9_E2E_CLOSEOUT_MANDATORY_TEST_NOT_DISPATCHED")
+
+    def test_standard_no_winner_does_not_prepare_or_open_test(self):
+        self.val.write_text(json.dumps(validation_doc(None)), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "NO_WINNER_TEST_PREPARATION_DETECTED"):
+            mod.closeout("success", "success", "success", "success", "skipped",
+                         False, self.val, None, strict_test=True)
+        result = mod.closeout("success", "success", "success", "skipped", "skipped",
+                              False, self.val, None, strict_test=True)
+        self.assertIsNone(result["winnerSha256"])
+        self.assertEqual(result["independentTestReportStatus"], "NOT_REQUESTED")
 
     def test_missing_or_skipped_mandatory_stage_cannot_be_success(self):
         for fields, reason in [

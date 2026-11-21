@@ -1,4 +1,4 @@
-name: "V9 TF4 100k - Execucao com opcao de TEST"
+name: "V9 TF4 100k - Diagnóstico legado de TRAIN"
 
 # Owner-only entry point for the already-governed V9 TF4 physical pipeline.
 # This selector does not implement or unblock synthetic scientific TEST.
@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
       test_mode:
-        description: "TEST: sem TEST ou diagnostico SELECT-only em banco EXISTENTE. TEST cientifico 100k permanece bloqueado."
+        description: "Use sem_test para diagnóstico. O modo banco_existente_readonly foi revogado."
         required: true
         type: choice
         default: sem_test
@@ -23,7 +23,7 @@ on:
           - sem_test
           - banco_existente_readonly
       test_database:
-        description: "Obrigatorio apenas para banco_existente_readonly (ex.: JornadaDevReadonly); nenhum dado sintetico sera criado nele"
+        description: "Entrada revogada no workflow legado. Deixe vazia."
         required: false
         default: ""
         type: string
@@ -71,34 +71,17 @@ jobs:
             echo "::error::V9_SECURITY_PREFLIGHT_REQUIRED"
             exit 1
           }
-          case "$TEST_MODE" in
-            sem_test)
-              if [[ -n "$TEST_DATABASE" ]]; then
-                echo "::error::V9_DATABASE_REQUIRES_TEST_MODE"
-                exit 1
-              fi
-              echo "V9_TEST_MODE=OFF; physical TRAIN, independent AUDIT and VALIDATION remain mandatory"
-              ;;
-            banco_existente_readonly)
-              if [[ ! "$TEST_DATABASE" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]]; then
-                echo "::error::V9_READONLY_EXISTING_TEST_DATABASE_REQUIRED"
-                exit 1
-              fi
-              echo "V9_TEST_MODE=EXISTING_DATABASE_READONLY; private runner/SELECT-only secret required"
-              ;;
-            *)
-              echo "::error::V9_UNSUPPORTED_TEST_MODE; scientific synthetic TEST remains blocked pending RunAsync parity"
-              exit 1
-              ;;
-          esac
+          if [[ "$TEST_MODE" != "sem_test" || -n "$TEST_DATABASE" ]]; then
+            echo "::error::V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY"
+            exit 1
+          fi
+          echo "V9_LEGACY_TRAIN_DIAGNOSTIC_ONLY"
 
   calibrate-audit-validate:
-    name: "V9 - cadeia fisica unica com TEST opcional"
+    name: "V9 - diagnóstico físico legado"
     needs: admission
     if: ${{ needs.admission.result == 'success' }}
-    # The canonical workflow keeps the native runner timeouts, immutable SHA,
-    # TRAIN -> AUDIT -> VALIDATION -> optional TEST -> E2E closeout and all
-    # read-only/one-use boundaries. Do not copy or fork its 324-fit logic.
+    # Reuse the historical diagnostic, with the original owner/SHA guards.
     uses: ./.github/workflows/v9-v3-four-name-100k.yml
     # The called workflow requires this as an upper bound for its existing
     # one-use scientific TEST tag job; it narrows all other jobs to read-only.
@@ -109,8 +92,7 @@ jobs:
     with:
       expected_sha: ${{ inputs.expected_sha }}
       security_preflight_approved: ${{ inputs.security_preflight_approved }}
-      test_required: ${{ inputs.test_mode == 'banco_existente_readonly' }}
-      test_database: ${{ inputs.test_mode == 'banco_existente_readonly' && inputs.test_database || '' }}
+      test_required: false
+      test_database: ""
       expected_test_cert_sha256: ""
       disable_python_sql_budget: ${{ inputs.disable_python_sql_budget }}
-    secrets: inherit

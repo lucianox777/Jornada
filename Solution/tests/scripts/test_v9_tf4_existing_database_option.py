@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Historical legacy-workflow regression; its external TEST selector is revoked.
-The scientific CLI must reject the obsolete selector, even while legacy YAML
-remains present pending separate workflow migration.
-"""
+"""The obsolete external TEST selector fails before legacy TRAIN or scientific TEST."""
 import importlib.util
 import json
 from pathlib import Path
@@ -22,64 +19,22 @@ WINNER = "a" * 64
 
 
 class V9ExistingDatabaseOptionTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.workflow = WORKFLOW.read_text(encoding="utf-8")
-        cls.before_train, tail = cls.workflow.split("\n  physical-100k:\n", 1)
-        cls.train, tail = tail.split("\n  audit-100k:\n", 1)
-        cls.audit, tail = tail.split("\n  validation-100k:\n", 1)
-        cls.validation, tail = tail.split("\n  test-100k:\n", 1)
-        cls.scientific, tail = tail.split("\n  test-database-readonly:\n", 1)
-        cls.external, cls.closing = tail.split("\n  e2e-closeout:\n", 1)
+    def test_legacy_external_database_is_rejected_before_train(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        admission = workflow.split("\n  legacy-inputs:\n", 1)[1].split("\n  prepare-test-100k:\n", 1)[0]
+        train = workflow.split("\n  physical-100k:\n", 1)[1].split("\n  audit-100k:\n", 1)[0]
+        self.assertIn("      test_database:", workflow)
+        self.assertIn('if [[ -n "$LEGACY_TEST_DATABASE" ]]', admission)
+        self.assertIn("V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY", admission)
+        self.assertIn("exit 1", admission)
+        self.assertIn("needs.legacy-inputs.result == 'success'", train)
+        self.assertNotIn("test-database-readonly:", workflow)
+        self.assertNotIn("V9_EXTERNAL_TEST_READONLY_CONNECTION", workflow)
+        self.assertNotIn("--v9-external-test-preflight", workflow)
+        self.assertNotIn('--test-database "', workflow)
 
-    def test_one_test_checkbox_and_optional_database_name(self):
-        w = self.workflow
-        self.assertIn("      test_required:", w)
-        self.assertIn("      test_database:", w)
-        self.assertIn("default: \"\"", w)
-        self.assertNotIn("      prepare_sealed_test:", w)
-        self.assertNotIn("timeout-minutes:", w)
-        self.assertIn("needs: [prepare-test-100k, test-database-preflight]", w)
-        self.assertIn("needs.prepare-test-100k.result == 'success'", self.train)
-        self.assertIn("needs.test-database-preflight.result == 'success'", self.train)
-        self.assertIn("needs: physical-100k", self.audit)
-        self.assertIn("needs: audit-100k", self.validation)
-        self.assertNotIn("test_database", self.validation.split("\n    steps:", 1)[0])
-        self.assertIn("inputs.test_database == ''", self.scientific)
-        self.assertIn("inputs.test_database != ''", self.external)
-        self.assertIn("inputs.test_required == true", self.external)
-        self.assertIn("needs.validation-100k.result == 'success'", self.external)
-        self.assertIn("needs.test-database-preflight.result == 'success'", self.external)
-
-    def test_external_db_is_preflighted_before_any_expensive_train(self):
-        header = self.before_train
-        self.assertIn("test-database-preflight:", header)
-        self.assertIn("secrets.V9_EXTERNAL_TEST_READONLY_CONNECTION", header)
-        self.assertIn("--v9-external-test-preflight", header)
-        self.assertIn("contents: read", header)
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", header)
-        self.assertIn('inputs.test_database == \'\'', header)
-        self.assertIn("V9_DATABASE_REQUIRES_TEST_CHECKBOX", self.train)
-        self.assertIn("V9_EXTERNAL_DATABASE_PREFLIGHT_MUST_PASS_BEFORE_TRAIN", self.train)
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", self.train)
-        self.assertNotIn("V9_EXTERNAL_TEST_READONLY_CONNECTION", self.train + self.audit + self.validation)
-
-    def test_external_execution_never_generates_test_corpus_or_writes_source_sql(self):
-        w = self.external
-        self.assertIn("name: v9-tf4-validated-operational-model-", w)
-        self.assertIn("secrets.V9_EXTERNAL_TEST_READONLY_CONNECTION", w)
-        self.assertIn("V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY", w)
-        self.assertNotIn('--v9-independent-test "$model" --test-database "$V9_EXTERNAL_DATABASE"', w)
-        self.assertIn("external-database-test.json", w)
-        self.assertNotIn("v9-tf4-test-sealed-", w)
-        self.assertNotIn("TEST_PRIVATE_KEY_B64", w)
-        self.assertNotIn("CREATE DATABASE", w)
-        self.assertNotIn("v9-tf4-sealed-test-preparation.py unseal", w)
-        self.assertNotIn("--v9-convert-winner-operational", w)
-        self.assertIn("inputReadOnly", w)
-        self.assertIn("tpFpFnFdrRecallEvaluated", w)
-        self.assertIn("contents: read", w)
-        source = DB.read_text()
+    def test_historical_diagnostic_is_read_only_and_uncertified(self):
+        source = DB.read_text(encoding="utf-8")
         self.assertIn("ApplicationIntent.ReadOnly", source)
         self.assertIn("VerifyReadOnlyPrincipalAsync", source)
         self.assertIn("silver.pessoa_observacao", source)
@@ -184,14 +139,11 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
                         closeout.validate_existing_database_diagnostic(
                             path, raw["databaseName"], WINNER)
 
-    def test_external_branch_does_not_reuse_or_certify_sealed_test(self):
-        self.assertIn("test-database-readonly.result", self.closing)
-        self.assertIn("external-database-test.json", self.closing)
-        self.assertIn("EXTERNAL_TEST_RESULT", self.closing)
-        self.assertIn("V9_EXTERNAL_DATABASE", self.closing)
-        self.assertIn("productionRunnerFullPipelineParityCertified", DB.read_text())
-        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED",
-                      self.before_train + self.train)
+    def test_standard_closeout_cannot_substitute_diagnostic_for_scientific_test(self):
+        with self.assertRaisesRegex(ValueError, "EXTERNAL_DB_CANNOT_SUBSTITUTE"):
+            closeout.closeout("success", "success", "success", "skipped", "skipped",
+                              True, Path("validation.json"), None, external_database="History",
+                              strict_test=True)
 
 
 if __name__ == "__main__":

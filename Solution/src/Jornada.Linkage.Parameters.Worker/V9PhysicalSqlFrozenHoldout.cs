@@ -1,4 +1,8 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
@@ -7,7 +11,14 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 public sealed record V9FrozenHoldoutEvaluation(string SnapshotSha256, V9PhysicalSourceResolveMetric Metric,
     double? P95Milliseconds, double FalseDegreeP99, string LatencyProtocol,
-    IReadOnlyList<double> SamplesMilliseconds, bool Refitted = false);
+    IReadOnlyList<double> SamplesMilliseconds, bool Refitted = false)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public V9FrozenTestReplayEvidence? TestReplayEvidence { get; init; }
+}
+
+public sealed record V9FrozenTestReplayEvidence(int DistinctCandidatePairs, string CandidateEdgesSha256,
+    string ObservationDecisionsSha256);
 
 public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
 {
@@ -71,6 +82,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         var samples = new List<double>();
         V9PhysicalSourceResolveMetric? metric = null;
         string? outcome = null;
+        V9FrozenTestReplayEvidence? testReplayEvidence = null;
         double fanout = 0;
         for (var iteration = 0; iteration < Math.Max(1, execution.EndToEndRepetitions); iteration++)
         {
@@ -98,6 +110,13 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             if (outcome is not null && currentOutcome != outcome)
                 throw new InvalidDataException("Replay do snapshot congelado mudou entre repetições.");
             outcome = currentOutcome;
+            if (purpose == "TEST")
+            {
+                var currentEvidence = BuildTestReplayEvidence(edges, replay);
+                if (testReplayEvidence is not null && testReplayEvidence != currentEvidence)
+                    throw new InvalidDataException("Grafo ou decisões individuais TEST divergiram entre repetições.");
+                testReplayEvidence = currentEvidence;
+            }
             if (iteration == 0)
             {
                 var degrees = validation.ToDictionary(x => x.ObservationId, _ => 0);
@@ -111,7 +130,41 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             ? V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples).P95Milliseconds : null,
             fanout, purpose == "TEST"
             ? "V9_INDEPENDENT_TEST_ONE_FROZEN_MODEL_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1"
-            : "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly());
+            : "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly())
+        { TestReplayEvidence = testReplayEvidence };
+    }
+
+    private static V9FrozenTestReplayEvidence BuildTestReplayEvidence(
+        IReadOnlyList<(int A, int B)> edges, V9FrozenSourceReplayResult replay)
+    {
+        // SQL returns edges ordered by (a,b). Fixed-width encoding avoids ambiguity.
+        using var graph = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Span<byte> bytes = stackalloc byte[2 * sizeof(int)];
+        foreach (var (a, b) in edges)
+        {
+            BinaryPrimitives.WriteInt32BigEndian(bytes, a);
+            BinaryPrimitives.WriteInt32BigEndian(bytes[sizeof(int)..], b);
+            graph.AppendData(bytes);
+        }
+        // Compare partitions and ranked targets by the first member of each group.
+        var groupRepresentative = replay.IdentityByObservation.GroupBy(x => x.Value)
+            .ToDictionary(g => g.Key, g => g.Min(x => x.Key));
+        int? Group(Guid? id) => id is Guid value ? groupRepresentative[value] : null;
+        var decisions = replay.Decisions.OrderBy(x => x.ObservationId).Select(x => new
+        {
+            x.ObservationId,
+            Group = Group(replay.IdentityByObservation[x.ObservationId]),
+            x.Decision.Status,
+            Resolved = Group(x.Decision.PessoaUuidResolvido),
+            First = Group(x.Decision.MelhorCandidatoUuid),
+            Second = Group(x.Decision.SegundoCandidatoUuid),
+            x.Decision.MelhorScore,
+            x.Decision.SegundoScore,
+            x.Decision.Margem,
+            x.Decision.Motivo,
+        });
+        return new(edges.Count, Convert.ToHexStringLower(graph.GetHashAndReset()),
+            Sha(JsonSerializer.Serialize(decisions)));
     }
     /// <summary>
     /// TEST-only, small synthetic SQL parity fixture. This invokes the existing

@@ -55,7 +55,10 @@ class StandardTestPreflightContract(unittest.TestCase):
     def test_test_evaluates_only_frozen_winner(self):
         test = self.job("test-100k")
         self.assertIn("Apply one frozen winner to TEST, no refit and no winner selection", test)
-        self.assertIn("*.operational.json", test)
+        self.assertIn('files[0].name == expected + ".operational.json"', test)
+        self.assertIn("needs.validation-100k.outputs.winner_sha", test)
+        self.assertLess(test.index("--v9-independent-test-preflight"), test.index("v9-reserve-test-seed.py"))
+        self.assertIn('--winner-sha "$V9_VALIDATION_WINNER_SHA"', test)
         self.assertNotIn("finalist-validation.json", test)
 
 
