@@ -70,14 +70,14 @@ def audit(payload, replicates=2000, seed=42):
                   and x["tp"] + x["fp"] + x["abstained"] <= x["eligible"],
                   "inconsistent counts")
             paired[arm].append(x)
-        check(c["TF0"]["eligible"] == c["TF_ABSTAIN"]["eligible"]
+        check(c["TF0"]["abstained"] == 0 and c["TF0"]["abstainedPositive"] == 0,\n              "TF0 control must never abstain")\n        check(c["TF0"]["eligible"] == c["TF_ABSTAIN"]["eligible"]
               and c["TF0"]["positive"] == c["TF_ABSTAIN"]["positive"],
               "SQL frame/gabarito differs across arms")
     check(isinstance(payload.get("candidatePairsSha256"), str)
           and len(payload["candidatePairsSha256"]) == 64
           and all(ch in "0123456789abcdef" for ch in payload["candidatePairsSha256"]),
           "missing immutable common candidate frame")
-    summary = {arm: metrics(paired[arm]) for arm in ARMS}
+    summary = {arm: metrics(paired[arm]) for arm in ARMS}\n    check(summary["TF_ABSTAIN"]["abstainedPositive"] <= summary["TF_ABSTAIN"]["positive"],\n          "positive abstention exceeds true pairs")
     check(all(summary[a]["positive"] > 0 for a in ARMS),
           "no positive examples; recall undefined")
     rng = random.Random(seed)
