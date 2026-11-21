@@ -1,5 +1,9 @@
 """Differential receipt comparator contract tests (no scientific certification)."""
 import importlib.util
+import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -70,6 +74,27 @@ class DifferentialReceiptTests(unittest.TestCase):
             r[field] = True
             with self.subTest(field=field), self.assertRaises(ValueError):
                 module.compare(pair()[0], {**r, "runtime": "production"})
+
+    def test_cli_exit_codes_and_self_comparison(self):
+        a, b = pair()
+        with tempfile.TemporaryDirectory() as directory:
+            left = Path(directory) / "scientific.json"
+            right = Path(directory) / "production.json"
+            left.write_text(json.dumps(a), encoding="utf-8")
+            right.write_text(json.dumps(b), encoding="utf-8")
+            command = [sys.executable, str(SCRIPT), str(left), str(right)]
+            ok = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            self.assertTrue(json.loads(ok.stdout)["equivalent"])
+            b["decisions"][0]["decision"] = "LINK"
+            right.write_text(json.dumps(b), encoding="utf-8")
+            mismatch = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertFalse(json.loads(mismatch.stdout)["equivalent"])
+            self_compare = subprocess.run(
+                [sys.executable, str(SCRIPT), str(left), str(left)],
+                capture_output=True, text=True, check=False)
+            self.assertNotEqual(self_compare.returncode, 0)
 
     def test_same_runtime_or_swapped_receipts_rejected(self):
         a, b = pair()
