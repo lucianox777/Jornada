@@ -68,7 +68,8 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         w = self.external
         self.assertIn("name: v9-tf4-validated-operational-model-", w)
         self.assertIn("secrets.V9_EXTERNAL_TEST_READONLY_CONNECTION", w)
-        self.assertIn('--v9-independent-test "$model" --test-database "$V9_EXTERNAL_DATABASE"', w)
+        self.assertIn("V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY", w)
+        self.assertNotIn('--v9-independent-test "$model" --test-database "$V9_EXTERNAL_DATABASE"', w)
         self.assertIn("external-database-test.json", w)
         self.assertNotIn("v9-tf4-test-sealed-", w)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", w)
