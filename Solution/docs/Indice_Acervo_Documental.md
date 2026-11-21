@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-CAMPANHA-STANDARD-LINEAR-100K-AUTORIZACAO-CONDICIONAL-20261121:** [autorização expressa do PO para campanha V9 100k no SHA ed5137daa484679bef7c8dd42bf77e61460c9189, condicionada ao preflight e à ausência de falhas bloqueantes; despacho não efetuado](Decisao_GOV_V9_Autorizacao_Condicional_Campanha_Standard_Linear_100k_20261121.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-PARIDADE-BASELINE-44439087415-20261121:** [baseline comportamental aprovada pelo PO e evidências da campanha 100k/324, com closeout não concluído e paridade atual pendente](Decisao_GOV_V9_Paridade_Baseline_Run_44439087415_20261121.md). GOV-DOC-01.
 
 > **Atualização de rota — GOV-OPS-RECONCILIACAO-INICIAL-CI-PRS-20261120 (decisão PO; integrada pela PR #1774, squash `cc5f758bec3a74232e15b775cff6b16dde4ab559`):** a reconciliação bidirecional CI/Diagnostics ↔ PRs e pendências na inicialização está detalhada em [Mandato_IA_Ciclo_Desenvolvimento_Continuo.md](Mandato_IA_Ciclo_Desenvolvimento_Continuo.md), subordinada ao protocolo canônico de 13 etapas e à GOV-DOC-01. Não cria mecanismo paralelo.
