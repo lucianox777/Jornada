@@ -44,3 +44,10 @@ Emitir recibos `JORNADA_V9_DIFFERENTIAL_RECEIPT_V1` a partir de duas execuções
 **Impactos e limites:** somente integração do código e dos testes das cinco PRs; não autoriza TRAIN/TEST científico, 100k, alterações LOCKED, certificação TEST/PROD, publicação ou ativação Gold/Serving. O bloqueio `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` continua vigente. Não declarar integração concluída sem SHAs de merge e CI pós-merge.
 
 **Rastreabilidade:** PRs #1795–#1799; correções de sintaxe da #1797 nos commits `23b55c15` e `d96a08cc`; sincronização de conteúdo na #1799 nos commits `f0787d58` e `33c638fd`. Os estados de CI e eventuais bloqueios restantes devem constar nas PRs; a aprovação do PO não equivale a sucesso dos gates.
+
+
+### Fechamento operacional da autorização — 2026-11-21
+
+**Estado da integração:** concluída (5/5) na `master`, via squash e com verificações obrigatórias aprovadas para os HEADs integrados. Rastreabilidade dos merges: #1795 → `3211e2b8f7aa404d02d77ef3dbbb6214c7607c05`; #1796 → `4f41dc83d90d534e6da9b9293e89c255b61a1ebf`; #1797 → `16a72ae5b45c4f90ef1c7956b03ac7822641d825`; #1798 → `123ba95305ba574d1ef753eef7bbd60243a82bb5`; #1799 → `9845183c209cb2371555b89e86c3fbb8ec724143`.
+
+**Escopo e limites:** encerramento apenas da integração técnica autorizada pelo PO. Não equivale à comprovação de CI pós-merge acumulativa, à implementação dos dois produtores nativos, à certificação de paridade TEST/PROD, à execução científica TRAIN/TEST/100k, nem à publicação Gold/Serving. Permanecem as restrições anteriores e o bloqueio `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED`. A presente atualização documental requer integração própria pela PR, sem bypass de proteção.
