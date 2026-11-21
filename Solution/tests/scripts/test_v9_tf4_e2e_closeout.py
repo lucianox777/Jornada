@@ -99,6 +99,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         evidence = test_doc() | {
             "status": "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
             "testSqlIsolationContract": "V9_INDEPENDENT_DISPOSABLE_SQL_V1",
+            "testSqlCertificatePinned": True,
             "tfSlotCount": 4, "jointCellCount": 81, "blockingPassCount": 2,
             "diagnosticNonScientific": False, "testEndToEndRepetitions": 20,
             "projectionFingerprintSha256": E, "fitFingerprintSha256": E,
@@ -123,6 +124,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         for changed in (
             {"tfSlotCount": 3}, {"jointCellCount": 80}, {"diagnosticNonScientific": True},
             {"testEndToEndRepetitions": 21}, {"testSqlIsolationContract": "AMBIENT"},
+            {"testSqlCertificatePinned": False},
             {"replayEvidence": None}, {"testObservationsSha256": "modified"},
             {"metric": evidence["metric"] | {"IdentityOutcomes": []}},
         ):

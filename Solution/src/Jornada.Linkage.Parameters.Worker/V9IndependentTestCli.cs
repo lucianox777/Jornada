@@ -87,12 +87,13 @@ public static class V9IndependentTestCli
         var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
         var execution = new V9PhysicalAdaptiveExecution(
             MaximumPrefixLength: frozenPrefixLength,
-            EndToEndRepetitions: repetitions, TotalComparedConfigurations: 1,
+            EndToEndRepetitions: repetitions >= 20 ? repetitions : 0, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true,
             MaximumCandidatePairIncidences: diagnosticCap);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
             connection, corpus.Observations, winner, runtime, execution,
-            maximumAcceptedPerIdentity: 4, CancellationToken.None);
+            maximumAcceptedPerIdentity: 4, CancellationToken.None,
+            diagnosticRepetitions: repetitions < 20 ? repetitions : null);
         if (evaluated.Refitted || evaluated.SnapshotSha256 != winnerSha
             || evaluated.Metric.BonferroniComparedConfigurations != 1 || evaluated.TestReplayEvidence is null)
             throw new InvalidDataException("TEST alterou o modelo vencedor ou multiplicidade.");
@@ -108,6 +109,7 @@ public static class V9IndependentTestCli
             operationalModelId,
             operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
             testSqlIsolationContract = IsolationContract,
+            testSqlCertificatePinned = true,
             tfSlotCount = conversion.TfSlotCount,
             jointCellCount = conversion.JointCellCount,
             blockingPassCount = conversion.BlockingPassCount,
@@ -168,6 +170,7 @@ public static class V9IndependentTestCli
         {
             status = "V9_TEST_WINNER_READY_BEFORE_COHORT",
             testSqlIsolationContract = IsolationContract,
+            testSqlCertificatePinned = true,
             winnerSnapshotSha256 = runtime.WinnerSha256,
             operationalModelId = runtime.ModelId,
             projectionFingerprintSha256 = receipt.ProjectionFingerprintSha256,
@@ -199,21 +202,18 @@ public static class V9IndependentTestCli
     {
         if (Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV")
             throw new InvalidDataException("TEST independente só executa em DEV isolado.");
-        var password = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_PASSWORD");
+        var testSql = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_CONNECTION")
+            ?? throw new InvalidDataException("SQL efêmero próprio do TEST não configurado.");
         var marker = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_MARKER");
-        if (string.IsNullOrWhiteSpace(password) || marker is not { Length: 48 }
-            || !marker.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
-            throw new InvalidDataException("TEST exige credencial efêmera e marcador de isolamento.");
+        var builder = new SqlConnectionStringBuilder(testSql) { Pooling = false };
+        if (builder.InitialCatalog != "JornadaHarness" || builder.DataSource != "127.0.0.1,1433"
+            || builder.FailoverPartner.Length != 0 || builder.AttachDBFilename.Length != 0
+            || builder.IntegratedSecurity || builder.Authentication != SqlAuthenticationMethod.NotSpecified
+            || !builder.Encrypt.Equals(SqlConnectionEncryptOption.Mandatory)
+            || builder.TrustServerCertificate || !File.Exists(builder.ServerCertificate)
+            || marker is not { Length: 48 } || !marker.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            throw new InvalidDataException("TEST exige SQL local efêmero, certificado fixado e marcador de isolamento.");
 
-        var builder = new SqlConnectionStringBuilder
-        {
-            DataSource = "127.0.0.1,1433",
-            InitialCatalog = "JornadaHarness",
-            UserID = "sa",
-            Password = password,
-            TrustServerCertificate = true,
-            Pooling = false,
-        };
         var connection = new SqlConnection(builder.ConnectionString);
         try
         {
@@ -224,7 +224,9 @@ public static class V9IndependentTestCli
                 FROM sys.extended_properties
                 WHERE class = 0 AND name = N'JornadaV9IndependentTest'
                   AND DB_NAME() = N'JornadaHarness'
-                  AND SCHEMA_ID(N'gold') IS NULL AND SCHEMA_ID(N'serving') IS NULL;
+                  AND SCHEMA_ID(N'gold') IS NULL AND SCHEMA_ID(N'serving') IS NULL
+                  AND EXISTS (SELECT 1 FROM sys.dm_exec_connections
+                              WHERE session_id = @@SPID AND encrypt_option = N'TRUE');
                 """;
             if (!string.Equals(await command.ExecuteScalarAsync() as string, marker, StringComparison.Ordinal))
                 throw new InvalidDataException("SQL TEST não corresponde ao banco recém-inicializado e isolado.");

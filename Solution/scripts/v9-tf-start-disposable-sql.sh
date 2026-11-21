@@ -106,8 +106,31 @@ printf 'MSSQL_SA_PASSWORD=%s\n' "$sql_password" > "$sql_env_file"
 if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" ]]; then
   printf 'MSSQL_MEMORY_LIMIT_MB=%s\n' "$V9_SQL_MEMORY_LIMIT_MB" >> "$sql_env_file"
 fi
+sql_tls_args=()
+if [[ "$independent_test" == "true" ]]; then
+  sql_tls_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/jornada-v9-test-sql.XXXXXXXX")"
+  openssl req -newkey rsa:2048 -noenc -x509 -sha256 -days 1 \
+    -subj /CN=localhost -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' \
+    -addext 'extendedKeyUsage=serverAuth' -keyout "$sql_tls_dir/mssql.key" \
+    -out "$sql_tls_dir/mssql.pem" >/dev/null 2>&1
+  chmod 0400 "$sql_tls_dir/mssql.key"
+  sudo chown 10001:0 "$sql_tls_dir/mssql.key"
+  chmod 0644 "$sql_tls_dir/mssql.pem"
+  cat > "$sql_tls_dir/mssql.conf" <<'SQLCONF'
+[network]
+tlscert = /etc/ssl/certs/jornada-v9-test.pem
+tlskey = /etc/ssl/private/jornada-v9-test.key
+tlsprotocols = 1.2
+forceencryption = 1
+SQLCONF
+  sql_tls_args=(
+    --volume "$sql_tls_dir/mssql.conf:/var/opt/mssql/mssql.conf:ro"
+    --volume "$sql_tls_dir/mssql.pem:/etc/ssl/certs/jornada-v9-test.pem:ro"
+    --volume "$sql_tls_dir/mssql.key:/etc/ssl/private/jornada-v9-test.key:ro"
+  )
+fi
 docker run --detach --rm \
-  "${sql_memory_args[@]}" \
+  "${sql_memory_args[@]}" "${sql_tls_args[@]}" \
   --name "$sql_name" \
   --publish 127.0.0.1:1433:1433 \
   --env ACCEPT_EULA=Y --env MSSQL_PID=Developer \
@@ -137,7 +160,8 @@ SQL
           'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
           < "$(dirname "${BASH_SOURCE[0]}")/../database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql"
       {
-        printf 'JORNADA_V9_TEST_SQL_PASSWORD=%s\n' "$sql_password"
+        printf 'JORNADA_V9_TEST_SQL_CONNECTION=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;Encrypt=Mandatory;ServerCertificate=%s\n' \
+          "$sql_password" "$sql_tls_dir/mssql.pem"
         printf 'JORNADA_V9_TEST_SQL_MARKER=%s\n' "$test_marker"
       } >> "$GITHUB_ENV"
     fi

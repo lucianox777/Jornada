@@ -14,9 +14,9 @@ public sealed class V9IndependentTestSqlTests
     [Test]
     public async Task Isolated_worker_consumes_exact_validation_file_and_reports_fixture_without_publication()
     {
-        var password = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_PASSWORD");
+        var sqlConnection = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_CONNECTION");
         var marker = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_SQL_MARKER");
-        if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(marker))
+        if (string.IsNullOrEmpty(sqlConnection) || string.IsNullOrEmpty(marker))
         {
             Assert.Ignore("O smoke requer SQL efêmero inicializado pelo workflow.");
             return;
@@ -46,6 +46,13 @@ public sealed class V9IndependentTestSqlTests
             Set("JORNADA_V9_TEST_SQL_MARKER", new string('0', 48));
             Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() => V9IndependentTestCli.PreflightAsync(preflight)));
             Set("JORNADA_V9_TEST_SQL_MARKER", marker);
+            var missingCertificate = new SqlConnectionStringBuilder(sqlConnection)
+            {
+                ServerCertificate = Path.Combine(root, "missing.pem"),
+            };
+            Set("JORNADA_V9_TEST_SQL_CONNECTION", missingCertificate.ConnectionString);
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() => V9IndependentTestCli.PreflightAsync(preflight)));
+            Set("JORNADA_V9_TEST_SQL_CONNECTION", sqlConnection);
             Set("JORNADA_V9_TEST_CORPUS_DIR", corpus);
             Set("JORNADA_V9_TEST_OUTPUT_DIR", output);
             Set("JORNADA_V9_TEST_RESERVED_SEED", "7"); // Handwritten fixture; no ledger or generator.
@@ -73,11 +80,13 @@ public sealed class V9IndependentTestSqlTests
             {
                 Assert.That(report.GetProperty("winnerSnapshotSha256").GetString(), Is.EqualTo(winner.ContentSha256));
                 Assert.That(report.GetProperty("testSqlIsolationContract").GetString(), Is.EqualTo(V9IndependentTestCli.IsolationContract));
+                Assert.That(report.GetProperty("testSqlCertificatePinned").GetBoolean(), Is.True);
                 Assert.That(report.GetProperty("tfSlotCount").GetInt32(), Is.EqualTo(4));
                 Assert.That(report.GetProperty("jointCellCount").GetInt32(), Is.EqualTo(81));
                 Assert.That(report.GetProperty("evaluatedTestObservations").GetInt32(), Is.EqualTo(4));
                 Assert.That(report.GetProperty("selectedTestBaseIdentities").GetInt32(), Is.EqualTo(2));
                 Assert.That(report.GetProperty("diagnosticNonScientific").GetBoolean(), Is.True);
+                Assert.That(report.GetProperty("p95Milliseconds").ValueKind, Is.EqualTo(JsonValueKind.Null));
                 Assert.That(report.GetProperty("productionRunnerFullPipelineParityCertified").GetBoolean(), Is.False);
                 Assert.That(report.GetProperty("operationalModelPublished").GetBoolean(), Is.False);
                 Assert.That(report.GetProperty("activated").GetBoolean(), Is.False);
@@ -86,13 +95,8 @@ public sealed class V9IndependentTestSqlTests
                 Assert.That(replay.GetProperty("ObservationDecisionsSha256").GetString(), Has.Length.EqualTo(64));
             }
 
-            var connection = new SqlConnectionStringBuilder
-            {
-                DataSource = "127.0.0.1,1433", InitialCatalog = "JornadaHarness", UserID = "sa",
-                Password = password, TrustServerCertificate = true,
-            };
             var runnerLoader = new SqlProbabilisticIdentityLinkage(null!,
-                new OperationalSqlAdapter(connection.ConnectionString), NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
+                new OperationalSqlAdapter(sqlConnection), NullLogger<SqlProbabilisticIdentityLinkage>.Instance);
             var runnerRuntime = await runnerLoader.LoadPinnedV9GroupedCohortRuntimeAsync(
                 exported.OperationalModelId, winner.ContentSha256, CancellationToken.None);
             Assert.That(runnerRuntime.FrozenWinner.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));

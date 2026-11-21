@@ -47,7 +47,7 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
         test = TEST.read_text(encoding="utf-8")
         self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile)", test)
         self.assertIn("validatedFileWinner.ContentSha256 != winnerSha", test)
-        self.assertIn('InitialCatalog = "JornadaHarness"', test)
+        self.assertIn('InitialCatalog != "JornadaHarness"', test)
         self.assertIn("JornadaV9IndependentTest", test)
         self.assertNotIn("ConnectionStrings__Jornada", test)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(", test)

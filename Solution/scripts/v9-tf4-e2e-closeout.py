@@ -130,6 +130,7 @@ def validate_optional_test(path: Path, winner_sha: str | None, *, strict: bool =
     if strict:
         require(r.get("status") == "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED"
                 and r.get("testSqlIsolationContract") == "V9_INDEPENDENT_DISPOSABLE_SQL_V1"
+                and r.get("testSqlCertificatePinned") is True
                 and r.get("tfSlotCount") == 4 and r.get("jointCellCount") == 81
                 and type(r.get("blockingPassCount")) is int and r["blockingPassCount"] > 0
                 and r.get("diagnosticNonScientific") is False

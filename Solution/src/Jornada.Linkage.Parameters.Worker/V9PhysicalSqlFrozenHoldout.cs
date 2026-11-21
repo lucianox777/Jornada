@@ -35,15 +35,15 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test, V9FittedSnapshot winner,
         V9OperationalPinnedCohortRuntime operationalRuntime,
         V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int? diagnosticRepetitions = null)
         => await EvaluateFrozenPartitionAsync(connection, test, winner, execution,
-            maximumAcceptedPerIdentity, 1, "TEST", cancellationToken, operationalRuntime);
+            maximumAcceptedPerIdentity, 1, "TEST", cancellationToken, operationalRuntime, diagnosticRepetitions);
 
     private static async Task<V9FrozenHoldoutEvaluation> EvaluateFrozenPartitionAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation, V9FittedSnapshot snapshot,
         V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
         int comparedConfigurations, string purpose, CancellationToken cancellationToken,
-        V9OperationalPinnedCohortRuntime? operationalRuntime = null)
+        V9OperationalPinnedCohortRuntime? operationalRuntime = null, int? diagnosticRepetitions = null)
     {
         if (purpose is not ("VALIDATION" or "TEST"))
             throw new InvalidDataException("Finalidade de avaliação inválida.");
@@ -61,6 +61,9 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         if (purpose == "VALIDATION" && operationalRuntime is not null)
             throw new InvalidDataException("Runtime de TEST nunca é injetado na VALIDATION.");
         execution.Validate(true, true);
+        if (diagnosticRepetitions.HasValue
+            && (purpose != "TEST" || diagnosticRepetitions is < 1 or >= 20 || execution.EndToEndRepetitions != 0))
+            throw new InvalidDataException("Repetições diagnósticas do TEST exigem avaliação sem P95 científico.");
         if (maximumAcceptedPerIdentity < 1 || comparedConfigurations < 1 || comparedConfigurations > 3
             || validation.Count < 4 || validation.Any(x => x is null || x.Partition != purpose
                 || x.ObservationId <= 0 || string.IsNullOrWhiteSpace(x.BasePersonId) || string.IsNullOrWhiteSpace(x.Gestor))
@@ -84,7 +87,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         string? outcome = null;
         V9FrozenTestReplayEvidence? testReplayEvidence = null;
         double fanout = 0;
-        for (var iteration = 0; iteration < Math.Max(1, execution.EndToEndRepetitions); iteration++)
+        var iterations = diagnosticRepetitions ?? Math.Max(1, execution.EndToEndRepetitions);
+        for (var iteration = 0; iteration < iterations; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var timer = Stopwatch.StartNew();
