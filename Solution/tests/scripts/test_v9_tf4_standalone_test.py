@@ -15,8 +15,9 @@ class StandaloneTestContract(unittest.TestCase):
     def test_only_model_is_explicit_cli_parameter(self):
         source=CLI.read_text()
         self.assertIn('args.Length != 2 && args.Length != 4',source)
-        self.assertIn('args[2] != "--test-database" && args[2] != "--test-repetitions"',source)
-        self.assertIn("V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3])",source)
+        self.assertIn('args[2] != "--test-repetitions"',source)
+        self.assertNotIn('args[2] == "--test-database"',source)
+        self.assertNotIn("V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3])",source)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",source)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)",source)

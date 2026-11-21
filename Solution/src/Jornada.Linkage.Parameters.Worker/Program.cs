@@ -70,9 +70,12 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-external-test-preflight")
     return;
 }
 
-// Independent TEST accepts the same winning operational JSON, optionally
-// --test-database for EXISTING read-only records without synthetic generation.
-// No DB argument keeps the sealed synthetic 100K scientific protocol.
+// Independent scientific TEST accepts the frozen winning operational JSON.
+// The standard V9 workflow generates an independent synthetic cohort; its
+// optional workflow_dispatch test_database is a PREPARE statistical reference,
+// NOT an existing-database TEST selector. The legacy worker CLI still exposes
+// a read-only diagnostic mode pending migration (issue #1584); that mode is
+// neither the standard scientific TEST nor evidence of production parity.
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-independent-test")
 {
     await V9IndependentTestCli.RunAsync(guardedArgs);

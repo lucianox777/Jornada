@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""TEST source selector: blank DB = sealed synthetic 100k, explicit DB = existing read-only.
-Never exposes independent TEST truth, Gold or production publication.
+"""Historical legacy-workflow regression; its external TEST selector is revoked.
+The scientific CLI must reject the obsolete selector, even while legacy YAML
+remains present pending separate workflow migration.
 """
 import importlib.util
 import json
@@ -124,14 +125,15 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         self.assertIn("Assert.ThrowsAsync<InvalidOperationException>", smoke)
         self.assertIn('"REVERT;"', smoke)
 
-    def test_cli_is_explicit_parameter_no_synthetic_when_present(self):
-        src = TEST.read_text()
-        self.assertIn('args[2] != "--test-database"', src)
-        self.assertIn("V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3])", src)
-        self.assertIn("return;", src)
-        self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)", src)
-        self.assertIn("--v9-external-test-preflight", ENTRY.read_text())
-        self.assertIn("V9_EXTERNAL_TEST_REQUESTED", self.closing) if False else None
+    def test_scientific_cli_rejects_external_database_before_loading_winner(self):
+        src = TEST.read_text(encoding="utf-8")
+        argument_check, execution = src.split("var winnerFile = Path.GetFullPath(args[1]);", 1)
+        self.assertIn('args[2] != "--test-repetitions"', argument_check)
+        self.assertIn("throw new ArgumentException", argument_check)
+        self.assertNotIn('"--test-database"', src)
+        self.assertNotIn("V9ExternalDatabaseReadOnlyTest.RunAsync", src)
+        self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)", execution)
+        self.assertIn("--v9-external-test-preflight", ENTRY.read_text(encoding="utf-8"))
 
     def fixture(self):
         return {

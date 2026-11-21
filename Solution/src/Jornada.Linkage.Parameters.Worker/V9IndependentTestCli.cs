@@ -21,9 +21,9 @@ public static class V9IndependentTestCli
     {
         if ((args.Length != 2 && args.Length != 4)
             || args[0] != "--v9-independent-test"
-            || (args.Length == 4 && args[2] != "--test-database" && args[2] != "--test-repetitions"))
+            || (args.Length == 4 && args[2] != "--test-repetitions"))
             throw new ArgumentException(
-                "Uso: --v9-independent-test <sha256.operational.json> [--test-database <database_existente> | --test-repetitions <inteiro>].");
+                "Uso: --v9-independent-test <sha256.operational.json> [--test-repetitions <inteiro>]. Banco externo e permitido apenas como referencia estatistica opcional do PREPARE.");
         var winnerFile = Path.GetFullPath(args[1]);
         var name = Path.GetFileName(winnerFile);
         if (!name.EndsWith(V9ValidatedOperationalModelFile.Suffix, StringComparison.Ordinal)
@@ -38,14 +38,6 @@ public static class V9IndependentTestCli
         var validatedFileWinner = await V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile);
         if (validatedFileWinner.ContentSha256 != winnerSha)
             throw new InvalidDataException("TEST recebeu arquivo diferente do vencedor VALIDATION.");
-        if (args.Length == 4 && args[2] == "--test-database")
-        {
-            // Explicit database means EXISTING rows, never silent synthetic
-            // generation. A separate SELECT-only SQL principal is mandatory.
-            // This is an operational diagnostic, not the sealed scientific TEST.
-            await V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3]);
-            return;
-        }
         var testDir = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_CORPUS_DIR");
         var output = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_OUTPUT_DIR");
         if (string.IsNullOrWhiteSpace(testDir) || string.IsNullOrWhiteSpace(output))
