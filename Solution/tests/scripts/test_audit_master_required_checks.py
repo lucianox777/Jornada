@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Offline negative cases for the read-only master protection audit."""
 import importlib.util
+import io
+import urllib.error
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[2] / "scripts/audit-master-required-checks.py"
@@ -11,6 +14,28 @@ spec.loader.exec_module(audit)
 
 
 class MasterRequiredChecksAuditTests(unittest.TestCase):
+    def test_http_error_reports_only_endpoint_and_status(self):
+        for failed_endpoint, label in (
+            ("/branches/master/protection", "branch_protection"),
+            ("/rulesets", "repository_rulesets"),
+        ):
+            with self.subTest(endpoint=failed_endpoint):
+                def fake_request(repo, endpoint, token):
+                    if endpoint == failed_endpoint:
+                        raise urllib.error.HTTPError(
+                            "https://api.github.com/private?token=SECRET",
+                            403, "SECRET", {}, io.BytesIO(b"SECRET"))
+                    return {"required_status_checks": {"contexts": []}}
+                with patch.object(audit, "request_json", side_effect=fake_request):
+                    with patch.dict(audit.os.environ, {"GITHUB_TOKEN": "SECRET"}):
+                        with patch("sys.argv", ["audit-master-required-checks.py"]):
+                            with self.assertRaises(SystemExit) as caught:
+                                audit.main()
+                message = str(caught.exception)
+                self.assertEqual(message, f"UNKNOWN: {label} API returned HTTP 403")
+                self.assertNotIn("SECRET", message)
+                self.assertNotIn("https:", message)
+
     def test_non_object_required_checks_are_unverified_not_crash(self):
         for invalid in ([], ["unit-runtime"], "unit-runtime", 42):
             with self.subTest(invalid=invalid):
