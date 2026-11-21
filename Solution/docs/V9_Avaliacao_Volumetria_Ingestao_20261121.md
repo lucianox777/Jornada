@@ -67,3 +67,12 @@ O PO questionou a utilidade de uma calibração pontual de infraestrutura DEV e 
 **Governança proposta:** perfis de configuração versionados por ambiente; defaults DEV atuais, HML/PROD calibrados por observação real; limites de segurança e validação fail-closed; alarmes por tendências e faixas aprovadas, sem inventar SLA. Critérios de conclusão para monitor: telemetria real, métricas e alertas testados, runbook e responsável operacional; o monitor continua executando após o fechamento da issue de implantação.
 
 **Estado:** proposta documentada para decisão do PO; nenhuma issue criada/fechada ou critério de aceite alterado nesta revisão.
+
+## Auditoria de observabilidade interna e redução de escopo — 21/11/2026
+O PO orientou restringir eventual entrega de código à substituição de limites hardcoded por configuração existente e, somente se houver lacuna comprovada, ao registro de eventos internos indispensáveis; monitoramento HTTP e infraestrutura externa não integra escopo do produto.
+
+**Evidência estática:** `ApiAuditMiddleware` já cria/propaga `X-Correlation-Id`, mede tempo/status/rota com `JornadaTelemetry.RecordApiRequest`, persiste auditoria e registra falha; `ProcessorWorker` registra início, falhas e recuperação de leases; `LinkageRunnerWorker` registra execução/cancelamento/erro e duração via `JornadaTelemetry.RecordLinkageRun`; `V9CalibrationRuntimeScheduler` possui coleta de amostras e recibos de agendamento/recurso de calibração. Portanto **não abrir tarefa genérica de logs** nem criar monitor próprio. Auditoria não prova completude de todos os eventos internos nem execução real; lacunas devem ser demonstradas em testes antes de codificar.
+
+**Escopo proposto para #1348:** (a) manter limites 10k pessoas/10k registros já configuráveis; (b) parametrizar 250 MiB comprimido, 2 GiB expandido e, se justificável, 64 KiB manifest, preservando defaults; (c) testes positivos/negativos e consistência entre API e Processor; (d) registrar somente lacunas comprovadas de eventos internos de falha/retry/reconciliação. Excluir novo dashboard, logs HTTP redundantes, coleta CPU/RAM/disco, estudo de dimensionamento DEV, calibração HML/PROD. A campanha HTTP 100k original da #1348 deve ser **reavaliada explicitamente pelo PO** antes de alterar seus critérios: não foi automaticamente cancelada. #1349 permanece prova de motor V9 independente.
+
+**Estado:** diretriz PO registrada, implementação e reclassificação da issue pendentes; PR #1836 exclusivamente documental. Nenhuma alteração de runtime.
