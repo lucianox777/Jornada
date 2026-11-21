@@ -25,3 +25,6 @@ A **próxima prioridade do sistema é disponibilizar o Runner funcional para a v
 
 ## Política operacional de PRs fechadas — PO 21/11/2026
 PRs já fechadas, com ou sem merge, **não serão reabertas** nem reintroduzidas na fila de trabalho. São somente referências históricas de evidência; auditar código atual e issues/PRs abertas. A #1654 está fechada, assim como a #1712; referência histórica que indicava #1654 aberta não é status atual. Detalhes em `V9_Auditoria_Incremental_Issue946_PRs_Fechadas_20261121.md`.
+
+## Dependência do ensaio 100k — decisão PO 21/11/2026
+A issue #1349 é **subtarefa posterior** à conclusão das capacidades aplicáveis do motor/calibrador (#946/#1089), contrato de seleção MASTER (#1488) e execução operacional V9 em lote (#1584), com provas funcionais e regressão V8. O ensaio 100k multiparâmetros não é critério para iniciar a implementação do Runner; permanece NÃO COBERTO e dependente, com planejamento/execução apenas após esses pré-requisitos. O E2E HTTP→Serving #1348 é trilha distinta; TEST científico #1478 e DT-15 mantêm gates próprios. Motivo: evitar ensaio volumétrico sobre adaptador produtivo ainda bloqueado, não confundir SCALE V8 com V9 nem repetir testes. Impacto: prioridade de execução passa a #1488/#1584; #1349 fica posterior, sem mudança de parâmetros, autorização de campanha ou ativação.
