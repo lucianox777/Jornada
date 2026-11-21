@@ -24,3 +24,7 @@ Os checks técnicos cobrem implementação, isolamento e compatibilidade do cont
 O [check de segurança inicial](https://github.com/lucianox777/Jornada/actions/runs/44880060797/job/136773347610) identificou a conexão do ensaio sem validação do certificado. A correção usa TLS obrigatório com o certificado gerado para o contêiner descartável e valida a conexão antes de materializar o vencedor.
 
 O [primeiro ensaio físico da CLI](https://github.com/lucianox777/Jornada/actions/runs/44880060779/job/136773168407) confirmou o preflight e revelou que o caminho diagnóstico de duas repetições passava pelo validador do P95 científico. O caminho diagnóstico agora mede o fixture sem calcular P95. O protocolo do workflow padrão continua com 20 repetições.
+
+O [smoke entre jobs](https://github.com/lucianox777/Jornada/actions/runs/44880435234/job/136774496575) ainda ensaiava vencedor com TEST opcional. O fixture passou a seguir o contrato vigente e a conferir o CLOSEOUT com recibos sintéticos e resultados reais dos jobs.
+
+O [primeiro bootstrap com TLS](https://github.com/lucianox777/Jornada/actions/runs/44880435133/job/136774353771) não ficou saudável. O SQL Server agora lê o certificado e a chave a partir do diretório da instância, acessível à conta do serviço. Se houver outra falha, o log registra o estado do contêiner e os erros de inicialização de TLS.

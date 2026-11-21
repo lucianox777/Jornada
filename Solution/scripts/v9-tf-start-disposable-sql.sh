@@ -106,31 +106,37 @@ printf 'MSSQL_SA_PASSWORD=%s\n' "$sql_password" > "$sql_env_file"
 if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" ]]; then
   printf 'MSSQL_MEMORY_LIMIT_MB=%s\n' "$V9_SQL_MEMORY_LIMIT_MB" >> "$sql_env_file"
 fi
-sql_tls_args=()
+sql_instance_args=(--rm)
 if [[ "$independent_test" == "true" ]]; then
   sql_tls_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/jornada-v9-test-sql.XXXXXXXX")"
   openssl req -newkey rsa:2048 -noenc -x509 -sha256 -days 1 \
-    -subj /CN=localhost -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' \
-    -addext 'extendedKeyUsage=serverAuth' -keyout "$sql_tls_dir/mssql.key" \
+    -subj /CN=jornada-v9-test-sql \
+    -addext 'subjectAltName=DNS:jornada-v9-test-sql,DNS:localhost,IP:127.0.0.1' \
+    -addext 'extendedKeyUsage=serverAuth' -addext 'keyUsage=digitalSignature,keyEncipherment' \
+    -keyout "$sql_tls_dir/mssql.key" \
     -out "$sql_tls_dir/mssql.pem" >/dev/null 2>&1
-  chmod 0400 "$sql_tls_dir/mssql.key"
+  chmod 0440 "$sql_tls_dir/mssql.key"
   sudo chown 10001:0 "$sql_tls_dir/mssql.key"
   chmod 0644 "$sql_tls_dir/mssql.pem"
   cat > "$sql_tls_dir/mssql.conf" <<'SQLCONF'
 [network]
-tlscert = /etc/ssl/certs/jornada-v9-test.pem
-tlskey = /etc/ssl/private/jornada-v9-test.key
+tlscert = /var/opt/mssql/jornada-v9-test.pem
+tlskey = /var/opt/mssql/jornada-v9-test.key
 tlsprotocols = 1.2
 forceencryption = 1
 SQLCONF
-  sql_tls_args=(
+  chmod 0644 "$sql_tls_dir/mssql.conf"
+  # The unprivileged mssql user must be able to traverse the parent directory.
+  # Retain a stopped TEST container until the job's cleanup to diagnose startup.
+  sql_instance_args=(
+    --hostname jornada-v9-test-sql
     --volume "$sql_tls_dir/mssql.conf:/var/opt/mssql/mssql.conf:ro"
-    --volume "$sql_tls_dir/mssql.pem:/etc/ssl/certs/jornada-v9-test.pem:ro"
-    --volume "$sql_tls_dir/mssql.key:/etc/ssl/private/jornada-v9-test.key:ro"
+    --volume "$sql_tls_dir/mssql.pem:/var/opt/mssql/jornada-v9-test.pem:ro"
+    --volume "$sql_tls_dir/mssql.key:/var/opt/mssql/jornada-v9-test.key:ro"
   )
 fi
-docker run --detach --rm \
-  "${sql_memory_args[@]}" "${sql_tls_args[@]}" \
+docker run --detach \
+  "${sql_memory_args[@]}" "${sql_instance_args[@]}" \
   --name "$sql_name" \
   --publish 127.0.0.1:1433:1433 \
   --env ACCEPT_EULA=Y --env MSSQL_PID=Developer \
@@ -168,7 +174,16 @@ SQL
     echo "PASS: disposable SQL Server healthy; SA credential masked before startup."
     exit 0
   fi
+  if [[ "$independent_test" == "true" ]] &&
+     [[ "$(docker inspect --format '{{.State.Running}}' "$sql_name")" != "true" ]]; then
+    break
+  fi
   sleep 2
 done
+if [[ "$independent_test" == "true" ]]; then
+  docker inspect --format 'SQL TEST container status: {{.State.Status}} (exit {{.State.ExitCode}})' "$sql_name" >&2 || true
+  docker logs --tail 80 "$sql_name" 2>&1 |
+    grep -Ei 'certificate|encryption|TLS|permission denied|error: [0-9]+' >&2 || true
+fi
 echo "Fail closed: disposable SQL Server did not become healthy." >&2
 exit 1

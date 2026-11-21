@@ -56,6 +56,23 @@ def test_doc(full_parity=False):
     }
 
 
+def standard_test_doc():
+    return test_doc() | {
+        "status": "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
+        "testSqlIsolationContract": "V9_INDEPENDENT_DISPOSABLE_SQL_V1",
+        "testSqlCertificatePinned": True,
+        "tfSlotCount": 4, "jointCellCount": 81, "blockingPassCount": 2,
+        "diagnosticNonScientific": False, "testEndToEndRepetitions": 20,
+        "projectionFingerprintSha256": E, "fitFingerprintSha256": E,
+        "testCorpusManifestSha256": E, "testObservationsSha256": E,
+        "replayEvidence": {
+            "DistinctCandidatePairs": 4,
+            "CandidateEdgesSha256": E, "ObservationDecisionsSha256": E,
+        },
+        "metric": {"OptionId": W, "BonferroniComparedConfigurations": 1},
+    }
+
+
 class V9Tf4E2ECloseoutTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -96,20 +113,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertIsNone(result["winnerSha256"])
 
     def test_standard_test_receipt_binds_model_isolation_replay_and_digest(self):
-        evidence = test_doc() | {
-            "status": "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
-            "testSqlIsolationContract": "V9_INDEPENDENT_DISPOSABLE_SQL_V1",
-            "testSqlCertificatePinned": True,
-            "tfSlotCount": 4, "jointCellCount": 81, "blockingPassCount": 2,
-            "diagnosticNonScientific": False, "testEndToEndRepetitions": 20,
-            "projectionFingerprintSha256": E, "fitFingerprintSha256": E,
-            "testCorpusManifestSha256": E, "testObservationsSha256": E,
-            "replayEvidence": {
-                "DistinctCandidatePairs": 4,
-                "CandidateEdgesSha256": E, "ObservationDecisionsSha256": E,
-            },
-            "metric": {"OptionId": W, "BonferroniComparedConfigurations": 1},
-        }
+        evidence = standard_test_doc()
         def check(doc, write_digest=True):
             self.test.write_text(json.dumps(doc), encoding="utf-8")
             if write_digest:

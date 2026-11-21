@@ -77,22 +77,23 @@ class MandatoryChainIntegrationContractTests(unittest.TestCase):
         self.assertNotIn("JORNADA_V9_TEST_CORPUS_DIR", self.train
                          + self.audit + self.validation)
 
-    def test_cross_job_smoke_uses_skippable_mock_test_and_no_science_or_secrets(self):
+    def test_cross_job_smoke_requires_mock_test_when_validation_has_winner(self):
         content = SMOKE_WF.read_text(encoding="utf-8")
         self.assertIn("pull_request:", content)
-        self.assertIn("prepare-test-optional:", content)
         self.assertIn("train-fixture:", content)
         self.assertIn("audit-fixture:", content)
         self.assertIn("validation-fixture:", content)
-        self.assertIn("test-fixture-optional:", content)
-        self.assertIn("needs.prepare-test-optional.result == 'success'", content)
+        self.assertIn("test-fixture:", content)
+        self.assertIn("needs.validation-fixture.outputs.has_winner == 'true'", content)
+        self.assertIn('--test-requested "$FIXTURE_HAS_WINNER" --strict-test', content)
+        self.assertIn("v9-synthetic-test-", content)
         self.assertIn("needs.train-fixture.result == 'success'", content)
         self.assertIn("needs.audit-fixture.result == 'success'", content)
         self.assertIn("needs.validation-fixture.result == 'success'", content)
         self.assertIn("always() && !cancelled()", content)
         self.assertIn("actions/upload-artifact@", content)
         self.assertIn("actions/download-artifact@", content)
-        self.assertIn("synthetic_test_requested == true", content)
+        self.assertIn("github.event_name == 'pull_request' || inputs.synthetic_winner", content)
         self.assertNotIn("dotnet run", content)
         self.assertNotIn("test_required", content)
         self.assertNotIn("${{ secrets.", content)
