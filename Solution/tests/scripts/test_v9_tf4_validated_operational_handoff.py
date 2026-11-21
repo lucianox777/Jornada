@@ -148,7 +148,7 @@ class V9ValidatedOperationalHandoffTests(unittest.TestCase):
             "- name: Upload final VALIDATION operational JSON", 1)[1].split(
             "- name: Upload compact", 1)[0])
         self.assertIn("v9-tf4-validated-operational-model-", test)
-        self.assertIn("--v9-convert-winner-operational", test)
+        self.assertIn("--v9-independent-test-preflight", test)
         self.assertIn("--v9-independent-test \"$model\"", test)
         self.assertIn("*.operational.json", test)
         self.assertNotIn("*.fitted.json", test)

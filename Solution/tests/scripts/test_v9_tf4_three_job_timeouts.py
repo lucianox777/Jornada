@@ -96,7 +96,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertNotIn("selection.json", self.test)
         self.assertNotIn("plan.json", self.test)
         self.assertNotIn("--people 100000", self.test)
-        self.assertIn("TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS", self.train)
+        self.assertIn("needs.prepare-test-100k.result == 'success'", self.train)
         self.assertIn("workflow_dispatch:", self.preparation)
         self.assertIn("github.actor == github.repository_owner", self.train)
         self.assertNotIn("\n  push:", self.source)

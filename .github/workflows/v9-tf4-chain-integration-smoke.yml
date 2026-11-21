@@ -2,7 +2,7 @@ name: V9 TF4 mandatory TRAIN-AUDIT-VALIDATION cross-job integration (synthetic o
 
 # Fast real GitHub-hosted job/artifact integration. This workflow NEVER runs
 # --v9-calibrate, scientific AUDIT, VALIDATION holdout, or physical TEST.
-# TEST toggle here is a MOCK of the optional DAG branch without any secrets.
+# The mock VALIDATION result controls the TEST job. It uses only fixture receipts.
 on:
   pull_request:
     paths:
@@ -13,27 +13,17 @@ on:
       - 'Solution/tests/scripts/test_v9_tf4_chain_integration.py'
   workflow_dispatch:
     inputs:
-      synthetic_test_requested:
-        description: "Run a mock optional TEST DAG job (NO actual TEST corpus)"
+      synthetic_winner:
+        description: "Simulate VALIDATION selecting a winner and require the mock TEST job"
         type: boolean
         required: true
-        default: false
+        default: true
 
 permissions:
   contents: read
 
 jobs:
-  prepare-test-optional:
-    if: ${{ inputs.synthetic_test_requested == true }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Announce synthetic TEST preparation only
-        run: echo "V9_MOCK_TEST_PREPARATION_NO_SECRET_NO_CORPUS"
-
   train-fixture:
-    needs: prepare-test-optional
-    # Same skip-safe DAG semantics as the actual 100k manual campaign.
-    if: ${{ always() && !cancelled() && (inputs.synthetic_test_requested != true || needs.prepare-test-optional.result == 'success') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4
@@ -90,9 +80,10 @@ jobs:
 
   validation-fixture:
     needs: audit-fixture
-    # Must run after TRAIN/AUDIT SUCCESS even when optional TEST preparation was SKIPPED.
     if: ${{ always() && !cancelled() && needs.audit-fixture.result == 'success' }}
     runs-on: ubuntu-24.04
+    outputs:
+      has_winner: ${{ steps.winner.outputs.has_winner }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
         with:
@@ -116,63 +107,105 @@ jobs:
             --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
           echo "V9_TRAIN_AUDIT_VALIDATION_CHAIN_INTEGRATION_SUCCESS"
 
-  test-fixture-optional:
-    needs: [validation-fixture, prepare-test-optional]
-    if: ${{ always() && !cancelled() && inputs.synthetic_test_requested == true && needs.validation-fixture.result == 'success' && needs.prepare-test-optional.result == 'success' }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Verify simulated optional TEST only after the mandatory chain
-        run: echo "V9_OPTIONAL_TEST_MOCK_ONLY_NOT_REAL_TEST_NO_CORPUS_NO_KEYS"
+      - name: Issue mock VALIDATION receipt and decision
+        id: winner
+        env:
+          FIXTURE_HAS_WINNER: ${{ github.event_name == 'pull_request' || inputs.synthetic_winner }}
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/synthetic-validation-e2e.json" <<'PY'
+          import json,os,runpy,sys
+          from pathlib import Path
+          fixture=runpy.run_path("Solution/tests/scripts/test_v9_tf4_e2e_closeout.py")
+          has_winner=os.environ["FIXTURE_HAS_WINNER"] == "true"
+          body=fixture["validation_doc"](fixture["W"] if has_winner else None)
+          Path(sys.argv[1]).write_text(json.dumps(body),encoding="utf-8")
+          PY
+          echo "has_winner=$FIXTURE_HAS_WINNER" >> "$GITHUB_OUTPUT"
+      - name: Transfer mock VALIDATION receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-synthetic-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synthetic-validation-e2e.json
+          if-no-files-found: error
+          retention-days: 2
 
-  # This tests actual GitHub needs/skipped semantics with the real closeout
-  # checker. It is a SYNTHETIC CONTRACT ONLY, not the physical 100k E2E.
-  e2e-fixture-closeout:
-    needs: [prepare-test-optional, train-fixture, audit-fixture, validation-fixture, test-fixture-optional]
-    if: ${{ always() }}
+  test-fixture:
+    needs: validation-fixture
+    if: ${{ always() && !cancelled() && needs.validation-fixture.result == 'success' && needs.validation-fixture.outputs.has_winner == 'true' }}
     runs-on: ubuntu-24.04
-    env:
-      PREPARATION_RESULT: ${{ needs.prepare-test-optional.result }}
-      PHYSICAL_RESULT: ${{ needs.train-fixture.result }}
-      AUDIT_RESULT: ${{ needs.audit-fixture.result }}
-      VALIDATION_RESULT: ${{ needs.validation-fixture.result }}
-      TEST_RESULT: ${{ needs.test-fixture-optional.result }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
         with:
           persist-credentials: false
-      - name: Verify native E2E closeout on real GitHub job conclusions and fake science receipt
+      - name: Produce an aggregate fixture receipt
         run: |
           set -euo pipefail
-          # Rehearsal explicitly does not claim production TEST or real science.
-          if [[ "${{ inputs.synthetic_test_requested }}" == "true" ]]; then
-            echo "V9_SYNTHETIC_TEST_ON_NO_PROD_PARITY: direct no-TEST closeout rehearsal only"
-            exit 0
-          fi
-          python3 - "$RUNNER_TEMP/synthetic-validation-e2e.json" <<'PY'
-          import json,pathlib,sys
-          doc={"schema":"V9_VALIDATION_E2E_STATUS_V1",
-               "status":"VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
-               "selectedValidationSnapshotSha256":"a"*64,
-               "selectedValidationOperationalModelFileName":"a"*64+".operational.json",
-               "selectedValidationOperationalModelContract":"JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
-               "selectionEnvelopeSha256":"b"*64,
-               "validationResultSha256":"c"*64,
-               "comparedConfigurations":1,"measuredCount":1,
-               "testUsed":False,"refitted":False,
-               "certified":False,"activated":False}
-          pathlib.Path(sys.argv[1]).write_text(json.dumps(doc),encoding="utf-8")
+          mkdir "$RUNNER_TEMP/synthetic-test"
+          python3 - "$RUNNER_TEMP/synthetic-test/independent-test.json" <<'PY'
+          import json,runpy,sys
+          from pathlib import Path
+          fixture=runpy.run_path("Solution/tests/scripts/test_v9_tf4_e2e_closeout.py")
+          Path(sys.argv[1]).write_text(json.dumps(fixture["standard_test_doc"]()),encoding="utf-8")
           PY
+          (cd "$RUNNER_TEMP/synthetic-test" && sha256sum independent-test.json > SHA256SUMS)
+      - name: Transfer aggregate fixture evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-synthetic-test-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synthetic-test/
+          if-no-files-found: error
+          retention-days: 2
+
+  e2e-fixture-closeout:
+    needs: [train-fixture, audit-fixture, validation-fixture, test-fixture]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    env:
+      FIXTURE_HAS_WINNER: ${{ needs.validation-fixture.outputs.has_winner }}
+      PHYSICAL_RESULT: ${{ needs.train-fixture.result }}
+      AUDIT_RESULT: ${{ needs.audit-fixture.result }}
+      VALIDATION_RESULT: ${{ needs.validation-fixture.result }}
+      TEST_RESULT: ${{ needs.test-fixture.result }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-synthetic-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}
+      - if: ${{ needs.test-fixture.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-synthetic-test-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synthetic-test
+      - name: Verify strict CLOSEOUT on actual fixture job results
+        run: |
+          set -euo pipefail
+          extra=()
+          preparation=skipped
+          if [[ "$FIXTURE_HAS_WINNER" == "true" ]]; then
+            preparation=success
+            extra+=(--test-file "$RUNNER_TEMP/synthetic-test/independent-test.json")
+          fi
           python3 Solution/scripts/v9-tf4-e2e-closeout.py \
             --physical "$PHYSICAL_RESULT" --audit "$AUDIT_RESULT" \
-            --validation "$VALIDATION_RESULT" --preparation "$PREPARATION_RESULT" \
-            --test "$TEST_RESULT" --test-requested false \
-            --validation-file "$RUNNER_TEMP/synthetic-validation-e2e.json" \
+            --validation "$VALIDATION_RESULT" --preparation "$preparation" \
+            --test "$TEST_RESULT" --test-requested "$FIXTURE_HAS_WINNER" --strict-test \
+            --validation-file "$RUNNER_TEMP/synthetic-validation-e2e.json" "${extra[@]}" \
             --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" \
             --out "$RUNNER_TEMP/synthetic-e2e-status.json"
-          python3 - "$RUNNER_TEMP/synthetic-e2e-status.json" <<'PY'
+          python3 - "$RUNNER_TEMP/synthetic-e2e-status.json" "$FIXTURE_HAS_WINNER" <<'PY'
           import json,sys
-          r=json.load(open(sys.argv[1],encoding="utf-8"))
-          assert r["status"]=="E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
+          from pathlib import Path
+          r=json.loads(Path(sys.argv[1]).read_text())
+          if sys.argv[2] == "true":
+              assert r["independentTestReportStatus"] == "VERIFIED"
+              assert r["winnerSha256"] == "a"*64
+          else:
+              assert r["status"] == "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED"
+              assert r["winnerSha256"] is None and r["testResult"] == "skipped"
           assert not r["certified"] and not r["activated"] and not r["productionPublication"]
           print("V9_SYNTHETIC_GITHUB_E2E_CLOSEOUT_CONTRACT_PASS_NOT_PHYSICAL_NOT_TEST")
           PY

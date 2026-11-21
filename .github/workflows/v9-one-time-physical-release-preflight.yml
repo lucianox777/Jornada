@@ -81,19 +81,7 @@ jobs:
           print("ONE_SHA_PINNED_WINNER_ONLY")
           PY
       - name: Start brand-new disposable SQL database only for TEST
-        run: |
-          set -euo pipefail
-          bash scripts/v9-tf-start-disposable-sql.sh
-          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker exec "$sql_name" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
-      - name: Load versioned V9 SQL operational schema (no activation or publication)
-        run: |
-          set -euo pipefail
-          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker exec -i "$sql_name" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
-            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+        run: bash scripts/v9-tf-start-disposable-sql.sh --independent-test
       - name: Convert the ONLY SHA-pinned VALIDATION winner to SQL before TEST exposure
         run: |
           set -euo pipefail
@@ -101,7 +89,7 @@ jobs:
           model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
           test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-convert-winner-operational "$model"
+            --v9-independent-test-preflight "$model"
           # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
       - name: Create fresh diagnostic-only seed (not the scientific TEST ledger)
         id: test_seed

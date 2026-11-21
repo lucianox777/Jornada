@@ -24,6 +24,9 @@ on:
       - 'Solution/tests/scripts/test_v9_test_operational_cohort_parity.py'
       - 'Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCorpusReader.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9IndependentTestSqlTests.cs'
+      - 'Solution/scripts/v9-tf-start-disposable-sql.sh'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9OperationalModelConversionCli.cs'
       - 'Solution/database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql'
       - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
@@ -117,6 +120,44 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f v9-operational-converter-smoke >/dev/null 2>&1 || true
+
+  independent-test-cli-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile isolated TEST worker and fixture
+        run: dotnet build -c Release tests/Jornada.Tests/Jornada.Tests.csproj
+      - name: Boot the TEST-only schema and marker
+        run: bash scripts/v9-tf-start-disposable-sql.sh --independent-test
+      - name: Verify artifact, SQL isolation, Runner compatibility and TEST report with four fixture observations
+        env:
+          JORNADA_V9_TEST_SMOKE_REPORT: ${{ runner.temp }}/v9-independent-test-fixture.json
+        run: |
+          set -euo pipefail
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9IndependentTestSqlTests' --logger 'console;verbosity=normal'
+          test -s "$JORNADA_V9_TEST_SMOKE_REPORT"
+      - name: Upload aggregate fixture evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-independent-test-cli-synthetic-fixture
+          path: ${{ runner.temp }}/v9-independent-test-fixture.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dispose marker-bound TEST SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >/dev/null 2>&1 || true
 
   full-schema-runasync-nonpublish:
     runs-on: ubuntu-24.04

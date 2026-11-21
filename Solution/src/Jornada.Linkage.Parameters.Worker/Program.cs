@@ -70,12 +70,15 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-external-test-preflight")
     return;
 }
 
-// Independent scientific TEST accepts the frozen winning operational JSON.
-// The standard V9 workflow generates an independent synthetic cohort; its
-// optional workflow_dispatch test_database is a PREPARE statistical reference,
-// NOT an existing-database TEST selector. The legacy worker CLI still exposes
-// a read-only diagnostic mode pending migration (issue #1584); that mode is
-// neither the standard scientific TEST nor evidence of production parity.
+// Preflight and TEST share the immutable VALIDATION winner and dedicated SQL.
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-independent-test-preflight")
+{
+    await V9IndependentTestCli.PreflightAsync(guardedArgs);
+    return;
+}
+
+// Scientific TEST consumes the frozen winner and generates its own cohort.
+// The optional test_database input belongs to PREPARE statistical generation.
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-independent-test")
 {
     await V9IndependentTestCli.RunAsync(guardedArgs);

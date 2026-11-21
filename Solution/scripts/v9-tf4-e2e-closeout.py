@@ -9,6 +9,7 @@ A skipped scientific stage is NEVER translated into scientific SUCCESS.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -93,7 +94,7 @@ def validate_scientific_validation(path: Path) -> dict:
     }
 
 
-def validate_optional_test(path: Path, winner_sha: str | None) -> None:
+def validate_optional_test(path: Path, winner_sha: str | None, *, strict: bool = False) -> None:
     require(isinstance(winner_sha, str)
             and HEX64.fullmatch(winner_sha) is not None,
             "TEST_REQUIRES_VALIDATION_WINNER")
@@ -125,6 +126,39 @@ def validate_optional_test(path: Path, winner_sha: str | None) -> None:
     # above is the compatibility proof required at this boundary.
     require(r.get("productionRunnerFullPipelineParityCertified") is False,
             "TEST_MUST_NOT_CLAIM_PRODUCTION_RUNASYNC_CERTIFICATION")
+
+    if strict:
+        require(r.get("status") == "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED"
+                and r.get("testSqlIsolationContract") == "V9_INDEPENDENT_DISPOSABLE_SQL_V1"
+                and r.get("testSqlCertificatePinned") is True
+                and r.get("tfSlotCount") == 4 and r.get("jointCellCount") == 81
+                and type(r.get("blockingPassCount")) is int and r["blockingPassCount"] > 0
+                and r.get("diagnosticNonScientific") is False
+                and r.get("testEndToEndRepetitions") == 20,
+                "TEST_MODEL_PROTOCOL_OR_ISOLATION_MISMATCH")
+        replay = r.get("replayEvidence")
+        require(isinstance(replay, dict)
+                and type(replay.get("DistinctCandidatePairs")) is int and replay["DistinctCandidatePairs"] >= 0,
+                "TEST_REPLAY_EVIDENCE_MISSING")
+        for digest in (r.get("projectionFingerprintSha256"), r.get("fitFingerprintSha256"),
+                       r.get("testCorpusManifestSha256"), r.get("testObservationsSha256"),
+                       replay.get("CandidateEdgesSha256"), replay.get("ObservationDecisionsSha256")):
+            require(isinstance(digest, str) and HEX64.fullmatch(digest), "TEST_EVIDENCE_SHA_INVALID")
+        metric = r.get("metric")
+        require(isinstance(metric, dict) and metric.get("OptionId") == winner_sha
+                and metric.get("BonferroniComparedConfigurations") == 1
+                and all(key not in metric for key in ("IdentityOutcomes", "SourceRankInternal", "SourceGapAttribution")),
+                "TEST_METRIC_NOT_AGGREGATE_OR_WRONG_WINNER")
+
+
+def validate_test_receipt_digest(path: Path) -> None:
+    ledger = path.with_name("SHA256SUMS")
+    require(ledger.is_file() and not ledger.is_symlink() and ledger.stat().st_size <= 128,
+            "TEST_RECEIPT_DIGEST_MISSING")
+    with path.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    require(ledger.read_text(encoding="ascii") == f"{digest}  {path.name}\n",
+            "TEST_RECEIPT_DIGEST_MISMATCH")
 
 
 def validate_existing_database_diagnostic(
@@ -189,6 +223,8 @@ def closeout(
     external_preflight: str = "skipped",
     external_test: str = "skipped",
     external_file: Path | None = None,
+    *,
+    strict_test: bool = False,
 ) -> dict:
     # A scientifically valid terminal outcome: TRAIN and AUDIT succeeded,
     # but no finalist was eligible for independent VALIDATION.
@@ -210,6 +246,7 @@ def closeout(
                 "certified": False, "activated": False,
                 "productionPublication": False}
     if external_database:
+        require(not strict_test, "EXTERNAL_DB_CANNOT_SUBSTITUTE_SCIENTIFIC_TEST")
         require(test_requested, "EXTERNAL_DB_REQUIRES_TEST_TOGGLE")
         require(preparation == "skipped" and test == "skipped",
                 "EXTERNAL_DB_MUST_NOT_EXPOSE_SYNTHETIC_TEST")
@@ -242,7 +279,9 @@ def closeout(
     if test_requested:
         if preparation == "success" and test == "success" and test_file is not None:
             try:
-                validate_optional_test(test_file, info["winnerSha256"])
+                validate_optional_test(test_file, info["winnerSha256"], strict=strict_test)
+                if strict_test:
+                    validate_test_receipt_digest(test_file)
                 test_report_status = "VERIFIED"
             except (ValueError, json.JSONDecodeError, OSError):
                 test_report_status = "INVALID_RECEIPT"
@@ -259,9 +298,9 @@ def closeout(
         production_readiness = "NOT_APPLICABLE"
         scientific_test_assessment = "NOT_PERFORMED"
         require(test_file is None, "UNREQUESTED_TEST_RECEIPT")
-        status = ("E2E_PHYSICAL_CORE_FINISHED_WITH_WINNER_TEST_NOT_REQUESTED"
-                  if info["winnerSha256"] else
-                  "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED")
+        if strict_test:
+            require(preparation == "skipped", "NO_WINNER_TEST_PREPARATION_DETECTED")
+        status = "E2E_PHYSICAL_CORE_FINISHED_NO_WINNER_TEST_NOT_REQUESTED"
     return {"schema": "V9_TF4_E2E_CLOSEOUT_V1", "status": status,
             "testRequested": test_requested, "trainResult": physical,
             "auditResult": audit, "validationResult": validation,
@@ -282,6 +321,8 @@ def main() -> int:
                         required=True)
     parser.add_argument("--validation-file", type=Path, required=True)
     parser.add_argument("--test-file", type=Path)
+    parser.add_argument("--strict-test", action="store_true",
+                        help="Require Standard Linear TEST integrity evidence and scheduling")
     parser.add_argument("--external-database")
     parser.add_argument("--external-preflight", choices=sorted(RESULTS),
                         default="skipped")
@@ -308,9 +349,16 @@ def main() -> int:
             args.test, args.test_requested == "true",
             args.validation_file, args.test_file,
             args.external_database, args.external_preflight,
-            args.external_test, args.external_file,
+            args.external_test, args.external_file, strict_test=args.strict_test,
         )
         info.update(result)
+        if args.strict_test and args.test_requested == "true":
+            if args.test == "skipped":
+                info["reason"] = "V9_E2E_CLOSEOUT_MANDATORY_TEST_NOT_DISPATCHED"
+                exitcode = 1
+            elif args.test == "success" and result["independentTestReportStatus"] != "VERIFIED":
+                info["reason"] = "V9_E2E_CLOSEOUT_TEST_SUCCESS_WITHOUT_VALID_EVIDENCE"
+                exitcode = 1
     except (ValueError, json.JSONDecodeError, OSError) as exc:
         info.update(status="E2E_INCOMPLETE_FAIL_CLOSED",
                     reason=str(exc).split(":")[0][:100])
