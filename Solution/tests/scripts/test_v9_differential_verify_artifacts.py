@@ -50,7 +50,8 @@ class ArtifactVerificationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "missing.bin"
             receipt = {"schema": "JORNADA_V9_DIFFERENTIAL_RECEIPT_V1",
-                       "runtime": "production", "certified": False, "testTruthUsed": False,\n                       "provenance": {"runId": "run-002", "runtimeArtifactSha256": "a" * 64}}
+                       "runtime": "production", "certified": False, "testTruthUsed": False,
+                       "provenance": {"runId": "run-002", "runtimeArtifactSha256": "a" * 64}}
             with self.assertRaises(ValueError):
                 module.verify(receipt, path)
             path.write_bytes(b"x")
