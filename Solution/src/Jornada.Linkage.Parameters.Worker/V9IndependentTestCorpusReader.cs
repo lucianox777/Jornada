@@ -111,7 +111,7 @@ public static class V9IndependentTestCorpusReader
         var standardDeviation = Math.Sqrt(population * (testPercent / 100d) * (1d - testPercent / 100d));
         if (Math.Abs(testIdentities - expectedCount) > 6d * standardDeviation + 1d)
             throw new InvalidDataException("Partição TEST incompatível com o percentual probabilístico declarado.");
-        return new TestCorpus(manifestSha, outputs["observacoes.csv"], seed,
+        return new TestCorpus(manifestSha, outputs["observacoes.csv"].ToLowerInvariant(), seed,
             byIdentity.Count, testIdentities, rows.ToArray());
     }
 }

@@ -13,7 +13,7 @@ class TestIndependentTestSeedBinding(unittest.TestCase):
         self.assertIn('!ulong.TryParse(expectedSeedText', source)
         self.assertIn('seed != expectedSeed', source)
         self.assertNotIn('const ulong Seed = 20261113001UL;', source)
-        self.assertIn('outputs["observacoes.csv"], seed,', source)
+        self.assertIn('outputs["observacoes.csv"].ToLowerInvariant(), seed,', source)
 
     def test_receipt_and_manifest_bound_before_test_exposure(self):
         workflow = WORKFLOW.read_text()
