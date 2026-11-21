@@ -25,7 +25,7 @@ def _canonical(receipt):
         raise ValueError("Unsupported differential receipt schema")
     if receipt.get("certified") is not False or receipt.get("testTruthUsed") is not False:
         raise ValueError("Receipt must be explicitly noncertifying and TEST-truth-free")
-    identity = {key: _require_sha(receipt.get(key), key) for key in
+    if receipt.get("runtime") not in ("scientific", "production"):\n        raise ValueError("Receipt must identify its independent runtime")\n    identity = {key: _require_sha(receipt.get(key), key) for key in
                 ("modelSha256", "universeSha256", "operationalEdgesSha256")}
     decisions = receipt.get("decisions")
     groups = receipt.get("groups")
@@ -63,6 +63,8 @@ def _canonical(receipt):
 
 
 def compare(left, right):
+    if not isinstance(left, dict) or not isinstance(right, dict) or left.get("runtime") != "scientific" or right.get("runtime") != "production":
+        raise ValueError("Expected independent scientific and production receipts, in that order")
     a, b = _canonical(left), _canonical(right)
     differences = [key for key in a if a[key] != b[key]]
     return {"schema": "JORNADA_V9_DIFFERENTIAL_COMPARISON_V1",
@@ -76,6 +78,8 @@ def main():
     parser.add_argument("left", type=Path)
     parser.add_argument("right", type=Path)
     args = parser.parse_args()
+    if args.left.resolve() == args.right.resolve():
+        raise ValueError("Cannot compare a receipt with itself")
     result = compare(json.loads(args.left.read_text(encoding="utf-8")),
                      json.loads(args.right.read_text(encoding="utf-8")))
     print(json.dumps(result, sort_keys=True))
