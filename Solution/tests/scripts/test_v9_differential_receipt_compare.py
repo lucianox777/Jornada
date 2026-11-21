@@ -28,7 +28,7 @@ def pair():
 
 class DifferentialReceiptTests(unittest.TestCase):
     def test_order_and_group_labels_are_ignored(self):
-        a, b = receipt(), receipt()
+        a, b = pair()
         b["decisions"].reverse()
         b["groups"] = [[3], [2, 1]]
         result = module.compare(a, b)
@@ -37,17 +37,17 @@ class DifferentialReceiptTests(unittest.TestCase):
         self.assertFalse(result["productionParityCertified"])
 
     def test_decision_mismatch_fails(self):
-        a, b = receipt(), receipt()
+        a, b = pair()
         b["decisions"][1]["decision"] = "NEW"
         self.assertEqual(module.compare(a, b)["differentFields"], ["decisions"])
 
     def test_group_mismatch_fails(self):
-        a, b = receipt(), receipt()
+        a, b = pair()
         b["groups"] = [[1], [2, 3]]
         self.assertEqual(module.compare(a, b)["differentFields"], ["groups"])
 
     def test_graph_or_model_mismatch_fails(self):
-        a, b = receipt(), receipt()
+        a, b = pair()
         b["operationalEdgesSha256"] = "d" * 64
         b["modelSha256"] = "e" * 64
         self.assertEqual(set(module.compare(a, b)["differentFields"]),
@@ -69,7 +69,7 @@ class DifferentialReceiptTests(unittest.TestCase):
             r = receipt()
             r[field] = True
             with self.subTest(field=field), self.assertRaises(ValueError):
-                module.compare(pair()[0], r)
+                module.compare(pair()[0], {**r, "runtime": "production"})
 
     def test_same_runtime_or_swapped_receipts_rejected(self):
         a, b = pair()
