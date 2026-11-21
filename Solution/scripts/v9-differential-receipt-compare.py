@@ -25,7 +25,9 @@ def _canonical(receipt):
         raise ValueError("Unsupported differential receipt schema")
     if receipt.get("certified") is not False or receipt.get("testTruthUsed") is not False:
         raise ValueError("Receipt must be explicitly noncertifying and TEST-truth-free")
-    if receipt.get("runtime") not in ("scientific", "production"):\n        raise ValueError("Receipt must identify its independent runtime")\n    identity = {key: _require_sha(receipt.get(key), key) for key in
+    if receipt.get("runtime") not in ("scientific", "production"):
+        raise ValueError("Receipt must identify its independent runtime")
+    identity = {key: _require_sha(receipt.get(key), key) for key in
                 ("modelSha256", "universeSha256", "operationalEdgesSha256")}
     decisions = receipt.get("decisions")
     groups = receipt.get("groups")
