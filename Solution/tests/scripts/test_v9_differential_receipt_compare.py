@@ -75,7 +75,27 @@ class DifferentialReceiptTests(unittest.TestCase):
             r = receipt()
             r[field] = True
             with self.subTest(field=field), self.assertRaises(ValueError):
-                module.compare(pair()[0], {**r, "runtime": "production"})
+                module.compare(pair()[0], {**r, "runtime": "production", "provenance": pair()[1]["provenance"]})
+
+    def test_independent_provenance_is_not_sufficient_for_equivalence(self):
+        a, b = pair()
+        b["universeSha256"] = "f" * 64
+        result = module.compare(a, b)
+        self.assertFalse(result["equivalent"])
+        self.assertEqual(result["differentFields"], ["universeSha256"])
+        self.assertFalse(result["productionParityCertified"])
+
+    def test_invalid_provenance_shape_and_run_identifier_rejected(self):
+        a, b = pair()
+        for mutation in (
+            lambda r: r["provenance"].update(runId="  "),
+            lambda r: r["provenance"].update(unexpected="value"),
+            lambda r: r["provenance"].update(runtimeArtifactSha256="A" * 64),
+        ):
+            candidate = {**b, "provenance": dict(b["provenance"])}
+            mutation(candidate)
+            with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                module.compare(a, candidate)
 
     def test_missing_or_shared_provenance_rejected(self):
         a, b = pair()
