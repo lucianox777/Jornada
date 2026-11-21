@@ -16,6 +16,7 @@ spec.loader.exec_module(module)
 def receipt():
     return {"schema": "JORNADA_V9_DIFFERENTIAL_RECEIPT_V1",
             "certified": False, "testTruthUsed": False, "runtime": "scientific",
+            "provenance": {"runId": "scientific-run-001", "runtimeArtifactSha256": "d" * 64},
             "modelSha256": "a" * 64, "universeSha256": "b" * 64,
             "operationalEdgesSha256": "c" * 64,
             "decisions": [{"observationId": 1, "decision": "NEW"},
@@ -27,6 +28,7 @@ def receipt():
 def pair():
     a, b = receipt(), receipt()
     b["runtime"] = "production"
+    b["provenance"] = {"runId": "production-run-001", "runtimeArtifactSha256": "e" * 64}
     return a, b
 
 
@@ -66,7 +68,7 @@ class DifferentialReceiptTests(unittest.TestCase):
             r = receipt()
             mutate(r)
             with self.subTest(r=r), self.assertRaises(ValueError):
-                module.compare(pair()[0], {**r, "runtime": "production"})
+                module.compare(pair()[0], {**r, "runtime": "production", "provenance": pair()[1]["provenance"]})
 
     def test_cannot_claim_certification_or_use_test_truth(self):
         for field in ("certified", "testTruthUsed"):
@@ -74,6 +76,19 @@ class DifferentialReceiptTests(unittest.TestCase):
             r[field] = True
             with self.subTest(field=field), self.assertRaises(ValueError):
                 module.compare(pair()[0], {**r, "runtime": "production"})
+
+    def test_missing_or_shared_provenance_rejected(self):
+        a, b = pair()
+        for mutation in (
+            lambda r: r.pop("provenance"),
+            lambda r: r["provenance"].update(runId=a["provenance"]["runId"]),
+            lambda r: r["provenance"].update(runtimeArtifactSha256=a["provenance"]["runtimeArtifactSha256"]),
+            lambda r: r["provenance"].update(runtimeArtifactSha256="not-a-sha"),
+        ):
+            candidate = {**b, "provenance": dict(b["provenance"])}
+            mutation(candidate)
+            with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                module.compare(a, candidate)
 
     def test_cli_exit_codes_and_self_comparison(self):
         a, b = pair()
