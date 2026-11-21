@@ -1,6 +1,6 @@
 # GOV-DT10-ACEITE-EXPRESSO-PO-20261120 — aceite administrativo da DT-10
 
-**Autoridade:** Product Owner, 20/11/2026 (registro na continuidade do projeto). **Estado:** ACEITA pelo PO; integração documental em PR. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 20/11/2026 (registro na continuidade do projeto). **Estado:** ACEITA pelo PO; decisão integrada na PR #1784 (squash `9a50d87f00f8b390a4c984d246d38dc6eddff1af`). **Política:** GOV-DOC-01.
 
 ## Decisão e contexto
 O Product Owner declarou expressamente: **“Eu aceito a DT10.”** Esta manifestação constitui o **aceite administrativo da DT-10** no escopo técnico anteriormente implementado e comprovado, encerrando a pendência de aceite do PO. A issue de correção técnica #1706 já está encerrada; o aceite administrativo não deve ser confundido com um novo merge técnico.
