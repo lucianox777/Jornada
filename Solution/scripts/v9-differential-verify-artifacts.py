@@ -12,8 +12,8 @@ from pathlib import Path
 def verify(receipt, artifact):
     if not isinstance(receipt, dict) or receipt.get("schema") != "JORNADA_V9_DIFFERENTIAL_RECEIPT_V1":
         raise ValueError("Invalid receipt schema")
-    provenance = receipt.get("provenance")
-    if not isinstance(provenance, dict):
+    if receipt.get("certified") is not False or receipt.get("testTruthUsed") is not False:\n        raise ValueError("Only noncertifying TEST-truth-free receipts may be verified")\n    if receipt.get("runtime") not in ("scientific", "production"):\n        raise ValueError("Unknown runtime")\n    provenance = receipt.get("provenance")
+    if not isinstance(provenance, dict) or set(provenance) != {"runId", "runtimeArtifactSha256"} or not isinstance(provenance.get("runId"), str) or not provenance["runId"].strip():
         raise ValueError("Missing provenance")
     claimed = provenance.get("runtimeArtifactSha256")
     if not isinstance(claimed, str) or len(claimed) != 64 or any(c not in "0123456789abcdef" for c in claimed):
@@ -21,7 +21,7 @@ def verify(receipt, artifact):
     path = Path(artifact)
     if not path.is_file() or path.is_symlink():
         raise ValueError("Runtime artifact must be a regular non-symlink file")
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    hasher = hashlib.sha256()\n    with path.open("rb") as stream:\n        for chunk in iter(lambda: stream.read(1024 * 1024), b""):\n            hasher.update(chunk)\n    digest = hasher.hexdigest()
     if digest != claimed:
         raise ValueError("Runtime artifact bytes do not match declared SHA-256")
     return {"schema": "JORNADA_V9_ARTIFACT_VERIFICATION_V1",
