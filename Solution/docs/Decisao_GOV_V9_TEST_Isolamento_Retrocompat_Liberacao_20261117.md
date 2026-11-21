@@ -91,3 +91,14 @@ Sem nova decisão do PO ou mudança de protocolo, foi acrescentado teste de cont
 ## Instrumentação operacional proposta — preflight manual seguro (issue #1629)
 
 A PR de continuidade da issue #1629 adiciona `.github/workflows/v9-test-credentials-preflight.yml`, acionável manualmente, **sem gerar, abrir ou consumir a coorte TEST**. O job confere presença dos dois secrets e da variável SHA-256, validade do certificado público, correspondência com a chave privada e ausência da tag global de exposição. Falha fechado quando a tag existe ou seu estado não pode ser determinado (inclusive falta de permissão). Não publica conteúdo de chaves/certificados e apaga arquivos temporários. A verificação é limitada à prontidão de credenciais e estado da tag no instante da consulta; **não substitui** a reserva atômica no TEST, a CI, nem comprova execução científica física. Esta instrumentação não muda o protocolo aprovado e só se torna operacional após merge e disponibilização do workflow na branch padrão.
+
+
+## Ratificação expressa do PO — 20/11/2026 (sem mudança de escopo)
+
+**Confirmação:** após a reconciliação das issues #1488, #1575 e #1584, o Product Owner declarou: **“As decisões que você mostrou aí estão certas. É isso mesmo.”** A confirmação ratifica a interpretação vigente desta decisão, não autoriza execução científica nem altera os critérios técnicos.
+
+**Contexto e justificativa:** eliminar ambiguidade entre requisitos históricos de paridade do TEST e a separação de ambientes aprovada em 17/11. O TEST científico permanece **isolado e descartável**, consome **somente o pacote operacional imutável do único vencedor da VALIDATION**, sem refit, seleção, escrita ou publicação em produção. A **compatibilidade integral do pacote** com o executor operacional deve ser demonstrada; isso **não exige** que o TEST rode no ambiente/caminho do executor produtivo, nem igualdade de resultados entre bases diferentes. A **retrocompatibilidade** com modelos anteriores pertence exclusivamente ao executor. A implantação continua separada e depende de autorização explícita do operador MASTER.
+
+**Impactos e limites:** orientar a revisão dos critérios ainda abertos em #1488, #1575 e #1584, preservando gates fail-closed, evidências de isolamento, contrato operacional, regressão do executor e a ordem aprovada **P0-A #1734 → aceite DT-10 #1706 → P0-B**. A ratificação **não** libera TRAIN/TEST físico, TEST one-use, alteração de LOCK, retirada de guard, promoção HML ou ativação V9.
+
+**Precedência e rastreabilidade:** esta ratificação **confirma**, sem substituir, `GOV-V9-TEST-ISOLAMENTO-RETROCOMPAT-20261117` e as decisões científicas posteriores aplicáveis. Checkpoints: issue #1575, comentários `7054120771` e `7054137123`; issue #1488, comentário `7054100915`; issue #1734, comentário `7054089389`. Política GOV-DOC-01. Registro documental em PR, sujeito a checks e integração antes de ser considerado concluído.
