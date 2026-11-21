@@ -37,6 +37,19 @@ class CiImpactClassifierTests(unittest.TestCase):
         r=m.classify(["Solution/src/Jornada.Api/Program.cs"])
         self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"])
 
+    def test_nuget_lockfiles_always_trigger_full_ci_without_dt10(self):
+        # Regression: lockfile additions/repairs must exercise dependency-lock on master.
+        for path in (
+            "Solution/src/Jornada.Linkage.SyntheticCorpus.Parametrized/packages.lock.json",
+            "Solution/tests/Jornada.Tests/packages.lock.json",
+        ):
+            with self.subTest(path=path):
+                result = m.classify([path])
+                self.assertEqual(result["classification"], "substantive")
+                self.assertFalse(result["docs_only"])
+                self.assertTrue(result["run_full"])
+                self.assertFalse(result["run_dt10"])
+
     def test_sql_requires_full_ci(self):
         self.assertTrue(m.classify(["Solution/database/migrations/x.sql"])["run_full"])
 
