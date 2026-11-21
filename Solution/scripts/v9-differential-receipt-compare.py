@@ -27,6 +27,12 @@ def _canonical(receipt):
         raise ValueError("Receipt must be explicitly noncertifying and TEST-truth-free")
     if receipt.get("runtime") not in ("scientific", "production"):
         raise ValueError("Receipt must identify its independent runtime")
+    provenance = receipt.get("provenance")
+    if not isinstance(provenance, dict) or set(provenance) != {"runId", "runtimeArtifactSha256"}:
+        raise ValueError("Missing exact runtime provenance")
+    if not isinstance(provenance["runId"], str) or not provenance["runId"].strip():
+        raise ValueError("Missing run identifier")
+    _require_sha(provenance["runtimeArtifactSha256"], "runtimeArtifactSha256")
     identity = {key: _require_sha(receipt.get(key), key) for key in
                 ("modelSha256", "universeSha256", "operationalEdgesSha256")}
     decisions = receipt.get("decisions")
@@ -68,10 +74,14 @@ def compare(left, right):
     if not isinstance(left, dict) or not isinstance(right, dict) or left.get("runtime") != "scientific" or right.get("runtime") != "production":
         raise ValueError("Expected independent scientific and production receipts, in that order")
     a, b = _canonical(left), _canonical(right)
+    lp, rp = left["provenance"], right["provenance"]
+    if lp["runId"] == rp["runId"] or lp["runtimeArtifactSha256"] == rp["runtimeArtifactSha256"]:
+        raise ValueError("Receipts must identify distinct runs and runtime artifacts")
     differences = [key for key in a if a[key] != b[key]]
     return {"schema": "JORNADA_V9_DIFFERENTIAL_COMPARISON_V1",
             "equivalent": not differences, "differentFields": differences,
             "leftEvidenceSha256": _digest(a), "rightEvidenceSha256": _digest(b),
+            "leftProvenance": left["provenance"], "rightProvenance": right["provenance"],
             "certified": False, "productionParityCertified": False}
 
 
