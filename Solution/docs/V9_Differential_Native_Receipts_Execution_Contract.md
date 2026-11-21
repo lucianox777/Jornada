@@ -30,3 +30,17 @@ Emitir recibos `JORNADA_V9_DIFFERENTIAL_RECEIPT_V1` a partir de duas execuções
 2. Instrumentar primeiro o caminho científico real, depois o operacional real, com testes de integração independentes.
 3. Executar comparação diferencial end-to-end; publicar recibos e hashes em artefatos não publicadores.
 4. Submeter a evidência a revisão dos gates científicos antes de qualquer proposta de desbloqueio.
+
+## Autorização operacional de integração pelo PO — 2026-11-21
+
+**ID:** GOV-V9-PR1795-1799-MERGE-20261121. **Autoridade:** Product Owner. **Estado:** DECIDIDO / AUTORIZADO; integração, validação e ativação são estados distintos e devem ser comprovados separadamente.
+
+**Decisão:** o PO autorizou explicitamente os merges das cinco PRs #1795, #1796, #1797, #1798 e #1799. A autorização dispensa nova solicitação de consentimento para esses merges, mas **não dispensa verificações obrigatórias, regras de proteção, resolução de dependências, revisão técnica aplicável, nem o método squash**.
+
+**Contexto e justificativa:** frente de preparação técnica V9 com coletor diferencial não certificador, guardas estáticas, verificação de hashes de bytes, provas negativas de proveniência e gate de comparação de dois artefatos. A autorização permite integrar essa preparação de forma ordenada, sem confundir CI verde com paridade científica ou execução real dos dois produtores nativos.
+
+**Ordem e precedência:** #1795 antecede #1796 e #1797; #1797 antecede #1799; #1798 é independente. A cadeia de branches deve ser reconciliada para evitar squash que introduza diffs de dependências ou omita arquivos. Esta autorização é estritamente operacional e complementa GOV-DOC-01 e as políticas de CI/squash, sem substituí-las.
+
+**Impactos e limites:** somente integração do código e dos testes das cinco PRs; não autoriza TRAIN/TEST científico, 100k, alterações LOCKED, certificação TEST/PROD, publicação ou ativação Gold/Serving. O bloqueio `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` continua vigente. Não declarar integração concluída sem SHAs de merge e CI pós-merge.
+
+**Rastreabilidade:** PRs #1795–#1799; correções de sintaxe da #1797 nos commits `23b55c15` e `d96a08cc`; sincronização de conteúdo na #1799 nos commits `f0787d58` e `33c638fd`. Os estados de CI e eventuais bloqueios restantes devem constar nas PRs; a aprovação do PO não equivale a sucesso dos gates.
