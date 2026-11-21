@@ -25,3 +25,21 @@ Exemplo aritmético: 12 milhões / 10 mil = **1.200 pacotes**, não 12 mil. Se c
 
 ## Estado
 **Avaliação preliminar documentada; decisão de limites PENDENTE.** A generalização de escopo da #1348 é proposta para aprovação do PO, não alteração unilateral de critérios. PRs fechadas não serão reabertas. Relacionadas #1348, #1349, #1488, #1584 e PR documental #1836.
+
+## Auditoria de configurabilidade — 21/11/2026
+**Solicitação do PO:** verificar se controles volumétricos são configuráveis e avaliar atribuição da entrega à #1348. A decisão sobre novos tetos numéricos segue pendente.
+
+| Controle | Código atual | Situação |
+|---|---|---|
+| ZIP compactado | `IngestionPackageInspector.MaxCompressedBytes = 250L * 1024 * 1024`; `Program.cs` aplica o mesmo valor em `IHttpMaxRequestBodySizeFeature` | **Fixo em compilação; não configurável por ambiente** |
+| ZIP descompactado | `IngestionPackageInspector.MaxUncompressedBytes = 2L * 1024 * 1024 * 1024` | **Fixo em compilação** |
+| Manifest | `MaxManifestBytes = 64L * 1024` | Fixo; limite de segurança distinto |
+| Requisições por janela | `ApiRateLimiting` lê seção `ApiRateLimiting` de configuração; `Program.cs` injeta políticas | **Configurável** (conforme contrato e implantação) |
+| Registros por ZIP | Nenhum limite global demonstrado na inspeção; o ensaio 10k divide 10.000 pessoas em dez ZIPs de mil | **Não comprovado como controle configurável** |
+| Concorrência e filas | Há rate limiting de borda, mas não foi auditado o controle de workers, filas e backpressure por campanha | **Auditoria pendente** |
+
+**Outra PR de volumetria:** busca encontrou PRs históricas #154, #295, #369, #664 (respectivamente observabilidade de SCALE, projeção de blocking, evidência HML e DT-10), com escopos distintos. Não foi identificada, por essa busca textual, PR aberta que entregue a configurabilidade do limite de ingestão. Não reabrir PRs fechadas.
+
+**Avaliação recomendada para a #1348 (sujeita a aprovação):** adicionar à issue uma entrega funcional de política de ingestão configurável por ambiente/gestor, com limites de bytes compactados, bytes expandidos, quantidade de pessoas e registros, concorrência e controle de recursos. Manter limites máximos de segurança não eleváveis sem decisão específica; usar validação de configuração fail-closed, consistência entre Kestrel/proxy/inspector/processor, resposta clara a violações, métricas e testes de fronteira. Diferenciar teto normativo de teto operacional menor. Não implementar nem alterar os 250 MiB nesta PR documental.
+
+**Riscos:** alteração unilateral pode quebrar consumidores existentes, permitir bypass entre API e Processor ou enfraquecer proteção contra ZIP bomb. A escolha de parâmetros deve passar por testes e precedência documental. A PR #1836 é apenas de organização; a implementação deve ser PR de código própria vinculada à issue, sem reabrir PR encerrada.
