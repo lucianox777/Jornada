@@ -11,13 +11,19 @@ spec.loader.exec_module(module)
 
 def receipt():
     return {"schema": "JORNADA_V9_DIFFERENTIAL_RECEIPT_V1",
-            "certified": False, "testTruthUsed": False,
+            "certified": False, "testTruthUsed": False, "runtime": "scientific",
             "modelSha256": "a" * 64, "universeSha256": "b" * 64,
             "operationalEdgesSha256": "c" * 64,
             "decisions": [{"observationId": 1, "decision": "NEW"},
                           {"observationId": 2, "decision": "LINK"},
                           {"observationId": 3, "decision": "NEW"}],
             "groups": [[1, 2], [3]]}
+
+
+def pair():
+    a, b = receipt(), receipt()
+    b["runtime"] = "production"
+    return a, b
 
 
 class DifferentialReceiptTests(unittest.TestCase):
@@ -56,14 +62,21 @@ class DifferentialReceiptTests(unittest.TestCase):
             r = receipt()
             mutate(r)
             with self.subTest(r=r), self.assertRaises(ValueError):
-                module.compare(receipt(), r)
+                module.compare(pair()[0], {**r, "runtime": "production"})
 
     def test_cannot_claim_certification_or_use_test_truth(self):
         for field in ("certified", "testTruthUsed"):
             r = receipt()
             r[field] = True
             with self.subTest(field=field), self.assertRaises(ValueError):
-                module.compare(receipt(), r)
+                module.compare(pair()[0], r)
+
+    def test_same_runtime_or_swapped_receipts_rejected(self):
+        a, b = pair()
+        for left, right in ((a, a), (b, a), (b, b)):
+            with self.subTest(left=left["runtime"], right=right["runtime"]):
+                with self.assertRaises(ValueError):
+                    module.compare(left, right)
 
 
 if __name__ == "__main__":
