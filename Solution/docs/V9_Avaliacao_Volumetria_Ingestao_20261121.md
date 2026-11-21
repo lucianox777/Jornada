@@ -52,3 +52,18 @@ O PO orientou **preservar os números técnicos atualmente praticados no DEV com
 **Permanecem constantes no código** os tetos de 250 MiB ZIP compactado, 2 GiB expandido e 64 KiB manifest em `IngestionPackageInspector`. A API usa o teto de 250 MiB em `Program.cs`. Proposta de implementação: tornar configuráveis **somente os controles que ainda estão fixos**, reutilizando o padrão de appsettings/overrides por ambiente, com defaults iguais aos atuais, validação fail-closed e consistência API/Processor. Nenhuma alteração imediata de valores ou de política de segurança.
 
 **Critério de evidência:** DEV mantém baseline de regressão, não certificação de capacidade de HML/PROD; calibrar separadamente cada ambiente com testes representativos de payload, concorrência, tempo, memória, SQL e recuperação. Não presumir que a configuração DEV é ótima apenas porque funciona. Manter HML `CALIBRAR` e PROD sem valores inventados.
+
+## Reavaliação: monitoramento contínuo de recursos por ambiente — 21/11/2026
+O PO questionou a utilidade de uma calibração pontual de infraestrutura DEV e sugeriu substituir esse trabalho por monitoramento contínuo governado, com parâmetros por ambiente. **Avaliação, não aprovação de nova DT nem encerramento de gate HML.**
+
+**Itens existentes e precedência:** #407 (aberta) já prevê OpenTelemetry acionável e runbook ao ingressar em HML; #379 rege ferramenta corporativa, RPO/RTO e política operacional; #93 (aberta) exige evidência representativa de capacidade HML para aceite institucional; #1348 (aberta) mede cadeia HTTP→Serving com rampas e controles; #1349 (aberta) mede escala do motor V9. Não criar nova DT/issue sem reconciliar esses escopos. PRs fechadas não reabrir.
+
+**Proposta de decomposição:**
+- **#1348, entrega DEV/CI:** garantir controles configuráveis, testes de limites, instrumentação mínima e regressão funcional de carga sintética; não dimensionar HML/PROD a partir de DEV.
+- **#407 + #379, entrega HML/PROD e governança contínua:** monitor de recursos por ambiente com coleta de CPU, RSS/memória, SQL waits/deadlocks, IO, filas, throughput, latências p50/p95/p99, falhas, retries, limites e saturação; dashboards, alertas, responsáveis, revisão periódica, trilha de mudanças e procedimento de reação. Escolha de backend corporativo permanece #379.
+- **#93, aceite HML:** preservar um teste representativo inicial e de mudança material de capacidade, além do monitoramento contínuo. Monitoramento de baixa carga não substitui comprovação da carga-alvo e recuperação. Não transformar snapshot DEV em baseline HML.
+- **#1349:** ensaio técnico 100k V9 após pré-requisitos; não é substituído por métricas de infraestrutura genéricas.
+
+**Governança proposta:** perfis de configuração versionados por ambiente; defaults DEV atuais, HML/PROD calibrados por observação real; limites de segurança e validação fail-closed; alarmes por tendências e faixas aprovadas, sem inventar SLA. Critérios de conclusão para monitor: telemetria real, métricas e alertas testados, runbook e responsável operacional; o monitor continua executando após o fechamento da issue de implantação.
+
+**Estado:** proposta documentada para decisão do PO; nenhuma issue criada/fechada ou critério de aceite alterado nesta revisão.
