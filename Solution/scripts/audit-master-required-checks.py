@@ -67,11 +67,20 @@ def main():
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         raise SystemExit("UNKNOWN: GITHUB_TOKEN missing; protection not verified")
-    try:
-        protection = request_json(args.repo, "/branches/master/protection", token)
-        rulesets = request_json(args.repo, "/rulesets", token)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError) as exc:
-        raise SystemExit("UNKNOWN: protection/ruleset API inaccessible (" + type(exc).__name__ + ")")
+    for endpoint, label in (("/branches/master/protection", "branch_protection"),
+                            ("/rulesets", "repository_rulesets")):
+        try:
+            payload = request_json(args.repo, endpoint, token)
+        except urllib.error.HTTPError as exc:
+            # Only the endpoint label and HTTP status are emitted; never print tokens,
+            # response bodies, headers or request URLs.
+            raise SystemExit(f"UNKNOWN: {label} API returned HTTP {exc.code}") from None
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            raise SystemExit(f"UNKNOWN: {label} API inaccessible ({type(exc).__name__})") from None
+        if label == "branch_protection":
+            protection = payload
+        else:
+            rulesets = payload
     result = evaluate(protection, rulesets)
     print(json.dumps(result, sort_keys=True))
     if not result["verified"]:
