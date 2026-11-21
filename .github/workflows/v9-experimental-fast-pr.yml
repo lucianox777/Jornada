@@ -38,6 +38,10 @@ jobs:
           fi
       - name: All V9 fixture regression
         run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py' -v
+      - name: V9 differential receipts and scientific parity guards (offline, noncertifying)
+        run: |
+          python -m unittest discover -s Solution/tests/scripts -p 'test_v9_differential_receipt_compare.py' -v
+          python -m unittest discover -s Solution/tests/scripts -p 'test_v9_scientific_test_production_parity_gate.py' -v
       - name: Statistical reference envelope regression (offline, no database)
         run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_statistical_reference_contract.py' -v
       - name: File-driven V2 frozen calibration bootstrap regression

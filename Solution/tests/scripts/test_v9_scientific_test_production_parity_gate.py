@@ -41,5 +41,30 @@ class ScientificTestParityGateTests(unittest.TestCase):
         self.assertIn("is False", independent)
 
 
+    def test_test_only_adapter_cannot_be_mistaken_for_production_parity(self):
+        runner = ROOT / "Solution/src/Jornada.Linkage.Runner"
+        scorer = (runner / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
+        production = (runner / "SqlProbabilisticIdentityLinkage.cs").read_text(encoding="utf-8")
+        self.assertIn("MaximumSyntheticObservations = 512", scorer)
+        self.assertIn("frozenRows.Count is < 2 or > MaximumSyntheticObservations", scorer)
+        self.assertIn("JornadaHarness", scorer)
+        self.assertIn("ResolvePinnedV9FrozenTestCohortAsync", scorer)
+        self.assertIn("LoadPinnedV9OperationalRuntimeAsync", production)
+        self.assertIn("LoadPinnedV9GroupedCohortRuntimeAsync", production)
+        self.assertIn("ResolvePinnedV9FrozenTestCohortAsync", production)
+        # These diagnostic entry points do not prove the production ResolveWithoutCpf path.
+        self.assertIn("ResolveWithoutCpfAsync", production)
+        self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", self.workflow)
+
+    def test_operational_graph_is_not_replaced_by_physical_oracle(self):
+        runner = ROOT / "Solution/src/Jornada.Linkage.Runner"
+        scorer = (runner / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text(encoding="utf-8")
+        parity = (runner / "V9OperationalBlockingChaveCohortParity.cs").read_text(encoding="utf-8")
+        self.assertIn("operational.OperationalEdges.ToList()", scorer)
+        self.assertIn("physical.Edges.SequenceEqual(operational.OperationalEdges)", scorer)
+        self.assertIn("OperationalEdges", parity)
+        self.assertNotIn("edges = physical.Edges.ToList()", scorer)
+
+
 if __name__ == "__main__":
     unittest.main()
