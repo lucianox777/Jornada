@@ -29,3 +29,10 @@ Esta PR trata exclusivamente da implementação integral do TEST científico V9,
 ## Rastreabilidade e precedência
 
 Issue #1584; PR #1820; `Solution/docs/Decisao_GOV_V9_TEST_Isolamento_Retrocompat_Liberacao_20261117.md`; `Solution/docs/Decisao_GOV_V9_TEST_Projecao_Congelada_20261118.md`; `Solution/docs/Indice_Decisoes_Vigentes.md`. Este plano não cria nem substitui decisão de governança.
+
+## Evidência incremental — 2026-11-21
+
+- PR #1820 foi integrada à master; PR #1822 permanece independente e em draft.
+- Removida do workflow legado `v9-v3-four-name-100k.yml` a invocação incompatível `--v9-independent-test ... --test-database ...`; a rota externa agora termina explicitamente com `V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY`, sem encaminhar dados externos ao TEST científico. O workflow já possuía bloqueios de admissão; esta correção elimina a chamada perigosa mesmo se a rota for alcançada. O adaptador PREPARE externo continua pendente (#1626).
+- Atualizado teste contratual para exigir bloqueio explícito e ausência da invocação antiga.
+- Não houve execução científica, certificação, ativação ou publicação. Esta mudança não desbloqueia o gate de paridade física; CI deve confirmar regressões antes do merge.
