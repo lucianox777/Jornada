@@ -7,6 +7,14 @@ if (-not $Dt05CpfLate -or -not $VerifyLinkageRunner -or $db -ne 'JornadaSyntheti
 if ([int](Scalar "SELECT COUNT_BIG(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';") -ne 1) {
     throw 'DT-05: esperado exatamente um modelo ATIVO no corpus DEV.'
 }
+# Pinagem explícita somente do fixture sintético isolado; não altera configuração produtiva.
+$dt05ModelVersionText = Scalar "SELECT CONVERT(VARCHAR(20),versao) FROM identidade.modelo_linkage WHERE status=N'ATIVO';"
+$dt05ModelVersion = 0
+if (-not [int]::TryParse($dt05ModelVersionText, [ref]$dt05ModelVersion) -or $dt05ModelVersion -le 0 -or $dt05ModelVersion -eq 9) {
+    throw 'DT-05: versão do único modelo DEV ATIVO inválida ou V9 não certificado.'
+}
+Write-Host "DT-05: modelo sintético isolado explicitamente pinado, versão=$dt05ModelVersion."
+
 # A tabela controle.modo_carga_inicial foi removida pela migration de 27/09.
 # O E2E usa JornadaSyntheticDev isolado, exige exatamente um modelo ATIVO
 # e o Runner aplica a coordenação atual do pipeline antes de publicar.
@@ -129,8 +137,15 @@ function Invoke-Dt05Runner([int]$wave, [long]$observationId) {
     $reason = "$marker-W$wave"
     Push-Location $Root
     try {
-        dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --mode ON_DEMAND --pessoa-observacao-id $observationId --max-records 1 --requested-by DT05_CPF_LATE_E2E --reason $reason --publish true | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "DT-05: Runner real falhou na onda $wave." }
+        # A variável de processo aplica o contrato do Operador Master apenas nesta invocação E2E.
+        $previousSelectedModelVersion = [Environment]::GetEnvironmentVariable('Linkage__SelectedModelVersion')
+        try {
+            [Environment]::SetEnvironmentVariable('Linkage__SelectedModelVersion', [string]$dt05ModelVersion)
+            dotnet run --no-build --configuration Release --project src/Jornada.Linkage.Runner -- --model-version $dt05ModelVersion --mode ON_DEMAND --pessoa-observacao-id $observationId --max-records 1 --requested-by DT05_CPF_LATE_E2E --reason $reason --publish true | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "DT-05: Runner real falhou na onda $wave." }
+        } finally {
+            [Environment]::SetEnvironmentVariable('Linkage__SelectedModelVersion', $previousSelectedModelVersion)
+        }
     } finally { Pop-Location }
     $runId = Scalar "SELECT CONVERT(VARCHAR(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_CPF_LATE_E2E' AND motivo=N'$reason' AND status=N'PUBLICADO';"
     if (-not $runId -or [int](Scalar "SELECT COUNT_BIG(*) FROM identidade.linkage_run WHERE solicitado_por=N'DT05_CPF_LATE_E2E' AND motivo=N'$reason' AND status=N'PUBLICADO';") -ne 1) {
