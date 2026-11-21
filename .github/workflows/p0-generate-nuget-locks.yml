@@ -36,8 +36,13 @@ jobs:
           done
           dotnet restore tests/PartitionIntegritySmoke/PartitionIntegritySmoke.csproj --locked-mode
           python3 scripts/nuget-lock-gate.py --root .
-          python3 scripts/nuget-lock-provenance-gate.py --root .
           sha256sum src/Jornada.Linkage.SyntheticCorpus.Parametrized/packages.lock.json tests/PartitionIntegritySmoke/packages.lock.json
+          if ! git diff --quiet -- src/Jornada.Linkage.SyntheticCorpus.Parametrized/packages.lock.json tests/PartitionIntegritySmoke/packages.lock.json; then
+            echo '::error::External-project lock bytes changed during restore'
+            git diff -- src/Jornada.Linkage.SyntheticCorpus.Parametrized/packages.lock.json tests/PartitionIntegritySmoke/packages.lock.json
+            exit 1
+          fi
+          python3 scripts/nuget-lock-provenance-gate.py --root .
       - name: Publish generated lock files (not a commit)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
