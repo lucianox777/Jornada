@@ -21,3 +21,13 @@ A decisão evita repetir verificações técnicas já aprovadas e preserva vincu
 Prevalecem GOV-DOC-01, manifests e seeds LOCKED, três coortes independentes, TEST obrigatório se houver vencedor, gates fail-closed e vedação de promoção/ativação automática. A issue #1584 continua aberta e deve ser avaliada por bloqueio real, não encerrada por inferência. Evidências: PR #1825 (squash `a74d56f0acd463cb9efcaee17f554cc2fc935d40`), CI #44922073440, regressão ampla #44922073460, probe #44922073382, Diagnostics #44923030906 e relato do Work apresentado pelo PO nesta conversa.
 
 **Resultado:** autorização específica concedida; atestação do proprietário pendente; nenhuma campanha científica iniciada por este registro.
+
+## Ampliação do mandato operacional pelo PO — 21/11/2026
+
+Após receber proposta de mandato Work para admissão final e execução científica, o PO determinou: **“Eu quero alterar esse mandato porque eu já autorizo a execução, as execuções que forem necessárias.”**
+
+**Decisão:** o PO autoriza o Work a conduzir autonomamente a execução científica V9 Standard Linear 100k e as execuções técnicas/operacionais adicionais **necessárias** à sua conclusão, inclusive verificações, correções, reexecuções justificadas e acompanhamento, **sem solicitar aprovação repetitiva para cada execução**, desde que respeitados os protocolos oficiais, limites científicos, custo/recursos disponíveis, rastreabilidade e controles de segurança. Cada tentativa deve ter justificativa, SHA, parâmetros, run ID, resultado e causa de eventual reexecução. Não inclui autorização para campanhas de escopo diferente, alterações LOCKED, promoção/ativação de modelos, bypass ou repetição ilimitada sem diagnóstico.
+
+**Condições que permanecem:** esta autorização de execução não equivale a atestação do preflight; o proprietário deve confirmar efetivamente os controles e o workflow deve cumprir o gate owner-only. O workflow exige SHA idêntico ao HEAD da `master`; quando o merge documental alterar o SHA, o Work deve **parar o despacho e solicitar autorização específica para o novo SHA**, salvo se houver decisão posterior expressa que o cubra. Não utilizar `security_preflight_approved=true` sem atestação real. A execução deve permanecer bloqueada enquanto houver falhas bloqueantes. A autorização é para executar quando os gates forem satisfeitos, **não** para ignorá-los.
+
+**Precedência:** esta ampliação substitui apenas a necessidade de pedir permissão a cada execução operacional pertinente, mantendo as restrições técnicas e científicas das seções anteriores, GOV-DOC-01 e o runbook. Não houve despacho por este registro.
