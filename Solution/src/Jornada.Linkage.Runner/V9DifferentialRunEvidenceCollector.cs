@@ -12,6 +12,7 @@ internal sealed class V9DifferentialRunEvidenceCollector
     private readonly SortedSet<long> universe;
     private readonly Dictionary<long, string> decisions = new();
     private readonly List<long[]> groups = new();
+    private readonly HashSet<long> groupedMembers = new();
     private bool sealedEvidence;
 
     internal V9DifferentialRunEvidenceCollector(IEnumerable<long> frozenObservationIds)
@@ -37,8 +38,11 @@ internal sealed class V9DifferentialRunEvidenceCollector
         ArgumentNullException.ThrowIfNull(observationIds);
         var ids = observationIds.ToArray();
         if (ids.Length == 0 || ids.Any(id => !universe.Contains(id))
-            || ids.Distinct().Count() != ids.Length)
+            || ids.Distinct().Count() != ids.Length
+            || ids.Any(groupedMembers.Contains))
             throw new InvalidDataException("Invalid differential group.");
+        foreach (var id in ids)
+            groupedMembers.Add(id);
         groups.Add(ids.OrderBy(id => id).ToArray());
     }
 
@@ -65,8 +69,8 @@ internal sealed class V9DifferentialRunEvidenceCollector
         if (members.Length != universe.Count || members.Distinct().Count() != universe.Count
             || !universe.SetEquals(members))
             throw new InvalidDataException("Groups must partition the frozen universe.");
-        sealedEvidence = true;
-        return JsonSerializer.Serialize(new
+        // Do not seal until serialization has completed successfully.
+        var json = JsonSerializer.Serialize(new
         {
             schema = "JORNADA_V9_DIFFERENTIAL_RECEIPT_V1",
             certified = false,
@@ -79,5 +83,7 @@ internal sealed class V9DifferentialRunEvidenceCollector
             decisions = universe.Select(id => new { observationId = id, decision = decisions[id] }).ToArray(),
             groups = groups.OrderBy(g => g[0]).ToArray()
         });
+        sealedEvidence = true;
+        return json;
     }
 }
