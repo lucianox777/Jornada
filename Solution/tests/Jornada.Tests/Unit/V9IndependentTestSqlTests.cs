@@ -76,6 +76,8 @@ public sealed class V9IndependentTestSqlTests
             using var result = JsonDocument.Parse(await File.ReadAllTextAsync(reportPath));
             var report = result.RootElement;
             var replay = report.GetProperty("replayEvidence");
+            var observationsSha256 = Convert.ToHexStringLower(SHA256.HashData(
+                await File.ReadAllBytesAsync(Path.Combine(corpus, "observacoes.csv"))));
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(report.GetProperty("winnerSnapshotSha256").GetString(), Is.EqualTo(winner.ContentSha256));
@@ -84,6 +86,7 @@ public sealed class V9IndependentTestSqlTests
                 Assert.That(report.GetProperty("tfSlotCount").GetInt32(), Is.EqualTo(4));
                 Assert.That(report.GetProperty("jointCellCount").GetInt32(), Is.EqualTo(81));
                 Assert.That(report.GetProperty("evaluatedTestObservations").GetInt32(), Is.EqualTo(4));
+                Assert.That(report.GetProperty("testObservationsSha256").GetString(), Is.EqualTo(observationsSha256));
                 Assert.That(report.GetProperty("selectedTestBaseIdentities").GetInt32(), Is.EqualTo(2));
                 Assert.That(report.GetProperty("diagnosticNonScientific").GetBoolean(), Is.True);
                 Assert.That(report.GetProperty("p95Milliseconds").ValueKind, Is.EqualTo(JsonValueKind.Null));
@@ -138,7 +141,8 @@ public sealed class V9IndependentTestSqlTests
         {
             var target = Path.Combine(path, file);
             await File.WriteAllTextAsync(target, data);
-            outputs.Add(new { path = file, sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(target))) });
+            // The real generator writes uppercase SHA-256 digests to its manifest.
+            outputs.Add(new { path = file, sha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(target))) });
         }
 
         await File.WriteAllTextAsync(Path.Combine(path, "generation-manifest.json"), JsonSerializer.Serialize(new
