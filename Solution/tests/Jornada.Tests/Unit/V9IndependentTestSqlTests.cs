@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jornada.Tests.Unit;
 
-[TestFixture, NonParallelizable, Category("Unit")]
+[TestFixture, NonParallelizable, Category("SQLSmoke")]
 public sealed class V9IndependentTestSqlTests
 {
     [Test]
