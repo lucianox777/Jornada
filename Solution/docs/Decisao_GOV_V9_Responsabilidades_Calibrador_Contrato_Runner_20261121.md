@@ -22,3 +22,6 @@ Corpos das issues #1089, #1488, #1584, #1575 e #1478 atualizados em 21/11/2026 c
 
 ## Prioridade beta ratificada pelo PO em 21/11/2026
 A **próxima prioridade do sistema é disponibilizar o Runner funcional para a versão beta**, preservando a operação V8 existente e viabilizando a execução V9 multiparâmetros por contrato aprovado pelo MASTER. As issues #1089, #1488, #1584, #1478 e a triagem #1575 são tratadas como frente prioritária coordenada, não como cinco implementações concorrentes. A #946 estabelece a arquitetura nominal V9; a #1349 acompanha a lacuna de ensaio físico 100k multiparâmetros; a #1348 acompanha o E2E HTTP/Serving em escala. Não confundir execução V8 atual com capacidade V9 produtiva. A priorização não revoga gates científicos, compatibilidade legada, segurança, DT-15 nem autorização de ativação.
+
+## Política operacional de PRs fechadas — PO 21/11/2026
+PRs já fechadas, com ou sem merge, **não serão reabertas** nem reintroduzidas na fila de trabalho. São somente referências históricas de evidência; auditar código atual e issues/PRs abertas. A #1654 está fechada, assim como a #1712; referência histórica que indicava #1654 aberta não é status atual. Detalhes em `V9_Auditoria_Incremental_Issue946_PRs_Fechadas_20261121.md`.
