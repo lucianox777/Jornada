@@ -127,7 +127,8 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
 
     def test_cli_is_explicit_parameter_no_synthetic_when_present(self):
         src = TEST.read_text()
-        self.assertIn('args[2] != "--test-repetitions"', src)\n        self.assertNotIn('args[2] == "--test-database"', src)
+        self.assertIn('args[2] != "--test-repetitions"', src)
+        self.assertNotIn('args[2] == "--test-database"', src)
         self.assertNotIn("V9ExternalDatabaseReadOnlyTest.RunAsync(winnerFile, args[3])", src)
         self.assertIn("return;", src)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)", src)
