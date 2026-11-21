@@ -4,6 +4,9 @@ on:
     branches:
       - fix/p0-generate-nuget-locks-actions
   workflow_dispatch:
+  pull_request:
+    branches:
+      - master
 permissions:
   contents: read
 jobs:
