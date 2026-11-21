@@ -13,10 +13,64 @@
 > [Console DEV](Console_DEV_Supervisao_Atual.md).
 >
 > **Precedência de decisão (29/09/2026):** [DC-LK/OP](Decisoes_Canonicas_Identidade_Linkage_20260929.md) prevalece sobre notas antigas V6/V7 e o guard demográfico; o código ainda exige conferência governada por modelo e mantém parâmetros históricos. Este runbook descreve passos executáveis com distinção de estado e objetivo futuro; não ativar a V8 revista antes dos gates de implementação.
+>
+> O procedimento da campanha sintética está em [Operação do calibrador V9](#operação-do-calibrador-v9). A autorização de campanha é específica ao SHA e ao preflight do proprietário.
 
 # Jornada - Runbook operacional da Fase 1 (v3.55)
 
 **Interpretação operacional do núcleo:** a Jornada é apoio à decisão e mantém a melhor representação disponível, não uma identidade civil certificada. Mudanças de evidência de identidade, de referências candidatas ou de modelo podem demandar reavaliação; novas entregas idempotentes ou mudanças só de atributos não identitários não devem forçar novo scoring. Quando a representação semântica não mudar, evitar nova versão operacional da decisão, mantendo a trilha de execução e o ledger de atos aplicáveis. A hierarquia pretendida da Gold é documentação mais recentemente apresentada, documentação anterior, autodeclaração mais recente e autodeclaração anterior, por atributo. **Estas são diretrizes a conferir/implementar no código atual, não procedimentos já homologados.** Ver `Diretrizes_Identidade_Progressiva_Apoio_Decisao.md`.
+
+## Operação do calibrador V9
+
+O caminho canônico é [V9 Standard Linear](../../.github/workflows/v9-standard-linear-100k.yml), que chama o calibrador C# em [Jornada.Linkage.Parameters.Worker](../src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj). [Program.cs](../src/Jornada.Linkage.Parameters.Worker/Program.cs) encaminha `--v9-calibrate` e `--v9-validate-finalists` para [V9NestedCalibrationCli](../src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs). O workflow legado TF4 é diagnóstico. O percurso padrão segue a [decisão de isolamento e TEST obrigatório com vencedor](Decisao_GOV_V9_TEST_Isolamento_Retrocompat_Liberacao_20261117.md) e o [protocolo de CI e pós-merge](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md).
+
+### Ambiente e insumos
+
+| Item | Configuração confirmada |
+| --- | --- |
+| Ambiente | GitHub Actions `ubuntu-24.04`, SDK .NET `10.0.113`, Python 3, Docker, utilitários de SHA-256 e OpenSSL no job TEST. `DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT` e `JORNADA_RUNTIME_MODE` em `DEV` nos jobs científicos, com bootstrap da referência SQL em `Development`. |
+| SQL | SQL Server efêmero `JornadaHarness` em cada job físico. TRAIN/VALIDATION recebem `ConnectionStrings__Jornada` do bootstrap do workflow. TEST recebe `JORNADA_V9_TEST_SQL_CONNECTION` e `JORNADA_V9_TEST_SQL_MARKER` do próprio bootstrap, com loopback, TLS obrigatório, certificado efêmero fixado e checagem de ausência dos schemas Gold/Serving. Os jobs geram as credenciais e eliminam seus contêineres. |
+| Referência e plano | Snapshot de nomes IBGE 2022 e projeção diária de nascimentos SP versionados no repositório. O TRAIN verifica o [artefato fixado 13654549483](https://api.github.com/repos/lucianox777/Jornada/actions/artifacts/13654549483), seu SHA-256 `5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7` e a identidade do pin histórico IBGE/seed42 30k. O artefato é a origem do plano, e a coorte TRAIN é gerada pelo PREPARE. |
+| Parâmetros científicos | [Configuração oficial](../config/calibration/v9-synthetic-sampling.json) com 100 mil identidades-base por coorte, perfil `clean`, partição interna 60/20/20. TRAIN usa seed `42`, avalia 324 hipóteses TF4 com 81 opções de TF e paralelismo automático `0`. VALIDATION usa seed `20261112001`. O TEST recebe uma seed inédita reservada por UUIDv4 e usa a partição TEST da coorte própria, com 20 repetições. |
+| Artefatos e espaço | Handoffs transferem ZIP/tar.gz, manifestos e hashes vinculados a SHA, run e tentativa, conforme cada contrato. Os jobs verificam RAM, cgroup e disco antes da execução física. Separe a persistência da evidência das áreas temporárias do SQL e do corpus em `Solution/.local`. |
+
+### Diagnóstico preparatório
+
+1. Fixe o HEAD da `master` e confira a CI de push, o classificador seed42, a proteção da branch e os gates específicos aplicáveis. Use a [matriz P0-A](Registro_Operacional_P0_Recuperacao_NuGet_Locks_20261120.md#matriz-de-aceite-da-p0-a-em-21112026) para localizar as evidências de LOCKED e DT-10.
+2. Confira a integridade da referência e do artefato fixado. O job `deterministic-build` executa `--v9-startup-log-probe <diretório-novo>` no Worker compilado e verifica a saída `[V9 START]` e `startup-progress.jsonl`. Esse diagnóstico inicia somente a CLI. O smoke entre jobs ensaia o handoff e o fechamento com recibos sintéticos, e o smoke SQL dedicado verifica o mesmo arquivo do vencedor no loader fixado e SQL isolado. [Startup e build](https://github.com/lucianox777/Jornada/actions/runs/44913424166/job/136873908306) · [Handoff](https://github.com/lucianox777/Jornada/actions/runs/44880840021) · [SQL isolado](https://github.com/lucianox777/Jornada/actions/runs/44903776461)
+3. Confirme a autorização da campanha e o preflight de segurança para o SHA escolhido. A execução é manual pelo proprietário do repositório, com `expected_sha` igual ao `GITHUB_SHA`, branch `master`, `security_preflight_approved=true` e tentativa `1`. A disponibilidade do GitHub-hosted e os limites reais de recursos são verificados pelo próprio workflow.
+
+### Despacho autorizado e ponto de entrada
+
+Com a conta proprietária autenticada no GitHub CLI e a campanha aprovada para o SHA selecionado, defina `sha_master_aprovada` com esse valor de 40 caracteres e use o comando abaixo. O formulário **Run workflow** do Standard Linear usa os mesmos campos.
+
+```bash
+gh workflow run v9-standard-linear-100k.yml \
+  --repo lucianox777/Jornada --ref master \
+  -f expected_sha="$sha_master_aprovada" \
+  -f security_preflight_approved=true \
+  -f disable_python_sql_budget=true
+```
+
+Mantenha `synthetic_population` vazio para a população oficial e `test_database` vazio para IBGE congelado. O adaptador estatístico externo está adiado na [#1626](https://github.com/lucianox777/Jornada/issues/1626). Qualquer nome de banco fornecido interrompe PREPARE antes da geração. O default `disable_python_sql_budget=true` usa o orçamento nativo do SQL e os guardas de capacidade, com escalonamento C#.
+
+O comando executado pelo job TRAIN, a partir de `Solution/`, recebe o plano vinculado à coorte, o CSV com `generation-manifest.json` adjacente e o diretório novo de resultados. O workflow carrega a referência IBGE e configura a conexão descartável antes de invocá-lo.
+
+```bash
+dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+  --v9-calibrate "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
+```
+
+### Resultados e recuperação
+
+| Etapa | Evidência de conclusão |
+| --- | --- |
+| ADMISSION → PREPARE | Autorização do proprietário para o SHA exato e recibo do pacote TRAIN sintético com hashes e proveniência. |
+| TRAIN → AUDIT | Medição e recibos das 324 hipóteses, hashes de entradas e saídas e auditoria dos finalistas congelados. Quando não houver finalistas elegíveis, o AUDIT produz recibo explícito e o CLOSEOUT pode terminar como `COMPLETED_WITHOUT_ELIGIBLE_FINALISTS`. |
+| VALIDATION → TEST | Havendo finalistas, VALIDATION decide e emite o único `<sha>.operational.json` quando há vencedor. Esse arquivo vincula a projeção, o modelo TF4/81 e a materialização byte a byte no SQL descartável. Com vencedor, o TEST é obrigatório e gera `independent-test.json` e `SHA256SUMS` com métricas agregadas, seed, hashes da coorte, decisões e vencedor. O relatório preserva o vencedor em caso de falha ou ausência de evidência. Sem vencedor, nenhuma seed TEST é reservada. |
+| CLOSEOUT | Reconciliar `e2e-status.json`, o relatório comparativo e os recibos de cada job. Conferir SHA, run, tentativa, hashes, estado da VALIDATION e `independentTestReportStatus`. Um recibo TEST `VERIFIED` comprova integridade do contrato. Qualquer decisão de produção pertence ao operador MASTER, sob DT-15. |
+
+O progresso C# fica no log do job e em `startup-progress.jsonl`, `batch-progress.jsonl`, `memory-progress.jsonl` e no orçamento de recursos. O limite é o timeout nativo do runner de cada job. A seção de evidência de falha do TRAIN recolhe os arquivos disponíveis, incluindo `interrupted.json` e `calibrador.log` quando produzidos. Para timeout ou falha técnica, confira o primeiro step falho, a etapa C# e a integridade dos handoffs. Preserve os recibos e descarte os ambientes efêmeros. Eventual nova campanha usa novo despacho autorizado, diretórios novos e nova reserva TEST, mantendo a reserva anterior como trilha. Consulte o [procedimento de admissão do TEST](V9_TEST_Fisico_Preflight_Admissao_20261118.md) para a evidência histórica de regressão.
 
 ## 1. Princípio de operação
 
