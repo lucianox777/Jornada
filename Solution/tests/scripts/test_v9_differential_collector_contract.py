@@ -25,6 +25,18 @@ class CollectorContractTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, SOURCE)
 
+    def test_overlapping_groups_rejected_before_seal(self):
+        for token in ("HashSet<long> groupedMembers", "ids.Any(groupedMembers.Contains)",
+                      "groupedMembers.Add(id)"):
+            with self.subTest(token=token):
+                self.assertIn(token, SOURCE)
+
+    def test_seal_only_after_serialization(self):
+        self.assertLess(SOURCE.index("var json = JsonSerializer.Serialize("),
+                        SOURCE.index("sealedEvidence = true;"))
+        self.assertLess(SOURCE.index("sealedEvidence = true;"),
+                        SOURCE.index("return json;"))
+
     def test_no_certification_or_implicit_production_wiring(self):
         self.assertIn("certified = false", SOURCE)
         self.assertIn("testTruthUsed = false", SOURCE)
