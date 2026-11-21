@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-CAMPANHA-STANDARD-LINEAR-100K-AUTORIZACAO-SHA-FINAL-20261121:** [aprovação condicional do PO para o SHA a74d56f0acd463cb9efcaee17f554cc2fc935d40; preflight pendente, sem despacho](Decisao_GOV_V9_Autorizacao_Condicional_SHA_Final_20261121.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-CAMPANHA-STANDARD-LINEAR-100K-AUTORIZACAO-CONDICIONAL-20261121:** [autorização expressa do PO para campanha V9 100k no SHA ed5137daa484679bef7c8dd42bf77e61460c9189, condicionada ao preflight e à ausência de falhas bloqueantes; despacho não efetuado](Decisao_GOV_V9_Autorizacao_Condicional_Campanha_Standard_Linear_100k_20261121.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-PARIDADE-BASELINE-44439087415-20261121:** [baseline comportamental aprovada pelo PO e evidências da campanha 100k/324, com closeout não concluído e paridade atual pendente](Decisao_GOV_V9_Paridade_Baseline_Run_44439087415_20261121.md). GOV-DOC-01.
