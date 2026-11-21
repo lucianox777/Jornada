@@ -1,5 +1,7 @@
 # V9 — admissão do TEST físico após correção da projeção (2026-11-18)
 
+**Atualização de 21/11/2026.** Os passos de 18/11 abaixo descrevem a preparação histórica. O [runbook do calibrador](Runbook_Operacao.md#operação-do-calibrador-v9) é o procedimento atual para o Standard Linear integrado por #1822, com SQL próprio do TEST, TLS pinado, coorte gerada após a escolha do vencedor e `test_database` reservado ao PREPARE. O preflight de regressão pontual já executado para o vencedor histórico consta no [run #44320234297](https://github.com/lucianox777/Jornada/actions/runs/44320234297), SHA `64b6a99155424519761331742d0a8e0615701623`. Seu [relatório 14434873934](https://github.com/lucianox777/Jornada/actions/runs/44320234297/artifacts/14434873934) registra 100 mil identidades-base, vencedor `24f119ace8340d212dd567674b66da9b89d8ba8f28776cfc1a632d470ead9208`, `refitted=false` e `certified=false`. No código atual, o [fixture SQL dedicado](https://github.com/lucianox777/Jornada/actions/runs/44903776461/job/136844958716) comprova a fronteira atual de quatro observações, com o escopo descrito no runbook.
+
 **Estado:** roteiro de admissão, **não** evidência de execução física. **Referência:** GOV-DOC-01; PR #1686, PR #1687 (merge `878d64f91ea4d87ef6773e32978fdb7d81e313c6`); campanha falha #44235715333.
 
 ## Constatação que bloqueia o chamado "TEST reduzido"

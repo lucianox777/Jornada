@@ -1,6 +1,6 @@
 # P0-A — Comparação histórica e alternativas de recuperação do gerador TF LOCKED
 
-**Data:** 20/11/2026. **Estado atual:** alternativa A **aprovada pelo PO em 20/11/2026**; alternativas B/C não aprovadas. Implementação segregada presente na PR #1769; verificações diagnósticas e de regressão aprovadas na revisão `0eaa68c`, com validação final e revisão de integração ainda pendentes. **Issue:** #1734. **Precedência:** GOV-DOC-01, os dois manifests LOCKED e o commit histórico de referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
+**Situação em 21/11/2026.** A alternativa A aprovada pelo PO em 20/11 foi implementada na [#1769](https://github.com/lucianox777/Jornada/pull/1769) e validada no corte técnico `06bd71b5700672eb4aeeead6a5dda5e16248722b`. A decisão, alternativas B/C e checkpoints históricos permanecem abaixo. A [matriz de aceite da #1734](Registro_Operacional_P0_Recuperacao_NuGet_Locks_20261120.md#matriz-de-aceite-da-p0-a-em-21112026) reúne os jobs, a prova byte a byte, o ruleset e a DT-10. GOV-DOC-01 e os dois manifests LOCKED preservam a referência `b98a01180737909edf7cbd0bee4ba2757d52fe0f`.
 
 ## Evidência verificada
 
