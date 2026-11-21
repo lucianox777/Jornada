@@ -102,3 +102,15 @@ A PR de continuidade da issue #1629 adiciona `.github/workflows/v9-test-credenti
 **Impactos e limites:** orientar a revisão dos critérios ainda abertos em #1488, #1575 e #1584, preservando gates fail-closed, evidências de isolamento, contrato operacional, regressão do executor e a ordem aprovada **P0-A #1734 → aceite DT-10 #1706 → P0-B**. A ratificação **não** libera TRAIN/TEST físico, TEST one-use, alteração de LOCK, retirada de guard, promoção HML ou ativação V9.
 
 **Precedência e rastreabilidade:** esta ratificação **confirma**, sem substituir, `GOV-V9-TEST-ISOLAMENTO-RETROCOMPAT-20261117` e as decisões científicas posteriores aplicáveis. Checkpoints: issue #1575, comentários `7054120771` e `7054137123`; issue #1488, comentário `7054100915`; issue #1734, comentário `7054089389`. Política GOV-DOC-01. Registro documental em PR, sujeito a checks e integração antes de ser considerado concluído.
+
+## Reafirmação do PO — 21/11/2026: implementar o TEST integral existente, não criar outro TEST
+
+**Contexto:** o PO reiterou que o TEST científico deve ser integral **conforme esta decisão já vigente**, e que a documentação deve acompanhar a implementação (GOV-DOC-01). Esta reafirmação não autoriza executar uma campanha one-use nem alterar parâmetros científicos.
+
+**Interpretação vinculante e precedência:** o TEST existente no workflow padrão deve ser completado; não criar um segundo teste nem executar TEST dentro do Runner de produção. O requisito é a **compatibilidade integral e sem perdas do arquivo operacional** emitido pela VALIDATION com a avaliação TEST isolada e com a importação administrativa futura no executor V9, sob autorização própria. Não exigir igualdade de métricas entre bases distintas. Preservar a obrigatoriedade automática do TEST quando houver vencedor, conforme decisão posterior GOV-V9-TEST-OBRIGATORIO-SE-VENCEDOR-20261117; a redação histórica de TEST opcional neste documento não prevalece sobre essa decisão.
+
+**Aceite pendente:** comprovar por testes automatizados o conteúdo TF4/81, blocking, limiares, agrupamento, SHA e contrato do vencedor; isolamento SQL e não publicação; coorte TEST independente; relatório científico e closeout; falhas fechadas e regressões de compatibilidade do executor em frente separada. Revisar formalmente gates antigos de paridade RunAsync à luz da ratificação de isolamento antes de qualquer remoção. `test_database` permanece exclusivamente referência estatística opcional do PREPARE; adaptador externo é dívida futura #1626.
+
+**Rastreabilidade:** issue #1584; PR #1820 de conciliação documental, sem certificação física. **Estado:** requisitos reafirmados; implementação integral e liberação ainda pendentes.
+
+**Verificação da reconciliação (#1820):** o teste de regressão confirma que `--test-database` é rejeitado no CLI científico antes da leitura do vencedor. A [falha em `unit-runtime`](https://github.com/lucianox777/Jornada/actions/runs/44876986824/job/136764254497) foi reproduzida e rastreada à asserção sobre o retorno do ramo legado removido. A migração do workflow legado segue no escopo da #1584.
