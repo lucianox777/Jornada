@@ -1049,8 +1049,11 @@ jobs:
           root="$PWD/.local/v9-external-database"
           model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
           test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-independent-test "$model" --test-database "$V9_EXTERNAL_DATABASE"
+          # Supervening GOV-V9-TEST isolation contract: test_database is PREPARE-only.
+          # This legacy route must never dispatch an external database through the
+          # SHA-pinned scientific TEST entry point; retain explicit fail-closed.
+          echo "::error::V9_LEGACY_EXTERNAL_TEST_ROUTE_DISABLED_PREPARE_ONLY"
+          exit 1
           python3 - "$root/results/external-database-test.json" "$V9_EXTERNAL_DATABASE" <<'PY'
           import json,sys
           report=json.load(open(sys.argv[1],encoding="utf-8"))
