@@ -1,3 +1,5 @@
+> **Atualização de governança — 22/11/2026 (PO):** o escopo **funcional/de desenvolvimento** da issue #494 foi aceito como concluído com base nos testes de transições semânticas (#540) e replay histórico determinístico (#719). A exigência histórica de reconciliar medições operacionais antes de encerrar #494 foi **substituída para esta issue** pela [decisão GOV-DT05-494](Decisao_GOV_DT05_494_Aceite_Funcional_20261122.md). Medições de crescimento/custo/latência permanecem como acompanhamento futuro; retenção institucional pertence à #379. A DT-05 **global operacional** não é automaticamente homologada.
+
 # DT-05 — Contrato da assinatura semântica V1
 
 > **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
