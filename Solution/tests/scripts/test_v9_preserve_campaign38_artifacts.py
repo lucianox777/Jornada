@@ -96,9 +96,9 @@ class Campaign38PreservationTests(unittest.TestCase):
             private.mkdir(mode=0o700)
             alias = Path(directory) / "alias"
             alias.symlink_to(private, target_is_directory=True)
-            with patch.dict("os.environ", {"GH_TOKEN": "test-token"}), \\
-                 patch.object(module, "api_json", side_effect=AssertionError("network forbidden")), \\
-                 self.assertRaises(SystemExit):
+            with (patch.dict("os.environ", {"GH_TOKEN": "test-token"}),
+                  patch.object(module, "api_json", side_effect=AssertionError("network forbidden")),
+                  self.assertRaises(SystemExit)):
                 module.main(["--destination", str(alias), "--execute"])
 
 
