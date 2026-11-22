@@ -27,9 +27,10 @@ class DocsOnlyFastGateTests(unittest.TestCase):
     def test_classification_and_safe_skip(self):
         s = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text()
         self.assertIn("  classify-impact:", s)
-        self.assertIn("git diff --name-only", s)
-        self.assertIn("ci-impact-classifier.py --files-from", s)
-        self.assertIn("grep -E '^docs_only=' impact.env", s)
+        self.assertIn("ci-impact-classifier.py --github-event", s)
+        self.assertNotIn("git ls-files", s)
+        self.assertNotIn("paths-ignore:", s)
+        self.assertIn("fetch-depth: 0", s)
         for name in ("unit-runtime", "deterministic-build"):
             part = re.split(r"(?m)^  [a-z][a-z0-9-]*:\s*$", s.split("  " + name + ":\n", 1)[1], maxsplit=1)[0]
             self.assertIn("needs: classify-impact", part)

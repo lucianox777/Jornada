@@ -102,3 +102,79 @@ class CiImpactClassifierTests(unittest.TestCase):
 
 
 if __name__=="__main__": unittest.main()
+
+
+class EventDiffTests(unittest.TestCase):
+    def setUp(self):
+        import contextlib
+        import tempfile
+        import subprocess
+        import os
+        self.repo = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(contextlib.chdir(self.repo))
+        def git(*args):
+            return subprocess.check_output(["git", *args], text=True).strip()
+        self.git = git
+        git("init", "-q", "-b", "master")
+        git("config", "user.name", "fixture")
+        git("config", "user.email", "fixture@example.test")
+        self.base = self.commit("README.md")
+
+    def commit(self, path):
+        p = Path(path)
+        p.parent.mkdir(exist_ok=True, parents=True)
+        p.write_text("change\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "fixture")
+        return self.git("rev-parse", "HEAD")
+
+    def push(self, base, head, **fields):
+        event = {"ref":"refs/heads/master", "forced":False, "before":base, "after":head}
+        return m.event_impact(dict(event, **fields), "push", head)
+
+    def test_push_exact_diff_new_and_missing_base(self):
+        head = self.commit("Solution/docs/decision.md")
+        result = self.push(self.base, head)
+        self.assertTrue(result["docs_only"])
+        self.assertEqual(result["paths"], ["Solution/docs/decision.md"])
+        self.assertEqual((result["base"],result["head"]), (self.base,head))
+        for base in ("0"*40,"1"*40,"bad",head):
+            self.assertTrue(self.push(base,head)["run_full"])
+        self.assertTrue(self.push(self.base,head,forced=True)["run_full"])
+        self.assertTrue(self.push(self.base,head,ref="refs/tags/v1")["run_full"])
+
+    def test_pr_merge_base_excludes_master_only_code(self):
+        self.git("checkout","-qb","topic")
+        head = self.commit("Solution/docs/readme.txt")
+        self.git("checkout","-q","master")
+        other = self.commit("Solution/src/code.cs")
+        pr = {"pull_request":{"base":{"sha":other,"ref":"master"},"head":{"sha":head}}}
+        result = m.event_impact(pr,"pull_request",other)
+        self.assertTrue(result["docs_only"])
+        self.assertEqual(result["base"],self.base)
+
+    def test_rename_requires_both_paths_and_handles_literal_newlines(self):
+        old = self.commit("Solution/docs/readme.md\nsource.cs")
+        Path("Solution/docs/readme.md\nsource.cs").rename("Solution/docs/moved.md")
+        head = self.commit("Solution/docs/moved.md")
+        self.assertTrue(self.push(old,head)["run_full"])
+        self.assertIn("Solution/docs/readme.md\nsource.cs",self.push(old,head)["paths"])
+
+    def test_executable_or_symlink_requires_full(self):
+        import os
+        p = Path("README.md")
+        p.chmod(0o755)
+        self.git("add","README.md")
+        self.git("commit","-qm","chmod")
+        self.assertTrue(self.push(self.base,self.git("rev-parse","HEAD"))["run_full"])
+        p.unlink()
+        os.symlink("source", p)
+        self.git("add","README.md")
+        self.git("commit","-qm","symlink")
+        self.assertTrue(self.push(self.base,self.git("rev-parse","HEAD"))["run_full"])
+
+    def test_closed_list_paths(self):
+        for path in [".github/docs.md", "Solution/docs/LOCKED.md", "Solution/docs/manifest.txt",
+                     "Solution/docs/openapi.md", "Solution/docs/fixtures/input.md", "Solution/docs/fixture.txt",
+                     "Solution/tests/readme.txt", "Solution/docs/SolutionSchema.md", "Solution/docs/x.json"]:
+            self.assertTrue(m.classify([path])["run_full"], path)

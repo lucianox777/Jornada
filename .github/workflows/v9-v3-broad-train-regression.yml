@@ -23,8 +23,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: classify
+        run: python3 Solution/scripts/ci-impact-classifier.py --github-event
+
   broad-physical:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    needs: classify-docs
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) && needs.classify-docs.outputs.docs_only != 'true'
     name: V3 1% FDR — ${{ matrix.family }} seed${{ matrix.seed }} (TRAIN only)
     runs-on: ubuntu-latest
     timeout-minutes: 360

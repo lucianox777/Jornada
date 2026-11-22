@@ -49,7 +49,7 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("tf-shared-paired-diagnostics.json", script)
         self.assertIn("DEFERRED_NOT_CERTIFIED", script)
         self.assertIn(
-            "if: ${{ always() }}",
+            "if: ${{ always() && (needs.impact.result != 'success' || needs.impact.outputs.docs_only != 'true') }}",
             script,
         )  # Classifier decides mandatory physical execution on every push.
         self.assertIn(
