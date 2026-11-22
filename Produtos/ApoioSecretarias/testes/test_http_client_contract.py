@@ -113,5 +113,18 @@ class HttpClientContractTest(unittest.TestCase):
                 self.assertEqual(ctx.exception.codigo, "ENVIO_HTTP")
                 self.assertIn("403", ctx.exception.detalhe)
 
+    def test_redirect_handler_never_replays_zip_to_another_host(self):
+        from urllib.request import Request
+        opener = core._no_redirect()
+        handlers = [handler for handler in opener.handlers
+                    if isinstance(handler, core.request.HTTPRedirectHandler)]
+        self.assertEqual(len(handlers), 1)
+        redirect = handlers[0].redirect_request(
+            Request("https://dev.example.invalid/api/v1/ingestao/entregas",
+                    data=b"synthetic", method="POST"),
+            None, 307, "Temporary Redirect", {},
+            "https://other.example.invalid/collect")
+        self.assertIsNone(redirect)
+
 if __name__ == "__main__":
     unittest.main()
