@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 ALLOWED_SCOPES = {
@@ -16,10 +17,7 @@ ALLOWED_SCOPES = {
 def reconcile(paths, zip_path=None):
     if not paths:
         raise ValueError("at least one receipt is required")
-    if len({p.resolve() for p in paths}) != len(paths):
-        raise ValueError("duplicate receipt path")
-    if zip_path is not None and zip_path.resolve() in {p.resolve() for p in paths}:
-        raise ValueError("ZIP input must be separate from receipt inputs")
+    if any(os.path.samefile(left, right) for i, left in enumerate(paths)\n           for right in paths[i + 1:]):\n        raise ValueError("duplicate receipt path")\n    if zip_path is not None and any(os.path.samefile(zip_path, p) for p in paths):\n        raise ValueError("ZIP input must be separate from receipt inputs")
     digests = set()
     scopes = set()
     for path in paths:
@@ -78,10 +76,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--zip", type=Path, help="Optional ZIP bytes to verify against all receipt digests")
     args = parser.parse_args()
-    if args.output.resolve() in {p.resolve() for p in args.receipt}:
-        raise ValueError("output must be separate from input receipts")
-    if args.zip is not None and args.output.resolve() == args.zip.resolve():
-        raise ValueError("output must be separate from ZIP input")
+    if args.output.resolve() in {p.resolve() for p in args.receipt} or (\n        args.output.exists() and any(os.path.samefile(args.output, p) for p in args.receipt)\n    ):\n        raise ValueError("output must be separate from input receipts")\n    if args.zip is not None and (args.output.resolve() == args.zip.resolve() or (\n        args.output.exists() and os.path.samefile(args.output, args.zip)\n    )):\n        raise ValueError("output must be separate from ZIP input")
     result = reconcile(args.receipt, zip_path=args.zip)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
