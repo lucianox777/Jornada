@@ -1,4 +1,5 @@
 """Offline receipt reconciliation tests; no certification of operational E2E."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -33,6 +34,28 @@ class ReceiptReconciliationTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["receiptCount"], 2)
         self.assertEqual(result["verifiedScopes"], sorted([IDENTITY, DECISION]))
+
+    def test_supplied_zip_bytes_verified(self):
+        archive = self.a.parent / "payload.zip"
+        archive.write_bytes(b"synthetic ZIP fixture bytes")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        self.write(self.a, IDENTITY, digest=digest)
+        self.write(self.b, DECISION, digest=digest)
+        self.assertEqual(module.reconcile([self.a, self.b], zip_path=archive)["status"], "PASS")
+
+    def test_consistent_receipts_with_wrong_zip_bytes_rejected(self):
+        archive = self.a.parent / "payload.zip"
+        archive.write_bytes(b"different bytes")
+        with self.assertRaisesRegex(ValueError, "supplied ZIP bytes"):
+            module.reconcile([self.a, self.b], zip_path=archive)
+
+    def test_supplied_zip_is_streamed(self):
+        archive = self.a.parent / "payload.zip"
+        archive.write_bytes(b"X" * (2 * 1024 * 1024 + 3))
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        self.write(self.a, IDENTITY, digest=digest)
+        self.write(self.b, DECISION, digest=digest)
+        self.assertEqual(module.reconcile([self.a, self.b], zip_path=archive)["zipSha256"], digest)
 
     def test_different_zip_rejected(self):
         self.write(self.b, DECISION, digest="b" * 64)
