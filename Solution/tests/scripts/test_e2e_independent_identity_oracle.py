@@ -66,6 +66,27 @@ class IdentityOracleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "contract"):
             module.compare(self.truth, self.observed)
 
+    def test_duplicate_truth_member_rejected(self):
+        self.truth.write_text(
+            '{"zipSha256":"' + "a" * 64 + '","expectedIdentities":["A"],'
+            '"expectedIdentities":["B"]}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate JSON member"):
+            module.compare(self.truth, self.observed)
+
+    def test_duplicate_observed_member_rejected(self):
+        self.observed.write_text(
+            '{"zipSha256":"' + "a" * 64 + '","observedIdentities":["A"],'
+            '"observedIdentities":["B"]}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate JSON member"):
+            module.compare(self.truth, self.observed)
+
+    def test_nonfinite_observed_member_rejected(self):
+        self.observed.write_text(
+            '{"zipSha256":"' + "a" * 64 + '","observedIdentities":["A"],'
+            '"untrusted":NaN}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "nonfinite JSON"):
+            module.compare(self.truth, self.observed)
+
     def test_same_file_rejected(self):
         with self.assertRaisesRegex(ValueError, "separate"):
             module.compare(self.truth, self.truth)
