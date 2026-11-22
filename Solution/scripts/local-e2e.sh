@@ -19,6 +19,7 @@ PORT="${JORNADA_SQL_PORT:-14333}"; DB="JornadaE2E"
 [[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || { echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2; }
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
+rm -f -- "$OUT/resultado-api-evidence.json"
 JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
 CONN="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export ConnectionStrings__Jornada="$CONN"
@@ -30,10 +31,14 @@ export BronzeStorage__RootPath="$OUT/bronze"
 export IngestionStaging__RootPath="$OUT/staging"
 export Processor__PollingMilliseconds=100
 
-api_pid=''; worker_pid=''; staged_sehab=''
+api_pid=''; worker_pid=''; resultado_pid=''; staged_sehab=''
 cleanup(){
   # A configuração efetiva, mesmo DEV, não deve ser publicada no artefato E2E.
   [[ -z "$staged_sehab" ]] || rm -rf -- "$staged_sehab"
+  if [[ -n "$resultado_pid" ]]; then
+    kill "$resultado_pid" 2>/dev/null || true
+    wait "$resultado_pid" 2>/dev/null || true
+  fi
   [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
   wait "$worker_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true
@@ -293,6 +298,22 @@ wait_processed "$id2" "$OUT/status2.json"
 retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.resultado='RETRANSMITIDO';")"
 fact_retrans="$(scalar "SELECT COUNT(*) FROM ingestao.item_processado ip JOIN ingestao.lote l ON l.lote_id=ip.lote_id WHERE l.entrega_id='$id2' AND ip.classe_item='REGISTRO' AND ip.codigo_origem='E2E-AA01-2026-000001' AND ip.resultado='RETRANSMITIDO';")"
 [[ "$fact_retrans" == 1 ]] || { echo "ERRO: fato com chave persistente não foi reconhecido como retransmissão; fatos=$fact_retrans" >&2; exit 8; }
+if [[ "${JORNADA_E2E_RESULTADO_API:-false}" == "true" ]]; then
+  # Kestrel seleciona a porta. A origem vem do log deste processo, sem reutilizar um host preexistente.
+  project="$ROOT/src/Jornada.Resultado.Api"
+  (cd "$project" && exec env ASPNETCORE_URLS=http://127.0.0.1:0 JornadaApiBaseUrl="$API_URL" \
+    dotnet bin/Release/net10.0/Jornada.Resultado.Api.dll) > "$OUT/resultado-api.log" 2>&1 &
+  resultado_pid=$!
+  resultado_url=''
+  for _ in $(seq 1 60); do
+    kill -0 "$resultado_pid" 2>/dev/null || { echo 'ERRO: Resultado.Api encerrou ao iniciar.' >&2; exit 31; }
+    resultado_url="$(sed -nE 's/.*Now listening on: (http:\/\/127\.0\.0\.1:[0-9]+).*/\1/p' "$OUT/resultado-api.log" | head -1)"
+    [[ -n "$resultado_url" ]] && break
+    sleep 1
+  done
+  [[ -n "$resultado_url" ]] || { echo 'ERRO: Resultado.Api não abriu porta local.' >&2; exit 31; }
+  python3 "$ROOT/scripts/e2e-resultado-entrega.py" "$resultado_url" "$filename" "$id2" "$OUT/resultado-api-evidence.json"
+fi
 # A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa,
 # portanto a segunda Entrega recebe nova observação da Pessoa, ancorada ao mesmo CPF,
 # e não é falsamente tratada como a mesma origem persistente.
