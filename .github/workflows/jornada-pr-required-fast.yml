@@ -123,6 +123,9 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_executor_boundary_contract.py'
           python3 -m unittest Solution/tests/scripts/test_v9_standard_test_preflight_contract.py Solution/tests/scripts/test_v9_standard_test_seed_binding.py Solution/tests/scripts/test_v9_unique_test_seed.py
           python3 -m unittest Solution/tests/scripts/test_v9_independent_test_report_only.py Solution/tests/scripts/test_v9_tf4_dispatch_test_modes.py
+          # Resultado.Api OpenAPI: bidirectional route parity and negative fixtures (offline).
+          python3 Solution/scripts/resultado-openapi-contract-gate.py
+          python3 -m unittest Solution/tests/scripts/test_resultado_openapi_bidirectional.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_operational_converter.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_validated_operational_handoff.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_existing_database_option.py'

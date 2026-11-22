@@ -1,0 +1,52 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Jornada Resultado.Api",
+    "version": "1.0.0",
+    "description": "Contrato operacional de consulta de resultado; autoridade de acesso delegada à Jornada.Api."
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "resultadoHealth",
+        "responses": {
+          "200": {
+            "description": "Health"
+          }
+        }
+      }
+    },
+    "/api/v1/ingestao/resultados/{nomeArquivo}": {
+      "get": {
+        "operationId": "resultadoPorNomeArquivo",
+        "parameters": [
+          {
+            "name": "nomeArquivo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalhe da entrega autorizada"
+          },
+          "400": {
+            "description": "Nome inválido"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem autorização"
+          },
+          "404": {
+            "description": "Entrega não encontrada"
+          }
+        }
+      }
+    }
+  }
+}
