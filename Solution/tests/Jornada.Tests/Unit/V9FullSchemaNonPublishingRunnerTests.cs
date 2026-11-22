@@ -269,10 +269,10 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             var reference = pinned.ReplayTest(cohort, physical.Edges);
             Assert.That(reference.Decisions, Has.Count.EqualTo(200));
             await AssertFrozenRunDecisionsAsync(connection, positive.RunId, reference);
-            // Same physical SQL graph, same pinned winner, different actual
-            // RunAsync SQL pagination (200x1 instead of 100x2). Verify the
-            // complete persisted per-observation decisions against the same
-            // independent frozen reference, not merely summary counters.
+            await AssertNonCircularSqlCandidateOracleAsync(connection, positive.RunId, winner);
+            // Different actual RunAsync SQL pagination (200x1 instead of 100x2).
+            // Compare both the shared ReplayTest baseline and the genuinely
+            // independent, fixed-input oracle below; ReplayTest is NOT independent.
             var alternateScorer = new V9PinnedSyntheticGraphCohortRunScorer(
                 sql, stored.ModelId, winner.ContentSha256);
             var alternate = await BuildRunner(alternateScorer)
@@ -287,6 +287,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 Is.EqualTo(operational!.CanonicalEdgesSha256));
             await AssertRunRowsAsync(connection, alternate.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
             await AssertFrozenRunDecisionsAsync(connection, alternate.RunId, reference);
+            await AssertNonCircularSqlCandidateOracleAsync(connection, alternate.RunId, winner);
             // The real Runner enforces a minimum BatchSize of 100. Reject
             // an undersized request BEFORE creating a SQL run, without
             // weakening production validation to accommodate the fixture.
@@ -577,7 +578,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
     {
         1 or 101 => "ANA COSTA",
         2 => "COSTELA COSTA",
-        102 => "COSTURA COSTA",
+        102 => "COSTUMO COSTA",
         _ => (id <= 100 ? "CARLA" : "DORA") +
             id.ToString("D4", System.Globalization.CultureInfo.InvariantCulture) + " COSTA"
     };
@@ -965,6 +966,104 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 planner.ProjectionFingerprintSha256, CancellationToken.None)));
         TestContext.WriteLine("V9_PROCESSOR_NATIVE_V9_PROJECTION_SHADOW_PASS: Gold/history reader -> V9 SQL keys; legacy V2 remains unchanged; shadow rollback leaves no keys; TEST 100k blocked");
         TestContext.WriteLine("V9_TEST_GOLD_BACKED_PROJECTION_PASS: 200 physical Gold references; V9 prefix keys; invalid-Gold rollback; exact fingerprint; re-entry rejected; scientific TEST 100k blocked");
+    }
+
+    /// <summary>
+    /// Independent numeric and membership oracle for the *real SQL persisted*
+    /// 200-row disposable V9 RunAsync fixture. It uses only immutable model
+    /// parameters, hard-coded input edges and expected nominal states; neither
+    /// ReplayTest nor RankPreview nor the grouping/scoring kernel calculates
+    /// any expected score or decision. Not a production certification.
+    /// </summary>
+    private static async Task AssertNonCircularSqlCandidateOracleAsync(
+        SqlConnection connection, Guid runId, V9FittedSnapshot winner)
+    {
+        var payload = winner.Payload;
+        Assert.That(payload.UnitTfCalibrations, Has.Count.EqualTo(4));
+        Assert.That(payload.JointCells, Has.Count.EqualTo(81));
+        Assert.That(payload.CandidateGrouping?.CandidateGrouping,
+            Is.EqualTo("BLIND_FS_COMPLETE_LINK_CANDIDATES"));
+
+        decimal ExpectedPosterior(CompositeNominalLevelV9 nominal)
+        {
+            var cell = payload.JointCells.Single(x => x.Person == nominal && x.Mother == nominal);
+            var prior = payload.Parameters[LinkageParameterCatalog.PriorMatchProbability];
+            double odds = (double)(prior / (1m - prior))
+                * (double)(cell.M / cell.U)
+                * (double)(payload.Parameters["M_DATA_NASCIMENTO_EXACT"]
+                    / payload.Parameters["U_DATA_NASCIMENTO_EXACT"]);
+            var unit = nominal == CompositeNominalLevelV9.ExactFull
+                ? NominalFrequencyUnitV9.FirstName
+                : NominalFrequencyUnitV9.LastContentSurname;
+            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+            {
+                var frozen = payload.UnitTfCalibrations!.Single(x =>
+                    x.Side == side && x.Unit == unit);
+                Assert.That(frozen.State, Is.EqualTo(V9SnapshotTfFitState.Active));
+                var tf = frozen.Calibration!;
+                var literalTerm = unit == NominalFrequencyUnitV9.FirstName
+                    ? side == CompositeNominalTfSideV9.Person ? "MARIA" : "ANA"
+                    : side == CompositeNominalTfSideV9.Person ? "SILVA" : "COSTA";
+                var effectiveFrequency = Math.Max(tf.Frequencies[literalTerm], tf.MinimumFrequency);
+                // Closed-form odds: U_ref(TRAIN) / f_IBGE(published), to the frozen weight.
+                odds *= Math.Pow((double)(tf.NominalUReference!.Probability / effectiveFrequency),
+                    (double)(tf.Weight ?? 0m));
+            }
+            return Math.Round((decimal)(odds / (1d + odds)), 8, MidpointRounding.AwayFromZero);
+        }
+
+        var fullScore = ExpectedPosterior(CompositeNominalLevelV9.ExactFull);
+        var lastScore = ExpectedPosterior(CompositeNominalLevelV9.ExactLast);
+        Assert.That(fullScore, Is.GreaterThan(0m).And.LessThan(payload.Threshold));
+        Assert.That(lastScore, Is.GreaterThan(0m).And.LessThan(payload.Threshold));
+        Assert.That(fullScore, Is.LessThan(payload.CandidateGrouping!.MinimumPairPosterior));
+        Assert.That(lastScore, Is.LessThan(payload.CandidateGrouping!.MinimumPairPosterior));
+        // The frozen synthetic graph has precisely these four directed candidates.
+        // Grouping must leave all 200 IDs unmerged because neither edge qualifies
+        // for the 0.99 complete-link floor. Synthetic truth is never consulted.
+        var directed = new Dictionary<long, (int Candidate, decimal Score)>
+        {
+            [1] = (101, fullScore),
+            [101] = (1, fullScore),
+            [2] = (102, lastScore),
+            [102] = (2, lastScore)
+        };
+        await using var query = new SqlCommand("""
+            SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,
+                   melhor_candidato_uuid,score_melhor,motivo
+              FROM identidade.linkage_resultado
+             WHERE linkage_run_id=@run
+             ORDER BY pessoa_observacao_id;
+            """, connection);
+        query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using var reader = await query.ExecuteReaderAsync();
+        for (long id = 1; id <= 200; id++)
+        {
+            Assert.That(await reader.ReadAsync(), Is.True, $"Missing SQL row {id}");
+            Assert.That(reader.GetInt64(0), Is.EqualTo(id));
+            Assert.That(reader.GetString(1), Is.EqualTo("NAO_RESOLVIDO"), $"SQL row {id}");
+            Assert.That(reader.IsDBNull(2), Is.True, $"Row {id} published a resolved identity");
+            if (directed.TryGetValue(id, out var match))
+            {
+                // A non-resolved decision may retain its best candidate for
+                // audit. It MUST NOT produce a resolved identity or merge groups.
+                var literalGroupUuid = new Guid(match.Candidate, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 4);
+                Assert.That(reader.IsDBNull(3), Is.False, $"Missing best candidate {id}");
+                Assert.That(reader.GetGuid(3), Is.EqualTo(literalGroupUuid));
+                Assert.That(reader.GetDecimal(4),
+                    Is.EqualTo(match.Score).Within(0.00000001m), $"Score drift for {id}");
+                Assert.That(reader.GetString(5), Is.EqualTo("ABAIXO_T_LINKAGE"), $"Reason {id}");
+            }
+            else
+            {
+                Assert.That(reader.IsDBNull(3), Is.True, $"Unexpected candidate on {id}");
+                Assert.That(reader.GetDecimal(4), Is.Zero, $"Unexpected score on {id}");
+                Assert.That(reader.GetString(5), Is.EqualTo("SEM_CANDIDATO_NO_RULESET_BLOCKING"),
+                    $"Unreconciled abstention reason {id}");
+            }
+        }
+        Assert.That(await reader.ReadAsync(), Is.False, "SQL result set is truncated or has surplus rows");
     }
 
     private static async Task AssertFrozenRunDecisionsAsync(
