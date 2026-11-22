@@ -29,6 +29,10 @@ export BronzeStorage__Provider=FileSystem
 export BronzeStorage__RootPath="$OUT/bronze"
 export IngestionStaging__RootPath="$OUT/staging"
 export Processor__PollingMilliseconds=100
+rm -f -- "$OUT/semiblind-denials.json"
+if [[ "${JORNADA_E2E_SEMIBLIND_DENIALS:-false}" == true ]]; then
+  export SemiblindIdentitySearch__Enabled=false
+fi
 
 api_pid=''; worker_pid=''; staged_sehab=''
 cleanup(){
@@ -185,6 +189,58 @@ checksum_code="$(curl -sS -o "$OUT/negative-invalid-hash.json" -w '%{http_code}'
  -H 'Content-Type: application/zip' -H "Content-Disposition: attachment; filename=$bad_filename" \
  --data-binary "@$package")"
 [[ "$checksum_code" == 400 ]] || { echo "ERRO: SHA-256 nominal adulterado devolveu $checksum_code, esperado 400." >&2; exit 22; }
+
+# #1854: valida somente as negativas reais de acesso da busca semicega DEV.
+if [[ "${JORNADA_E2E_SEMIBLIND_DENIALS:-false}" == true ]]; then
+  semiblind_route='/api/v1/identidade/candidatos'
+  check_semiblind_denial(){
+    local scenario="$1" expected="$2" correlation observed audited
+    shift 2
+    correlation="$(python3 -c 'import uuid; print(uuid.uuid4())')" || return 1
+    observed="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}:%{size_download}' \
+      "$API_URL$semiblind_route" -H 'Content-Type: application/json' \
+      -H "X-Correlation-Id: $correlation" "$@" --data '{}')" || return 1
+    [[ "$observed" == "$expected:0" ]] || {
+      echo "ERRO: busca semicega ($scenario) retornou status:bytes=$observed; esperado $expected:0." >&2; return 1;
+    }
+    # O middleware persiste no finally. Aguarde o commit caso o HTTP já tenha terminado.
+    audited="$(scalar "
+      DECLARE @deadline datetime2 = DATEADD(second, 10, SYSUTCDATETIME());
+      WHILE NOT EXISTS (SELECT 1 FROM controle.api_evento WHERE correlation_id='$correlation')
+            AND SYSUTCDATETIME() < @deadline
+        WAITFOR DELAY '00:00:00.250';
+      SELECT CASE WHEN COUNT(*)=1 AND MAX(CASE WHEN rota='$semiblind_route' AND metodo='POST'
+             AND status_http=$expected AND pessoa_uuid IS NULL THEN 1 ELSE 0 END)=1 THEN 1 ELSE 0 END
+      FROM controle.api_evento WHERE correlation_id='$correlation';")" || return 1
+    [[ "$audited" == 1 ]] || {
+      echo "ERRO: auditoria da busca semicega incompatível ($scenario)." >&2; return 1;
+    }
+    echo "$correlation"
+  }
+  corr_no_key="$(check_semiblind_denial missing_auth 401)"
+  corr_no_scope="$(check_semiblind_denial missing_scope 403 \
+    -H 'X-Jornada-Beneficio: AA01' -H "X-Jornada-Access-Key: $benefit_access_key")"
+  corr_disabled="$(check_semiblind_denial disabled 503 \
+    -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key")"
+  semiblind_sha="$(git -C "$ROOT" rev-parse --verify HEAD)"
+  python3 - "$OUT/semiblind-denials.json" "$semiblind_sha" "$corr_no_key" "$corr_no_scope" "$corr_disabled" <<'PYTHON'
+import json
+import sys
+from pathlib import Path
+
+path, sha, *correlations = sys.argv[1:]
+cases = zip(("missing_auth", "missing_scope", "disabled"), (401, 403, 503), correlations)
+receipt = {
+    "scope": "SEMIBLIND_DEV_ACCESS_DENIALS",
+    "sha": sha,
+    "cases": [
+        {"case": name, "httpStatus": status, "responseBytes": 0, "auditEvents": 1, "correlationId": correlation}
+        for name, status, correlation in cases
+    ],
+}
+Path(path).write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+PYTHON
+fi
 
 # Auditoria central, sem copiar access keys aos artefatos.
 for row in "$corr_missing:401:missing" "$corr_scope:403:scope" "$corr_checksum:400:checksum"; do

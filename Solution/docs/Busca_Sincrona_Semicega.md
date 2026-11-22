@@ -80,3 +80,9 @@ A resposta distingue explicitamente a execução integral da recuperação da im
 O relatório de recuperação é anterior e separado do scorer FS. Fan-out/timeout não alteram score, thresholds ou decisão probabilística e não são mascarados por truncamento silencioso. A apresentação continua limitada e sujeita à autorização por Pessoa; UUID, CPF, LLR, posterior, score e posição de ranking não fazem parte do contrato externo.
 
 A ativação em HML/Produção continua proibida enquanto os gates institucionais de visibilidade e identidade corporativa não forem satisfeitos. Evidência sintética/IBGE serve para regressão técnica e calibração de engenharia, não substitui medição em corpus representativo autorizado.
+
+## Negativas HTTP e auditoria no E2E descartável (#1854)
+
+Com `JORNADA_E2E_SEMIBLIND_DENIALS=true`, o harness `Solution/scripts/local-e2e.sh` inicia a API em Development com a busca desabilitada no banco descartável JornadaE2E. Ele envia três POSTs à rota de candidatos. A chamada anônima exige 401, a credencial BENEFICIO AA01 sem o escopo de busca exige 403, e a credencial GESTOR SEHAB com o escopo exige 503. Cada caso exige corpo vazio e exatamente um evento SQL com a correlação da requisição, a rota, o método e o status esperados, sem UUID de pessoa.
+
+O recibo `.local/e2e/semiblind-denials.json` vincula ao SHA do checkout os resultados verificados. A frente #1854 segue parcial até comprovar a busca habilitada, os casos de seletividade, a projeção e o isolamento entre instituições. A política de atributos e os gates #539 e #378 continuam vigentes.
