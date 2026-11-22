@@ -2,8 +2,8 @@
 """Prepare one guarded 100k TRAIN-only V3 exploration, leaving the C# algorithm unchanged.
 
 Uses the already verified 24-arm 100k corpus-bound plan as a PROVENANCE SOURCE,
-not as the executable scientific search: the new plan evaluates 81 symmetric
-four-unit TF states x V3 U-mixture lambda {0.5,1} x margins {0.5,2} on one
+not as the executable scientific search: the new plan evaluates 162 symmetric
+four-unit TF states x V3 U-mixture lambda {0.5,1} x margin {0.5} on one
 unchanged three-pass SQL frame. Does not execute the calibration or read TEST.
 """
 import argparse
@@ -15,11 +15,12 @@ from pathlib import Path
 
 SCHEMA = "V9_V3_FOUR_NAME_TF_100K_REBIND_V1"
 BASE_SCHEMA = "V9_100K_MULTIPARAM_TECHNICAL_REBIND_V1"
-STATES = (0, 0.5, 1)
+STATES = (0, 0.5, 1)  # PL, MF, ML; historical TF4 replay remains supported by pinned plans
+PF_STATES = (0, 0.125, 0.25, 0.375, 0.5, 1)
 LAMBDAS = (0.5, 1)
-MARGINS = (0.5, 2)
+MARGINS = (0.5,)
 SLOTS = ((0, 2, "PF"), (0, 3, "PL"), (1, 2, "MF"), (1, 3, "ML"))
-OPTIONS = 81
+OPTIONS = len(PF_STATES) * len(STATES) ** 3
 EVALUATIONS = OPTIONS * len(LAMBDAS) * len(MARGINS)
 TF0 = "A0.5_T0.95_TF0"
 
@@ -53,12 +54,12 @@ def grid(tf0, tf_policy=None):
         result[0].update(ContextPopulation=tf_policy["contextPopulation"],
                          UnpublishedOccurrenceCount=tf_policy["unpublishedOccurrenceCount"],
                          UnpublishedTermPolicy=tf_policy["unpublishedTermPolicy"])
-    for values in itertools.product(STATES, repeat=4):
+    for values in itertools.product(PF_STATES, STATES, STATES, STATES):
         if values == (0, 0, 0, 0):
             continue
         option = copy.deepcopy(tf0)
         option["OptionId"] = "TF4_" + "_".join(
-            name + str(int(weight * 10)) for (_, _, name), weight in zip(SLOTS, values)) + "_A0.5_T0.95"
+            name + (str(int(weight * 10)) if name != "PF" or weight in STATES\n                    else "Q" + str(int(round(weight * 1000))))\n            for (_, _, name), weight in zip(SLOTS, values)) + "_A0.5_T0.95"
         option["UnitTfOptions"] = [
             {"Side": side, "Unit": unit, "Weight": weight, "Mode": 0}
             for (side, unit, _), weight in zip(SLOTS, values)]
@@ -182,7 +183,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path, tf_pol
         "effectiveSyntheticPopulation": expected_people,
         "populationOverrideApplied": expected_people != configured_people,
         "configurations": [x["OptionId"] for x in cp["ModelOptions"]],
-        "weights": list(STATES), "uMixtureLambdas": list(LAMBDAS),
+        "weights": list(STATES), "pfWeights": list(PF_STATES), "uMixtureLambdas": list(LAMBDAS),
         "conflictMargins": list(MARGINS), "blockingPasses": three_pass,
         "maximumBatches": 1, "physicalHypotheses": EVALUATIONS,
         "tfUnpublishedPolicy": "TF0_REJECT_ACTIVE_TF_ABSTAIN_CANDIDATE",
