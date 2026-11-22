@@ -26,7 +26,7 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
         if len(names) != len(set(names)):
             raise ValueError("ZIP has duplicate entry names")
         if any(
-            name.startswith("/") or "\\" in name or
+            name.startswith("/") or name.endswith("//") or "\\" in name or
             any(part in ("", ".", "..") for part in name.rstrip("/").split("/"))
             for name in names
         ):
