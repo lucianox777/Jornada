@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -40,6 +41,24 @@ ARTIFACTS = {
 }
 
 
+class SafeArtifactRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep GitHub bearer credentials off cross-origin artifact ZIP redirects."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urllib.parse.urlsplit(newurl)
+        source = urllib.parse.urlsplit(req.full_url)
+        if (target.scheme != "https" or not target.hostname
+                or target.username is not None or target.password is not None):
+            raise ValueError("artifact redirect target must be HTTPS without credentials")
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and (target.hostname, target.port) != (source.hostname, source.port):
+            # urllib.request.HTTPRedirectHandler copies Authorization by default.
+            # GitHub artifact ZIPs redirect to a separately hosted signed URL.
+            redirected.remove_header("Authorization")
+            redirected.remove_header("X-GitHub-Api-Version")
+        return redirected
+
+
 def api_json(url, token):
     request = urllib.request.Request(url, headers={
         "Authorization": "Bearer " + token,
@@ -47,7 +66,8 @@ def api_json(url, token):
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "jornada-v9-campaign38-preserver",
     })
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with urllib.request.build_opener(SafeArtifactRedirectHandler()).open(
+            request, timeout=60) as response:
         return json.load(response)
 
 
@@ -64,7 +84,8 @@ def download_verified(artifact_id, expected_sha, destination, token):
     fd, temporary = tempfile.mkstemp(prefix=".v9-artifact-", dir=destination)
     try:
         with os.fdopen(fd, "wb") as output:
-            with urllib.request.urlopen(request, timeout=120) as source:
+            with urllib.request.build_opener(SafeArtifactRedirectHandler()).open(
+                    request, timeout=120) as source:
                 while chunk := source.read(1024 * 1024):
                     output.write(chunk)
                     digest.update(chunk)
@@ -113,8 +134,13 @@ def main(argv=None):
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not token:
         parser.error("GH_TOKEN or GITHUB_TOKEN required; never pass token as CLI argument")
-    destination = args.destination.resolve()
-    if not destination.is_dir() or destination.is_symlink():
+    # Inspect the supplied path BEFORE resolve(): resolve() erases a symlink
+    # at the destination itself, defeating the intended non-symlink guard.
+    raw_destination = args.destination.expanduser()
+    if raw_destination.is_symlink():
+        parser.error("destination must not be a symlink")
+    destination = raw_destination.resolve()
+    if not destination.is_dir():
         parser.error("destination must be an existing non-symlink private directory")
     if destination.stat().st_mode & 0o077:
         parser.error("destination must not be readable or writable by group/others (chmod 700)")
