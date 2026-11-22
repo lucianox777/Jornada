@@ -58,6 +58,18 @@ class ExternalTruthChunkComparisonTests(unittest.TestCase):
                 self.truth_path.read_text())["zipSha256"]
             self.assertEqual(module.validate(self.zip_path, self.truth_path)["status"], "PASS")
 
+    def test_later_member_matching_truth_is_rejected(self):
+        self.write_fixture(b"placeholder", pad=130000)
+        truth_bytes = self.truth_path.read_bytes()
+        with zipfile.ZipFile(self.zip_path, "w") as archive:
+            archive.writestr("first.bin", b"Z" * len(truth_bytes))
+            archive.writestr("second-renamed.bin", truth_bytes)
+        with mock.patch.object(module.hashlib, "sha256") as sha:
+            sha.return_value.hexdigest.return_value = json.loads(
+                self.truth_path.read_text())["zipSha256"]
+            with self.assertRaisesRegex(ValueError, "embedded"):
+                module.validate(self.zip_path, self.truth_path)
+
     def test_matching_large_renamed_truth_is_rejected_with_bounded_reads(self):
         # The ZIP SHA cannot self-reference its own truth; mock the digest only
         # to isolate the member-byte boundary and exercise all comparison chunks.
