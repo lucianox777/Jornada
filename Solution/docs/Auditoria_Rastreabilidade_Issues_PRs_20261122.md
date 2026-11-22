@@ -97,3 +97,18 @@ Todas foram identificadas como `draft=true`; algumas também têm conflitos. Nec
 **Proibição de encerramento prematuro:** uma PR substituída por outra **ainda aberta e conflitante** não tem substituição integrada comprovada. Encerrar todas as antecessoras antes de consolidar e integrar a sucessora colocaria em risco GOV-DOC-01. Não há prova de PR obsoleta pronta para fechamento automático nesta rodada.
 
 **Próximo gate verificável:** consultar arquivos canônicos em `master`, comparar por seção e significado (não apenas linhas), escolher um único diff por decisão, resolver conflitos do índice, passar CI e integrar; só então registrar comentário de substituição e encerrar PRs redundantes. Qualquer fechamento deve preservar links cruzados e justificativa.
+
+## Verificação direta da master — quatro cadeias (22/11/2026)
+
+**Evidência nova e superveniente à triagem:** consulta direta aos arquivos `ref=master` mostrou que **as quatro decisões já possuem registro na master e no índice vigente**. Portanto, a expressão anterior “integração documental ainda pendente” descreve a situação das **PRs antigas abertas**, não a ausência dessas decisões na master. O inventário anterior deve ser lido à luz desta verificação.
+
+| Cadeia de PRs abertas | Prova encontrada na master | Interpretação |
+|---|---|---|
+| #1710 → #1807 → #1810 → #1815 | `Solution/docs/Decisao_GOV_V9_TF0_ONE_MF_Divida_Tecnica_20261118.md`, entrada em `Dividas_Tecnicas.md`, entrada GOV-V9-TF0-ONE-MF-DT-20261118 no índice | Decisão documental e dívida registradas; **quitação da dívida não comprovada**. |
+| #1633 → #1805 → #1809 → #1813 | `Solution/docs/Decisao_GOV_V9_TEST_DATABASE_Referencia_Comum_20261117.md` e entrada GOV-V9-TEST-DATABASE-REFERENCIA-COMUM no índice | Decisão registrada; **implementação do adaptador ainda pendente**, segundo o documento. |
+| #1806 → #1811 | Entrada GOV-V9-CALIBRADOR-MERGES-AUTORIZADOS-20261121 no `Indice_Decisoes_Vigentes.md` | Autorização condicional documentada; não autoriza executar TRAIN/TEST nem dispensar gates. |
+| #1620 → #1804 | `Solution/docs/Decisao_GOV_V9_Compatibilidade_Retroativa_Bundle_Calibrador_Producao_20261117.md` e entrada GOV-V9-BUNDLE-COMPAT-RETROATIVA-20261117 no índice | Decisão registrada; implementação e validação da retrocompatibilidade **não atestadas**. |
+
+**Conclusão atualizada:** as **12 PRs das quatro cadeias são candidatas fortes a encerramento administrativo por conteúdo documental já registrado**, desde que a comparação final de hunks confirme inexistência de material adicional não preservado na master. **Não são 12 encerramentos aprovados automaticamente**; verificar especialmente diferenças de redação, referências e índice. Se o conteúdo de alguma PR contiver acréscimo válido ausente da master, incorporar primeiro por PR consolidada, com checks. As 12 continuam abertas; nenhuma foi fechada nesta sessão.
+
+**Rastreabilidade:** os arquivos e identificadores acima são fontes canônicas já existentes em master. Este registro de auditoria está somente na PR #1844 até integração.
