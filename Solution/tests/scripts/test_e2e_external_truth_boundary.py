@@ -63,6 +63,54 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe"):
             module.validate(self.zip, self.truth)
 
+    def test_rejects_unsafe_directory_entry(self):
+        self.entries["../escape/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_absolute_directory_entry(self):
+        self.entries["/absolute/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_dot_directory_entry(self):
+        self.entries["safe/./nested/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_backslash_directory_entry(self):
+        self.entries["safe\\\\nested/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_repeated_trailing_directory_separator(self):
+        self.entries["safe//"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_repeated_internal_directory_separator(self):
+        self.entries["safe//nested/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_accepts_safe_directory_entry(self):
+        self.entries["safe/"] = b""
+        self.write_zip()
+        self.write_truth()
+        self.assertEqual(module.validate(self.zip, self.truth)["status"], "PASS")
+
     def test_rejects_zip_symlink(self):
         with zipfile.ZipFile(self.zip, "w") as z:
             info = zipfile.ZipInfo("link.txt")
@@ -76,7 +124,7 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
     def test_rejects_encrypted_entry_flag(self):
         # Set bit 0 on the local and central ZIP headers of a valid fixture.
         raw = bytearray(self.zip.read_bytes())
-        for signature, offset in ((b"PK\\x03\\x04", 6), (b"PK\\x01\\x02", 8)):
+        for signature, offset in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
             position = raw.index(signature)
             raw[position + offset] |= 1
         self.zip.write_bytes(raw)

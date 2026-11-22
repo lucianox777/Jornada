@@ -26,9 +26,9 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
         if len(names) != len(set(names)):
             raise ValueError("ZIP has duplicate entry names")
         if any(
-            name.startswith("/") or "\\" in name or
-            any(part in ("", ".", "..") for part in name.split("/"))
-            for name in names if not name.endswith("/")
+            name.startswith("/") or name.endswith("//") or "\\" in name or
+            any(part in ("", ".", "..") for part in name.rstrip("/").split("/"))
+            for name in names
         ):
             raise ValueError("ZIP contains unsafe entry path")
         # Reject encrypted entries and Unix symbolic links: neither is a regular
