@@ -14,7 +14,7 @@ class ProcessorRunnerExplicitBoundaryTests(unittest.TestCase):
     def test_processor_loop_does_not_dispatch_probabilistic_runner(self):
         source = (PROCESSOR / "ProcessorWorker.cs").read_text(encoding="utf-8")
         self.assertIn("processor.ProcessNextAsync(stoppingToken)", source)
-        self.assertNotRegex(source, r"\\b(?:RunV9Async|ProbabilisticLinkageBatchRunner|IProbabilisticLinkageBatchRunner)\\b")
+        self.assertNotRegex(source, r"\b(?:RunV9Async|ProbabilisticLinkageBatchRunner|IProbabilisticLinkageBatchRunner)\b")
 
     def test_missing_cpf_remains_pending_until_explicit_linkage(self):
         source = (PROCESSOR / "IdentityResolutionCoordinator.cs").read_text(encoding="utf-8")
