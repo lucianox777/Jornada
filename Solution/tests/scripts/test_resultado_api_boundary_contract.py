@@ -18,9 +18,10 @@ class ResultadoApiBoundaryContract(unittest.TestCase):
         for marker in ['EndsWith(".zip"', "value.Length > 260",
                        "g.codigo=@gestor", "b.nome_arquivo=@nomeArquivo"]:
             self.assertIn(marker, s)
-    def test_openapi_gate_does_not_yet_cover_resultado(self):
-        gate = (ROOT / "scripts/openapi-contract-gate.py").read_text()
-        self.assertNotIn("Jornada.Resultado.Api", gate)
+    def test_resultado_has_separate_bidirectional_openapi_gate(self):
+        gate = (ROOT / "scripts/resultado-openapi-contract-gate.py").read_text()
+        self.assertIn('src/Jornada.Resultado.Api/Program.cs', gate)
+        self.assertIn('openapi/resultado-v1.openapi.json', gate)
 
     def test_authorization_must_precede_detail_and_never_fallback_to_sql_identity(self):
         s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
