@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import urllib.request
 import unittest
 from unittest.mock import patch
 
@@ -55,6 +56,50 @@ class Campaign38PreservationTests(unittest.TestCase):
                  patch.object(module, "api_json", side_effect=AssertionError("network forbidden")), \
                  self.assertRaises(SystemExit):
                 module.main(["--destination", str(folder), "--execute"])
+
+
+    def test_redirect_strips_bearer_when_github_sends_zip_to_blob_host(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/lucianox777/Jornada/actions/artifacts/1/zip",
+            headers={"Authorization": "Bearer canary-secret",
+                     "X-GitHub-Api-Version": "2022-11-28"})
+        handler = module.SafeArtifactRedirectHandler()
+        redirected = handler.redirect_request(
+            request, None, 302, "Found", {},
+            "https://productionresultssa31.blob.core.windows.net/result/example.zip?sig=test")
+        self.assertIsNone(redirected.get_header("Authorization"))
+        self.assertIsNone(redirected.get_header("X-GitHub-Api-Version"))
+        self.assertNotIn("canary-secret", str(redirected.headers))
+
+    def test_redirect_retains_auth_only_on_same_origin(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/lucianox777/Jornada/actions/runs/1",
+            headers={"Authorization": "Bearer canary-secret"})
+        redirected = module.SafeArtifactRedirectHandler().redirect_request(
+            request, None, 302, "Found", {},
+            "https://api.github.com/repos/lucianox777/Jornada/actions/runs/2")
+        self.assertEqual(redirected.get_header("Authorization"), "Bearer canary-secret")
+
+    def test_redirect_rejects_downgrade_and_embedded_credentials(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/lucianox777/Jornada/actions/artifacts/1/zip",
+            headers={"Authorization": "Bearer canary-secret"})
+        handler = module.SafeArtifactRedirectHandler()
+        for target in ("http://storage.example/artifact.zip",
+                       "https://token:secret@storage.example/artifact.zip"):
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                handler.redirect_request(request, None, 302, "Found", {}, target)
+
+    def test_execute_rejects_symlink_destination_before_resolving(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory) / "private"
+            private.mkdir(mode=0o700)
+            alias = Path(directory) / "alias"
+            alias.symlink_to(private, target_is_directory=True)
+            with patch.dict("os.environ", {"GH_TOKEN": "test-token"}), \\
+                 patch.object(module, "api_json", side_effect=AssertionError("network forbidden")), \\
+                 self.assertRaises(SystemExit):
+                module.main(["--destination", str(alias), "--execute"])
 
 
 if __name__ == "__main__":
