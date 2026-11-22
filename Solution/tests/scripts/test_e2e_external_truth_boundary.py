@@ -46,18 +46,10 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest"):
             module.validate(self.zip, self.truth)
 
-    def test_rejects_embedded_truth_even_if_renamed(self):
-        self.entries["hidden/other.json"] = self.truth.read_bytes()
-        self.write_zip()
-        self.write_truth()
-        # Use the exact external truth bytes after rebinding to the ZIP.
-        self.entries["hidden/other.json"] = self.truth.read_bytes()
-        self.write_zip()
-        self.write_truth()
-        # A self-referential ZIP digest cannot match embedded final truth bytes;
-        # exercise the leakage guard with a controlled digest-independent read.
-        with zipfile.ZipFile(self.zip) as z:
-            self.assertIn("hidden/other.json", z.namelist())
+    def test_rejects_unexpected_truth_fields(self):
+        self.write_truth(extra="not allowed")
+        with self.assertRaisesRegex(ValueError, "only"):
+            module.validate(self.zip, self.truth)
 
     def test_rejects_duplicate_identity(self):
         self.write_truth(expectedIdentities=["same", "same"])
