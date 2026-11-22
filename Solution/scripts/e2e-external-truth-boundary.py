@@ -55,7 +55,15 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
             unix_mode = (info.external_attr >> 16) & 0xFFFF if info.create_system == 3 else 0
             if (unix_mode & 0o170000) == 0o120000:
                 raise ValueError("ZIP contains symbolic link")
-        # Validate every member CRC, including entries not compared with the\n        # external truth. Otherwise corrupted ZIP payload bytes could pass the\n        # boundary preflight and fail only after ingestion.\n        for info in archive.infolist():\n            if info.is_dir():\n                continue\n            with archive.open(info) as stream:\n                for _ in iter(lambda: stream.read(64 * 1024), b""):\n                    pass\n        # Ground truth must remain outside the HTTP payload, not just outside
+        # Validate every member CRC, including entries not compared with the
+        # external truth. Corrupted payload bytes must fail before ingestion.
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            with archive.open(info) as stream:
+                for _ in iter(lambda: stream.read(64 * 1024), b""):
+                    pass
+        # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
         truth_size = truth_path.stat().st_size
         for info in archive.infolist():
