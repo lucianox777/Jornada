@@ -20,6 +20,10 @@ import zipfile
 REPO = "lucianox777/Jornada"
 RUN_ID = 44970012048
 RUN_ATTEMPT = 1
+WORKFLOW_ID = 420729901
+WORKFLOW_PATH = ".github/workflows/v9-standard-linear-100k.yml"
+WORKFLOW_EVENT = "workflow_dispatch"
+WORKFLOW_BRANCH = "master"
 CODE_SHA = "30c71a0db1bdeac6ba536db5e428ade4d5c70c9c"
 WINNER_SHA = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee"
 # Expected SHA-256 is of the GitHub Actions downloadable ZIP, not of its members.
@@ -124,6 +128,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     inventory = {"repository": REPO, "run_id": RUN_ID, "attempt": RUN_ATTEMPT,
                  "code_sha": CODE_SHA, "winner_sha256": WINNER_SHA,
+                 "workflow_id": WORKFLOW_ID, "workflow_path": WORKFLOW_PATH,
+                 "workflow_event": WORKFLOW_EVENT, "workflow_branch": WORKFLOW_BRANCH,
                  "artifact_count": len(ARTIFACTS),
                  "artifacts": [{"id": i, "role": name, "zip_sha256": digest}
                                for i, (name, digest) in ARTIFACTS.items()]}
@@ -147,8 +153,13 @@ def main(argv=None):
     if any(destination.iterdir()):
         parser.error("destination must be empty; refuse overwrite/partial preservation")
     run = api_json(f"https://api.github.com/repos/{REPO}/actions/runs/{RUN_ID}", token)
-    if (run.get("head_sha") != CODE_SHA or run.get("run_attempt") != RUN_ATTEMPT
-            or run.get("conclusion") != "success"):
+    if (run.get("id") != RUN_ID or run.get("head_sha") != CODE_SHA
+            or run.get("run_attempt") != RUN_ATTEMPT
+            or run.get("conclusion") != "success"
+            or run.get("workflow_id") != WORKFLOW_ID
+            or run.get("path") != WORKFLOW_PATH
+            or run.get("event") != WORKFLOW_EVENT
+            or run.get("head_branch") != WORKFLOW_BRANCH):
         raise ValueError("run provenance mismatch; fail closed")
     # Check every pinned artifact still belongs to this run and has not expired.
     remote = api_json(
@@ -157,6 +168,13 @@ def main(argv=None):
     if not set(ARTIFACTS).issubset(found) or any(found[i].get("expired") for i in ARTIFACTS):
         raise ValueError("required artifacts missing/expired; fail closed")
     inventory["run_url"] = run.get("html_url")
+    inventory["run_number"] = run.get("run_number")
+    inventory["run_actor"] = run.get("actor", {}).get("login")
+    for record in inventory["artifacts"]:
+        origin = found[record["id"]]
+        record["source_name"] = origin.get("name")
+        record["source_size_in_bytes"] = origin.get("size_in_bytes")
+        record["source_expires_at"] = origin.get("expires_at")
     inventory["preservation_status"] = "IN_PROGRESS"
     # Failures leave already verified ZIPs available for controlled recovery,
     # but no COMPLETE manifest. Never mistake partial copying for preservation.
