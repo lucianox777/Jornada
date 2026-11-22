@@ -82,3 +82,18 @@ Todas foram identificadas como `draft=true`; algumas também têm conflitos. Nec
 - **Nenhuma das 41 pode ser marcada comprovadamente obsoleta só com título, descrição ou `mergeable`.** Grupo B é fila de investigação de duplicidade, não autorização de fechamento.
 - Verificar diffs e arquivos alterados de pares sucessores, estado dos checks e commits integrados na master. Documentar equivalência de conteúdo e preservação da GOV-DOC-01 antes de fechar PR substituída.
 - Ordem sugerida: (1) cadeia #1710/#1807/#1810/#1815; (2) #1633/#1805/#1809/#1813; (3) #1806/#1811; (4) #1620/#1804; (5) #1842/#1843/#1844, reconciliando índice; (6) PRs técnicas.
+
+## Auditoria comparativa das quatro cadeias de recuperação documental
+
+**Escopo desta rodada:** inspecionados diffs e metadados das 12 PRs #1710, #1807, #1810, #1815, #1633, #1805, #1809, #1813, #1806, #1811, #1620, #1804. Todas continuam **abertas**, `mergeable=false` no retorno consultado. Todas são documentais; isso **não** significa que sejam redundantes em relação à master.
+
+| Cadeia | Comparação material | Resultado seguro |
+|---|---|---|
+| #1710 → #1807 → #1810 → #1815 | Quatro diffs adicionam o mesmo registro de decisão TF0 × ONE_MF e mexem em três arquivos; as versões posteriores mudam texto de estado/índice e contexto de integração. | **Forte candidata a consolidação**, mas não há equivalência literal de todos os hunks; conferir versão canônica contra master e preservar backlog antes de fechar qualquer antecessora. |
+| #1633 → #1805 → #1809 → #1813 | Quatro diffs registram decisão de referência estatística comum; a primeira versão contém 19 linhas adicionadas e uma removida, as posteriores 24 linhas adicionadas, com reconciliações de índice distintas. | **Forte candidata a consolidação**, sem equivalência integral comprovada; conferir decisão e diferenças semânticas contra master. |
+| #1806 → #1811 | Ambas adicionam duas linhas de índice com a mesma abertura de decisão GOV-V9-CALIBRADOR-MERGES-AUTORIZADOS-20261121; contextos de base/índice diferem. | **Candidata prioritária a absorção**, mas ainda sem prova de que o registro foi integrado em master ou de que o diff completo é equivalente. |
+| #1620 → #1804 | Ambas adicionam documento de compatibilidade retroativa do bundle e entrada de índice; textos de estado/contexto diferem. | **Candidata a consolidação**; preservar precedência funcional e comprovar registro canônico antes de encerrar. |
+
+**Proibição de encerramento prematuro:** uma PR substituída por outra **ainda aberta e conflitante** não tem substituição integrada comprovada. Encerrar todas as antecessoras antes de consolidar e integrar a sucessora colocaria em risco GOV-DOC-01. Não há prova de PR obsoleta pronta para fechamento automático nesta rodada.
+
+**Próximo gate verificável:** consultar arquivos canônicos em `master`, comparar por seção e significado (não apenas linhas), escolher um único diff por decisão, resolver conflitos do índice, passar CI e integrar; só então registrar comentário de substituição e encerrar PRs redundantes. Qualquer fechamento deve preservar links cruzados e justificativa.
