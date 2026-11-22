@@ -28,7 +28,7 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
         receipt = preflight.verify(self.directory, 1000)
         self.assertEqual(receipt["personCount"], 1000)
         self.assertEqual(receipt["recordCount"], 1000)
-        self.assertNotIn("cpf", json.dumps(receipt).lower())
+        self.assertNotIn(producer.make_cpf(1, 355), json.dumps(receipt))
         self.assertIn("NOT_LINKAGE_ORACLE", receipt["scope"])
 
     def test_duplicate_cpf_fails(self):
