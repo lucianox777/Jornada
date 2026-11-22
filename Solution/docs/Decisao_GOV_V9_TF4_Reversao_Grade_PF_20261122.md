@@ -1,6 +1,6 @@
 # GOV-V9-TF4-REVERSAO-GRADE-PF-20261122 — reversão solicitada pelo Product Owner
 
-**Data:** 22/11/2026. **Autoridade:** Product Owner. **Estado:** REVERSÃO SOLICITADA; aplicação condicionada a PR, CI e integração. **Política:** GOV-DOC-01.
+**Data:** 22/11/2026. **Autoridade:** Product Owner. **Estado:** REVERSÃO INTEGRADA na PR #1879, após 17 verificações concluídas com sucesso, commit squash `2a336ec4b1215e6de544b34107557b9c35b94b24`. **Política:** GOV-DOC-01.
 
 ## Contexto e objeto
 
@@ -24,4 +24,4 @@ Restabelecer o contrato anterior à PR #1866, obtido diretamente do pai do merge
 
 **Gates:** revisão de PR, CI obrigatória e verificação de compatibilidade; sem disparar TRAIN, TEST, 100k, HML/PROD ou ativação. O run #45002707113 é imutável e deve continuar referenciável como evidência da grade nova, mesmo após a reversão prospectiva.
 
-**Rastreabilidade:** PR #1866, issue #1865, run #45002707113, PR de reversão vinculada a este documento, política GOV-DOC-01.
+**Rastreabilidade:** PR #1866, issue #1865, run #45002707113, PR #1879 integrada em `master`, política GOV-DOC-01.
