@@ -11,3 +11,9 @@ Contrato separado por host; não implica inclusão de `/health` na especificaç�
 
 ## Precedência e rastreabilidade
 GOV-DOC-01; plano E2E integral V9 DEV aprovado; issue #1853; PR desta branch. Sem decisão nova do PO; índice vigente permanece regido pelo plano já documentado.
+
+## Prova HTTP complementar da entrega sintética (#1853)
+
+Com `JORNADA_E2E_RESULTADO_API=true`, o harness Linux `scripts/local-e2e.sh` inicia a Resultado.Api compilada em porta efêmera de loopback. Ela usa o mesmo SQL JornadaE2E e delega a autorização à Jornada.Api já iniciada. A prova consulta o nome do ZIP após a segunda entrega e exige que o identificador retornado seja o do segundo recibo. Exige duas entregas para esse nome, o estado PROCESSADA e um registro retransmitido conforme a consulta SQL do harness. A releitura autenticada deve reproduzir o mesmo detalhe. O teste exige 401 sem credencial, 400 para nome inválido e 404 com credencial sintética de outro gestor.
+
+O recibo `.local/e2e/resultado-api-evidence.json` contém o SHA do checkout, o ID sintético da entrega, os códigos HTTP, as contagens conferidas e a duração das consultas. Sua emissão exige passar as verificações físicas. O gate OpenAPI estático segue independente. Permanecem pendentes a comparação com OpenAPI gerado em runtime e a validação pós-merge em DEV descartável. Incremento de implementação do plano aprovado, sem nova decisão de produto.
