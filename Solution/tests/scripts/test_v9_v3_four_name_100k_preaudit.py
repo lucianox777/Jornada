@@ -35,7 +35,7 @@ class V9PreauditTransferTests(unittest.TestCase):
         (root / "bound/plan.json").write_bytes(plan)
         save_json(root / "bound/binding-receipt.json", {
             "planSha256": digest(plan), "physicalHypotheses": 324,
-            "tfOptions": 81, "testUsed": False, "certified": False,
+            "tfOptions": 162, "testUsed": False, "certified": False,
             "activated": False,
         })
         save_json(result / "mu-statistical-analysis.json",

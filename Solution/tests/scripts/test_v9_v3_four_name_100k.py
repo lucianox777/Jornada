@@ -65,18 +65,28 @@ class V9FourName100kTests(unittest.TestCase):
                 "sourceArtifactId": 13654549483,
                 "sourceArtifactZipSha256": "d" * 64}
 
-    def test_exact_81_states_no_duplicate_tf0_and_bilateral_only(self):
+    def test_exact_162_states_no_duplicate_tf0_and_bilateral_only(self):
         options = p.grid(self.base()["Calibration"]["ModelOptions"][0])
-        self.assertEqual(len(options), 81)
-        self.assertEqual(len({x["OptionId"] for x in options}), 81)
+        self.assertEqual(len(options), 162)
+        self.assertEqual(len({x["OptionId"] for x in options}), 162)
         self.assertEqual(options[0]["OptionId"], p.TF0)
         self.assertIsNone(options[0]["UnitTfOptions"])
         self.assertEqual({x["UnpublishedTermPolicy"] for x in options[1:]}, {1})
         self.assertTrue(all(x["SharedSurnameMode"] == 0 for x in options[1:]))
         self.assertEqual({tuple(s["Weight"] for s in x["UnitTfOptions"])
                           for x in options[1:]},
-                         {tuple(v) for v in __import__("itertools").product(p.STATES, repeat=4)}
+                         {tuple(v) for v in __import__("itertools").product(p.PF_STATES, p.STATES, p.STATES, p.STATES)}
                          - {(0, 0, 0, 0)})
+
+    def test_pf_intermediate_weights_have_unique_identifiers(self):
+        options = p.grid(self.base()["Calibration"]["ModelOptions"][0])
+        self.assertEqual(len(options), 162)
+        self.assertEqual(len({x["OptionId"] for x in options}), 162)
+        self.assertEqual({x["UnitTfOptions"][0]["Weight"] for x in options[1:]},
+                         set(p.PF_STATES))
+        self.assertTrue(any("PFQ125" in x["OptionId"] for x in options))
+        self.assertTrue(any("PFQ375" in x["OptionId"] for x in options))
+        self.assertEqual(p.EVALUATIONS, 324)
 
     def test_unified_calibration_json_is_versioned_into_tf_plan(self):
         config = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
@@ -177,10 +187,10 @@ class V9FourName100kTests(unittest.TestCase):
             self.assertEqual(result["physicalHypotheses"], 324)
             self.assertEqual(plan["MaximumBatches"], 1)
             self.assertEqual(plan["PredeclaredCandidateCpMultiplicity"], 324)
-            self.assertEqual(plan["Calibration"]["ConflictMargins"], [.5, 2])
+            self.assertEqual(plan["Calibration"]["ConflictMargins"], [.5])
             self.assertEqual(plan["Calibration"]["MaximumPhysicalRuleSets"], 1)
             self.assertEqual(len(plan["Calibration"]["DeclaredSearchSpace"]["Catalogue"]), 3)
-            self.assertEqual(len(plan["Calibration"]["ModelOptions"]), 81)
+            self.assertEqual(len(plan["Calibration"]["ModelOptions"]), 162)
             self.assertEqual(len(plan["MuEstimationMethods"]), 1)
             self.assertEqual(plan["MuEstimationMethods"][0]["Method"],
                              "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE")

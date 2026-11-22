@@ -1,3 +1,5 @@
+> **GOV-V9-TF4-PF-GRADE-MARGEM-20261122 — APROVADO PELO PO, IMPLEMENTAÇÃO NA ISSUE #1865:** para novos planos TF4, PF {0;0,125;0,25;0,375;0,5;1}, PL/MF/ML {0;0,5;1}, margem somente 0,5, TF0 preservado, 162 opções × 2 M/U × 1 margem = 324 hipóteses. Não altera campanhas congeladas, scorer, gates, TEST, promoção ou ativação; superioridade científica pendente de evidência. Precede somente a grade nova de GOV-V9-V3-TF4-324-20261111. [Decisão e rastreabilidade](Decisao_GOV_V9_TF4_PF_Grade_Margem_20261122.md). GOV-DOC-01.
+
 > **GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122 — DECIDIDO PELO PO:** aprovado o plano original de caminho crítico do E2E do sistema inteiro **com todos os ajustes da avaliação técnica**. Detalhamento P0-B, etapas 0–9, frentes paralelas e critérios de aceite; separação DEV/ativação produtiva, oráculo independente, Gold de pessoas, proveniência #38, escala governada e marcos núcleo/integral. Não autoriza despacho científico automático, certificação ou ativação V9. [Decisão e plano consolidado](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md). GOV-DOC-01.
 
 

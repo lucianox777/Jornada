@@ -234,7 +234,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         output.write("\n")
     target.with_suffix(".md").write_text(
         "# V9 four-name 100k — PASS técnico TRAIN, não certificação\n\n"
-        "324 hipóteses V3-only medidas; TF=81, λ=2, margens=2. "
+        "324 hipóteses V3-only medidas; TF=162, λ=2, margens=1. "
         "P95 reais: " + str(replayed) + "; P95 ausentes por rejeição pré-replay: "
         + str(fanout) + ". TEST, validação independente e ativação: NÃO.\n",
         encoding="utf8")
