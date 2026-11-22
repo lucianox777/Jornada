@@ -98,6 +98,8 @@ jobs:
         name: Essential V9 contract tests
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_independent_cohort_artifacts.py'
+          # Campaign #38 preservation is read-only/offline in CI: secure redirects, ZIP provenance and destination guards.
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_preserve_campaign38_artifacts.py'
           # Current beta corpus partition, TEST isolation and provenance contracts (offline).
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_standalone_test.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_prepared_sealed_test.py'
@@ -134,6 +136,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_candidate_parity.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_batch_rehearsal.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_production_runner_test_only_bridge.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_operational_edges_source_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_synthetic_sql_batch_ledger.py'
           # Offline-only: E2E APT DNS fallback must not bypass private runtime gates.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_e2e_private_sql_api_dns_recovery.py'
@@ -187,6 +190,9 @@ jobs:
           # C# execution proof that TEST/VALIDATION FS grouping stay isolated.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
+          # Independent scalar / decision / grouping TEST_ONLY oracle; no SQL (#1584 / P0-B step 2).
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9IndependentScalarReplayTests'
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FittedSnapshotTests'
       - if: needs.classify-impact.outputs.docs_only != 'true'

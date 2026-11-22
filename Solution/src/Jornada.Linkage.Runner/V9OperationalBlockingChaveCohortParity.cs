@@ -14,7 +14,11 @@ namespace Jornada.Linkage.Runner;
 /// JornadaHarness and for the independently built physical SQL graph.
 /// Verifies the actual Gold reference rows and their names/dates against the frozen
 /// Silver universe before SQL batch persistence. This does NOT certify
-/// production Gold lifecycle or scientific TEST 100k.
+/// This is not an atomic Silver/Gold snapshot: the independent reads are not
+/// enclosed in a common SQL transaction. Matching Gold rows and operational
+/// candidates here is diagnostic evidence, not proof of a consistent snapshot
+/// under concurrent writes or certification of the production Gold lifecycle
+/// or scientific TEST 100k.
 /// </summary>
 public static class V9OperationalBlockingChaveCohortParity
 {
