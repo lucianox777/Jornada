@@ -3,12 +3,13 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import zipfile
 
 
 def validate(zip_path: Path, truth_path: Path) -> dict:
-    if zip_path.resolve() == truth_path.resolve():
+    if os.path.samefile(zip_path, truth_path):
         raise ValueError("truth and ZIP must be distinct files")
     def reject_duplicate_members(pairs):
         result = {}
@@ -78,8 +79,7 @@ def main() -> None:
     parser.add_argument("--truth", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
-    if args.receipt.resolve() in {args.zip.resolve(), args.truth.resolve()}:
-        raise ValueError("receipt output must be separate from ZIP and ground truth inputs")
+    if args.receipt.resolve() in {args.zip.resolve(), args.truth.resolve()} or (\n        args.receipt.exists() and (os.path.samefile(args.receipt, args.zip) or\n                                   os.path.samefile(args.receipt, args.truth))\n    ):\n        raise ValueError("receipt output must be separate from ZIP and ground truth inputs")
     receipt = validate(args.zip, args.truth)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
