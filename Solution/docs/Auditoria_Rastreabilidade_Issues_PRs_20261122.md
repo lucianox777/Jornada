@@ -112,3 +112,24 @@ Todas foram identificadas como `draft=true`; algumas também têm conflitos. Nec
 **Conclusão atualizada:** as **12 PRs das quatro cadeias são candidatas fortes a encerramento administrativo por conteúdo documental já registrado**, desde que a comparação final de hunks confirme inexistência de material adicional não preservado na master. **Não são 12 encerramentos aprovados automaticamente**; verificar especialmente diferenças de redação, referências e índice. Se o conteúdo de alguma PR contiver acréscimo válido ausente da master, incorporar primeiro por PR consolidada, com checks. As 12 continuam abertas; nenhuma foi fechada nesta sessão.
 
 **Rastreabilidade:** os arquivos e identificadores acima são fontes canônicas já existentes em master. Este registro de auditoria está somente na PR #1844 até integração.
+
+## Comparação linha a linha dos diffs adicionados contra arquivos canônicos da master
+
+**Método:** extraídos todos os trechos `+` (exceto cabeçalhos `+++`) dos diffs das 12 PRs e comparadas suas linhas não vazias por ocorrência literal no conjunto dos cinco arquivos canônicos de `master`: três documentos decisórios, `Dividas_Tecnicas.md` e `Indice_Decisoes_Vigentes.md`. Comparação de linhas **não é prova de equivalência do patch**: não verifica deleções, contexto, ordem, duplicatas, metadados, checks ou efeitos de merge.
+
+| PR | Linhas adicionadas não vazias | Linhas sem correspondência literal na master | Observação |
+|---|---:|---:|---|
+| #1710 | 26 | 4 | Estado antigo “registro em revisão”, título de dívida e redações anteriores do backlog/índice; requer inspeção semântica. |
+| #1807 | 25 | **0** | Todas as linhas adicionadas aparecem na master. |
+| #1810 | 25 | **0** | Idem. |
+| #1815 | 25 | **0** | Idem. |
+| #1633 | 13 | 1 | Entrada antiga de índice, incluindo referência conjunta a três coortes; verificar preservação semântica no índice vigente. |
+| #1805 | 15 | 1 | Entrada de índice de versão anterior; documento decisório presente. |
+| #1809 | 15 | 1 | Idem. |
+| #1813 | 15 | 1 | Idem. |
+| #1806 | 1 | **0** | Linha substantiva de autorização já na master. |
+| #1811 | 1 | **0** | Idem. |
+| #1620 | 16 | 2 | Estado antigo “registro em PR” e entrada de índice antiga. |
+| #1804 | 16 | **0** | Todas as linhas adicionadas aparecem na master. |
+
+**Síntese:** 6 PRs com **0 linhas adicionadas não vazias ausentes** (#1807, #1810, #1815, #1806, #1811, #1804); outras 6 com diferenças predominantemente editoriais/de índice (#1710, #1633, #1805, #1809, #1813, #1620). **Correção do total:** são seis, não oito, com coincidência literal total. A decisão da master é a fonte canônica. Antes de encerrar, validar se o texto adicional da #1633 sobre coortes está preservado no documento de isolamento, se nenhum patch remove conteúdo e se as PRs não contêm compromissos pendentes. **Não fechar sem esta última validação.**
