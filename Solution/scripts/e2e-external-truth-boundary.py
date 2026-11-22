@@ -57,13 +57,17 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
                 raise ValueError("ZIP contains symbolic link")
         # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
-        truth_bytes = truth_path.read_bytes()
+        truth_size = truth_path.stat().st_size
         for info in archive.infolist():
-            if info.is_dir() or info.file_size != len(truth_bytes):
+            if info.is_dir() or info.file_size != truth_size:
                 continue
-            with archive.open(info) as stream:
-                if stream.read(len(truth_bytes) + 1) == truth_bytes:
-                    raise ValueError("external ground truth embedded in ZIP")
+            with archive.open(info) as stream, truth_path.open("rb") as truth_stream:
+                while True:
+                    expected = truth_stream.read(64 * 1024)
+                    if not expected:
+                        raise ValueError("external ground truth embedded in ZIP")
+                    if stream.read(len(expected)) != expected:
+                        break
     return {"status": "PASS", "zipSha256": digest, "expectedIdentityCount": len(identities),
             "groundTruthLocation": "EXTERNAL", "scope": "BOUNDARY_ONLY_NOT_LINKAGE_ORACLE"}
 
