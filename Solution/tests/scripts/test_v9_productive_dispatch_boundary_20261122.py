@@ -22,6 +22,19 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         self.assertIn("RUNNER_V9_REPLAY_NOT_SUPPORTED", self.typed)
         self.assertIn("RUNNER_V9_SELECTION_VERSION_MISMATCH", self.typed)
 
+    def test_typed_dispatch_is_explicitly_non_operational(self):
+        typed = self.typed
+        self.assertIn("ct.ThrowIfCancellationRequested();", typed)
+        self.assertIn("request.Mode == LinkageRunType.REPLAY", typed)
+        self.assertIn("request.ModelVersion is int version && version != 9", typed)
+        for forbidden in ("operationalSql.OpenAsync(",
+                          "pipelineCoordinator.AcquireExclusiveJobAsync(",
+                          "CreateRunAndMaterializeUniverseAsync(",
+                          "PersistBatchAsync(",
+                          "PublishAsync("):
+            self.assertNotIn(forbidden, typed)
+        self.assertTrue(typed.strip().endswith("}"))
+
     def test_legacy_runasync_rejects_all_explicit_v9_selectors_before_sql(self):
         run = self.run
         start = run.index("ValidateRequest(request);")
