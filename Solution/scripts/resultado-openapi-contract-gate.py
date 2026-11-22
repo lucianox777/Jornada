@@ -17,6 +17,17 @@ def validate(program: Path, contract: Path) -> list[str]:
     errors.extend(contract_errors)
     errors.extend(f"rota no código ausente do contrato: {m.upper()} {p}" for m, p in sorted(code - documented))
     errors.extend(f"rota no contrato ausente do código: {m.upper()} {p}" for m, p in sorted(documented - code))
+    # Route inventory alone is insufficient: the published result endpoint
+    # must retain delegated authorization before any SQL-backed detail read.
+    source = program.read_text(encoding="utf-8-sig")
+    protected = 'app.MapGet("/api/v1/ingestao/resultados/{nomeArquivo}"'
+    authorization = '.RequireAuthorization("jornada.ingestao.status")'
+    if protected not in source or authorization not in source:
+        errors.append("rota de resultado sem autorização obrigatória")
+    if ('builder.Services.AddSingleton<IJornadaAccessVerifier, ResultadoAccessVerifier>();' not in source
+            or 'app.UseAuthentication();' not in source
+            or 'app.UseAuthorization();' not in source):
+        errors.append("verificador delegado ou middleware de autenticação ausente")
     if not code:
         errors.append("nenhuma rota Resultado.Api encontrada")
     return errors
