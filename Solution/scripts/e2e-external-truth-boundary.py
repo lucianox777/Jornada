@@ -57,8 +57,12 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
         # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
         truth_bytes = truth_path.read_bytes()
-        if any(archive.read(info) == truth_bytes for info in archive.infolist() if not info.is_dir()):
-            raise ValueError("external ground truth embedded in ZIP")
+        for info in archive.infolist():
+            if info.is_dir() or info.file_size != len(truth_bytes):
+                continue
+            with archive.open(info) as stream:
+                if stream.read(len(truth_bytes) + 1) == truth_bytes:
+                    raise ValueError("external ground truth embedded in ZIP")
     return {"status": "PASS", "zipSha256": digest, "expectedIdentityCount": len(identities),
             "groundTruthLocation": "EXTERNAL", "scope": "BOUNDARY_ONLY_NOT_LINKAGE_ORACLE"}
 
