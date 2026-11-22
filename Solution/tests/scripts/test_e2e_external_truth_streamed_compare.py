@@ -46,6 +46,23 @@ class ExternalTruthStreamingTests(unittest.TestCase):
             with patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
                 self.assertEqual(module.validate(archive_path, truth_path)["status"], "PASS")
 
+    def test_embedded_truth_after_nonmatching_equal_sized_entry_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path, truth_path = root / "payload.zip", root / "truth.json"
+            payload = json.dumps({"zipSha256": "a" * 64, "expectedIdentities": ["A"]}).encode()
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("first.txt", b"X" * len(payload))
+                archive.writestr("renamed-truth.txt", payload)
+            truth_path.write_bytes(payload)
+            # The SHA is intentionally mocked: exact self-referential ZIP digest
+            # cannot be embedded in the same ZIP; the byte-comparison is isolated.
+            with patch.object(module.hashlib, "sha256") as sha, \\
+                    patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
+                sha.return_value.hexdigest.return_value = "a" * 64
+                with self.assertRaisesRegex(ValueError, "embedded"):
+                    module.validate(archive_path, truth_path)
+
     def test_exact_truth_bytes_still_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
