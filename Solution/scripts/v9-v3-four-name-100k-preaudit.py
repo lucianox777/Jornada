@@ -7,11 +7,17 @@ preaudit artifact is expressly NOT a certified or audited finalist handoff.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import hashlib
 import json
 from pathlib import Path
 import re
 import shutil
+
+HERE = Path(__file__).resolve().parent
+_spec = importlib.util.spec_from_file_location("v9_tf4_plan", HERE / "v9-v3-four-name-100k-plan.py")
+study = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(study)
 
 SCHEMA = "V9_TF4_324_PREAUDIT_TRANSFER_V1"
 MANIFEST = "calibration-preaudit-receipt.json"
@@ -81,7 +87,7 @@ def verify(directory, code_sha, run_id, check_manifest=True):
     ids, envelope, models = members(selection)
     require(receipt.get("planSha256") == digest(root / "plan.json")
             and receipt.get("physicalHypotheses") == 324
-            and receipt.get("tfOptions") == 81
+            and receipt.get("tfOptions") == study.OPTIONS
             and receipt.get("testUsed") is False
             and receipt.get("certified") is False
             and receipt.get("activated") is False,
