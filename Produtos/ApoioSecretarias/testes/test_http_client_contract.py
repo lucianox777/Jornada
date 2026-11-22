@@ -93,5 +93,25 @@ class HttpClientContractTest(unittest.TestCase):
                 self.assertEqual(ctx.exception.codigo, "CREDENCIAL_AUSENTE")
                 opener.assert_not_called()
 
+    def test_http_rejection_keeps_fail_closed_error(self):
+        from urllib.error import HTTPError
+
+        class RejectingOpener:
+            def open(self, request, timeout):
+                raise HTTPError(request.full_url, 403, "Forbidden", {}, None)
+
+        with tempfile.TemporaryDirectory() as directory:
+            payload = b"synthetic"
+            digest = hashlib.sha256(payload).hexdigest()
+            zip_path = Path(directory) / f"ENTREGA_SEHAB_SEHAB_v2_{digest}.zip"
+            zip_path.write_bytes(payload)
+            profile = {"gestor": "SEHAB", "sistemaOrigem": "SEHAB",
+                       "endpoint": "https://dev.example.invalid/api/v1/ingestao/entregas"}
+            with patch.object(core, "_no_redirect", return_value=RejectingOpener()):
+                with self.assertRaises(core.Falha) as ctx:
+                    core._enviar(zip_path, profile, "SYNTHETIC_KEY")
+                self.assertEqual(ctx.exception.codigo, "ENVIO_HTTP")
+                self.assertIn("403", ctx.exception.detalhe)
+
 if __name__ == "__main__":
     unittest.main()
