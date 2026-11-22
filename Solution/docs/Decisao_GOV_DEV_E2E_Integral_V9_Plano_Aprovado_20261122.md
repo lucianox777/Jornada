@@ -91,3 +91,17 @@ Autenticação corporativa #378 (necessária fora de Development), calibração 
 ## Reconciliação de rastreabilidade posterior à aprovação (22/11/2026)
 
 A leitura da issue #1348 na master demonstrou que seu escopo vigente, aprovado em 21/11, é **configuração de limites operacionais e logs**, e **não** busca semicega. A referência original foi preservada como fato histórico, mas **não constitui vínculo de execução válido**. A frente de busca semicega continua aprovada e necessita localizar sua issue responsável antes de criar uma nova. A issue #1194 trata da autorização por credencial BENEFICIO/SERVICO do Apoio e é dependência relevante, mas não equivale por si só à prova de ZIP E2E. A #1830 proíbe iniciar implementação de arquivamento NAS sem autorização posterior; a aprovação deste plano não revoga essa restrição. Preservação imediata de artefatos deve observar acessos e autorizações aplicáveis.
+
+## Diretriz operacional do PO — execução em frentes paralelas (22/11/2026)
+
+**Decisão aprovada:** o trabalho do E2E integral deve avançar em frentes paralelas, com entregas e evidências independentes e integração posterior no marco E2E do sistema inteiro. **Contexto:** a PR #1852 (guards V9) aguarda CI e a PR draft #1768 tem conflitos; serializar todo o sistema no bloqueio do Runner atrasaria superfícies sem dependência técnica direta. **Justificativa:** aproveitar capacidade de execução simultânea sem relaxar gates nem misturar validações.
+
+| Frente | Issue | Dependências e limite de aceite |
+|---|---|---|
+| A — Runner V9, arestas, oráculo e adaptador | #1584, #1488, PR #1768, PR #1852 | Reconciliar código existente, CI e SQL descartável; sem TRAIN/TEST/100k ou ativação implícita. |
+| B — E2E do núcleo HTTP/Gold/Runner e gabarito | #1851 | Pode preparar fixtures/contratos; prova integral depende do adaptador aprovado da frente A. |
+| C — Resultado.Api e OpenAPI bidirecional | #1853 | Testes de contrato e integração sintética independentes; evidência por SHA. |
+| D — Busca semicega | #1854, #612, #539 | DEV sintético; não habilitar HML/PROD sem política institucional e gates de visibilidade. |
+| E — ZIP Apoio/ingestão | #1855, #1194 | Preparar testes sem envio inseguro; `enviar=false` até autorização por recurso aprovada e integrada. |
+
+**Precedência:** complementa a decisão GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122 sem revogar P0-A → DT-10 → P0-B, contratos científicos, bloqueios de produção, governança #1830 ou os critérios 1k→10k→100k. Cada frente mantém branch/PR/CI, testes negativos e evidência no SHA exato; conflitos e alterações de contrato exigem revisão. Integração final é condição para o marco **E2E integral do sistema**, enquanto o núcleo tem marco próprio. **Impactos:** trabalho simultâneo, menor dependência do CI do Runner, rastreabilidade e aceites separados. **Estado:** organização aprovada e issues abertas; implementação e validação dessas frentes ainda não concluídas. GOV-DOC-01.
