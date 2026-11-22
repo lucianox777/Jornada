@@ -1,5 +1,7 @@
 # GOV-V9-CAMPANHA-STANDARD-LINEAR-100K-AUTORIZACAO-CONDICIONAL-20261121
 
+> **Registro histórico de 21/11/2026.** A [autorização dinâmica vigente](Decisao_GOV_V9_Autorizacao_Condicional_SHA_Final_20261121.md#autorização-dinâmica-vigente) substitui a regra de nova autorização para alterações de SHA dentro do escopo aprovado. As condições de preflight formal e correspondência com o SHA executado seguem obrigatórias.
+
 **Data:** 21/11/2026  
 **Autoridade:** Product Owner (aprovação expressa nesta conversa)  
 **Estado:** AUTORIZADA CONDICIONALMENTE — DESPACHO NÃO LIBERADO; CAMPANHA NÃO INICIADA POR ESTA DECISÃO  
