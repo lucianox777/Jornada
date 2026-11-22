@@ -52,9 +52,11 @@ public static class V9OperationalBlockingChaveCohortParity
 
         if (frozenRows.Count is < 2 or > V9FrozenCohortSqlCandidateGraph.MaximumObservations
             || managers.Count != frozenRows.Count
-            || frozenRows.Any(row => row.PessoaObservacaoId <= 0 || row.Observation.Cpf is not null
+            || frozenRows.Any(row => row is null || row.PessoaObservacaoId <= 0
+                || row.Observation is null || row.Observation.Cpf is not null
                 || !managers.TryGetValue(row.PessoaObservacaoId, out var manager)
-                || string.IsNullOrWhiteSpace(manager)))
+                || string.IsNullOrWhiteSpace(manager))
+            || frozenRows.Select(row => row.PessoaObservacaoId).Distinct().Count() != frozenRows.Count)
             throw new InvalidDataException(
                 "Paridade blocking_chave exige universo Silver integral com gestores.");
 
@@ -139,7 +141,8 @@ public static class V9OperationalBlockingChaveCohortParity
             {
                 var uuid = reader.GetGuid(0);
                 if (!found.Add(uuid) || !byUuid.TryGetValue(uuid, out var candidate)
-                    || !reader.IsDBNull(1) || reader.GetString(5) != "REFERENCIA")
+                    || !reader.IsDBNull(1) || reader.IsDBNull(5)
+                    || reader.GetString(5) != "REFERENCIA")
                     throw new InvalidDataException(
                         "Gold V9 contém UUID externo, duplicado, CPF ou referência inválida.");
                 var frozen = frozenRows[candidate.Index - 1].Observation;
