@@ -298,16 +298,16 @@ public sealed class V9IndependentScalarReplayTests
     // frequencies via scalar odds. They never call the production TF scorer,
     // the ranker or the TEST replay to calculate the expected scores. Together
     // the four fixtures exercise all four active side/unit slots, not just TF0.
-    [TestCase("MARIA SOUZA", "ANA MOTA",
+    [TestCase("MARIA SOUZA", "ANA PEREIRA",
         CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactFirst,
         NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.FirstName)]
     [TestCase("JOANA SILVA", "BEATRIZ COSTA",
         CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
         NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.LastContentSurname)]
-    [TestCase("MARIA LIMA", "JOANA COSTA",
+    [TestCase("MARIA PEREIRA", "JOANA COSTA",
         CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactLast,
         NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname)]
-    [TestCase("JOANA SILVA", "ANA MOTA",
+    [TestCase("JOANA SILVA", "ANA PEREIRA",
         CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactFirst,
         NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.FirstName)]
     public void Four_active_TF_slots_match_independent_81_cell_numeric_oracle(
@@ -381,7 +381,7 @@ public sealed class V9IndependentScalarReplayTests
         var observation = new IdentityObservation(null, "SEM_CPF",
             "INEDITA SILVA", null, "ANA COSTA");
         var candidate = new V9SnapshotCandidate(First,
-            "INEDITA SOUZA", null, "ANA MOTA");
+            "INEDITA RIBEIRO", null, "ANA PEREIRA");
         var outcome = abstain.ResolvePreview(Model, observation, [candidate]);
         Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
         Assert.That(outcome.Motivo, Is.EqualTo("TF_SEM_FREQUENCIA_IBGE_PUBLICADA"));
