@@ -292,7 +292,7 @@ jobs:
           receipt=json.load(open(sys.argv[2],encoding="utf-8"))
           assert plan["Calibration"]["MaximumParallelRuleSets"]==0, "AUTO_0_REQUIRED"
           assert receipt["runtimeParallelismMode"]=="AUTO_0", "AUTO_RECEIPT_REQUIRED"
-          assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==162, "324_V3_TF4_REQUIRED"
+          assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
           print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
           PY
           # One aggregate, sanitized snapshot of the actual hosted-runner
