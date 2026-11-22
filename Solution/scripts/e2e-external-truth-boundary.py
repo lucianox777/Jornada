@@ -24,7 +24,11 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
                            ValueError("nonfinite ground truth JSON value")))
     if not isinstance(truth, dict) or set(truth) != {"zipSha256", "expectedIdentities"}:
         raise ValueError("ground truth must contain only zipSha256 and expectedIdentities")
-    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    hasher = hashlib.sha256()
+    with zip_path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    digest = hasher.hexdigest()
     if truth["zipSha256"] != digest:
         raise ValueError("ZIP digest differs from external ground truth binding")
     identities = truth["expectedIdentities"]
