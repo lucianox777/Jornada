@@ -82,7 +82,14 @@ public sealed class V9CalibrationRuntimeSchedulerTests
                 firstStarted.TrySetResult();
                 await releaseFirst.Task.WaitAsync(ct);
             }
-            if (i == 1) secondStarted.TrySetResult();
+            if (i == 1)
+            {
+                // Parallel.ForEachAsync does not guarantee which index reaches
+                // the admission gate first. Require overlap with the held first
+                // worker before reporting that the second worker has started.
+                await firstStarted.Task.WaitAsync(ct);
+                secondStarted.TrySetResult();
+            }
             return i;
         }, CancellationToken.None);
         await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
