@@ -43,8 +43,19 @@ class ExternalTruthStreamingTests(unittest.TestCase):
             # with trailing whitespace (JSON permits it).
             initial = json.dumps(truth).encode()
             truth_path.write_bytes(initial + b" " * (1024 - len(initial)))
-            with patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
+            original_read = zipfile.ZipExtFile.read
+            read_sizes = []
+
+            def guarded_read(stream, size=-1):
+                read_sizes.append(size)
+                self.assertGreaterEqual(size, 0, "ZIP member read must be bounded")
+                self.assertLessEqual(size, 1025, "ZIP member read exceeds truth size + 1")
+                return original_read(stream, size)
+
+            with patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")), \
+                    patch.object(zipfile.ZipExtFile, "read", guarded_read):
                 self.assertEqual(module.validate(archive_path, truth_path)["status"], "PASS")
+            self.assertEqual(read_sizes, [1025])
 
     def test_embedded_truth_after_nonmatching_equal_sized_entry_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
