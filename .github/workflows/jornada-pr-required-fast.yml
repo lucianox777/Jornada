@@ -139,6 +139,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_e2e_private_sql_api_dns_recovery.py'
           python3 Solution/scripts/test-e2e-private-sql-runtime-contract.py
           python3 -m unittest Solution/tests/scripts/test_v9_http_volume_fixture_preflight.py
+          python3 -m unittest Solution/tests/scripts/test_v9_http_volume_partition_boundaries.py
           python3 -m unittest Solution/tests/scripts/test_e2e_external_truth_boundary.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_offline_100k_presql_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_physical_memory_evidence.py'
