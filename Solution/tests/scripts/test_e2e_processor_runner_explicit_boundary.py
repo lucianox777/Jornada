@@ -3,7 +3,6 @@
 This is a static pre-integration guard, NOT proof of productive Runner parity.
 """
 from pathlib import Path
-import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2] / "src"
