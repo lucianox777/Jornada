@@ -29,7 +29,7 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
         raise ValueError("ZIP digest differs from external ground truth binding")
     identities = truth["expectedIdentities"]
     if not isinstance(identities, list) or not identities or not all(
-        isinstance(item, str) and item.strip() for item in identities
+        isinstance(item, str) and item and item == item.strip() for item in identities
     ) or len(identities) != len(set(identities)):
         raise ValueError("expectedIdentities must be a nonempty list of unique strings")
     with zipfile.ZipFile(zip_path) as archive:
