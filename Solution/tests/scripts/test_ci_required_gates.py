@@ -355,3 +355,76 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
         fast = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
         for tag in ("actions/checkout@v4", "actions/setup-python@v5", "actions/setup-dotnet@v4"):
             self.assertNotIn(tag, fast)
+
+
+class IntegralDevWorkflowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Ubuntu provides PyYAML for system Python, independently of setup-python.
+        import subprocess
+        workflow = ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml"
+        parse = "import json,sys,yaml; print(json.dumps(yaml.load(sys.stdin, Loader=yaml.BaseLoader)))"
+        cls.workflow = json.loads(subprocess.check_output(
+            ["/usr/bin/python3", "-c", parse], input=workflow.read_text(), text=True))
+        cls.steps = cls.workflow["jobs"]["dev-1k"]["steps"]
+
+    def test_only_manual_dispatch_on_a_read_only_hosted_runner(self):
+        self.assertEqual(list(self.workflow["on"]), ["workflow_dispatch"])
+        inputs = self.workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(list(inputs), ["expected_sha"])
+        self.assertEqual(inputs["expected_sha"]["required"], "true")
+        self.assertEqual(self.workflow["permissions"], {"contents": "read"})
+        job = self.workflow["jobs"]["dev-1k"]
+        self.assertEqual(job["runs-on"], "ubuntu-latest")
+        self.assertLessEqual(int(job["timeout-minutes"]), 360)
+        self.assertEqual(self.steps[0]["id"], "admission")
+        self.assertEqual(self.steps[1]["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(self.steps[1]["with"]["persist-credentials"], "false")
+
+    def test_dispatch_guard_rejects_wrong_ref_sha_event_owner_or_protection(self):
+        import subprocess
+        sha = "a" * 40
+        env = {"GITHUB_REPOSITORY": "lucianox777/Jornada", "GITHUB_EVENT_NAME": "workflow_dispatch",
+               "GITHUB_REF": "refs/heads/master", "GITHUB_REF_TYPE": "branch", "GITHUB_REF_PROTECTED": "true",
+               "GITHUB_ACTOR": "lucianox777", "GITHUB_TRIGGERING_ACTOR": "lucianox777",
+               "GITHUB_REPOSITORY_OWNER": "lucianox777", "GITHUB_SHA": sha, "EXPECTED_SHA": sha}
+        script = self.steps[0]["run"]
+        self.assertEqual(subprocess.run(["bash", "-c", script], env=env).returncode, 0)
+        for key, value in [("GITHUB_REF", "refs/heads/feature"), ("GITHUB_REF_TYPE", "tag"),
+                           ("GITHUB_EVENT_NAME", "push"), ("GITHUB_REF_PROTECTED", "false"),
+                           ("EXPECTED_SHA", "b" * 40), ("EXPECTED_SHA", "abc"),
+                           ("GITHUB_REPOSITORY", "fork/Jornada"), ("GITHUB_ACTOR", "other"),
+                           ("GITHUB_TRIGGERING_ACTOR", "other")]:
+            with self.subTest(key=key, value=value):
+                self.assertNotEqual(subprocess.run(["bash", "-c", script], env={**env, key: value}).returncode, 0)
+
+    def test_checkout_guard_rejects_a_master_that_moved(self):
+        import os
+        import subprocess
+        import tempfile
+        guard = self.steps[2]["run"]
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp, "repo")
+            subprocess.run(["git", "init", "-q", "-b", "master", str(repo)], check=True)
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "user.name=Test", "-c", "user.email=test@localhost",
+                                                *args], cwd=repo, text=True).strip()
+            git("commit", "-q", "--allow-empty", "-m", "initial")
+            sha = git("rev-parse", "HEAD")
+            job = Path(temp, "job")
+            subprocess.run(["git", "clone", "-q", str(repo), str(job)], check=True)
+            def verify(value):
+                return subprocess.run(["bash", "-c", guard], cwd=job, env={**os.environ, "GITHUB_SHA": value}).returncode
+            self.assertEqual(verify(sha), 0)
+            self.assertNotEqual(verify("f" * 40), 0)
+            git("commit", "-q", "--allow-empty", "-m", "advanced")
+            self.assertNotEqual(verify(sha), 0)
+
+    def test_artifact_is_exact_receipt_and_physical_failure_is_not_ignored(self):
+        upload, = [s for s in self.steps if "upload-artifact@" in s.get("uses", "")]
+        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/e2e-integral-dev.json")
+        self.assertEqual(upload["with"]["if-no-files-found"], "error")
+        self.assertTrue(all("continue-on-error" not in step for step in self.steps))
+        physical, = [s for s in self.steps if s.get("id") == "http"]
+        self.assertEqual(physical["env"]["JORNADA_E2E_HTTP_VOLUME_COUNT"], "1000")
+        self.assertIn("--profile e2e --allow-reset e2e", physical["run"])
