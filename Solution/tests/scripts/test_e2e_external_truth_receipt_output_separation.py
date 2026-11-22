@@ -1,5 +1,6 @@
 """Guard against overwriting E2E preflight inputs with a receipt."""
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -30,6 +31,20 @@ class ReceiptOutputSeparationTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "separate"):
                             module.main()
                     self.assertEqual(forbidden.read_bytes(), original)
+
+    def test_distinct_receipt_path_preserves_normal_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            zip_path = root / "payload.zip"
+            truth_path = root / "external-truth.json"
+            receipt_path = root / "receipts" / "boundary.json"
+            expected = {"status": "PASS", "scope": "BOUNDARY_ONLY_NOT_LINKAGE_ORACLE"}
+            args = ["boundary", "--zip", str(zip_path), "--truth", str(truth_path),
+                    "--receipt", str(receipt_path)]
+            with patch("sys.argv", args), patch.object(module, "validate", return_value=expected) as validate:
+                module.main()
+            validate.assert_called_once_with(zip_path, truth_path)
+            self.assertEqual(json.loads(receipt_path.read_text(encoding="utf-8")), expected)
 
     def test_resolved_alias_cannot_overwrite_truth(self):
         with tempfile.TemporaryDirectory() as directory:
