@@ -293,4 +293,103 @@ public sealed class V9IndependentScalarReplayTests
         Assert.That(changed.IdentityByObservation, Is.EquivalentTo(baseline.IdentityByObservation));
     }
 
+
+    // The expected TF factors below are derived from pinned U_ref and published
+    // frequencies via scalar odds. They never call the production TF scorer,
+    // the ranker or the TEST replay to calculate the expected scores. Together
+    // the four fixtures exercise all four active side/unit slots, not just TF0.
+    [TestCase("MARIA SOUZA", "ANA MOTA",
+        CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactFirst,
+        NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.FirstName)]
+    [TestCase("JOANA SILVA", "BEATRIZ COSTA",
+        CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+        NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase("MARIA LIMA", "JOANA COSTA",
+        CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactLast,
+        NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase("JOANA SILVA", "ANA MOTA",
+        CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactFirst,
+        NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.FirstName)]
+    public void Four_active_TF_slots_match_independent_81_cell_numeric_oracle(
+        string candidatePerson, string candidateMother,
+        CompositeNominalLevelV9 expectedPersonLevel,
+        CompositeNominalLevelV9 expectedMotherLevel,
+        NominalFrequencyUnitV9 personUnit, NominalFrequencyUnitV9 motherUnit)
+    {
+        var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
+        var p = winner.Payload;
+        Assert.That(p.UnitTfCalibrations!.Count, Is.EqualTo(4));
+        Assert.That(p.JointCells.Count, Is.EqualTo(81));
+        Assert.That(p.UnitTfCalibrations.All(x => x.State == V9SnapshotTfFitState.Active),
+            Is.True, "The oracle must never pass on an implicit TF0 fixture.");
+        const string observedPerson = "MARIA SILVA";
+        const string observedMother = "ANA COSTA";
+        // Nominal levels are independent, preselected fixture expectations.
+        Assert.That(CompositeNominalComparisonV9.Classify(observedPerson, candidatePerson),
+            Is.EqualTo(expectedPersonLevel));
+        Assert.That(CompositeNominalComparisonV9.Classify(observedMother, candidateMother),
+            Is.EqualTo(expectedMotherLevel));
+
+        var joint = p.JointCells.Single(x => x.Person == expectedPersonLevel
+                                            && x.Mother == expectedMotherLevel);
+        var prior = p.Parameters[LinkageParameterCatalog.PriorMatchProbability];
+        var logOdds = Math.Log((double)(prior / (1m - prior)))
+            + Math.Log((double)(joint.M / joint.U));
+        // Terms and slot choices are literal inputs to the independent oracle.
+        // Deriving them via the production selector would make this test circular.
+        var terms = new[]
+        {
+            (Side: CompositeNominalTfSideV9.Person, Unit: personUnit,
+                Term: personUnit == NominalFrequencyUnitV9.FirstName ? "MARIA" : "SILVA"),
+            (Side: CompositeNominalTfSideV9.Mother, Unit: motherUnit,
+                Term: motherUnit == NominalFrequencyUnitV9.FirstName ? "ANA" : "COSTA")
+        };
+        foreach (var (side, unit, term) in terms)
+        {
+            var calibration = p.UnitTfCalibrations.Single(x => x.Side == side
+                                                             && x.Unit == unit).Calibration!;
+            Assert.That(calibration.Weight, Is.EqualTo(1m));
+            var frequency = calibration.Frequencies[term];
+            var referenceU = calibration.NominalUReference!.Probability;
+            var effectiveFrequency = Math.Max(frequency, calibration.MinimumFrequency);
+            logOdds += Math.Log((double)(referenceU / effectiveFrequency));
+        }
+        var expectedPosterior = Published(1d / (1d + Math.Exp(-logOdds)));
+        var expectedLogOdds = Published(logOdds);
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            observedPerson, null, observedMother);
+        var candidate = new V9SnapshotCandidate(First, candidatePerson, null, candidateMother);
+        var actual = winner.RankPreview(observation, [candidate]).Single();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(actual.PessoaUuid, Is.EqualTo(First));
+            Assert.That(actual.Score, Is.EqualTo(expectedPosterior));
+            Assert.That(actual.LogOdds, Is.EqualTo(expectedLogOdds));
+        }));
+    }
+
+    [Test]
+    public void Unpublished_active_first_name_TF_abstains_instead_of_falling_back_to_TF0()
+    {
+        var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
+        var abstain = V9FittedSnapshot.Create(winner.Payload with
+        {
+            UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.AbstainCandidate
+        });
+        // "INEDITA" is intentionally absent from the frozen person-first
+        // dictionary, whereas "ANA" is published for the mother's first-name TF.
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            "INEDITA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(First,
+            "INEDITA SOUZA", null, "ANA MOTA");
+        var outcome = abstain.ResolvePreview(Model, observation, [candidate]);
+        Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That(outcome.Motivo, Is.EqualTo("TF_SEM_FREQUENCIA_IBGE_PUBLICADA"));
+        Assert.That(abstain.RankPreview(observation, [candidate]), Is.Empty,
+            "An unpublished active TF term must never receive an invented score.");
+        Assert.That((Action)(() => winner.ResolvePreview(Model, observation, [candidate])),
+            Throws.TypeOf<InvalidDataException>(),
+            "RejectOperation must fail closed instead of scoring with TF0.");
+    }
+
 }
