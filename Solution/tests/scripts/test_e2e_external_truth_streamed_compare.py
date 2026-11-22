@@ -56,7 +56,8 @@ class ExternalTruthStreamingTests(unittest.TestCase):
             with zipfile.ZipFile(archive_path, "w") as archive:
                 archive.writestr("renamed.txt", payload)
             truth_path.write_bytes(payload)
-            with patch.object(module.hashlib, "sha256") as sha:
+            with patch.object(module.hashlib, "sha256") as sha, \
+                    patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
                 sha.return_value.hexdigest.return_value = "a" * 64
                 with self.assertRaisesRegex(ValueError, "embedded"):
                     module.validate(archive_path, truth_path)
