@@ -77,6 +77,19 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             preflight.verify(self.directory, 1000)
 
+    def test_modified_manifest_fails(self):
+        path = self.directory / "manifest.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["unexpected"] = "modified"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            preflight.verify(self.directory, 1000)
+
+    def test_unexpected_file_fails(self):
+        (self.directory / "unexpected.txt").write_text("unapproved")
+        with self.assertRaises(ValueError):
+            preflight.verify(self.directory, 1000)
+
     def test_unapproved_count_fails(self):
         with self.assertRaises(ValueError):
             preflight.verify(self.directory, 10000)
