@@ -29,6 +29,24 @@ class SemiblindDevActivationBoundary(unittest.TestCase):
         self.assertIn("return false;", preflight)
         self.assertNotIn("sql.OpenAsync", preflight)
 
+    def test_eligibility_requires_all_four_conditions(self):
+        s = SOURCE.read_text()
+        predicate = s.split("internal static bool IsEligible(", 1)[1]
+        self.assertIn('enabled', predicate)
+        self.assertIn('string.Equals(environmentName, "Development", StringComparison.Ordinal)', predicate)
+        self.assertIn('!string.IsNullOrWhiteSpace(databaseName)', predicate)
+        self.assertIn('string.Equals(profile, "Development", StringComparison.Ordinal)', predicate)
+        self.assertNotIn('StringComparison.OrdinalIgnoreCase', predicate)
+
+    def test_sql_query_is_read_only_and_timeout_bounded(self):
+        s = SOURCE.read_text()
+        query = s.split('command.CommandText = """', 1)[1].split('"""', 1)[0]
+        self.assertIn("sys.extended_properties", query)
+        self.assertIn("SELECT DB_NAME()", query)
+        for mutation in ("INSERT ", "UPDATE ", "DELETE ", "EXEC ", "DROP "):
+            self.assertNotIn(mutation, query.upper())
+        self.assertIn("command.CommandTimeout = 5;", s)
+
     def test_sql_unavailable_fails_closed(self):
         s = SOURCE.read_text()
         self.assertIn("catch (SqlException)", s)
