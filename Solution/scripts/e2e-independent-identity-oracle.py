@@ -1,15 +1,33 @@
 #!/usr/bin/env python3
 """Offline identity-set comparison; never reads or modifies productive models."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
 
-def compare(truth_path: Path, observed_path: Path) -> dict:
+def load_unambiguous_json(path: Path):
+    def unique_members(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON member")
+            result[key] = value
+        return result
+
+    def reject_nonfinite(value):
+        raise ValueError("nonfinite JSON value")
+
+    return json.loads(path.read_text(encoding="utf-8"),
+                      object_pairs_hook=unique_members,
+                      parse_constant=reject_nonfinite)
+
+
+def compare(truth_path: Path, observed_path: Path, zip_path: Path | None = None) -> dict:
     if truth_path.resolve() == observed_path.resolve():
         raise ValueError("truth and observed evidence must be separate files")
-    truth = json.loads(truth_path.read_text(encoding="utf-8"))
-    observed = json.loads(observed_path.read_text(encoding="utf-8"))
+    truth = load_unambiguous_json(truth_path)
+    observed = load_unambiguous_json(observed_path)
     if not isinstance(truth, dict) or set(truth) != {"zipSha256", "expectedIdentities"}:
         raise ValueError("invalid external truth contract")
     if not isinstance(observed, dict) or set(observed) != {"zipSha256", "observedIdentities"}:
@@ -17,6 +35,13 @@ def compare(truth_path: Path, observed_path: Path) -> dict:
     digest = truth["zipSha256"]
     if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError("invalid SHA256")
+    if zip_path is not None:
+        hasher = hashlib.sha256()
+        with zip_path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        if hasher.hexdigest() != digest:
+            raise ValueError("physical ZIP SHA256 differs from external truth")
     if observed["zipSha256"] != digest:
         raise ValueError("observed evidence belongs to a different ZIP")
     def identities(value, label):
@@ -42,8 +67,9 @@ def main():
     parser.add_argument("--truth", required=True, type=Path)
     parser.add_argument("--observed", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
+    parser.add_argument("--zip", type=Path, help="verify actual ZIP bytes against external truth SHA256")
     args = parser.parse_args()
-    result = compare(args.truth, args.observed)
+    result = compare(args.truth, args.observed, args.zip)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     if result["status"] != "PASS":
