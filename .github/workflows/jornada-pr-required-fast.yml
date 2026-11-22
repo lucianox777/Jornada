@@ -98,6 +98,8 @@ jobs:
         name: Essential V9 contract tests
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_independent_cohort_artifacts.py'
+          # Campaign #38 preservation is read-only/offline in CI: secure redirects, ZIP provenance and destination guards.
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_preserve_campaign38_artifacts.py'
           # Current beta corpus partition, TEST isolation and provenance contracts (offline).
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_standalone_test.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_prepared_sealed_test.py'
