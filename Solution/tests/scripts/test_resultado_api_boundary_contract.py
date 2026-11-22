@@ -13,6 +13,27 @@ class ResultadoApiBoundaryContract(unittest.TestCase):
                        "if (response.StatusCode != HttpStatusCode.OK)",
                        "http.Items[CandidateItem] = candidate;"]:
             self.assertIn(marker, s)
+    def test_resultado_never_authorizes_without_upstream_200(self):
+        s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        verifier = s[s.index("internal sealed class ResultadoAccessVerifier"):s.index("internal sealed record ResultadoOptions")]
+        self.assertIn("HttpCompletionOption.ResponseHeadersRead, ct", verifier)
+        self.assertIn("return JornadaAccessVerification.Rejected((int)response.StatusCode);", verifier)
+        self.assertLess(verifier.index("if (candidate is null)"), verifier.index("new HttpRequestMessage("))
+        self.assertLess(verifier.index("if (response.StatusCode != HttpStatusCode.OK)"),
+                        verifier.index("JornadaAccessVerification.Accepted("))
+        self.assertIn('request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", credential.PublicCode.Trim())', verifier)
+        self.assertIn('request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", credential.AccessKey)', verifier)
+
+    def test_resultado_reads_only_authorized_delivery_id(self):
+        s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        route = s[s.index('app.MapGet("/api/v1/ingestao/resultados/'):s.index("if (operationalSql is not null)")]
+        self.assertIn("repository.GetDetailAsync(candidate, parsed, ct)", route)
+        self.assertNotIn("repository.FindLatestAsync(", route)
+        self.assertIn('.RequireAuthorization("jornada.ingestao.status")', route)
+        details = s[s.index("public async Task<object> GetDetailAsync("):s.index("private static async Task<EntregaDetalhe> LoadDeliveryAsync")]
+        self.assertIn("candidate.EntregaId", details)
+        self.assertIn("entregasEncontradasParaOMesmoNome = candidate.EntregasEncontradas", details)
+
     def test_filename_and_sql_scope(self):
         s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
         for marker in ['EndsWith(".zip"', "value.Length > 260",
