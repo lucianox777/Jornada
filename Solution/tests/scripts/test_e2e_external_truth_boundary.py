@@ -82,6 +82,18 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unique"):
             module.validate(self.zip, self.truth)
 
+    def test_rejects_whitespace_padded_external_identity(self):
+        for identity in (" synthetic-A", "synthetic-A ", "\tsynthetic-A"):
+            with self.subTest(identity=identity):
+                self.write_truth(expectedIdentities=[identity, "synthetic-B"])
+                with self.assertRaisesRegex(ValueError, "expectedIdentities"):
+                    module.validate(self.zip, self.truth)
+
+    def test_rejects_blank_external_identity(self):
+        self.write_truth(expectedIdentities=[" ", "synthetic-B"])
+        with self.assertRaisesRegex(ValueError, "expectedIdentities"):
+            module.validate(self.zip, self.truth)
+
     def test_rejects_unsafe_path(self):
         self.entries["../escape.txt"] = b"bad"
         self.write_zip()
