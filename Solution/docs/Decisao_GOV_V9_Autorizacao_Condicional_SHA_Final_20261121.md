@@ -1,5 +1,20 @@
 # GOV-V9-CAMPANHA-STANDARD-LINEAR-100K-AUTORIZACAO-SHA-FINAL-20261121
 
+## Autorização dinâmica vigente
+
+**Decidida em 21/11/2026 pelo Product Owner**, no Mandato Executivo Definitivo da campanha V9 Standard Linear 100k. Aplica-se ao último SHA validado da `master` no momento do despacho, no workflow `.github/workflows/v9-standard-linear-100k.yml` e no escopo científico aprovado. Abrange correções pertinentes e reexecuções justificadas.
+
+1. Imediatamente antes de cada despacho, confirmar o HEAD da `master`, as PRs integradas, os checks obrigatórios, a validade científica, a ausência de bloqueios e a validade do preflight. Passar aquele SHA integral em `expected_sha`.
+2. O proprietário atesta efetivamente o preflight e faz o despacho manual, tentativa 1. A aprovação dinâmica do PO e a atestação formal são atos distintos. O campo `security_preflight_approved=true` decorre da atestação válida.
+3. Mudanças de SHA dentro do escopo aprovado seguem verificação dos controles afetados e recibo operacional no GitHub. Use o recibo para registrar o SHA validado antes da execução e consolide a documentação ao fechar a campanha. Reexecuções exigem causa identificada, novo despacho e seed TEST inédita quando aplicável.
+4. Preservar parâmetros e manifestos LOCKED, referência IBGE, coortes próprias e TEST obrigatório com vencedor. Gold, Serving, produção e promoção ficam fora do mandato. Mudanças científicas ou de segurança fora do escopo exigem decisão específica.
+
+**Precedência.** A regra dinâmica substitui a exigência de nova autorização do PO por alteração de SHA em escopo nas decisões anteriores, inclusive as autorizações específicas para `ed5137daa484679bef7c8dd42bf77e61460c9189` e `a74d56f0acd463cb9efcaee17f554cc2fc935d40`. Preflight, verificações do SHA e controles de segurança e ciência continuam obrigatórios pelo [runbook](Runbook_Operacao.md#operação-do-calibrador-v9). Cada campanha conserva a identidade do SHA executado quando o HEAD da master avança.
+
+**Evidência da aplicação em 22/11/2026.** O [run #44970012048](https://github.com/lucianox777/Jornada/actions/runs/44970012048) concluiu ADMISSION, PREPARE, TRAIN/AUDIT de 324 hipóteses, VALIDATION de três finalistas, TEST independente e CLOSEOUT `VERIFIED`. [Resultado e recibos](V9_Standard_Linear_100k_Resultado_Run_44970012048.md). Tentativa 1 no SHA `30c71a0db1bdeac6ba536db5e428ade4d5c70c9c`, com preflight atestado no despacho do proprietário. [Admissão e PREPARE](https://github.com/lucianox777/Jornada/pull/1837#issuecomment-7072044978) · [Recibo final](https://github.com/lucianox777/Jornada/pull/1837#issuecomment-7075300378)
+
+## Registro histórico das autorizações específicas por SHA
+
 **Data:** 21/11/2026. **Autoridade:** Product Owner. **Estado:** AUTORIZAÇÃO CONDICIONAL APROVADA; PREFLIGHT NÃO ATESTADO; DESPACHO NÃO REALIZADO.
 
 ## Contexto e manifestação

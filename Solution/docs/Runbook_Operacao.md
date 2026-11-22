@@ -40,11 +40,11 @@ No TRAIN e na VALIDATION, a etapa de carga do IBGE importa as frequências de no
 
 1. Fixe o HEAD da `master` e confira a CI de push, o classificador seed42, a proteção da branch e os gates específicos aplicáveis. Use a [matriz P0-A](Registro_Operacional_P0_Recuperacao_NuGet_Locks_20261120.md#matriz-de-aceite-da-p0-a-em-21112026) para localizar as evidências de LOCKED e DT-10.
 2. Confira a integridade da referência e do artefato fixado. O job `deterministic-build` executa `--v9-startup-log-probe <diretório-novo>` no Worker compilado e verifica a saída `[V9 START]` e `startup-progress.jsonl`. Esse diagnóstico inicia somente a CLI. O smoke entre jobs ensaia o handoff e o fechamento com recibos sintéticos, e o smoke SQL dedicado verifica o mesmo arquivo do vencedor no loader fixado e SQL isolado. [Startup e build](https://github.com/lucianox777/Jornada/actions/runs/44913424166/job/136873908306) · [Handoff](https://github.com/lucianox777/Jornada/actions/runs/44880840021) · [SQL isolado](https://github.com/lucianox777/Jornada/actions/runs/44903776461)
-3. Confirme a autorização da campanha e o preflight de segurança para o SHA escolhido. A execução é manual pelo proprietário do repositório, com `expected_sha` igual ao `GITHUB_SHA`, branch `master`, `security_preflight_approved=true` e tentativa `1`. A disponibilidade do GitHub-hosted e os limites reais de recursos são verificados pelo próprio workflow.
+3. Confirme o último HEAD validado da `master`, os checks no SHA, a ausência de bloqueios e o preflight efetivo. A [autorização dinâmica do PO](Decisao_GOV_V9_Autorizacao_Condicional_SHA_Final_20261121.md#autorização-dinâmica-vigente) cobre esse SHA dentro do escopo aprovado. O despacho é manual pelo proprietário, tentativa `1`, com `expected_sha` igual ao `GITHUB_SHA` e `security_preflight_approved=true` após a atestação formal. O workflow verifica os limites reais de recursos.
 
 ### Despacho autorizado e ponto de entrada
 
-Com a conta proprietária autenticada no GitHub CLI e a campanha aprovada para o SHA selecionado, defina `sha_master_aprovada` com esse valor de 40 caracteres e use o comando abaixo. O formulário **Run workflow** do Standard Linear usa os mesmos campos.
+Na conta proprietária, defina `sha_master_aprovada` com os 40 caracteres do HEAD validado imediatamente antes do despacho. Registre SHA, gates e preflight no recibo operacional do GitHub. Após atestar o preflight, use o comando abaixo ou os mesmos campos do formulário **Run workflow**.
 
 ```bash
 gh workflow run v9-standard-linear-100k.yml \
@@ -64,6 +64,8 @@ dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker
 ```
 
 ### Resultados e recuperação
+
+O [run #44970012048](https://github.com/lucianox777/Jornada/actions/runs/44970012048) concluiu ADMISSION, PREPARE, TRAIN/AUDIT de 324 hipóteses, VALIDATION de três finalistas, TEST independente e CLOSEOUT `VERIFIED`. [Resultado e recibos](V9_Standard_Linear_100k_Resultado_Run_44970012048.md). A trilha de evidências usa o SHA executado, o número do run e a tentativa.
 
 | Etapa | Evidência de conclusão |
 | --- | --- |
