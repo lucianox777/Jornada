@@ -6,6 +6,9 @@ Frente B, issue #1851, plano aprovado de E2E integral V9 em DEV. O preflight `e2
 ## Implementação e impactos
 A mesma validação de caminhos passa a alcançar arquivos e diretórios, retirando apenas a barra final opcional antes da divisão em segmentos. Entradas `../escape/` são recusadas, enquanto `safe/` permanece permitida. Cinco testes offline comprovam os casos de travessia (`../`), caminho absoluto, segmento `.` e barra invertida, além do caso positivo de diretório legítimo em `test_e2e_external_truth_boundary.py`. Nenhum ZIP real é extraído e nenhum dado pessoal é utilizado.
 
+## Gate obrigatório
+A inspeção do workflow revelou que `test_e2e_external_truth_boundary.py` não era invocado pelo job `unit-runtime` de `jornada-pr-required-fast.yml`. A PR adiciona a invocação explícita para tornar obrigatória a regressão de segurança, inclusive os testes existentes de criptografia, symlink e verdade externa. A aprovação depende da execução efetiva da CI.
+
 ## Limites e precedência
 Correção defensiva de implementação, não nova decisão do Product Owner. Não certifica oráculo de linkage, Runner V9 ou E2E físico; não autoriza TRAIN/TEST, HML/PROD ou alteração de campanha histórica. Precedência: GOV-DOC-01 e `Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md`.
 
