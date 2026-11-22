@@ -68,7 +68,7 @@ class ExternalTruthStreamingTests(unittest.TestCase):
             truth_path.write_bytes(payload)
             # The SHA is intentionally mocked: exact self-referential ZIP digest
             # cannot be embedded in the same ZIP; the byte-comparison is isolated.
-            with patch.object(module.hashlib, "sha256") as sha, \\
+            with patch.object(module.hashlib, "sha256") as sha, \
                     patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
                 sha.return_value.hexdigest.return_value = "a" * 64
                 with self.assertRaisesRegex(ValueError, "embedded"):
