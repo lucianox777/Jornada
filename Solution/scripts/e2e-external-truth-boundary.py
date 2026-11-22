@@ -53,8 +53,17 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
             if info.flag_bits & 0x1:
                 raise ValueError("ZIP contains encrypted entry")
             unix_mode = (info.external_attr >> 16) & 0xFFFF if info.create_system == 3 else 0
-            if (unix_mode & 0o170000) == 0o120000:
+            file_type = unix_mode & 0o170000
+            if file_type == 0o120000:
                 raise ValueError("ZIP contains symbolic link")
+            # Explicit Unix special-file modes are not regular payloads.
+            # Mode 0 means no POSIX type was recorded (common ZIP writers).
+            if file_type not in (0, 0o100000, 0o040000):
+                raise ValueError("ZIP contains nonregular Unix entry")
+            if file_type == 0o040000 and not info.is_dir():
+                raise ValueError("ZIP directory mode on non-directory entry")
+            if file_type == 0o100000 and info.is_dir():
+                raise ValueError("ZIP regular-file mode on directory entry")
         # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
         truth_size = truth_path.stat().st_size
