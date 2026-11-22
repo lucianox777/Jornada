@@ -19,6 +19,10 @@ class Campaign38PreservationTests(unittest.TestCase):
     def test_inventory_has_exact_campaign_provenance_and_14_unique_artifacts(self):
         self.assertEqual(module.RUN_ID, 44970012048)
         self.assertEqual(module.RUN_ATTEMPT, 1)
+        self.assertEqual(module.WORKFLOW_ID, 420729901)
+        self.assertEqual(module.WORKFLOW_PATH, ".github/workflows/v9-standard-linear-100k.yml")
+        self.assertEqual(module.WORKFLOW_EVENT, "workflow_dispatch")
+        self.assertEqual(module.WORKFLOW_BRANCH, "master")
         self.assertEqual(module.CODE_SHA, "30c71a0db1bdeac6ba536db5e428ade4d5c70c9c")
         self.assertEqual(module.WINNER_SHA, "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee")
         self.assertEqual(len(module.ARTIFACTS), 14)
@@ -100,6 +104,29 @@ class Campaign38PreservationTests(unittest.TestCase):
                   patch.object(module, "api_json", side_effect=AssertionError("network forbidden")),
                   self.assertRaises(SystemExit)):
                 module.main(["--destination", str(alias), "--execute"])
+
+    def test_execute_fails_closed_for_wrong_workflow_identity_before_downloads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory) / "private"
+            private.mkdir(mode=0o700)
+            wrong_run = {
+                "id": module.RUN_ID,
+                "head_sha": module.CODE_SHA,
+                "run_attempt": module.RUN_ATTEMPT,
+                "conclusion": "success",
+                "workflow_id": module.WORKFLOW_ID,
+                "path": ".github/workflows/a-different-flow.yml",
+                "event": module.WORKFLOW_EVENT,
+                "head_branch": module.WORKFLOW_BRANCH,
+            }
+            with (patch.dict("os.environ", {"GH_TOKEN": "test-token"}),
+                  patch.object(module, "api_json", return_value=wrong_run) as api,
+                  patch.object(module, "download_verified",
+                               side_effect=AssertionError("download forbidden")),
+                  self.assertRaisesRegex(ValueError, "provenance mismatch")):
+                module.main(["--destination", str(private), "--execute"])
+            self.assertEqual(api.call_count, 1)
+            self.assertEqual(list(private.iterdir()), [])
 
 
 if __name__ == "__main__":
