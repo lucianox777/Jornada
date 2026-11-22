@@ -51,7 +51,7 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         self.assertIn("request.Mode != LinkageRunType.REPLAY", run[start:guard])
 
     def test_synthetic_scorer_cannot_publish_or_target_operational_db(self):
-        run = self.run
+        run = self.run_source
         start = run.index("if (linkage is IV9NonPublishingFrozenCohortScorer)")
         end = run.index("// A publicação exige a migration SQL de lote.", start)
         guard = run[start:end]
