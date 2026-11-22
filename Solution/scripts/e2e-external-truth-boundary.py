@@ -31,6 +31,14 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
             for name in names if not name.endswith("/")
         ):
             raise ValueError("ZIP contains unsafe entry path")
+        # Reject encrypted entries and Unix symbolic links: neither is a regular
+        # payload file, even when its ZIP path appears harmless.
+        for info in archive.infolist():
+            if info.flag_bits & 0x1:
+                raise ValueError("ZIP contains encrypted entry")
+            unix_mode = (info.external_attr >> 16) & 0xFFFF if info.create_system == 3 else 0
+            if (unix_mode & 0o170000) == 0o120000:
+                raise ValueError("ZIP contains symbolic link")
         # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
         truth_bytes = truth_path.read_bytes()

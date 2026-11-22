@@ -63,6 +63,27 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe"):
             module.validate(self.zip, self.truth)
 
+    def test_rejects_zip_symlink(self):
+        with zipfile.ZipFile(self.zip, "w") as z:
+            info = zipfile.ZipInfo("link.txt")
+            info.create_system = 3
+            info.external_attr = (0o120777 << 16)
+            z.writestr(info, "target.txt")
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "symbolic link"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_encrypted_entry_flag(self):
+        # Set bit 0 on the local and central ZIP headers of a valid fixture.
+        raw = bytearray(self.zip.read_bytes())
+        for signature, offset in ((b"PK\\x03\\x04", 6), (b"PK\\x01\\x02", 8)):
+            position = raw.index(signature)
+            raw[position + offset] |= 1
+        self.zip.write_bytes(raw)
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "encrypted"):
+            module.validate(self.zip, self.truth)
+
     def test_rejects_duplicate_zip_entry(self):
         with zipfile.ZipFile(self.zip, "w") as z:
             z.writestr("payload.txt", b"a")
