@@ -239,8 +239,8 @@ public sealed class V9IndependentScalarReplayTests
         Assert.That(expectedScore, Is.GreaterThan(.99m),
             "The 0.99 minimum complete-link posterior must accept these pairs.");
 
-        var firstGroup = new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 4);
-        var secondGroup = new Guid(3, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        var firstGroup = new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        var secondGroup = new Guid(3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
         Assert.That(actual.SnapshotSha256, Is.EqualTo(model.ContentSha256));
         Assert.That(actual.Decisions.Count, Is.EqualTo(rows.Length));
         foreach (var source in rows)
