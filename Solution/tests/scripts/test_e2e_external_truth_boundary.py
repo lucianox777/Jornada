@@ -73,7 +73,7 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
             module.validate(self.zip, self.truth)
 
     def test_rejects_whitespace_padded_external_identity(self):
-        for identity in (" synthetic-A", "synthetic-A ", "\\tsynthetic-A"):
+        for identity in (" synthetic-A", "synthetic-A ", "\tsynthetic-A"):
             with self.subTest(identity=identity):
                 self.write_truth(expectedIdentities=[identity, "synthetic-B"])
                 with self.assertRaisesRegex(ValueError, "expectedIdentities"):
