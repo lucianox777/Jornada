@@ -79,7 +79,11 @@ def main() -> None:
     parser.add_argument("--truth", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
-    if args.receipt.resolve() in {args.zip.resolve(), args.truth.resolve()} or (\n        args.receipt.exists() and (os.path.samefile(args.receipt, args.zip) or\n                                   os.path.samefile(args.receipt, args.truth))\n    ):\n        raise ValueError("receipt output must be separate from ZIP and ground truth inputs")
+    if args.receipt.resolve() in {args.zip.resolve(), args.truth.resolve()} or (
+        args.receipt.exists() and (os.path.samefile(args.receipt, args.zip) or
+                                   os.path.samefile(args.receipt, args.truth))
+    ):
+        raise ValueError("receipt output must be separate from ZIP and ground truth inputs")
     receipt = validate(args.zip, args.truth)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
