@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
@@ -24,8 +25,13 @@ def load_unambiguous_json(path: Path):
 
 
 def compare(truth_path: Path, observed_path: Path, zip_path: Path | None = None) -> dict:
-    if truth_path.resolve() == observed_path.resolve():
+    if os.path.samefile(truth_path, observed_path):
         raise ValueError("truth and observed evidence must be separate files")
+    if zip_path is not None and (
+        os.path.samefile(zip_path, truth_path) or
+        os.path.samefile(zip_path, observed_path)
+    ):
+        raise ValueError("physical ZIP must be separate from truth and observed evidence")
     truth = load_unambiguous_json(truth_path)
     observed = load_unambiguous_json(observed_path)
     if not isinstance(truth, dict) or set(truth) != {"zipSha256", "expectedIdentities"}:
@@ -69,6 +75,15 @@ def main():
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--zip", type=Path, help="verify actual ZIP bytes against external truth SHA256")
     args = parser.parse_args()
+    # Existing hardlinks and symlinks must never turn the output receipt
+    # into a destructive overwrite of the independent inputs.
+    inputs = (args.truth, args.observed) + ((args.zip,) if args.zip is not None else ())
+    # Reject the final symlink itself, even when dangling or pointing at an unrelated file.
+    # resolve() alone would erase that evidence, and write_text() follows it.
+    if args.receipt.is_symlink() or any(args.receipt.resolve() == item.resolve() for item in inputs) or (
+        args.receipt.exists() and any(os.path.samefile(args.receipt, item) for item in inputs)
+    ):
+        raise ValueError("receipt output must be separate from truth, observed and ZIP inputs")
     result = compare(args.truth, args.observed, args.zip)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
