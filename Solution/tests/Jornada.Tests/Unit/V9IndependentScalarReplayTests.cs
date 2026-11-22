@@ -369,6 +369,59 @@ public sealed class V9IndependentScalarReplayTests
     }
 
     [Test]
+    public void Every_joint_cell_uses_its_own_likelihood_ratio_and_expected_TF_units()
+    {
+        var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner(distinctCellRatios: true);
+        var fit = winner.Payload;
+        Assert.That(fit.JointCells.Select(c => c.M / c.U).Distinct().Count(), Is.EqualTo(81),
+            "Swapping any two cells must be observable in this arithmetic fixture.");
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        // Expected nominal states and the applicable TF units are independent inputs.
+        var examples = new (CompositeNominalLevelV9 Level, string? Person, string? Mother,
+            NominalFrequencyUnitV9? Unit)[]
+        {
+            (CompositeNominalLevelV9.Missing, null, null, null),
+            (CompositeNominalLevelV9.ExactFull, "MARIA SILVA", "ANA COSTA", NominalFrequencyUnitV9.FirstName),
+            (CompositeNominalLevelV9.ExactFirstLast, "MARIA ALVES SILVA", "ANA ALVES COSTA", null),
+            (CompositeNominalLevelV9.ReversedFirstLast, "SILVA MARIA", "COSTA ANA", null),
+            (CompositeNominalLevelV9.HighFull, "MARIA SILVAA", "ANA COSTAA", null),
+            (CompositeNominalLevelV9.HighFirstLast, "MARIA ALEXANDRINA PEREGRINA SILVAA",
+                "ANA ALEXANDRINA PEREGRINA COSTAA", null),
+            (CompositeNominalLevelV9.ExactLast, "JOANA SILVA", "BEATRIZ COSTA", NominalFrequencyUnitV9.LastContentSurname),
+            (CompositeNominalLevelV9.ExactFirst, "MARIA PEREIRA", "ANA PEREIRA", NominalFrequencyUnitV9.FirstName),
+            (CompositeNominalLevelV9.Other, "JOANA BARROS", "BEATRIZ RIBEIRO", null)
+        };
+        Assert.That(examples.Select(e => e.Level), Is.EquivalentTo(Enum.GetValues<CompositeNominalLevelV9>()));
+        var prior = fit.Parameters[LinkageParameterCatalog.PriorMatchProbability];
+        foreach (var person in examples)
+        foreach (var mother in examples)
+        {
+            var cell = fit.JointCells.Single(c => c.Person == person.Level && c.Mother == mother.Level);
+            var odds = (double)(prior / (1m - prior)) * (double)(cell.M / cell.U);
+            odds *= TermFactor(CompositeNominalTfSideV9.Person, person.Unit, "MARIA", "SILVA");
+            odds *= TermFactor(CompositeNominalTfSideV9.Mother, mother.Unit, "ANA", "COSTA");
+            var candidate = new V9SnapshotCandidate(First, person.Person, null, mother.Mother);
+            var actual = winner.RankPreview(observation, [candidate]).Single();
+            var label = $"{person.Level}/{mother.Level}";
+            Assert.That(actual.Score, Is.EqualTo(Published(odds / (1d + odds))), label);
+            Assert.That(actual.LogOdds, Is.EqualTo(Published(Math.Log(odds))), label);
+        }
+
+        double TermFactor(CompositeNominalTfSideV9 side, NominalFrequencyUnitV9? unit,
+            string first, string last)
+        {
+            if (unit is null) return 1d;
+            var slot = fit.UnitTfCalibrations!.Single(s => s.Side == side && s.Unit == unit);
+            Assert.That(slot.State, Is.EqualTo(V9SnapshotTfFitState.Active));
+            var calibration = slot.Calibration!;
+            var token = unit == NominalFrequencyUnitV9.FirstName ? first : last;
+            var frequency = Math.Max(calibration.Frequencies[token], calibration.MinimumFrequency);
+            return Math.Pow((double)(calibration.NominalUReference!.Probability / frequency),
+                (double)calibration.Weight);
+        }
+    }
+
+    [Test]
     public void Unpublished_active_first_name_TF_abstains_instead_of_falling_back_to_TF0()
     {
         var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
