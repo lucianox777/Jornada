@@ -83,6 +83,23 @@ class IdentityOracleAliasTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "receipt output must be separate"):
             self.run_main(output)
 
+    def test_receipt_symlink_to_unrelated_file_rejected_without_mutation(self):
+        target = self.root / "unrelated-target.txt"
+        target.write_text("do-not-overwrite", encoding="utf-8")
+        output = self.root / "unrelated-link.json"
+        output.symlink_to(target)
+        with self.assertRaisesRegex(ValueError, "receipt output must be separate"):
+            self.run_main(output)
+        self.assertEqual(target.read_text(encoding="utf-8"), "do-not-overwrite")
+
+    def test_receipt_dangling_symlink_rejected_without_creating_target(self):
+        target = self.root / "not-yet-created.json"
+        output = self.root / "dangling-link.json"
+        output.symlink_to(target)
+        with self.assertRaisesRegex(ValueError, "receipt output must be separate"):
+            self.run_main(output)
+        self.assertFalse(target.exists())
+
     def test_distinct_receipt_preserves_inputs(self):
         output = self.root / "receipt.json"
         before = (self.truth.read_bytes(), self.observed.read_bytes(), self.zip.read_bytes())

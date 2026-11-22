@@ -78,7 +78,9 @@ def main():
     # Existing hardlinks and symlinks must never turn the output receipt
     # into a destructive overwrite of the independent inputs.
     inputs = (args.truth, args.observed) + ((args.zip,) if args.zip is not None else ())
-    if any(args.receipt.resolve() == item.resolve() for item in inputs) or (
+    # Reject the final symlink itself, even when dangling or pointing at an unrelated file.
+    # resolve() alone would erase that evidence, and write_text() follows it.
+    if args.receipt.is_symlink() or any(args.receipt.resolve() == item.resolve() for item in inputs) or (
         args.receipt.exists() and any(os.path.samefile(args.receipt, item) for item in inputs)
     ):
         raise ValueError("receipt output must be separate from truth, observed and ZIP inputs")
