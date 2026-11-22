@@ -485,6 +485,8 @@ if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" == 1000 ]]; then
   python3 "$ROOT/scripts/v9-http-volume-fixture.py" \
     --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" \
     --output-dir "$volume_dir" --count 1000 --seed 355 >/dev/null
+  python3 "$ROOT/scripts/v9-http-volume-fixture-preflight.py" \
+    --fixture-dir "$volume_dir" --count 1000 > "$OUT/volume-1k-fixture-integrity.json"
   package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" \
     --fixture "$volume_dir" --gestor SEHAB --output-dir "$OUT/packages")"
   filename="$(basename "$package")"
