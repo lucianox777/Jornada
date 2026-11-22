@@ -190,6 +190,9 @@ jobs:
           # C# execution proof that TEST/VALIDATION FS grouping stay isolated.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
+          # Independent scalar / decision / grouping TEST_ONLY oracle; no SQL (#1584 / P0-B step 2).
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9IndependentScalarReplayTests'
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FittedSnapshotTests'
       - if: needs.classify-impact.outputs.docs_only != 'true'

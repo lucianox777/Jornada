@@ -1,4 +1,5 @@
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
@@ -200,4 +201,195 @@ public sealed class V9IndependentScalarReplayTests
         Assert.That(actual.Margem, Is.Zero);
         Assert.That(actual.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
     }
+    // Stage 2 of the approved E2E plan: a closed-form numeric oracle for one
+    // frozen TEST cohort. The expected posterior, group IDs and statuses below
+    // are derived from the fixture, never from ReplayTest/RankPreview/Gold/labels.
+    // This is synthetic TEST_ONLY evidence, not the independent TF4/81-cell
+    // production Runner + SQL parity proof required by #1584.
+    private static V9FittedSnapshot BlindScalarOracleWinner() =>
+        Reload(Payload(prior: .99m, threshold: .8m, margin: .5m) with
+        {
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 4)
+        });
+
+    private static V9PhysicalCalibrationObservation[] TwoIndependentPairs() =>
+    [
+        new(1, "TRUTH_PAIR_1", "TEST", "G1", "MARIA SILVA",
+            "ANA COSTA", Birth),
+        new(2, "TRUTH_PAIR_1", "TEST", "G2", "MARIA SILVA",
+            "ANA COSTA", Birth),
+        new(3, "TRUTH_PAIR_2", "TEST", "G3", "PEDRO LOPES",
+            "JOANA MOTA", Birth),
+        new(4, "TRUTH_PAIR_2", "TEST", "G4", "PEDRO LOPES",
+            "JOANA MOTA", Birth)
+    ];
+
+    [Test]
+    public void Independent_TEST_cohort_decisions_match_scalar_truth_table_without_using_Replay_as_oracle()
+    {
+        var model = BlindScalarOracleWinner();
+        var rows = TwoIndependentPairs();
+        // The only physical candidate edges are within each matching pair.
+        // No expected identity is computed from the production grouping logic.
+        var actual = V9FrozenSourceResolveReplay.ReplayTest(model, rows,
+            [(1, 2), (3, 4)]);
+        var expectedScore = Scalar(model.Payload,
+            CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.ExactFull,
+            birthState: 1).Posterior;
+        Assert.That(expectedScore, Is.GreaterThan(.99m),
+            "The 0.99 minimum complete-link posterior must accept these pairs.");
+
+        var firstGroup = new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        var secondGroup = new Guid(3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        Assert.That(actual.SnapshotSha256, Is.EqualTo(model.ContentSha256));
+        Assert.That(actual.Decisions.Count, Is.EqualTo(rows.Length));
+        foreach (var source in rows)
+        {
+            var expectedGroup = source.ObservationId <= 2 ? firstGroup : secondGroup;
+            var outcome = actual.Decisions.Single(d =>
+                d.ObservationId == source.ObservationId).Decision;
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(actual.IdentityByObservation[source.ObservationId],
+                    Is.EqualTo(expectedGroup));
+                Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
+                    $"observation {source.ObservationId}");
+                Assert.That(outcome.MelhorCandidatoUuid, Is.EqualTo(expectedGroup));
+                Assert.That(outcome.MelhorScore, Is.EqualTo(expectedScore));
+            }));
+        }
+        Assert.That(actual.IdentityByObservation[1],
+            Is.Not.EqualTo(actual.IdentityByObservation[3]),
+            "Distinct synthetic pairs must not merge across missing SQL edges.");
+    }
+
+    [Test]
+    public void Independent_TEST_oracle_abstains_without_SQL_edges_and_is_blind_to_truth_labels()
+    {
+        var model = BlindScalarOracleWinner();
+        var rows = TwoIndependentPairs();
+        var noEdges = V9FrozenSourceResolveReplay.ReplayTest(
+            model, rows, Array.Empty<(int A, int B)>());
+        foreach (var row in rows)
+        {
+            var outcome = noEdges.Decisions.Single(d =>
+                d.ObservationId == row.ObservationId).Decision;
+            Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO),
+                $"No SQL candidates: observation {row.ObservationId}");
+        }
+        Assert.That(noEdges.IdentityByObservation.Values.Distinct().Count(),
+            Is.EqualTo(rows.Length), "Do not fabricate a pair from matching truth labels.");
+
+        var fakeTruth = rows.Select(row => row with
+        {
+            BasePersonId = "LIE_" + (rows.Length - row.ObservationId)
+        }).Reverse().ToArray();
+        var baseline = V9FrozenSourceResolveReplay.ReplayTest(model, rows,
+            [(1, 2), (3, 4)]);
+        var changed = V9FrozenSourceResolveReplay.ReplayTest(model, fakeTruth,
+            [(3, 4), (1, 2)]);
+        Assert.That(changed.Decisions, Is.EqualTo(baseline.Decisions),
+            "Truth labels, observation order and SQL edge order cannot change decisions.");
+        Assert.That(changed.IdentityByObservation, Is.EquivalentTo(baseline.IdentityByObservation));
+    }
+
+
+    // The expected TF factors below are derived from pinned U_ref and published
+    // frequencies via scalar odds. They never call the production TF scorer,
+    // the ranker or the TEST replay to calculate the expected scores. Together
+    // the four fixtures exercise all four active side/unit slots, not just TF0.
+    [TestCase("MARIA SOUZA", "ANA PEREIRA",
+        CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactFirst,
+        NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.FirstName)]
+    [TestCase("JOANA SILVA", "BEATRIZ COSTA",
+        CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+        NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase("MARIA PEREIRA", "JOANA COSTA",
+        CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.ExactLast,
+        NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase("JOANA SILVA", "ANA PEREIRA",
+        CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactFirst,
+        NominalFrequencyUnitV9.LastContentSurname, NominalFrequencyUnitV9.FirstName)]
+    public void Four_active_TF_slots_match_independent_81_cell_numeric_oracle(
+        string candidatePerson, string candidateMother,
+        CompositeNominalLevelV9 expectedPersonLevel,
+        CompositeNominalLevelV9 expectedMotherLevel,
+        NominalFrequencyUnitV9 personUnit, NominalFrequencyUnitV9 motherUnit)
+    {
+        var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
+        var p = winner.Payload;
+        Assert.That(p.UnitTfCalibrations!.Count, Is.EqualTo(4));
+        Assert.That(p.JointCells.Count, Is.EqualTo(81));
+        Assert.That(p.UnitTfCalibrations.All(x => x.State == V9SnapshotTfFitState.Active),
+            Is.True, "The oracle must never pass on an implicit TF0 fixture.");
+        const string observedPerson = "MARIA SILVA";
+        const string observedMother = "ANA COSTA";
+        // Nominal levels are independent, preselected fixture expectations.
+        Assert.That(CompositeNominalComparisonV9.Classify(observedPerson, candidatePerson),
+            Is.EqualTo(expectedPersonLevel));
+        Assert.That(CompositeNominalComparisonV9.Classify(observedMother, candidateMother),
+            Is.EqualTo(expectedMotherLevel));
+
+        var joint = p.JointCells.Single(x => x.Person == expectedPersonLevel
+                                            && x.Mother == expectedMotherLevel);
+        var prior = p.Parameters[LinkageParameterCatalog.PriorMatchProbability];
+        var logOdds = Math.Log((double)(prior / (1m - prior)))
+            + Math.Log((double)(joint.M / joint.U));
+        // Terms and slot choices are literal inputs to the independent oracle.
+        // Deriving them via the production selector would make this test circular.
+        var terms = new[]
+        {
+            (Side: CompositeNominalTfSideV9.Person, Unit: personUnit,
+                Term: personUnit == NominalFrequencyUnitV9.FirstName ? "MARIA" : "SILVA"),
+            (Side: CompositeNominalTfSideV9.Mother, Unit: motherUnit,
+                Term: motherUnit == NominalFrequencyUnitV9.FirstName ? "ANA" : "COSTA")
+        };
+        foreach (var (side, unit, term) in terms)
+        {
+            var calibration = p.UnitTfCalibrations.Single(x => x.Side == side
+                                                             && x.Unit == unit).Calibration!;
+            Assert.That(calibration.Weight, Is.EqualTo(1m));
+            var frequency = calibration.Frequencies[term];
+            var referenceU = calibration.NominalUReference!.Probability;
+            var effectiveFrequency = Math.Max(frequency, calibration.MinimumFrequency);
+            logOdds += Math.Log((double)(referenceU / effectiveFrequency));
+        }
+        var expectedPosterior = Published(1d / (1d + Math.Exp(-logOdds)));
+        var expectedLogOdds = Published(logOdds);
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            observedPerson, null, observedMother);
+        var candidate = new V9SnapshotCandidate(First, candidatePerson, null, candidateMother);
+        var actual = winner.RankPreview(observation, [candidate]).Single();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(actual.PessoaUuid, Is.EqualTo(First));
+            Assert.That(actual.Score, Is.EqualTo(expectedPosterior));
+            Assert.That(actual.LogOdds, Is.EqualTo(expectedLogOdds));
+        }));
+    }
+
+    [Test]
+    public void Unpublished_active_first_name_TF_abstains_instead_of_falling_back_to_TF0()
+    {
+        var winner = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
+        var abstain = V9FittedSnapshot.Create(winner.Payload with
+        {
+            UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.AbstainCandidate
+        });
+        // "INEDITA" is intentionally absent from the frozen person-first
+        // dictionary, whereas "ANA" is published for the mother's first-name TF.
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            "INEDITA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(First,
+            "INEDITA RIBEIRO", null, "ANA PEREIRA");
+        var outcome = abstain.ResolvePreview(Model, observation, [candidate]);
+        Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That(outcome.Motivo, Is.EqualTo("TF_SEM_FREQUENCIA_IBGE_PUBLICADA"));
+        Assert.That(abstain.RankPreview(observation, [candidate]), Is.Empty,
+            "An unpublished active TF term must never receive an invented score.");
+        Assert.That((Action)(() => winner.ResolvePreview(Model, observation, [candidate])),
+            Throws.TypeOf<InvalidDataException>(),
+            "RejectOperation must fail closed instead of scoring with TF0.");
+    }
+
 }
