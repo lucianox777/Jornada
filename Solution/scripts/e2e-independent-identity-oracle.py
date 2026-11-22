@@ -5,11 +5,28 @@ import json
 from pathlib import Path
 
 
+def load_unambiguous_json(path: Path):
+    def unique_members(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON member")
+            result[key] = value
+        return result
+
+    def reject_nonfinite(value):
+        raise ValueError("nonfinite JSON value")
+
+    return json.loads(path.read_text(encoding="utf-8"),
+                      object_pairs_hook=unique_members,
+                      parse_constant=reject_nonfinite)
+
+
 def compare(truth_path: Path, observed_path: Path) -> dict:
     if truth_path.resolve() == observed_path.resolve():
         raise ValueError("truth and observed evidence must be separate files")
-    truth = json.loads(truth_path.read_text(encoding="utf-8"))
-    observed = json.loads(observed_path.read_text(encoding="utf-8"))
+    truth = load_unambiguous_json(truth_path)
+    observed = load_unambiguous_json(observed_path)
     if not isinstance(truth, dict) or set(truth) != {"zipSha256", "expectedIdentities"}:
         raise ValueError("invalid external truth contract")
     if not isinstance(observed, dict) or set(observed) != {"zipSha256", "observedIdentities"}:
