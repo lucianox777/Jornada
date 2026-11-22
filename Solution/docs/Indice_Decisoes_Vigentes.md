@@ -1,3 +1,5 @@
+> **GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122 — DECIDIDO PELO PO:** aprovado o plano original de caminho crítico do E2E do sistema inteiro **com todos os ajustes da avaliação técnica**. Detalhamento P0-B, etapas 0–9, frentes paralelas e critérios de aceite; separação DEV/ativação produtiva, oráculo independente, Gold de pessoas, proveniência #38, escala governada e marcos núcleo/integral. Não autoriza despacho científico automático, certificação ou ativação V9. [Decisão e plano consolidado](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md). GOV-DOC-01.
+
 
 > **EVIDÊNCIA V9 — CAMPANHA STANDARD LINEAR #38 (22/11/2026; não constitui decisão nova):** execução 44970012048 no SHA `30c71a0db1bdeac6ba536db5e428ade4d5c70c9c`: TRAIN 324/324, AUDIT, VALIDATION e TEST independente concluídos; vencedor congelado e métricas do TEST auditadas. Não certifica Runner produtivo, não autoriza DT-15/promoção e não encerra automaticamente #1349, #1089, #1488 ou #1584. [Registro e limites](V9_Campanha_Standard_Linear_38_Evidencias_20261122.md). GOV-DOC-01.
 
