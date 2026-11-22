@@ -56,7 +56,7 @@ Uma execução em DEV, banco descartável e dados sintéticos deverá provar:
 | Frente | Rastreio | Aceite |
 |---|---|---|
 | `Resultado.Api` no E2E | Issue a reconciliar/criar | Resultado de cada Entrega e contrato testados no harness |
-| Busca semicega em banco sintético DEV | #1348 correlata | Top 5 + “Nenhum destes”, sem score exposto |
+| Busca semicega em banco sintético DEV | **Issue específica a identificar/criar após reconciliação; #1348 não é responsável por busca semicega** | Top 5 + “Nenhum destes”, sem score exposto |
 | ZIP da Solução de Apoio (`Produtos/ApoioSecretarias`) | #1194 | ZIP aceito pela API no harness |
 | OpenAPI bidirecional (runtime → contrato) | Issue a reconciliar/criar | Falha para rota não prevista, incluindo `Resultado.Api` |
 | Gate curto calibrador 1k e retomada TEST do vencedor | Issue a reconciliar/criar | Workflow/entrada dedicada, sem despacho científico implícito |
@@ -86,4 +86,8 @@ Autenticação corporativa #378 (necessária fora de Development), calibração 
 
 - **Precedência:** esta decisão aprova o plano original **com os ajustes obrigatórios acima**; complementa `Plano_Desenvolvimento.md` e decisões P0-B, sem revogar gates científicos, política de LOCKED, seleções DT-15 ou mandatos de CI.
 - **Estado:** decisão aprovada; implementação, execução física, medição, validação, certificação, homologação e ativação são estados separados e permanecem pendentes de evidência específica.
-- **Referências:** [run #38](https://github.com/lucianox777/Jornada/actions/runs/44970012048), [#1584](https://github.com/lucianox777/Jornada/issues/1584), [#1488](https://github.com/lucianox777/Jornada/issues/1488), [#1830](https://github.com/lucianox777/Jornada/issues/1830), [#1194](https://github.com/lucianox777/Jornada/issues/1194), [#1348](https://github.com/lucianox777/Jornada/issues/1348), `V9_Standard_Linear_100k_Resultado_Run_44970012048.md`, `Solution/scripts/local-e2e.sh`, `Indice_Decisoes_Vigentes.md`, `Politica_Registro_Decisoes_Discussoes.md`.
+- **Referências:** [run #38](https://github.com/lucianox777/Jornada/actions/runs/44970012048), [#1584](https://github.com/lucianox777/Jornada/issues/1584), [#1488](https://github.com/lucianox777/Jornada/issues/1488), [#1830](https://github.com/lucianox777/Jornada/issues/1830), [#1194](https://github.com/lucianox777/Jornada/issues/1194), [#1348](https://github.com/lucianox777/Jornada/issues/1348) (referência histórica equivocada do plano original; escopo vigente é limites operacionais/logs), `V9_Standard_Linear_100k_Resultado_Run_44970012048.md`, `Solution/scripts/local-e2e.sh`, `Indice_Decisoes_Vigentes.md`, `Politica_Registro_Decisoes_Discussoes.md`.
+
+## Reconciliação de rastreabilidade posterior à aprovação (22/11/2026)
+
+A leitura da issue #1348 na master demonstrou que seu escopo vigente, aprovado em 21/11, é **configuração de limites operacionais e logs**, e **não** busca semicega. A referência original foi preservada como fato histórico, mas **não constitui vínculo de execução válido**. A frente de busca semicega continua aprovada e necessita localizar sua issue responsável antes de criar uma nova. A issue #1194 trata da autorização por credencial BENEFICIO/SERVICO do Apoio e é dependência relevante, mas não equivale por si só à prova de ZIP E2E. A #1830 proíbe iniciar implementação de arquivamento NAS sem autorização posterior; a aprovação deste plano não revoga essa restrição. Preservação imediata de artefatos deve observar acessos e autorizações aplicáveis.
