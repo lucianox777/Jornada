@@ -69,5 +69,29 @@ class HttpClientContractTest(unittest.TestCase):
                 opener.assert_not_called()
 
 
+    def test_reject_changed_zip_before_transport(self):
+        with tempfile.TemporaryDirectory() as directory:
+            digest = hashlib.sha256(b"original").hexdigest()
+            zip_path = Path(directory) / f"ENTREGA_SEHAB_SEHAB_v2_{digest}.zip"
+            zip_path.write_bytes(b"changed after naming")
+            profile = {"gestor": "SEHAB", "sistemaOrigem": "SEHAB",
+                       "endpoint": "https://dev.example.invalid/api/v1/ingestao/entregas"}
+            with patch.object(core, "_no_redirect") as opener:
+                with self.assertRaises(core.Falha) as ctx:
+                    core._enviar(zip_path, profile, "SYNTHETIC_KEY")
+                self.assertEqual(ctx.exception.codigo, "ZIP_DIVERGENTE")
+                opener.assert_not_called()
+
+    def test_reject_missing_credentials_before_transport(self):
+        with tempfile.TemporaryDirectory() as directory:
+            zip_path = Path(directory) / "any.zip"
+            zip_path.write_bytes(b"x")
+            profile = {"endpoint": "https://dev.example.invalid/api/v1/ingestao/entregas"}
+            with patch.object(core, "_no_redirect") as opener:
+                with self.assertRaises(core.Falha) as ctx:
+                    core._enviar(zip_path, profile, "")
+                self.assertEqual(ctx.exception.codigo, "CREDENCIAL_AUSENTE")
+                opener.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
