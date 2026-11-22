@@ -91,6 +91,20 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe"):
             module.validate(self.zip, self.truth)
 
+    def test_rejects_repeated_trailing_directory_separator(self):
+        self.entries["safe//"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_repeated_internal_directory_separator(self):
+        self.entries["safe//nested/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
     def test_accepts_safe_directory_entry(self):
         self.entries["safe/"] = b""
         self.write_zip()
