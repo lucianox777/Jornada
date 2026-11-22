@@ -1,4 +1,5 @@
 """Offline contract tests; not a substitute for physical E2E or scientific TEST."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -119,6 +120,23 @@ class IdentityOracleTests(unittest.TestCase):
             encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "nonfinite JSON"):
             module.compare(self.truth, self.observed)
+
+    def test_physical_zip_sha_matches_external_truth(self):
+        zip_path = Path(self.temp.name) / "fixture.zip"
+        zip_path.write_bytes(b"synthetic fixture ZIP bytes")
+        digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+        self.write(truth_digest=digest)
+        self.assertEqual(module.compare(self.truth, self.observed, zip_path)["status"], "PASS")
+
+    def test_physical_zip_sha_mismatch_rejected(self):
+        zip_path = Path(self.temp.name) / "fixture.zip"
+        zip_path.write_bytes(b"unexpected ZIP bytes")
+        with self.assertRaisesRegex(ValueError, "physical ZIP SHA256"):
+            module.compare(self.truth, self.observed, zip_path)
+
+    def test_missing_physical_zip_fails_closed(self):
+        with self.assertRaises(FileNotFoundError):
+            module.compare(self.truth, self.observed, Path(self.temp.name) / "missing.zip")
 
     def test_same_file_rejected(self):
         with self.assertRaisesRegex(ValueError, "separate"):
