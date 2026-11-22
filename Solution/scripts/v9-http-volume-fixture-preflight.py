@@ -8,6 +8,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import importlib.util
+
+_PRODUCER = Path(__file__).with_name("v9-http-volume-fixture.py")
+_spec = importlib.util.spec_from_file_location("v9_volume_fixture_generator", _PRODUCER)
+_generator = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_generator)
 
 
 def verify(directory: Path, expected_count: int) -> dict:
@@ -31,6 +37,9 @@ def verify(directory: Path, expected_count: int) -> dict:
                     or not isinstance(cpf, str) or len(cpf) != 11 or not cpf.isdigit()
                     or key in keys or cpf in cpfs):
                 raise ValueError("invalid or duplicated synthetic person")
+            expected_key = f"PESSOA-E2E-VOL-{person_count:06d}"
+            if key != expected_key or cpf != _generator.make_cpf(person_count, 355):
+                raise ValueError("synthetic identity deviates from frozen seed/index")
             keys.add(key)
             cpfs.add(cpf)
     if person_count != expected_count:
@@ -49,6 +58,10 @@ def verify(directory: Path, expected_count: int) -> dict:
                     or not isinstance(record_id, str) or not record_id.startswith("E2E-AA01-VOL-")
                     or record_id in record_ids):
                 raise ValueError("invalid synthetic record reference")
+            expected_key = f"PESSOA-E2E-VOL-{record_count:06d}"
+            expected_record = f"E2E-AA01-VOL-2026-{record_count:06d}"
+            if key != expected_key or record_id != expected_record:
+                raise ValueError("synthetic record deviates from frozen seed/index")
             record_keys.add(key)
             record_ids.add(record_id)
     if record_count != expected_count or record_keys != keys:
