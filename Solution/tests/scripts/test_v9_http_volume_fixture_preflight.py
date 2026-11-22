@@ -92,7 +92,7 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
 
     def test_symlinked_input_fails(self):
         target = self.directory / "pessoas.jsonl"
-        original = self.directory / "pessoas-original.jsonl"
+        original = Path(self.temp.name) / "pessoas-original.jsonl"
         target.rename(original)
         target.symlink_to(original)
         with self.assertRaises(ValueError):
