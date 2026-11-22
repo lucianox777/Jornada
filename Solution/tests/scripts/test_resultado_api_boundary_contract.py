@@ -22,5 +22,32 @@ class ResultadoApiBoundaryContract(unittest.TestCase):
         gate = (ROOT / "scripts/openapi-contract-gate.py").read_text()
         self.assertNotIn("Jornada.Resultado.Api", gate)
 
+    def test_authorization_must_precede_detail_and_never_fallback_to_sql_identity(self):
+        s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        verifier = s[s.index("internal sealed class ResultadoAccessVerifier"):s.index("internal sealed record ResultadoOptions")]
+        self.assertLess(verifier.index("credential.Type != AccessCredentialType.GESTOR"),
+                        verifier.index("repository.FindLatestAsync("))
+        self.assertLess(verifier.index("if (response.StatusCode != HttpStatusCode.OK)"),
+                        verifier.index("http.Items[CandidateItem] = candidate;"))
+        self.assertLess(verifier.index("http.Items[CandidateItem] = candidate;"),
+                        verifier.index("JornadaAccessVerification.Accepted("))
+        self.assertIn('request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", credential.AccessKey)', verifier)
+        self.assertIn('request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", credential.PublicCode.Trim())', verifier)
+        self.assertNotIn("Results.Ok(", verifier)
+        route = s[s.index('app.MapGet("/api/v1/ingestao/resultados/'):s.index('if (operationalSql is not null)')]
+        self.assertIn('http.HttpContext.Items[ResultadoAccessVerifier.CandidateItem]!', route)
+        self.assertIn('.RequireAuthorization("jornada.ingestao.status")', route)
+
+    def test_sql_delivery_lookup_is_tenant_scoped_and_parameterized(self):
+        s = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        sql = s[s.index('FindLatestDeliverySql = """'):s.index('CountDetailedItemsSql = """')]
+        self.assertIn("JOIN ref.gestor g ON g.gestor_id=e.gestor_id", sql)
+        self.assertIn("g.codigo=@gestor", sql)
+        self.assertIn("b.nome_arquivo=@nomeArquivo", sql)
+        self.assertIn("ORDER BY e.recebido_em DESC,e.entrega_id DESC", sql)
+        method = s[s.index("public async Task<ResultadoCandidate?> FindLatestAsync"):s.index("public async Task<object> GetDetailAsync")]
+        self.assertIn('AddParameter(command, "@gestor", DbType.String, gestor, 30)', method)
+        self.assertIn('AddParameter(command, "@nomeArquivo", DbType.String, nomeArquivo, 260)', method)
+
 if __name__ == "__main__":
     unittest.main()
