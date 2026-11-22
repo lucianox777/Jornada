@@ -34,6 +34,8 @@ O caminho canônico é [V9 Standard Linear](../../.github/workflows/v9-standard-
 | Parâmetros científicos | [Configuração oficial](../config/calibration/v9-synthetic-sampling.json) com 100 mil identidades-base por coorte, perfil `clean`, partição interna 60/20/20. TRAIN usa seed `42`, avalia 324 hipóteses TF4 com 81 opções de TF e paralelismo automático `0`. VALIDATION usa seed `20261112001`. O TEST recebe uma seed inédita reservada por UUIDv4 e usa a partição TEST da coorte própria, com 20 repetições. |
 | Artefatos e espaço | Handoffs transferem ZIP/tar.gz, manifestos e hashes vinculados a SHA, run e tentativa, conforme cada contrato. Os jobs verificam RAM, cgroup e disco antes da execução física. Separe a persistência da evidência das áreas temporárias do SQL e do corpus em `Solution/.local`. |
 
+No TRAIN e na VALIDATION, a etapa de carga do IBGE importa as frequências de nomes do snapshot congelado no SQL descartável, confere os hashes e registra os metadados históricos da referência de 30 mil. O TRAIN restaura a coorte gerada pelo PREPARE na etapa `Verify PREPARE transfer and restore immutable TRAIN inputs`, com o tamanho definido no despacho.
+
 ### Diagnóstico preparatório
 
 1. Fixe o HEAD da `master` e confira a CI de push, o classificador seed42, a proteção da branch e os gates específicos aplicáveis. Use a [matriz P0-A](Registro_Operacional_P0_Recuperacao_NuGet_Locks_20261120.md#matriz-de-aceite-da-p0-a-em-21112026) para localizar as evidências de LOCKED e DT-10.

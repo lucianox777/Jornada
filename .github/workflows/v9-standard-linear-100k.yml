@@ -262,7 +262,7 @@ jobs:
           test -s "$root/bound/binding-receipt.json"
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
+      - name: Load frozen IBGE name frequencies into TRAIN SQL and verify hashes
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
@@ -580,7 +580,7 @@ jobs:
             --handoff "$root/handoff" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Start fresh masked disposable SQL Server for VALIDATION only
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Rehydrate frozen local IBGE in independent VALIDATION SQL, no 30k regeneration
+      - name: Load frozen IBGE name frequencies into VALIDATION SQL and verify hashes
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
