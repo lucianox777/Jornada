@@ -110,7 +110,7 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
     def test_rejects_encrypted_entry_flag(self):
         # Set bit 0 on the local and central ZIP headers of a valid fixture.
         raw = bytearray(self.zip.read_bytes())
-        for signature, offset in ((b"PK\\x03\\x04", 6), (b"PK\\x01\\x02", 8)):
+        for signature, offset in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
             position = raw.index(signature)
             raw[position + offset] |= 1
         self.zip.write_bytes(raw)
