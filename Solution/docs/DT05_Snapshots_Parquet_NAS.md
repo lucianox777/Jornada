@@ -1,3 +1,5 @@
+> **Delimitação aprovada pelo PO — 22/11/2026:** o aceite **funcional** da #494 não depende de medições operacionais completas de custo/latência, adiadas para avaliação futura por se tratar de replay de uso excepcional. Permanecem vigentes a política institucional de retenção em #379 e as salvaguardas de integridade/fail-closed. A condição de medição descrita abaixo aplica-se ao **aceite operacional global** da DT-05, não impede o encerramento funcional da #494. [Decisão GOV-DT05-494](Decisao_GOV_DT05_494_Aceite_Funcional_20261122.md).
+
 > **Contrato de medição pendente (17/10/2026; master 649fc784):**
 > fechar a DT-05 exige **execução observada** em `JornadaSyntheticDev`,
 > com identificador do run, SHA do código, corpus sintético, configuração,
