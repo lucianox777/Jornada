@@ -90,6 +90,20 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             preflight.verify(self.directory, 1000)
 
+    def test_symlinked_input_fails(self):
+        target = self.directory / "pessoas.jsonl"
+        original = self.directory / "pessoas-original.jsonl"
+        target.rename(original)
+        target.symlink_to(original)
+        with self.assertRaises(ValueError):
+            preflight.verify(self.directory, 1000)
+
+    def test_symlinked_fixture_directory_fails(self):
+        linked = Path(self.temp.name) / "fixture-linked"
+        linked.symlink_to(self.directory, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            preflight.verify(linked, 1000)
+
     def test_unapproved_count_fails(self):
         with self.assertRaises(ValueError):
             preflight.verify(self.directory, 10000)
