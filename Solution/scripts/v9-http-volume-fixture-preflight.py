@@ -19,13 +19,16 @@ _spec.loader.exec_module(_generator)
 def verify(directory: Path, expected_count: int) -> dict:
     if expected_count != 1000:
         raise ValueError("only approved 1k fixture phase supported")
-    if not (directory / "manifest.json").is_file():
-        raise ValueError("manifest missing")
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError("fixture directory missing or linked")
+    expected_files = {"manifest.json", "pessoas.jsonl", "registros.jsonl"}
+    entries = list(directory.iterdir())
+    if ({p.name for p in entries} != expected_files
+            or any(p.is_symlink() or not p.is_file() for p in entries)):
+        raise ValueError("unexpected, missing or linked fixture files")
     canonical_manifest = (Path(__file__).resolve().parents[1] / "tests/fixtures/ingestao/AA01_v2/manifest.json").read_bytes()
     if (directory / "manifest.json").read_bytes() != canonical_manifest:
         raise ValueError("manifest differs from frozen AA01_v2 fixture")
-    if {p.name for p in directory.iterdir()} != {"manifest.json", "pessoas.jsonl", "registros.jsonl"}:
-        raise ValueError("unexpected or missing fixture files")
     keys: set[str] = set()
     cpfs: set[str] = set()
     person_count = 0
