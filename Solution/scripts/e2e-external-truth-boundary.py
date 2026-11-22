@@ -10,7 +10,18 @@ import zipfile
 def validate(zip_path: Path, truth_path: Path) -> dict:
     if zip_path.resolve() == truth_path.resolve():
         raise ValueError("truth and ZIP must be distinct files")
-    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    def reject_duplicate_members(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate ground truth JSON member")
+            result[key] = value
+        return result
+
+    truth = json.loads(truth_path.read_text(encoding="utf-8"),
+                       object_pairs_hook=reject_duplicate_members,
+                       parse_constant=lambda value: (_ for _ in ()).throw(
+                           ValueError("nonfinite ground truth JSON value")))
     if not isinstance(truth, dict) or set(truth) != {"zipSha256", "expectedIdentities"}:
         raise ValueError("ground truth must contain only zipSha256 and expectedIdentities")
     digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
