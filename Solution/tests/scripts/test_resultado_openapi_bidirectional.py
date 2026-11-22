@@ -15,6 +15,25 @@ class ResultadoOpenApiTests(unittest.TestCase):
     def test_real_contract_matches_code(self):
         self.assertEqual([], gate.validate(ROOT / "src/Jornada.Resultado.Api/Program.cs", ROOT / "openapi/resultado-v1.openapi.json"))
 
+    def test_missing_authorization_fails_even_with_matching_routes(self):
+        original = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        modified = original.replace('.RequireAuthorization("jornada.ingestao.status")', '')
+        with tempfile.TemporaryDirectory() as temp:
+            program = Path(temp) / "Program.cs"
+            program.write_text(modified)
+            errors = gate.validate(program, ROOT / "openapi/resultado-v1.openapi.json")
+            self.assertTrue(any("autorização obrigatória" in error for error in errors), errors)
+
+    def test_missing_delegated_verifier_fails_even_with_matching_routes(self):
+        original = (ROOT / "src/Jornada.Resultado.Api/Program.cs").read_text()
+        modified = original.replace(
+            'builder.Services.AddSingleton<IJornadaAccessVerifier, ResultadoAccessVerifier>();', '')
+        with tempfile.TemporaryDirectory() as temp:
+            program = Path(temp) / "Program.cs"
+            program.write_text(modified)
+            errors = gate.validate(program, ROOT / "openapi/resultado-v1.openapi.json")
+            self.assertTrue(any("verificador delegado" in error for error in errors), errors)
+
     def test_missing_contract_route_fails(self):
         original = json.loads((ROOT / "openapi/resultado-v1.openapi.json").read_text())
         del original["paths"]["/health"]
