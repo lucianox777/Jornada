@@ -45,7 +45,7 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
         path = self.directory / "pessoas.jsonl"
         rows = path.read_text().splitlines()
         row = json.loads(rows[0])
-        row["cpf"] = producer.make_cpf(1000, 355)
+        row["cpf"] = producer.make_cpf(1001, 355)
         rows[0] = json.dumps(row)
         path.write_text("\n".join(rows) + "\n")
         with self.assertRaises(ValueError):
