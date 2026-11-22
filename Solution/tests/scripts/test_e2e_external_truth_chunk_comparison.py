@@ -45,6 +45,19 @@ class ExternalTruthChunkComparisonTests(unittest.TestCase):
         # Unequal-size members should be skipped without decompression.
         self.assertEqual(reads, [])
 
+    def test_equal_size_member_with_late_difference_is_allowed(self):
+        self.write_fixture(b"placeholder", pad=200000)
+        truth_bytes = self.truth_path.read_bytes()
+        different = truth_bytes[:-1] + (b"X" if truth_bytes[-1:] != b"X" else b"Y")
+        with zipfile.ZipFile(self.zip_path, "w") as archive:
+            archive.writestr("different.bin", different)
+        # The fixture has a circular digest dependency only for this boundary
+        # comparison test; isolate digest verification without changing bytes.
+        with mock.patch.object(module.hashlib, "sha256") as sha:
+            sha.return_value.hexdigest.return_value = json.loads(
+                self.truth_path.read_text())["zipSha256"]
+            self.assertEqual(module.validate(self.zip_path, self.truth_path)["status"], "PASS")
+
     def test_matching_large_renamed_truth_is_rejected_with_bounded_reads(self):
         # The ZIP SHA cannot self-reference its own truth; mock the digest only
         # to isolate the member-byte boundary and exercise all comparison chunks.
