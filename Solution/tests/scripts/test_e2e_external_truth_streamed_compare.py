@@ -29,19 +29,29 @@ class ExternalTruthStreamingTests(unittest.TestCase):
                 result = module.validate(archive_path, truth_path)
             self.assertEqual(result["status"], "PASS")
 
+    def test_equal_sized_nonmatching_entry_uses_bounded_stream(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path, truth_path = root / "payload.zip", root / "truth.json"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("payload.txt", b"X" * 1024)
+            truth = {
+                "zipSha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+                "expectedIdentities": ["A"],
+            }
+            # Size matching is exercised using a valid JSON document padded
+            # with trailing whitespace (JSON permits it).
+            initial = json.dumps(truth).encode()
+            truth_path.write_bytes(initial + b" " * (1024 - len(initial)))
+            with patch.object(zipfile.ZipFile, "read", side_effect=AssertionError("unbounded read")):
+                self.assertEqual(module.validate(archive_path, truth_path)["status"], "PASS")
+
     def test_exact_truth_bytes_still_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             archive_path, truth_path = root / "payload.zip", root / "truth.json"
-            # ZIP digest and embedded truth bytes cannot self-reference exactly;
-            # test the comparison using a separate external file with identical bytes
-            # after the binding check, by replacing the digest check at the module boundary.
-            with zipfile.ZipFile(archive_path, "w") as archive:
-                archive.writestr("renamed.txt", b"external-truth-bytes")
-            truth_path.write_bytes(b"external-truth-bytes")
-            # Confirm the ZIP comparison path independently of JSON parsing using
-            # a valid JSON fixture embedded in ZIP and a digest-bypass controlled by
-            # mocking the digest hexdigest (only for this negative-path test).
+            # A self-referential ZIP digest is impossible; isolate the byte guard
+            # by mocking only the digest, not the ZIP reading logic.
             payload = json.dumps({"zipSha256": "a" * 64, "expectedIdentities": ["A"]}).encode()
             with zipfile.ZipFile(archive_path, "w") as archive:
                 archive.writestr("renamed.txt", payload)
