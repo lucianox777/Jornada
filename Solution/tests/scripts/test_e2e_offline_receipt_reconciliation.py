@@ -88,6 +88,28 @@ class ReceiptReconciliationTests(unittest.TestCase):
                 module.main()
         self.assertEqual(archive.read_bytes(), original)
 
+    def test_zip_input_cannot_alias_receipt_input(self):
+        for receipt in (self.a, self.b):
+            with self.subTest(receipt=receipt.name):
+                original = receipt.read_bytes()
+                with self.assertRaisesRegex(ValueError, "ZIP input must be separate"):
+                    module.reconcile([self.a, self.b], zip_path=receipt)
+                self.assertEqual(receipt.read_bytes(), original)
+
+    def test_zip_input_normalized_alias_cannot_be_receipt(self):
+        alias = self.a.parent / "nested" / ".." / self.a.name
+        with self.assertRaisesRegex(ValueError, "ZIP input must be separate"):
+            module.reconcile([self.a, self.b], zip_path=alias)
+
+    def test_cli_rejects_zip_input_aliasing_receipt(self):
+        output = self.a.parent / "combined.json"
+        argv = ["reconcile", "--receipt", str(self.a), "--receipt", str(self.b),
+                "--zip", str(self.a), "--output", str(output)]
+        with mock.patch("sys.argv", argv):
+            with self.assertRaisesRegex(ValueError, "ZIP input must be separate"):
+                module.main()
+        self.assertFalse(output.exists())
+
     def test_different_zip_rejected(self):
         self.write(self.b, DECISION, digest="b" * 64)
         with self.assertRaisesRegex(ValueError, "different ZIP"):
