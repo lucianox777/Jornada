@@ -63,6 +63,19 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe"):
             module.validate(self.zip, self.truth)
 
+    def test_rejects_unsafe_directory_entry(self):
+        self.entries["../escape/"] = b""
+        self.write_zip()
+        self.write_truth()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            module.validate(self.zip, self.truth)
+
+    def test_accepts_safe_directory_entry(self):
+        self.entries["safe/"] = b""
+        self.write_zip()
+        self.write_truth()
+        self.assertEqual(module.validate(self.zip, self.truth)["status"], "PASS")
+
     def test_rejects_zip_symlink(self):
         with zipfile.ZipFile(self.zip, "w") as z:
             info = zipfile.ZipInfo("link.txt")
