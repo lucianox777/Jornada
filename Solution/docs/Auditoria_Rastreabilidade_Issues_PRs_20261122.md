@@ -148,3 +148,15 @@ Todas foram identificadas como `draft=true`; algumas também têm conflitos. Nec
 ### Risco de interpretação
 
 A coincidência das linhas não é prova de identidade dos commits nem dos estados de checks. **Nenhuma dessas PRs deve ser integrada apenas para “cumprir” a decisão**: ela já consta da master, e a aplicação de patches antigos pode regredir o índice. Antes do fechamento, verificar comentários e reviews e registrar o link da fonte canônica em master em cada PR. A documentação desta auditoria ainda aguarda merge da PR #1844.
+
+## Auditoria de comentários e revisões das 12 PRs
+
+Consultado o histórico unificado de comentários de conversa, comentários inline e submissões de revisão das 12 PRs pelo conector GitHub.
+
+- **Sem comentários/revisões retornados (10):** #1710, #1807, #1810, #1815, #1805, #1809, #1813, #1806, #1811 e #1804.
+- **#1633 — comentário do PO de 17/11/2026:** “Saneamento pré-campanha: PR documental sobre referência estatística externa comum às três coortes; requisito futuro #1632 permanece. Reconciliar com documentos integrados pela #1634 antes de mesclar, para evitar reintroduzir PREPARE TEST lacrado.” Preservar distinção entre decisão registrada e implementação futura; **não integrar patch antigo**.
+- **#1620 — comentário do PO de 17/11/2026:** “Saneamento pré-campanha: o Seletor já possui replay/versionamento; distinguir compatibilidade histórica existente da prova de equivalência V9. Antes de mesclar esta PR documental, reconciliar com #1584 e com a arquitetura TEST da PR #1634.” Preservar que replay histórico não prova equivalência V9; **não integrar patch antigo sem reconciliação**.
+
+**Avaliação de encerramento:** as 12 PRs são **candidatas documentais a fechamento por decisão já registrada**, sem necessidade demonstrada de integrar seus diffs antigos. As duas observações do PO constituem **condições de governança** que devem acompanhar o motivo do fechamento e permanecer rastreáveis às issues #1632/#1584 e à PR #1634. A ausência de comentários retornados nas outras dez não substitui verificação de CI, branch ou commits; não implica aprovação de merge.
+
+**Próximo ato seguro:** após integrar este registro de auditoria (PR #1844, com checks/revisão obrigatórios), registrar comentário individual em cada PR com documento canônico, decisão preservada, eventual pendência técnica e referência à auditoria; então fechar administrativamente as redundantes. Nenhum encerramento ou merge executado nesta etapa.
