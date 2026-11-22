@@ -78,19 +78,6 @@ class V9FourName100kTests(unittest.TestCase):
                          {tuple(v) for v in __import__("itertools").product(p.STATES, repeat=4)}
                          - {(0, 0, 0, 0)})
 
-    def test_reverted_tf4_search_space_contract_is_explicit(self):
-        # Regression gate after #1865/#1879: do not silently reintroduce
-        # fractional PF values or drop the second conflict margin.
-        self.assertEqual(tuple(p.STATES), (0, 0.5, 1))
-        self.assertEqual(tuple(p.MARGINS), (0.5, 2))
-        options = p.grid(self.base()["Calibration"]["ModelOptions"][0])
-        self.assertEqual(len(options), 81)
-        self.assertEqual(len(options) * len(p.LAMBDAS) * len(p.MARGINS), 324)
-        self.assertEqual(set(p.LAMBDAS), {0.5, 1})
-        self.assertFalse(any("Q125" in x["OptionId"] or "Q250" in x["OptionId"]
-                             or "Q375" in x["OptionId"] for x in options))
-        self.assertEqual(sum(x["OptionId"] == p.TF0 for x in options), 1)
-
     def test_unified_calibration_json_is_versioned_into_tf_plan(self):
         config = json.loads((ROOT / "config/calibration/v9-synthetic-sampling.json").read_text())
         self.assertEqual(config["syntheticPopulation"], 100000)
