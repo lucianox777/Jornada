@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline receipt reconciliation; not a physical E2E or scientific certification."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,7 +13,7 @@ ALLOWED_SCOPES = {
 }
 
 
-def reconcile(paths):
+def reconcile(paths, zip_path=None):
     if not paths:
         raise ValueError("at least one receipt is required")
     if len({p.resolve() for p in paths}) != len(paths):
@@ -53,6 +54,13 @@ def reconcile(paths):
         digests.add(digest)
     if len(digests) != 1:
         raise ValueError("receipts belong to different ZIPs")
+    if zip_path is not None:
+        hasher = hashlib.sha256()
+        with zip_path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        if hasher.hexdigest() != next(iter(digests)):
+            raise ValueError("receipt ZIP digest differs from supplied ZIP bytes")
     return {
         "status": "PASS",
         "scope": "OFFLINE_RECEIPT_RECONCILIATION_ONLY_NOT_E2E_CERTIFICATION",
@@ -66,10 +74,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--receipt", type=Path, action="append", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--zip", type=Path, help="Optional ZIP bytes to verify against all receipt digests")
     args = parser.parse_args()
     if args.output.resolve() in {p.resolve() for p in args.receipt}:
         raise ValueError("output must be separate from input receipts")
-    result = reconcile(args.receipt)
+    if args.zip is not None and args.output.resolve() == args.zip.resolve():
+        raise ValueError("output must be separate from ZIP input")
+    result = reconcile(args.receipt, zip_path=args.zip)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
