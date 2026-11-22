@@ -65,6 +65,14 @@ def validate(zip_path: Path, truth_path: Path) -> dict:
                 raise ValueError("ZIP directory mode on non-directory entry")
             if file_type == 0o100000 and info.is_dir():
                 raise ValueError("ZIP regular-file mode on directory entry")
+        # Check CRC for every regular ZIP member, including files whose size
+        # differs from the external truth. zipfile verifies CRC on full read.
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            with archive.open(info) as stream:
+                for _ in iter(lambda: stream.read(64 * 1024), b""):
+                    pass
         # Ground truth must remain outside the HTTP payload, not just outside
         # its expected filename. Compare exact bytes, including renamed entries.
         truth_size = truth_path.stat().st_size
