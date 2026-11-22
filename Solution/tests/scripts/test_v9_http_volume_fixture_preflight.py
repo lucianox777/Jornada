@@ -41,6 +41,26 @@ class SyntheticVolumeIntegrityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             preflight.verify(self.directory, 1000)
 
+    def test_valid_but_wrong_seed_index_cpf_fails(self):
+        path = self.directory / "pessoas.jsonl"
+        rows = path.read_text().splitlines()
+        row = json.loads(rows[0])
+        row["cpf"] = producer.make_cpf(10001, 355)
+        rows[0] = json.dumps(row)
+        path.write_text("\n".join(rows) + "\n")
+        with self.assertRaises(ValueError):
+            preflight.verify(self.directory, 1000)
+
+    def test_unexpected_record_identity_fails(self):
+        path = self.directory / "registros.jsonl"
+        rows = path.read_text().splitlines()
+        row = json.loads(rows[0])
+        row["codigoRegistroOrigem"] = "E2E-AA01-VOL-2026-999999"
+        rows[0] = json.dumps(row)
+        path.write_text("\n".join(rows) + "\n")
+        with self.assertRaises(ValueError):
+            preflight.verify(self.directory, 1000)
+
     def test_orphan_record_fails(self):
         path = self.directory / "registros.jsonl"
         rows = path.read_text().splitlines()
