@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/e2e-offline-receipt-reconciliation.py"
 spec = importlib.util.spec_from_file_location("receipt_reconciliation", SCRIPT)
@@ -37,7 +39,8 @@ class ReceiptReconciliationTests(unittest.TestCase):
 
     def test_supplied_zip_bytes_verified(self):
         archive = self.a.parent / "payload.zip"
-        archive.write_bytes(b"synthetic ZIP fixture bytes")
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("payload.txt", "synthetic fixture")
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         self.write(self.a, IDENTITY, digest=digest)
         self.write(self.b, DECISION, digest=digest)
@@ -45,17 +48,45 @@ class ReceiptReconciliationTests(unittest.TestCase):
 
     def test_consistent_receipts_with_wrong_zip_bytes_rejected(self):
         archive = self.a.parent / "payload.zip"
-        archive.write_bytes(b"different bytes")
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("payload.txt", "different fixture")
         with self.assertRaisesRegex(ValueError, "supplied ZIP bytes"):
             module.reconcile([self.a, self.b], zip_path=archive)
 
     def test_supplied_zip_is_streamed(self):
         archive = self.a.parent / "payload.zip"
-        archive.write_bytes(b"X" * (2 * 1024 * 1024 + 3))
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
+            zf.writestr("payload.bin", b"X" * (2 * 1024 * 1024 + 3))
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         self.write(self.a, IDENTITY, digest=digest)
         self.write(self.b, DECISION, digest=digest)
         self.assertEqual(module.reconcile([self.a, self.b], zip_path=archive)["zipSha256"], digest)
+
+    def test_cli_zip_binding_writes_receipt(self):
+        archive = self.a.parent / "payload.zip"
+        output = self.a.parent / "combined.json"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("payload.txt", "synthetic")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        self.write(self.a, IDENTITY, digest=digest)
+        self.write(self.b, DECISION, digest=digest)
+        argv = ["reconcile", "--receipt", str(self.a), "--receipt", str(self.b),
+                "--zip", str(archive), "--output", str(output)]
+        with mock.patch("sys.argv", argv):
+            module.main()
+        self.assertEqual(json.loads(output.read_text())["zipSha256"], digest)
+
+    def test_cli_rejects_output_overwriting_zip(self):
+        archive = self.a.parent / "payload.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("payload.txt", "synthetic")
+        original = archive.read_bytes()
+        argv = ["reconcile", "--receipt", str(self.a), "--zip", str(archive),
+                "--output", str(archive)]
+        with mock.patch("sys.argv", argv):
+            with self.assertRaisesRegex(ValueError, "separate from ZIP"):
+                module.main()
+        self.assertEqual(archive.read_bytes(), original)
 
     def test_different_zip_rejected(self):
         self.write(self.b, DECISION, digest="b" * 64)
