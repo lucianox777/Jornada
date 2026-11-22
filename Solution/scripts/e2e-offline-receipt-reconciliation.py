@@ -18,6 +18,8 @@ def reconcile(paths, zip_path=None):
         raise ValueError("at least one receipt is required")
     if len({p.resolve() for p in paths}) != len(paths):
         raise ValueError("duplicate receipt path")
+    if zip_path is not None and zip_path.resolve() in {p.resolve() for p in paths}:
+        raise ValueError("ZIP input must be separate from receipt inputs")
     digests = set()
     scopes = set()
     for path in paths:
