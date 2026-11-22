@@ -50,3 +50,35 @@ Após a decisão do PO de consolidar ou encerrar issues antigas, verificou-se qu
 **PO, 22/11/2026:** #424 → otimização; #409 → Monitor; #404 → governança documental; #413 e #414 continuam abertas; #392/#393/#401/#402/#411 podem encerrar após verificação; #408 proíbe decisão humana direta e exige reavaliação por nova carga; #405 exige inspeção residual. A decisão de #408 **substitui** as regras anteriores de confirmação humana como requisito funcional, mas **não apaga** a PR #723 ou os registros auditáveis anteriores.
 
 **Estado de execução:** inventário inicial registrado nesta branch; ainda faltam timeline de edição, mapeamento exaustivo das PRs abertas, identificação dos destinos e integração do registro. Não há autorização para fechamento indiscriminado de PRs.
+
+## Triagem das 41 PRs abertas — 22/11/2026
+
+**Método:** busca das 41 PRs abertas e leitura individual de metadados e descrições de todas as 41. Classificação **provisória**: não foram auditados diffs completos, checks, reviews ou sobreposição byte a byte. `mergeable=true` não implica checks aprovados; `mergeable=false` não prova obsolescência. Nenhuma PR foi fechada ou integrada nesta triagem.
+
+### Grupo A — candidatas à revisão de integração (11)
+- **#1844, #1843, #1842:** documentação GOV-DOC-01 recente; reconciliar índice compartilhado, gates e decisões antes de integrar.
+- **#1804:** decisão de retrocompatibilidade; verificar precedência contra #1620 e demais PRs de recuperação.
+- **#1708:** correção de testes DT-05; verificar necessidade atual e checks.
+- **#1641:** seed TEST inédita; conferir isolamento, evidência e gates.
+- **#1564:** catálogo IBGE/SINASC; ainda faltam extrações, não confundir com calibração pronta.
+- **#1553:** decisão documental sobre timeout; conferir se já está representada em master.
+- **#1429:** correção do controle TF0; verificar atualidade e testes.
+- **#1420:** monitor manual de Actions; conferir custo operacional e necessidade.
+- **#1815:** reconciliação de dívida TF0/ONE_MF; requer resolver conflitos e redundância com #1810/#1807.
+
+### Grupo B — bloqueadas por reconciliação/possível substituição (17)
+**#1813, #1811, #1810, #1809, #1807, #1806, #1805, #1776, #1772, #1720, #1710, #1633, #1620, #1613, #1604, #1468, #1459.**
+
+Todas têm `mergeable=false` no metadado consultado; muitas registram decisões GOV-DOC-01 em cadeia, com recuperações e versões sucessoras explícitas. **Não fechar automaticamente**: comparar conteúdo original e sucessor, preservar decisão ainda não integrada e rebasear/absorver quando necessário. Exemplos: #1710 → #1807 → #1810 → #1815; #1633 → #1805 → #1809 → #1813; #1620 → #1804; #1806 → #1811. O estado de conflitos pode mudar.
+
+### Grupo C — rascunhos ou entregas técnicas ainda não prontas (13)
+**#1841, #1836, #1770, #1768, #1767, #1758, #1751, #1576, #1567, #1441, #1392, #1356, #1352.**
+
+Todas foram identificadas como `draft=true`; algumas também têm conflitos. Necessitam validação de escopo, pré-condições, implementação e autorização antes de integrar ou encerrar. **#1567** informa autorização condicional a gates, mas continua draft; **#1441** declara integração incompleta; **#1352** é apenas fase exploratória.
+
+### Reconciliação e regra de fechamento
+
+- **Total consultado:** 41 = 11 + 17 + 13. **PRs efetivamente encerradas:** 0. **PRs efetivamente integradas:** 0.
+- **Nenhuma das 41 pode ser marcada comprovadamente obsoleta só com título, descrição ou `mergeable`.** Grupo B é fila de investigação de duplicidade, não autorização de fechamento.
+- Verificar diffs e arquivos alterados de pares sucessores, estado dos checks e commits integrados na master. Documentar equivalência de conteúdo e preservação da GOV-DOC-01 antes de fechar PR substituída.
+- Ordem sugerida: (1) cadeia #1710/#1807/#1810/#1815; (2) #1633/#1805/#1809/#1813; (3) #1806/#1811; (4) #1620/#1804; (5) #1842/#1843/#1844, reconciliando índice; (6) PRs técnicas.
