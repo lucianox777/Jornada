@@ -57,6 +57,16 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "nonfinite"):
             module.validate(self.zip, self.truth)
 
+    def test_streamed_digest_matches_real_zip_bytes(self):
+        expected = hashlib.sha256(self.zip.read_bytes()).hexdigest()
+        self.assertEqual(module.validate(self.zip, self.truth)["zipSha256"], expected)
+
+    def test_streamed_digest_rejects_appended_bytes(self):
+        with self.zip.open("ab") as stream:
+            stream.write(b"appended-untrusted-bytes")
+        with self.assertRaisesRegex(ValueError, "digest"):
+            module.validate(self.zip, self.truth)
+
     def test_rejects_mutated_zip(self):
         self.zip.write_bytes(self.zip.read_bytes() + b"mutated")
         with self.assertRaisesRegex(ValueError, "digest"):
