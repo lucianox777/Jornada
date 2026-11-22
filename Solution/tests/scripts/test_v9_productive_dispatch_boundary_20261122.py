@@ -11,7 +11,7 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         source = SOURCE.read_text(encoding="utf-8")
         cls.typed = source.split("public Task<ProbabilisticLinkageRunSummary> RunV9Async(", 1)[1].split(
             "public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[0]
-        cls.run = source.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1].split(
+        cls.run_source = source.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1].split(
             "private async Task CaptureBronzeSourcesAsync(", 1)[0]
 
     def test_typed_dispatch_refuses_uncertified_productive_adapter(self):
@@ -36,7 +36,7 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         self.assertTrue(typed.strip().endswith("}"))
 
     def test_legacy_runasync_rejects_all_explicit_v9_selectors_before_sql(self):
-        run = self.run
+        run = self.run_source
         start = run.index("ValidateRequest(request);")
         lock = run.index("pipelineCoordinator.AcquireExclusiveJobAsync(")
         model = run.index("linkage.GetModelByVersionAsync(")
