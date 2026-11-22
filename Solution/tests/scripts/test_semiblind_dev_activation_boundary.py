@@ -12,6 +12,23 @@ class SemiblindDevActivationBoundary(unittest.TestCase):
                        'string.Equals(environmentName, "Development", StringComparison.Ordinal)',
                        'string.Equals(profile, "Development", StringComparison.Ordinal)']:
             self.assertIn(marker, s)
+    def test_sql_query_reads_resident_profile_not_database_name_as_authorization(self):
+        s = SOURCE.read_text()
+        self.assertIn("SELECT DB_NAME()", s)
+        self.assertIn("sys.extended_properties", s)
+        self.assertIn("name=N'Jornada.EnvironmentProfile'", s)
+        self.assertIn('string.Equals(profile, "Development", StringComparison.Ordinal)', s)
+        self.assertIn('!string.IsNullOrWhiteSpace(databaseName)', s)
+        self.assertNotIn('databaseName.Contains("DEV")', s)
+
+    def test_denies_before_sql_when_flag_or_environment_not_development(self):
+        s = SOURCE.read_text()
+        preflight = s[s.index("public async Task<bool> IsEnabledAsync"):s.index("try", s.index("public async Task<bool> IsEnabledAsync"))]
+        self.assertIn("!environment.IsDevelopment()", preflight)
+        self.assertIn("!configuration.GetValue<bool>(EnabledSetting)", preflight)
+        self.assertIn("return false;", preflight)
+        self.assertNotIn("sql.OpenAsync", preflight)
+
     def test_sql_unavailable_fails_closed(self):
         s = SOURCE.read_text()
         self.assertIn("catch (SqlException)", s)
