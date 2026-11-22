@@ -160,3 +160,13 @@ Consultado o histórico unificado de comentários de conversa, comentários inli
 **Avaliação de encerramento:** as 12 PRs são **candidatas documentais a fechamento por decisão já registrada**, sem necessidade demonstrada de integrar seus diffs antigos. As duas observações do PO constituem **condições de governança** que devem acompanhar o motivo do fechamento e permanecer rastreáveis às issues #1632/#1584 e à PR #1634. A ausência de comentários retornados nas outras dez não substitui verificação de CI, branch ou commits; não implica aprovação de merge.
 
 **Próximo ato seguro:** após integrar este registro de auditoria (PR #1844, com checks/revisão obrigatórios), registrar comentário individual em cada PR com documento canônico, decisão preservada, eventual pendência técnica e referência à auditoria; então fechar administrativamente as redundantes. Nenhum encerramento ou merge executado nesta etapa.
+
+## Execução do saneamento administrativo após integração da auditoria
+
+A PR **#1844 foi integrada por squash** em `c0ddb154258304eb3ed68872fc65ce1b40dbc82b`, após a execução `jornada-pr-required-fast` #44987458229 concluída com `success`. A revisão retornada pelo conector não continha submissões nem threads. O registro oficial da auditoria passou a existir em `master`.
+
+**12 PRs encerradas administrativamente, sem merge de patches históricos:** #1710, #1807, #1810, #1815; #1633, #1805, #1809, #1813; #1806, #1811; #1620, #1804. Todas receberam comentário individual explicando fonte canônica em `master`, evidência da auditoria #1844 e limites. A operação preservou os links, commits e conversas das PRs; nenhum código foi alterado nesses encerramentos.
+
+**Ressalvas preservadas:** #1633 — decisão das três coortes mantida e PREPARE TEST lacrado; implementação externa pendente (#1632/#1626). #1620 — replay/versionamento histórico não comprova paridade V9; respeitar #1584 e PR #1634. Dívida TF0 × ONE_MF segue aberta; compatibilidade de bundle não foi declarada implementada; autorização de merges não dispensa gates nem autoriza TRAIN/TEST.
+
+**Estado da documentação:** esta seção registra a execução posterior à auditoria, para preservar a cronologia e não tratar o plano de encerramento anterior como ainda pendente. O índice de decisões vigentes não muda: não houve decisão substantiva nova, revogação ou substituição de conteúdo normativo, apenas encerramento administrativo de PRs redundantes.
