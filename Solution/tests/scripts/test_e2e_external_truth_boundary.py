@@ -41,6 +41,22 @@ class ExternalTruthBoundaryTests(unittest.TestCase):
         self.assertEqual(result["expectedIdentityCount"], 2)
         self.assertEqual(result["scope"], "BOUNDARY_ONLY_NOT_LINKAGE_ORACLE")
 
+    def test_rejects_duplicate_truth_json_member(self):
+        digest = hashlib.sha256(self.zip.read_bytes()).hexdigest()
+        self.truth.write_text(
+            '{"zipSha256":"' + digest + '","expectedIdentities":["A"],'
+            '"expectedIdentities":["B"]}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            module.validate(self.zip, self.truth)
+
+    def test_rejects_nonfinite_truth_json_value(self):
+        digest = hashlib.sha256(self.zip.read_bytes()).hexdigest()
+        self.truth.write_text(
+            '{"zipSha256":"' + digest + '","expectedIdentities":["A"],'
+            '"unexpected":NaN}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "nonfinite"):
+            module.validate(self.zip, self.truth)
+
     def test_rejects_mutated_zip(self):
         self.zip.write_bytes(self.zip.read_bytes() + b"mutated")
         with self.assertRaisesRegex(ValueError, "digest"):
