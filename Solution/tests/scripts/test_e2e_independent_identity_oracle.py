@@ -103,6 +103,23 @@ class IdentityOracleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "nonfinite JSON"):
             module.compare(self.truth, self.observed)
 
+    def test_escaped_duplicate_member_rejected(self):
+        # JSON member names are compared after escape decoding.
+        self.truth.write_text(
+            '{"zipSha256":"' + "a" * 64 +
+            '","expectedIdentities":["A"],"expected\\u0049dentities":["B"]}',
+            encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate JSON member"):
+            module.compare(self.truth, self.observed)
+
+    def test_negative_infinity_observed_rejected(self):
+        self.observed.write_text(
+            '{"zipSha256":"' + "a" * 64 +
+            '","observedIdentities":["A"],"untrusted":-Infinity}',
+            encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "nonfinite JSON"):
+            module.compare(self.truth, self.observed)
+
     def test_same_file_rejected(self):
         with self.assertRaisesRegex(ValueError, "separate"):
             module.compare(self.truth, self.truth)
