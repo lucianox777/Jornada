@@ -59,7 +59,9 @@ def grid(tf0, tf_policy=None):
             continue
         option = copy.deepcopy(tf0)
         option["OptionId"] = "TF4_" + "_".join(
-            name + (str(int(weight * 10)) if name != "PF" or weight in STATES\n                    else "Q" + str(int(round(weight * 1000))))\n            for (_, _, name), weight in zip(SLOTS, values)) + "_A0.5_T0.95"
+            name + (str(int(weight * 10)) if name != "PF" or weight in STATES
+                    else "Q" + str(int(round(weight * 1000))))
+            for (_, _, name), weight in zip(SLOTS, values)) + "_A0.5_T0.95"
         option["UnitTfOptions"] = [
             {"Side": side, "Unit": unit, "Weight": weight, "Mode": 0}
             for (side, unit, _), weight in zip(SLOTS, values)]
