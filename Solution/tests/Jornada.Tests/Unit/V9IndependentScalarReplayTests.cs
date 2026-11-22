@@ -1,4 +1,5 @@
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
@@ -200,4 +201,96 @@ public sealed class V9IndependentScalarReplayTests
         Assert.That(actual.Margem, Is.Zero);
         Assert.That(actual.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
     }
+    // Stage 2 of the approved E2E plan: a closed-form numeric oracle for one
+    // frozen TEST cohort. The expected posterior, group IDs and statuses below
+    // are derived from the fixture, never from ReplayTest/RankPreview/Gold/labels.
+    // This is synthetic TEST_ONLY evidence, not the independent TF4/81-cell
+    // production Runner + SQL parity proof required by #1584.
+    private static V9FittedSnapshot BlindScalarOracleWinner() =>
+        Reload(Payload(prior: .99m, threshold: .8m, margin: .5m) with
+        {
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 4)
+        });
+
+    private static V9PhysicalCalibrationObservation[] TwoIndependentPairs() =>
+    [
+        new(1, "TRUTH_PAIR_1", "TEST", "G1", "MARIA SILVA",
+            "ANA COSTA", Birth),
+        new(2, "TRUTH_PAIR_1", "TEST", "G2", "MARIA SILVA",
+            "ANA COSTA", Birth),
+        new(3, "TRUTH_PAIR_2", "TEST", "G3", "PEDRO LOPES",
+            "JOANA MOTA", Birth),
+        new(4, "TRUTH_PAIR_2", "TEST", "G4", "PEDRO LOPES",
+            "JOANA MOTA", Birth)
+    ];
+
+    [Test]
+    public void Independent_TEST_cohort_decisions_match_scalar_truth_table_without_using_Replay_as_oracle()
+    {
+        var model = BlindScalarOracleWinner();
+        var rows = TwoIndependentPairs();
+        // The only physical candidate edges are within each matching pair.
+        // No expected identity is computed from the production grouping logic.
+        var actual = V9FrozenSourceResolveReplay.ReplayTest(model, rows,
+            [(1, 2), (3, 4)]);
+        var expectedScore = Scalar(model.Payload,
+            CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.ExactFull,
+            birthState: 1).Posterior;
+        Assert.That(expectedScore, Is.GreaterThan(.99m),
+            "The 0.99 minimum complete-link posterior must accept these pairs.");
+
+        var firstGroup = new Guid(1, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        var secondGroup = new Guid(3, 0, 0, 0, 0, 0, 0, 0, 0, 4);
+        Assert.That(actual.SnapshotSha256, Is.EqualTo(model.ContentSha256));
+        Assert.That(actual.Decisions.Count, Is.EqualTo(rows.Length));
+        foreach (var source in rows)
+        {
+            var expectedGroup = source.ObservationId <= 2 ? firstGroup : secondGroup;
+            var outcome = actual.Decisions.Single(d =>
+                d.ObservationId == source.ObservationId).Decision;
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(actual.IdentityByObservation[source.ObservationId],
+                    Is.EqualTo(expectedGroup));
+                Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
+                    $"observation {source.ObservationId}");
+                Assert.That(outcome.MelhorCandidatoUuid, Is.EqualTo(expectedGroup));
+                Assert.That(outcome.MelhorScore, Is.EqualTo(expectedScore));
+            }));
+        }
+        Assert.That(actual.IdentityByObservation[1],
+            Is.Not.EqualTo(actual.IdentityByObservation[3]),
+            "Distinct synthetic pairs must not merge across missing SQL edges.");
+    }
+
+    [Test]
+    public void Independent_TEST_oracle_abstains_without_SQL_edges_and_is_blind_to_truth_labels()
+    {
+        var model = BlindScalarOracleWinner();
+        var rows = TwoIndependentPairs();
+        var noEdges = V9FrozenSourceResolveReplay.ReplayTest(
+            model, rows, Array.Empty<(int A, int B)>());
+        foreach (var row in rows)
+        {
+            var outcome = noEdges.Decisions.Single(d =>
+                d.ObservationId == row.ObservationId).Decision;
+            Assert.That(outcome.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO),
+                $"No SQL candidates: observation {row.ObservationId}");
+        }
+        Assert.That(noEdges.IdentityByObservation.Values.Distinct().Count(),
+            Is.EqualTo(rows.Length), "Do not fabricate a pair from matching truth labels.");
+
+        var fakeTruth = rows.Select(row => row with
+        {
+            BasePersonId = "LIE_" + (rows.Length - row.ObservationId)
+        }).Reverse().ToArray();
+        var baseline = V9FrozenSourceResolveReplay.ReplayTest(model, rows,
+            [(1, 2), (3, 4)]);
+        var changed = V9FrozenSourceResolveReplay.ReplayTest(model, fakeTruth,
+            [(3, 4), (1, 2)]);
+        Assert.That(changed.Decisions, Is.EqualTo(baseline.Decisions),
+            "Truth labels, observation order and SQL edge order cannot change decisions.");
+        Assert.That(changed.IdentityByObservation, Is.EquivalentTo(baseline.IdentityByObservation));
+    }
+
 }
