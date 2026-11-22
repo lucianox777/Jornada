@@ -36,3 +36,13 @@ O conector GitHub `fetch_commit_workflow_runs` disponível neste fluxo filtra ex
 - **Certificação científica/produtiva:** permanece separada, sujeita às autorizações e critérios vigentes.
 
 **Rastreabilidade:** GOV-DOC-01; issues #1895 e #1851; `.github/workflows/ci.yml`; `AGENTS.md`.
+
+## Incidente unit-runtime no SHA 0052680f — 22/11/2026 (issue #1895)
+
+**Evidência primária:** `jornada-ci` `push/master`, run [`45063196111`](https://github.com/lucianox777/Jornada/actions/runs/45063196111), tentativa 1, SHA exato `0052680fbb4d5bd6546c06665de0a39eea37dfe1`, conclusão `failure`. O job `unit-runtime` `137338287703` falhou no teste NUnit `Second_worker_can_start_while_first_large_group_is_still_running`, com `MaximumSimultaneousWorkersObserved` esperado `>=2` e observado `1`. O job agregador `unit` `137339485630` falhou por dependência de `unit-runtime`, sem ser uma segunda causa raiz. O upload OpenAPI sem arquivo após a falha é efeito posterior, não evidência independente de defeito funcional.
+
+**Diagnóstico e causa específica:** o teste de `V9CalibrationRuntimeSchedulerTests.cs` usa `Parallel.ForEachAsync`, que não garante qual índice alcançará primeiro o gate de admissão. Antes da correção, o caso `i==1` sinalizava `secondStarted` e podia terminar antes de `i==0` ser admitido, tornando possível observar dois índices executados em instantes distintos com máximo simultâneo `1`. A prova pretendida é capacidade de admitir dois workers **simultâneos**, não ordem natural de disparo dos índices. A hipótese de corrida é fundamentada no código e no resultado observado; a reprodução física do interleaving específico não foi realizada fora da CI.
+
+**Correção proposta nesta branch:** sincronizar o caso `i==1` com `await firstStarted.Task.WaitAsync(ct)` antes de sinalizar `secondStarted`. O `i==0` continua bloqueado pelo `releaseFirst` até a confirmação do segundo worker; portanto, o teste passa a medir sobreposição real independentemente de qual índice entrou primeiro. Nenhum limite de RAM/CPU, política do Scheduler, parâmetro científico, TEST, modelo, gate ou workflow é alterado. Commit da correção de teste `4c090b980e153655b4aea3e2eed8321193e43889`.
+
+**Estado e precedência:** investigação e patch mínimo de teste em PR separada, sem afirmar validação antes dos checks; a execução original permanece `failure`, sem retry indiscriminado. Este registro não constitui nova decisão do PO nem atestado de equivalência científica. Aplicam-se GOV-DOC-01 e GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111. Integração exige os três checks da PR no HEAD exato e verificação de `jornada-ci` pós-squash no novo SHA da master.
