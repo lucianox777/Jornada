@@ -35,7 +35,7 @@ class V9FourNameHandoffTests(unittest.TestCase):
         fitted = b'{"synthetic":true,"snapshot":"FITTED"}'
         snapshot = hashlib.sha256(fitted).hexdigest()
         write_json(root / "bound/binding-receipt.json", {
-            "planSha256": plan_sha, "physicalHypotheses": 324, "tfOptions": 162,
+            "planSha256": plan_sha, "physicalHypotheses": 324, "tfOptions": 81,
             "testUsed": False, "certified": False, "activated": False})
         write_json(root / "results/selection-reference.json", {
             "envelopeSha256": envelope, "FinalistSnapshotShas": [snapshot]})

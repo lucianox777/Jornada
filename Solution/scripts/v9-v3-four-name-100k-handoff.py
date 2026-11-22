@@ -8,17 +8,11 @@ may cross the runner boundary. Large envelopes are hashed in bounded chunks.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import hashlib
 import json
 from pathlib import Path
 import re
 import shutil
-
-HERE = Path(__file__).resolve().parent
-_spec = importlib.util.spec_from_file_location("v9_tf4_plan", HERE / "v9-v3-four-name-100k-plan.py")
-study = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(study)
 
 SCHEMA = "V9_TF4_324_VALIDATION_HANDOFF_V1"
 AUDIT_SCHEMA = "V9_V3_TF4_100K_TECHNICAL_AUDIT_V1"
@@ -78,7 +72,7 @@ def verify_contents(directory, code_sha, run_id, require_manifest=True):
     plan_sha = sha256_file(regular_file(directory / "plan.json"))
     require(receipt.get("planSha256") == plan_sha
             and receipt.get("physicalHypotheses") == 324
-            and receipt.get("tfOptions") == study.OPTIONS
+            and receipt.get("tfOptions") == 81
             and receipt.get("testUsed") is False
             and receipt.get("certified") is False
             and receipt.get("activated") is False, "plan receipt invalid")
