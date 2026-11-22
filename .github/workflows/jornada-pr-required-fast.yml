@@ -141,6 +141,8 @@ jobs:
           python3 -m unittest Solution/tests/scripts/test_v9_http_volume_fixture_preflight.py
           python3 -m unittest Solution/tests/scripts/test_v9_http_volume_partition_boundaries.py
           python3 -m unittest Solution/tests/scripts/test_e2e_external_truth_boundary.py
+          # Stage 8 E2E: verify CRC of every ZIP member, even when truth sizes differ.
+          python3 -m unittest Solution/tests/scripts/test_e2e_external_truth_zip_crc.py
           python3 -m unittest Solution/tests/scripts/test_v9_productive_adapter_guard.py
           python3 -m unittest Solution/tests/scripts/test_e2e_independent_identity_oracle.py
           python3 -m unittest Solution/tests/scripts/test_e2e_processor_runner_explicit_boundary.py
