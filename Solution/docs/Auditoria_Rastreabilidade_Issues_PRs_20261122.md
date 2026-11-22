@@ -133,3 +133,18 @@ Todas foram identificadas como `draft=true`; algumas também têm conflitos. Nec
 | #1804 | 16 | **0** | Todas as linhas adicionadas aparecem na master. |
 
 **Síntese:** 6 PRs com **0 linhas adicionadas não vazias ausentes** (#1807, #1810, #1815, #1806, #1811, #1804); outras 6 com diferenças predominantemente editoriais/de índice (#1710, #1633, #1805, #1809, #1813, #1620). **Correção do total:** são seis, não oito, com coincidência literal total. A decisão da master é a fonte canônica. Antes de encerrar, validar se o texto adicional da #1633 sobre coortes está preservado no documento de isolamento, se nenhum patch remove conteúdo e se as PRs não contêm compromissos pendentes. **Não fechar sem esta última validação.**
+
+## Auditoria de deleções e preservação das três coortes (22/11/2026)
+
+**Método:** reabertos os diffs das 12 PRs e inspecionadas todas as linhas removidas (`-`, excluídos cabeçalhos `---`). **11 PRs não removem linhas**. **A única exceção é #1633**, cujo patch remove a entrada `GOV-V9-TRES-COORTES-INDEPENDENTES-20261117` do índice ao adicionar a decisão `test_database`. Verificação direta de `master` confirma que a entrada das três coortes **permanece integralmente presente** no `Solution/docs/Indice_Decisoes_Vigentes.md`, incluindo TRAIN seed 42, VALIDATION seed 20261112001, TEST seed 20261113001, retenção limitada e independência sem disjunção de identidades presumida. Portanto, **mesclar a #1633 antiga como está poderia regredir o índice**, enquanto a master atual preserva as duas decisões.
+
+### Resultado por grupo
+
+- **#1807, #1810, #1815, #1806, #1811, #1804:** zero linhas removidas; todas as linhas não vazias adicionadas pelos diffs foram encontradas nos arquivos canônicos de master. **Evidência forte de redundância textual**, não equivalência de histórico/commits; candidatas prioritárias a encerramento por substituição já integrada, após verificar que não há compromissos em comentários/reviews.
+- **#1710, #1620:** zero linhas removidas; diferenças residuais são formulações de estado histórico e entradas antigas de índice, superadas por registros atuais na master. **Candidatas à conclusão administrativa**, sujeitas à checagem de compromissos.
+- **#1805, #1809, #1813:** zero linhas removidas; a linha adicional de índice ausente literalmente da master foi substituída por registro atual `GOV-V9-TEST-DATABASE-REFERENCIA-COMUM-20261117 — DECIDIDA, COM ADAPTADOR ADIADO`. Esse registro indica pendência de adaptador na issue #1626 e falha fechada em PREPARE. **Candidatas à conclusão administrativa**, sem declarar adaptador implementado.
+- **#1633:** uma deleção da entrada de três coortes. A master mantém essa entrada e mantém separadamente a decisão de `test_database`. **Não integrar o patch antigo como está**; candidata a encerramento administrativo após verificar que a master preserva todo o sentido e que não há comentários/reviews com obrigações novas.
+
+### Risco de interpretação
+
+A coincidência das linhas não é prova de identidade dos commits nem dos estados de checks. **Nenhuma dessas PRs deve ser integrada apenas para “cumprir” a decisão**: ela já consta da master, e a aplicação de patches antigos pode regredir o índice. Antes do fechamento, verificar comentários e reviews e registrar o link da fonte canônica em master em cada PR. A documentação desta auditoria ainda aguarda merge da PR #1844.
