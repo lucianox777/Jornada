@@ -63,6 +63,20 @@ public sealed class V9ControlledDevGoldScorePreviewTests
     }
 
     [Test]
+    public void Partial_Gold_reference_with_nullable_birth_preserves_missing_FS_evidence()
+    {
+        var row = SourceRow();
+        var partial = Candidate() with { DataNascimento = null };
+        var expected = Winner.FrozenWinner.ResolvePreview(
+            Winner.ModelId, row.Observation,
+            [new V9SnapshotCandidate(GoldId, partial.NomeCompleto,
+                partial.DataNascimento, partial.NomeMae)]);
+        var actual = V9ControlledDevGoldScorePreview.Score(
+            Winner, [row], Source([partial]));
+        Assert.That(actual.Decisions[1], Is.EqualTo(expected));
+    }
+
+    [Test]
     public void Empty_Gold_candidate_union_preserves_original_abstention()
     {
         var row = SourceRow();
