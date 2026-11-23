@@ -166,16 +166,49 @@ public sealed class ProbabilisticLinkageBatchRunner(
             "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED");
     }
 
-    public async Task<ProbabilisticLinkageRunSummary> RunAsync(
+    /// <summary>
+    /// Explicit stage-3 DEV entry. It shares the exact RunAsync universe,
+    /// scoring, SQL ledger, run counters and atomic Gold publication path.
+    /// It does not change Program.cs or authorize productive V9 dispatch.
+    /// </summary>
+    public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
         ProbabilisticLinkageRunRequest request,
+        Guid disposableAttemptId,
         CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ct.ThrowIfCancellationRequested();
+        if (linkage is not IV9ControlledDevCohortScorer devScorer
+            || request.ModelVersion != 9 || !request.Publish
+            || request.Mode is not (LinkageRunType.FULL or LinkageRunType.INCREMENTAL)
+            || request.ReplaySourceRunId is not null)
+            throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
+
+        var boundary = await V9ControlledDevSelection.VerifyAsync(
+            configuration, operationalSql, disposableAttemptId, ct);
+        if (!string.Equals(boundary.Runtime.WinnerSha256, devScorer.WinnerSha256,
+                StringComparison.Ordinal))
+            throw new InvalidOperationException("RUNNER_V9_DEV_SCORER_WINNER_MISMATCH");
+
+        return await RunCoreAsync(request, ct, controlledDev: true);
+    }
+
+    public Task<ProbabilisticLinkageRunSummary> RunAsync(
+        ProbabilisticLinkageRunRequest request,
+        CancellationToken ct) =>
+        RunCoreAsync(request, ct, controlledDev: false);
+
+    private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(
+        ProbabilisticLinkageRunRequest request,
+        CancellationToken ct,
+        bool controlledDev)
     {
         ValidateRequest(request);
         // Defense in depth: RunAsync is also callable outside Program.cs.
         // Until the productive V9 adapter is certified, do not let an explicit
         // V9 selection enter the legacy SQL model loader or acquire a pipeline lock.
         // Historical DT-05 REPLAY retains its separate source-run contract.
-        if (request.Mode != LinkageRunType.REPLAY
+        if (!controlledDev && request.Mode != LinkageRunType.REPLAY
             && (request.ModelVersion == 9
                 || configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9
                 || !string.IsNullOrWhiteSpace(configuration["Linkage:V9SelectionFile"])))
@@ -185,9 +218,12 @@ public sealed class ProbabilisticLinkageBatchRunner(
         // an explicitly controlled and isolated entrypoint is required first.
         // The existing TEST_ONLY fixture retains its stricter guards below.
         if (linkage is IV9RunScopedCohortScorer
-            && linkage is not IV9NonPublishingFrozenCohortScorer)
+            && linkage is not IV9NonPublishingFrozenCohortScorer
+            && !controlledDev)
             throw new InvalidOperationException(
                 "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: V9 DEV scorer requires controlled invocation.");
+        if (controlledDev && linkage is not IV9ControlledDevCohortScorer)
+            throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
         if (linkage is IV9NonPublishingFrozenCohortScorer)
         {
             // This is an opt-in, bounded TEST fixture, never the productive
