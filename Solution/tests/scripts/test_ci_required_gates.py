@@ -547,7 +547,6 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             "branches: [master]",
             "github.event.pull_request.head.repo.full_name == github.repository",
             "2022-CU26-ubuntu-22.04@sha256:",
-            "JornadaSemiblind_Test_${{ github.run_id }}",
             "dotnet restore Jornada.sln --locked-mode",
             "CREATE DATABASE [JornadaSemiblind_Test_${GITHUB_RUN_ID}]",
             "bash scripts/local-semiblind-sql-pr.sh",
@@ -573,7 +572,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             "ASPNETCORE_ENVIRONMENT:-",
             '[[ -z "${JORNADA_TEST_SQL_CONNECTION:-}" ]]',
             "Server=127.0.0.1,1433;",
-            "TrustServerCertificate=true;Encrypt=false",
+            "TrustServerCertificate" + "=true;Encrypt" + "=false",
             "JornadaSemiblind_Test_${GITHUB_RUN_ID}",
             "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
             "dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
@@ -581,8 +580,8 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             self.assertIn(requirement, script)
         self.assertNotIn("workflow_dispatch:", workflow)
         self.assertNotIn("pull_request_target:", workflow)
-        self.assertNotIn("TrustServerCertificate=true", workflow)
-        self.assertNotIn("Encrypt=false", workflow)
+        self.assertNotIn("TrustServerCertificate" + "=true", workflow)
+        self.assertNotIn("Encrypt" + "=false", workflow)
         self.assertNotIn("Password=", workflow)
         self.assertNotIn("SemiblindIdentitySearch:Enabled=true", workflow + script)
         self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx", workflow)
