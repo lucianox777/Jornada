@@ -442,9 +442,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
                         cleanup["run"].index('docker volume rm "$JORNADA_SQL_VOLUME_NAME"'))
 
     def test_all_compose_named_volumes_are_isolated_per_attempt(self):
-        import yaml
-        compose = yaml.load((ROOT / "Solution/docker-compose.yml").read_text(encoding="utf-8"),
-                            Loader=yaml.BaseLoader)
+        compose = (ROOT / "Solution/docker-compose.yml").read_text(encoding="utf-8")
         job = self.workflow["jobs"]["dev-1k"]
         namespace = "jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
         isolation, = [s for s in self.steps if s.get("id") == "isolation"]
@@ -461,7 +459,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         }
         for key, (legacy, suffix) in volumes.items():
             with self.subTest(volume=legacy):
-                self.assertEqual(compose["volumes"][legacy]["name"], "${" + key + ":-" + legacy + "}")
+                self.assertIn("  " + legacy + ':\n    name: "${' + key + ':-' + legacy + '}"', compose)
                 self.assertEqual(job["env"][key], namespace + "-" + suffix)
                 self.assertIn('"$' + key + '"', isolation["run"])
                 self.assertIn('"$' + key + '"', cleanup["run"])
