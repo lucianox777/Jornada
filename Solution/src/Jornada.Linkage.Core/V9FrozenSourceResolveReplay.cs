@@ -55,7 +55,10 @@ public static class V9FrozenSourceResolveReplay
             ?? throw new InvalidDataException("Replay de coorte exige agrupamento fixado no snapshot.");
         if (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
             throw new InvalidDataException("Replay BLIND não mede Gold; variante Gold exige entidades do Runner real.");
-        if (validation.Count < 2 || validation.Any(x => x is null || x.ObservationId <= 0 || x.Partition != partition)
+        // DEV may legitimately have 0/1 pending rows; scientific replay
+        // retains the original >=2-observation admission contract.
+        if ((partition != "DEV" && validation.Count < 2)
+            || validation.Any(x => x is null || x.ObservationId <= 0 || x.Partition != partition)
             || validation.Select(x => x.ObservationId).Distinct().Count() != validation.Count)
             throw new InvalidDataException("Replay exige coorte única correspondente à finalidade e IDs distintos.");
         var rows = validation.OrderBy(x => x.ObservationId).ToArray();
