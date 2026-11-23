@@ -82,7 +82,8 @@ public static class V9ControlledDevOperationalCandidateSource
         // page-local indexes. The entire SQL run_item membership is checked
         // below before any operational candidate/Gold query.
         if (frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
-                || x.Observation is null || x.Observation.Cpf is not null)
+                || x.Observation is null || x.Observation.Cpf is not null
+                || x.Observation.ResolutionAttributes is { Count: > 0 })
             || !frozenRows.Select(x => x.PessoaObservacaoId)
                 .SequenceEqual(frozenRows.Select(x => x.PessoaObservacaoId).OrderBy(x => x))
             || frozenRows.Select(x => x.PessoaObservacaoId).Distinct().Count() != frozenRows.Count)
