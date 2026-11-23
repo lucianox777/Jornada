@@ -163,7 +163,9 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         tests = (Path(__file__).resolve().parents[2]
                  / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
         self.assertIn("BuildCompletedSourceGroupingStagingJsonAsync(", scorer)
-        self.assertIn('"E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"', scorer)
+        self.assertIn('"E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"', scorer)
+        self.assertIn('sourceSetSha256Utf16le = sourceSetDigest', scorer)
+        self.assertIn('Encoding.Unicode.GetBytes(sourceSetCanonical)', scorer)
         self.assertIn('identityStatesAvailable = false', scorer)
         self.assertIn('certified = false', scorer)
         self.assertIn('E2E_NUCLEO_PASS = false', scorer)

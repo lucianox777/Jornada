@@ -273,6 +273,11 @@ def verify(root: Path) -> dict:
         for gestor, ids in source_ids.items()
     }
     require(all(source_ids.values()), "Empty per-manager source identity set")
+    # ZIP-derived complete source-set fingerprint, checked against the
+    # independently stored truth sidecar above. No source IDs leave the receipt.
+    all_source_set_sha = hashlib.sha256(
+        "".join(opaque + "\n" for opaque in sorted(seen_opaque)).encode("utf-16le")
+    ).hexdigest().upper()
     return {
         "schema": "V9_E2E_IBGE_BRIDGE_PREFLIGHT_V1",
         "status": "PASS",
@@ -291,6 +296,7 @@ def verify(root: Path) -> dict:
         "truthSha256": sha256(truth_file),
         "packageSha256": expected_sha,
         "sourceIdentitySetSha256Utf16le": identity_sha,
+        "sourceSetSha256Utf16le": all_source_set_sha,
         "sourceIdentitySetDigestMethod": "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
         "scientificValidation": False,
         "activated": False,

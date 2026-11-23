@@ -125,8 +125,14 @@ class BridgeGroupingReconciliationTests(unittest.TestCase):
         groups = {row["OpaquePersonId"]: str(uuid.UUID(int=i + 1))
                   for i, row in enumerate(truth)}
         groups[extra_code] = groups[first["OpaquePersonId"]]
+        all_ids = sorted(row["OpaquePersonId"] for row in truth)
+        source_digest = hashlib.sha256(
+            "".join(opaque + "\n" for opaque in all_ids).encode("utf-16le")
+        ).hexdigest().upper()
         self.staging = {
-            "schema": JOIN.ORACLE.STAGING_SCHEMA,
+            "schema": JOIN.ORACLE.STAGING_SCHEMA_V2,
+            "sourceSetDigestMethod": JOIN.ORACLE.SOURCE_SET_DIGEST_METHOD,
+            "sourceSetSha256Utf16le": source_digest,
             "status": "STAGING_NOT_CERTIFIED",
             "runId": "11111111-1111-1111-1111-111111111111",
             "commitSha": COMMIT,
@@ -151,6 +157,9 @@ class BridgeGroupingReconciliationTests(unittest.TestCase):
         result = self.evaluate()
         self.assertEqual(result["status"], "RECONCILED_OFFLINE_NOT_CERTIFIED")
         self.assertTrue(result["bridgeZipBytesAndSourceSetVerified"])
+        self.assertTrue(result["independentSqlToZipSourceSetDigestMatched"])
+        self.assertEqual(result["sourceSetDigestMethod"],
+                         JOIN.ORACLE.SOURCE_SET_DIGEST_METHOD)
         self.assertEqual(result["sourceObservations"], 1001)
         self.assertEqual(result["baseIdentities"], 1000)
         self.assertEqual(result["packages"], 4)
@@ -170,7 +179,8 @@ class BridgeGroupingReconciliationTests(unittest.TestCase):
 
     def test_staging_drift_or_attempt_to_forge_gold_or_certification_fails(self):
         for mutation in ("missing", "unknown", "fake_state", "certified",
-                         "wrong_model", "full_schema"):
+                         "wrong_model", "full_schema", "v1_downgrade",
+                         "digest_drift", "digest_method", "missing_digest"):
             with self.subTest(mutation=mutation):
                 data = json.loads(json.dumps(self.staging))
                 if mutation == "missing":
@@ -184,6 +194,16 @@ class BridgeGroupingReconciliationTests(unittest.TestCase):
                     data["E2E_NUCLEO_PASS"] = True
                 elif mutation == "wrong_model":
                     data["modelWinnerSha256"] = "b" * 64
+                elif mutation == "v1_downgrade":
+                    data["schema"] = JOIN.ORACLE.STAGING_SCHEMA
+                    data.pop("sourceSetSha256Utf16le")
+                    data.pop("sourceSetDigestMethod")
+                elif mutation == "digest_drift":
+                    data["sourceSetSha256Utf16le"] = "0" * 64
+                elif mutation == "digest_method":
+                    data["sourceSetDigestMethod"] = "UNVERIFIED"
+                elif mutation == "missing_digest":
+                    data.pop("sourceSetSha256Utf16le")
                 else:
                     data["schema"] = JOIN.ORACLE.SCHEMA
                 write_json(self.stage, data)

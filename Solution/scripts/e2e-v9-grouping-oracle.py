@@ -14,6 +14,8 @@ MAX_TRUTH_BYTES = 8 * 1024 * 1024
 MAX_OBSERVATIONS = 4000
 SCHEMA = "E2E_V9_GROUPING_OBSERVED_DEV_V1"
 STAGING_SCHEMA = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"
+STAGING_SCHEMA_V2 = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"
+SOURCE_SET_DIGEST_METHOD = "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1"
 
 
 def require(condition, message):
@@ -102,13 +104,25 @@ def compare_groupings(manifest_path, truth_path, observed_path,
     require(len(truth_by_source) >= 2, "insufficient grouping truth")
     observed = parse_json(checked_bytes(observed_path, MAX_JSON_BYTES))
     require(isinstance(observed, dict), "invalid observed grouping object")
-    staging = observed.get("schema") == STAGING_SCHEMA
+    staging_v2 = observed.get("schema") == STAGING_SCHEMA_V2
+    staging = observed.get("schema") in (STAGING_SCHEMA, STAGING_SCHEMA_V2)
     if staging:
-        require(set(observed) == {
+        expected_fields = {
             "schema", "status", "runId", "commitSha", "modelWinnerSha256",
             "observationCount", "identityStatesAvailable", "certified",
             "E2E_NUCLEO_PASS", "E2E_INTEGRAL_PASS", "rows"
-        }, "invalid linkage-only staging contract")
+        }
+        if staging_v2:
+            expected_fields |= {"sourceSetDigestMethod", "sourceSetSha256Utf16le"}
+        require(set(observed) == expected_fields,
+                "invalid linkage-only staging contract")
+        if staging_v2:
+            expected_digest = hashlib.sha256(
+                "".join(source + "\n" for source in sorted(truth_by_source))
+                .encode("utf-16le")).hexdigest().upper()
+            require(observed["sourceSetDigestMethod"] == SOURCE_SET_DIGEST_METHOD
+                    and observed["sourceSetSha256Utf16le"] == expected_digest,
+                    "V2 staging source-set digest not bound to isolated truth")
         require(observed["status"] == "STAGING_NOT_CERTIFIED"
                 and observed["identityStatesAvailable"] is False
                 and observed["certified"] is False
@@ -191,6 +205,7 @@ def compare_groupings(manifest_path, truth_path, observed_path,
         "sourceSchema": observed["schema"],
         "identityStatesAvailable": not staging,
         "producerBridgeBinding": not staging,
+        "sourceSetDigestValidated": staging_v2,
         "sha": expected_commit,
         "modelWinnerSha256": expected_winner.upper(),
         "bridgeManifestSha256": manifest_sha,

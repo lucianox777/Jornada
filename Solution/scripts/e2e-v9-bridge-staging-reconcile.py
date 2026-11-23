@@ -53,10 +53,20 @@ def reconcile(root, observed, expected_commit, expected_winner):
             and bridge["baseIdentities"] == PREFLIGHT.PEOPLE
             and bridge["packages"] == 4,
             "bridge preflight coverage invalid")
+    # Independently compare the SQL-reported fingerprint to the complete
+    # set of source IDs actually opened inside the four ZIP members by the
+    # bridge preflight. V1 staging has no such fingerprint and is refused here.
+    staged = ORACLE.parse_json(ORACLE.checked_bytes(observed, ORACLE.MAX_JSON_BYTES))
+    require(isinstance(staged, dict)
+            and staged.get("schema") == ORACLE.STAGING_SCHEMA_V2
+            and staged.get("sourceSetDigestMethod") == ORACLE.SOURCE_SET_DIGEST_METHOD
+            and staged.get("sourceSetSha256Utf16le") == bridge["sourceSetSha256Utf16le"],
+            "staging V2 SQL source digest and ZIP sources differ")
     receipt = ORACLE.compare_groupings(
         bridge_manifest, truth_sidecar, observed,
         expected_commit, expected_winner)
-    require(receipt["sourceSchema"] == ORACLE.STAGING_SCHEMA
+    require(receipt["sourceSchema"] == ORACLE.STAGING_SCHEMA_V2
+            and receipt["sourceSetDigestValidated"] is True
             and receipt["status"] == "MEASURED_NOT_CERTIFIED"
             and receipt["identityStatesAvailable"] is False
             and receipt["producerBridgeBinding"] is False
@@ -74,6 +84,8 @@ def reconcile(root, observed, expected_commit, expected_winner):
         "schema": "E2E_V9_IBGE_BRIDGE_GROUPING_RECONCILIATION_DEV_V1",
         "status": "RECONCILED_OFFLINE_NOT_CERTIFIED",
         "bridgeZipBytesAndSourceSetVerified": True,
+        "independentSqlToZipSourceSetDigestMatched": True,
+        "sourceSetDigestMethod": ORACLE.SOURCE_SET_DIGEST_METHOD,
         "sourceBridgeManifestSha256": bridge["bridgeManifestSha256"],
         "sourceTruthSidecarSha256": bridge["truthSha256"],
         "checkoutSha": expected_commit,

@@ -307,7 +307,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             {
                 var payload = staging.RootElement;
                 Assert.That(payload.GetProperty("schema").GetString(),
-                    Is.EqualTo("E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"));
+                    Is.EqualTo("E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"));
                 Assert.That(payload.GetProperty("status").GetString(),
                     Is.EqualTo("STAGING_NOT_CERTIFIED"));
                 Assert.That(payload.GetProperty("runId").GetString(),
@@ -316,6 +316,15 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                     Is.EqualTo(winner.ContentSha256.ToUpperInvariant()));
                 Assert.That(payload.GetProperty("observationCount").GetInt32(),
                     Is.EqualTo(200));
+                Assert.That(payload.GetProperty("sourceSetDigestMethod").GetString(),
+                    Is.EqualTo("SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1"));
+                var sourceIds = string.Concat(sources.Keys
+                    .OrderBy(x => x, StringComparer.Ordinal)
+                    .Select(x => x + "\n"));
+                var expectedSourceDigest = Convert.ToHexString(
+                    SHA256.HashData(Encoding.Unicode.GetBytes(sourceIds)));
+                Assert.That(payload.GetProperty("sourceSetSha256Utf16le").GetString(),
+                    Is.EqualTo(expectedSourceDigest));
                 Assert.That(payload.GetProperty("identityStatesAvailable").GetBoolean(),
                     Is.False);
                 Assert.That(payload.GetProperty("certified").GetBoolean(), Is.False);

@@ -365,17 +365,28 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         var sources = await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct);
         if (sources.Count == 0 || sources.Count > MaximumSyntheticObservations)
             throw new InvalidDataException("Coorte SQL sintética fora dos limites TEST.");
-        // All values originate from the read-only run-scoped SQL diagnostic.
-        // In particular, identityState is intentionally ABSENT: this RunAsync
-        // did NOT publish decisions into Gold/Serving.
+        // This digest uses the same canonical UTF-16LE + LF + ordinal sort
+        // as the IBGE ZIP source-set preflight, but is independently derived
+        // from the frozen SQL run_item -> Silver observation join.
+        // It binds the entire source set, never any synthetic truth label.
+        var sourceSetCanonical = string.Concat(sources.Keys
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .Select(id => id + "\n"));
+        var sourceSetDigest = Convert.ToHexString(
+            SHA256.HashData(Encoding.Unicode.GetBytes(sourceSetCanonical)));
+        // In particular, identityState is ABSENT: this RunAsync did NOT
+        // publish decisions into Gold/Serving. No source digest authenticates
+        // a real HTTP delivery or proves a transactionally atomic SQL snapshot.
         return JsonSerializer.Serialize(new
         {
-            schema = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1",
+            schema = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2",
             status = "STAGING_NOT_CERTIFIED",
             runId = runId.ToString("D"),
             commitSha = checkoutSha,
             modelWinnerSha256 = pinnedWinnerSha.ToUpperInvariant(),
             observationCount = sources.Count,
+            sourceSetDigestMethod = "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
+            sourceSetSha256Utf16le = sourceSetDigest,
             identityStatesAvailable = false,
             certified = false,
             E2E_NUCLEO_PASS = false,

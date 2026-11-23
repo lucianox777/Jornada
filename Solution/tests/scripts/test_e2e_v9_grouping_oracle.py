@@ -236,6 +236,38 @@ class GroupingOracleTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.evaluate()
 
+    def test_v2_staging_verifies_sql_source_digest_independently(self):
+        stage = self.write_linkage_only_staging()
+        stage["schema"] = ORACLE.STAGING_SCHEMA_V2
+        stage["sourceSetDigestMethod"] = ORACLE.SOURCE_SET_DIGEST_METHOD
+        stage["sourceSetSha256Utf16le"] = hashlib.sha256(
+            "".join(source + "\n" for source in sorted(
+                obs for obs, _ in self.source_rows)).encode("utf-16le")
+        ).hexdigest().upper()
+        self.observed.write_text(json.dumps(stage), encoding="utf-8")
+        receipt = self.evaluate()
+        self.assertTrue(receipt["sourceSetDigestValidated"])
+        self.assertEqual(receipt["sourceSchema"], ORACLE.STAGING_SCHEMA_V2)
+        self.assertIsNone(receipt["identityStates"])
+        self.assertFalse(receipt["producerBridgeBinding"])
+        for condition in ("modified_digest", "wrong_method", "missing_digest",
+                          "bad_digest_case", "extra_digest_in_v1"):
+            with self.subTest(condition=condition):
+                changed = dict(stage)
+                if condition == "modified_digest":
+                    changed["sourceSetSha256Utf16le"] = "0" * 64
+                elif condition == "wrong_method":
+                    changed["sourceSetDigestMethod"] = "UNKNOWN"
+                elif condition == "missing_digest":
+                    changed.pop("sourceSetSha256Utf16le")
+                elif condition == "bad_digest_case":
+                    changed["sourceSetSha256Utf16le"] = stage["sourceSetSha256Utf16le"].lower()
+                else:
+                    changed["schema"] = ORACLE.STAGING_SCHEMA
+                self.observed.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    self.evaluate()
+
     def test_without_true_positive_pairs_cannot_measure_recall(self):
         self.source_rows = [(obs, "BASE-" + str(i))
                             for i, (obs, _) in enumerate(self.source_rows)]
