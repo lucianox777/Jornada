@@ -2,6 +2,24 @@
 
 **Natureza:** evidência operacional e registro de pendência, sem nova decisão científica/funcional, sem autorização de ativação. **Etapa:** 0 do plano GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122; rastreabilidade [PR #1913](https://github.com/lucianox777/Jornada/pull/1913), [issue #1851](https://github.com/lucianox777/Jornada/issues/1851), [issue #1830](https://github.com/lucianox777/Jornada/issues/1830) e [registro científico](V9_Campanha_Standard_Linear_38_Evidencias_20261122.md).
 
+## Atualização posterior — declaração de guarda durável pelo PO (23/11/2026)
+
+**Declaração expressa do Product Owner nesta conversa:** “Eu armazenei em lugar durável”. A partir desta informação, a guarda física **foi declarada realizada pelo responsável**, sem que o destino exato, o conjunto de arquivos, a data/hora da cópia, as permissões ou o recibo de verificação tenham sido fornecidos ao repositório. O projeto reconhece essa confirmação; **não afirma** que somente o Actions ou a cópia temporária sejam os únicos locais onde os dados estejam guardados.
+
+**Status operativo atualizado (substitui o status factual do checkpoint anterior, não apaga seu histórico):** `GUARDA_DURAVEL_DECLARADA_PELO_PO__VALIDACAO_SHA256_14_DE_14_PENDENTE`. Os 14 hashes esperados do ZIP permanecem identificados e 12 ZIPs foram historicamente verificados em bytes no workspace temporário; esse histórico **não é uma inspeção dos bytes no destino informado pelo PO**. Ainda falta saber se os 14 ZIPs, especialmente os dois handoffs grandes, estão presentes nessa guarda e conferir os hashes **pós-cópia**.
+
+**Verificação local preparada (sem acesso ao destino e sem credencial):** `Solution/scripts/v9-verify-campaign38-saved-artifacts.py` permite ao operador verificar **no próprio diretório privado** a presença de 14 ZIPs com os nomes `<artifact_id>-<role>.zip` produzidos pela ferramenta de preservação #1913, SHA-256 calculado dos bytes gravados, CRC e membros do ZIP e hash do JSON operacional interno. Comando ilustrativo, executado **somente pelo operador em seu computador/host autorizado**:
+
+```bash
+python3 Solution/scripts/v9-verify-campaign38-saved-artifacts.py \
+  --directory "<DIRETORIO_PRIVADO_DA_GUARDA>" \
+  --receipt "<DIRETORIO_PRIVADO_PARA_RECIBOS>/campaign38-storage-verification.json"
+```
+
+A ferramenta não acessa GitHub, não copia ou move nenhum ZIP, não imprime caminho do destino no recibo, recusa arquivos ausentes, bytes adulterados, ZIPs adicionais, symlink e permissões inadequadas; não reexecuta TRAIN/TEST. É **verificação de integridade local**, não implementação de NAS da #1830. Mesmo um recibo `14_OF_14_DESTINATION_BYTES_VERIFIED_NOT_STORAGE_CERTIFIED` não atesta durabilidade do meio, backup, controle de acesso, retenção ou recuperação: esses aspectos permanecem separados da declaração do PO e da conferência criptográfica.
+
+**Condição de fechamento da etapa 0:** receber registro de **14/14 verificados no destino** (ou explicar escopo diferente), hash/CRC e SHA interno do vencedor, além de custódia, retenção e evidência mínima de recuperação. Nenhum caminho privado, token ou ZIP deve ser publicado no GitHub. A comprovação de guarda não modifica DT-15, o bloqueio `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`, `E2E_NUCLEO_PASS=false` ou `E2E_INTEGRAL_PASS=false`. GOV-DOC-01: declaração operacional do PO documentada com contexto, impacto, precedência e rastreabilidade ao plano aprovado; nenhuma nova decisão sobre implantação NAS, ciência ou ativação.
+
 ## Identidade, origem, tempo e distinção das provas
 
 - Campanha científica **número #38** (não a issue GitHub #38). [Actions run 44970012048](https://github.com/lucianox777/Jornada/actions/runs/44970012048), tentativa **1**, `completed/success`, workflow `.github/workflows/v9-standard-linear-100k.yml`, evento `workflow_dispatch`, branch `master`, SHA do código `30c71a0db1bdeac6ba536db5e428ade4d5c70c9c`.
