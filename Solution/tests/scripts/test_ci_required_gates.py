@@ -602,6 +602,26 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx", workflow)
         self.assertNotIn("test_v9_standard", workflow + script)
 
+    def test_semiblind_dev_http_uses_real_service_with_fakes_not_sql_e2e(self):
+        # #1854: service/endpoint path is real, SQL retriever and policy are not.
+        http = (ROOT / "Solution/tests/Jornada.Tests/Unit/SemiblindIdentityHttpTests.cs").read_text(
+            encoding="utf-8")
+        self.assertIn("Dev_http_real_service_enforces_person_authorization_and_top_five", http)
+        self.assertIn("[TestCase(false)]", http)
+        self.assertIn("[TestCase(true)]", http)
+        self.assertIn("AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>()", http)
+        self.assertIn("new RealServiceHttpFakeRetriever(fixture)", http)
+        self.assertIn("new RealServiceHttpPersonPolicy(denied)", http)
+        for field in ('"nenhumDestes"', '"busca_completa"', '"motivo_incompletude"',
+                      '"candidatos"', '"nome_completo"', '"opcaoId"'):
+            self.assertIn("GetProperty(" + field + ")", http)
+        self.assertIn("new SemiblindIdentitySearchRequest(\n                    null,", http)
+        self.assertIn("Assert.That(audit.Successful, Is.EqualTo(1)", http)
+        self.assertIn("Is.EquivalentTo(new[]", http)
+        self.assertIn("Does.Not.Contain(person.PessoaUuid.ToString())", http)
+        self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", http)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", http)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile

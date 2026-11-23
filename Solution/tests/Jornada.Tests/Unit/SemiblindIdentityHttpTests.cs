@@ -164,6 +164,122 @@ public sealed class SemiblindIdentityHttpTests
         }
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Dev_http_real_service_enforces_person_authorization_and_top_five(bool denyAll)
+    {
+        // #1854: real HTTP endpoint + real SemiblindIdentitySearchService.
+        // The retriever and person policy are test doubles; this does NOT
+        // prove actual SQL candidate retrieval or institutional visibility #539.
+        var root = Path.Combine(Path.GetTempPath(),
+            "jornada-semiblind-real-service-" + Guid.NewGuid().ToString("N"));
+        var persons = Enumerable.Range(0, 8).Select(i =>
+            new SemiblindInternalCandidate(Guid.NewGuid(), $"Pessoa Sintetica {i}",
+                new DateOnly(1991, 4, 13), "Mae Sintetica")).ToArray();
+        var fixture = persons.Take(2).Concat([persons[1]]).Concat(persons.Skip(2)).ToArray();
+        var denied = denyAll
+            ? persons.Select(p => p.PessoaUuid).ToHashSet()
+            : new HashSet<Guid> { persons[0].PessoaUuid, persons[2].PessoaUuid };
+        var retriever = new RealServiceHttpFakeRetriever(fixture);
+        var policy = new RealServiceHttpPersonPolicy(denied);
+        var audit = new TestAuditSink(false);
+        try
+        {
+            await using var factory = new WebApplicationFactory<ApiEntryPointMarker>()
+                .WithWebHostBuilder(builder =>
+                {
+                    builder.UseEnvironment("Development");
+                    builder.UseSetting("BronzeStorage:RootPath", Path.Combine(root, "bronze"));
+                    builder.UseSetting("IngestionStaging:RootPath", Path.Combine(root, "staging"));
+                    builder.UseSetting("SemiblindIdentitySearch:Enabled", "true");
+                    builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["BronzeStorage:RootPath"] = Path.Combine(root, "bronze"),
+                            ["IngestionStaging:RootPath"] = Path.Combine(root, "staging"),
+                            ["SemiblindIdentitySearch:Enabled"] = "true"
+                        }));
+                    builder.ConfigureTestServices(services =>
+                    {
+                        services.RemoveAll<IAccessContextResolver>();
+                        services.AddSingleton<IAccessContextResolver>(new FakeResolver());
+                        services.RemoveAll<IPolicyEngine>();
+                        services.AddSingleton<IPolicyEngine>(policy);
+                        services.RemoveAll<ISemiblindCandidateRetriever>();
+                        services.AddSingleton<ISemiblindCandidateRetriever>(retriever);
+                        services.RemoveAll<ISemiblindIdentitySearchService>();
+                        services.AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>();
+                        services.RemoveAll<ISemiblindSearchActivationGate>();
+                        services.AddSingleton<ISemiblindSearchActivationGate>(new FakeActivationGate(true));
+                        services.RemoveAll<IApiAuditSink>();
+                        services.AddSingleton<IApiAuditSink>(audit);
+                        services.AddSingleton<ISqlReadinessProbe>(new InMemorySqlReadinessProbe(false));
+                    });
+                });
+            using var client = factory.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, Route)
+            {
+                // No person name or CPF. Request sufficiency is the retriever's
+                // versioned blocking decision, never a universal mandatory-name gate.
+                Content = JsonContent.Create(new SemiblindIdentitySearchRequest(
+                    null, new DateOnly(1991, 4, 13), "Mae Sintetica"))
+            };
+            request.Headers.TryAddWithoutValidation("X-Jornada-Gestor", "SMADS");
+            request.Headers.TryAddWithoutValidation("X-Jornada-Access-Key", "allowed");
+            using var response = await client.SendAsync(request);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(retriever.Calls, Is.EqualTo(1));
+            Assert.That(retriever.LastRequest?.Nome, Is.Null);
+            Assert.That(audit.Successful, Is.EqualTo(1),
+                "The authorized HTTP response must be preceded by one audit.");
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var result = document.RootElement;
+            Assert.That(result.GetProperty("nenhumDestes").GetBoolean(), Is.True);
+            Assert.That(result.GetProperty("busca_completa").GetBoolean(), Is.True);
+            Assert.That(result.GetProperty("motivo_incompletude").ValueKind,
+                Is.EqualTo(JsonValueKind.Null));
+            var candidates = result.GetProperty("candidatos").EnumerateArray().ToArray();
+            Assert.That(candidates, Has.Length.EqualTo(denyAll ? 0 : 5));
+            Assert.That(result.TryGetProperty("cpf", out _), Is.False);
+            Assert.That(result.TryGetProperty("pessoaUuid", out _), Is.False);
+            Assert.That(result.TryGetProperty("score", out _), Is.False);
+            Assert.That(policy.CheckedPersons.Distinct().Count(),
+                Is.EqualTo(denyAll ? 8 : 7),
+                "Every projected person must be authorized before the 5-option limit.");
+            Assert.That(policy.CheckedPersons.Count, Is.EqualTo(policy.CheckedPersons.Distinct().Count()),
+                "The duplicate UUID must not trigger repeated authorization or an extra option.");
+            if (!denyAll)
+                Assert.That(candidates.Select(c => c.GetProperty("nome_completo").GetString()),
+                    Is.EquivalentTo(new[]
+                    {
+                        "Pessoa Sintetica 1", "Pessoa Sintetica 3", "Pessoa Sintetica 4",
+                        "Pessoa Sintetica 5", "Pessoa Sintetica 6"
+                    }));
+            var optionIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var candidate in candidates)
+            {
+                Assert.That(candidate.TryGetProperty("pessoaUuid", out _), Is.False);
+                Assert.That(candidate.TryGetProperty("cpf", out _), Is.False);
+                Assert.That(candidate.TryGetProperty("score", out _), Is.False);
+                Assert.That(candidate.TryGetProperty("posterior", out _), Is.False);
+                var optionId = candidate.GetProperty("opcaoId").GetString();
+                Assert.That(optionId, Is.Not.Null.And.Length.EqualTo(32));
+                Assert.That(optionIds.Add(optionId!), Is.True);
+            }
+            Assert.That(optionIds.Count, Is.EqualTo(candidates.Length));
+            var responseBody = document.RootElement.GetRawText();
+            Assert.That(responseBody, Does.Not.Contain("Pessoa Sintetica 0"));
+            Assert.That(responseBody, Does.Not.Contain("Pessoa Sintetica 2"));
+            foreach (var person in persons)
+                Assert.That(responseBody, Does.Not.Contain(person.PessoaUuid.ToString()),
+                    "Internal UUIDs must not be exposed through the HTTP API.");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     [TestCase("Development", true, "JornadaLocal", "Development", true)]
     [TestCase("Development", true, "JornadaSyntheticDev", "Development", true)]
     [TestCase("Development", false, "JornadaLocal", "Development", false)]
@@ -227,6 +343,41 @@ public sealed class SemiblindIdentityHttpTests
             return Task.FromResult(new SemiblindIdentitySearchResponse(correlationId,
                 [new SemiblindIdentityCandidate("opcao-teste", "Pessoa restrita", new DateOnly(1980, 1, 1), null)]));
         }
+    }
+
+    private sealed class RealServiceHttpFakeRetriever(
+        IReadOnlyList<SemiblindInternalCandidate> persons) : ISemiblindCandidateRetriever
+    {
+        public int Calls { get; private set; }
+        public SemiblindIdentitySearchRequest? LastRequest { get; private set; }
+        public Task<SemiblindCandidateRetrievalResult> RetrieveAsync(
+            SemiblindIdentitySearchRequest request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastRequest = request;
+            return Task.FromResult(SemiblindCandidateRetrievalResult.Complete(persons));
+        }
+    }
+
+    private sealed class RealServiceHttpPersonPolicy(HashSet<Guid> denied) : IPolicyEngine
+    {
+        public List<Guid> CheckedPersons { get; } = [];
+
+        public Task<bool> IsAllowedAsync(AccessContext context, string permission,
+            string? resourceCode, Guid? pessoaUuid, CancellationToken cancellationToken)
+        {
+            if (pessoaUuid is Guid person)
+                CheckedPersons.Add(person);
+            return Task.FromResult(
+                permission == "jornada.identidade.busca.read"
+                && context.Scopes.Contains(permission)
+                && resourceCode == context.TipoCodigo
+                && (pessoaUuid is not Guid id || !denied.Contains(id)));
+        }
+
+        public Task<bool> ArePersonsAllowedAsync(AccessContext context, string permission,
+            string? resourceCode, IReadOnlyCollection<Guid> pessoaUuids, CancellationToken cancellationToken)
+            => Task.FromResult(false);
     }
 
     private sealed class TestAuditSink(bool fail) : IApiAuditSink
