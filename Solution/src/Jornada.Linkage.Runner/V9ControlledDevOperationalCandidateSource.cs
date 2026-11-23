@@ -95,6 +95,62 @@ public static class V9ControlledDevOperationalCandidateSource
             throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
     }
 
+
+    /// <summary>
+    /// Read-only bridge to the EXISTING operational cohort-graph verifier.
+    /// Only a fully pre-resolved Gold-bound run may be represented as graph
+    /// sources. An unresolved Silver row has NO authenticated Gold UUID and
+    /// cannot be assigned the UUID of a blocking hit or a diagnostic group.
+    ///
+    /// This is an INPUT ADAPTER, not physical certification: VerifiedRunCandidates
+    /// is a publicly constructible record, and the existing SQL SNAPSHOT graph
+    /// verifier MUST independently reauthenticate Silver, links, the entire
+    /// Gold reference population and the operational candidate census before
+    /// any result can be trusted. Never use this output as a publishing scorer.
+    /// </summary>
+    public static IReadOnlyList<V9OperationalCohortGraphPreview.Source>
+        BuildFullyResolvedGraphSourcesForPhysicalReverification(
+            IReadOnlyList<V9FrozenRunObservation> frozenRows,
+            VerifiedRunCandidates verifiedSource)
+    {
+        ArgumentNullException.ThrowIfNull(frozenRows);
+        ArgumentNullException.ThrowIfNull(verifiedSource);
+        var links = verifiedSource.ExistingResolvedGoldLinksByObservation;
+        if (frozenRows.Count == 0 || links is null
+            || links.Count != frozenRows.Count
+            || verifiedSource.ManagerByObservation.Count != frozenRows.Count
+            || verifiedSource.AuthenticatedSilverByObservation.Count != frozenRows.Count
+            || verifiedSource.CandidatesByObservation.Count != frozenRows.Count
+            || verifiedSource.EvidenceByObservation.Count != frozenRows.Count)
+            throw new InvalidDataException("RUNNER_V9_DEV_GRAPH_BINDING_NOT_AUTHENTICATED");
+
+        var sources = new List<V9OperationalCohortGraphPreview.Source>(frozenRows.Count);
+        long previous = 0;
+        foreach (var row in frozenRows)
+        {
+            if (row is null || row.PessoaObservacaoId <= previous
+                || row.Observation is null || row.Observation.Cpf is not null
+                || row.Observation.ResolutionAttributes is { Count: > 0 }
+                || !links.TryGetValue(row.PessoaObservacaoId, out var goldUuid)
+                || goldUuid == Guid.Empty
+                || !verifiedSource.ManagerByObservation.TryGetValue(
+                    row.PessoaObservacaoId, out var manager)
+                || string.IsNullOrWhiteSpace(manager)
+                || !verifiedSource.AuthenticatedSilverByObservation.TryGetValue(
+                    row.PessoaObservacaoId, out var authenticatedSilver)
+                || authenticatedSilver is null
+                || !Equals(row.Observation, authenticatedSilver)
+                || !verifiedSource.CandidatesByObservation.ContainsKey(row.PessoaObservacaoId)
+                || !verifiedSource.EvidenceByObservation.ContainsKey(row.PessoaObservacaoId))
+                throw new InvalidDataException("RUNNER_V9_DEV_GRAPH_BINDING_NOT_AUTHENTICATED");
+
+            sources.Add(new V9OperationalCohortGraphPreview.Source(
+                row.PessoaObservacaoId, goldUuid, manager, authenticatedSilver));
+            previous = row.PessoaObservacaoId;
+        }
+        return Array.AsReadOnly(sources.ToArray());
+    }
+
     /// <summary>
     /// A Gold-joined candidate list must be exactly the original operational
     /// UUID union, including order. Missing/non-REFERENCIA Gold cannot be

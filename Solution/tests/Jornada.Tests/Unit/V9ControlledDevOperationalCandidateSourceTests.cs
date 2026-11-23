@@ -222,6 +222,87 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             "CONFLITO", null, null);
     }
 
+
+    [Test]
+    public void Fully_resolved_graph_bridge_uses_only_preexisting_Gold_links_and_original_Silver()
+    {
+        var left = Row(1);
+        var right = Row(2) with
+        {
+            Observation = Row(2).Observation with { NomeCompleto = "JOAO COSTA" }
+        };
+        var goldA = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var goldB = Guid.Parse("22222222-2222-4222-8222-222222222222");
+        var managers = new Dictionary<long, string>
+            { [1] = "GESTOR_A", [2] = "GESTOR_B" };
+        var originalSilver = new Dictionary<long, IdentityObservation>
+            { [1] = left.Observation, [2] = right.Observation };
+        var candidates = new Dictionary<long,
+            IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>>
+            { [1] = [], [2] = [] };
+        var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>
+            {
+                [1] = new(0, new string('0', 64), []),
+                [2] = new(0, new string('0', 64), [])
+            };
+
+        V9ControlledDevOperationalCandidateSource.VerifiedRunCandidates Receipt(
+            IReadOnlyDictionary<long, Guid>? links,
+            IReadOnlyDictionary<long, string>? managersOverride = null,
+            IReadOnlyDictionary<long, IdentityObservation>? silverOverride = null) =>
+            new(managersOverride ?? managers, candidates, evidence,
+                silverOverride ?? originalSilver, links);
+
+        var bound = V9ControlledDevOperationalCandidateSource
+            .BuildFullyResolvedGraphSourcesForPhysicalReverification(
+                [left, right], Receipt(new Dictionary<long, Guid>
+                    { [1] = goldA, [2] = goldB }));
+        Assert.Multiple(() =>
+        {
+            Assert.That(bound.Select(x => x.ObservationId), Is.EqualTo(new long[] { 1, 2 }));
+            Assert.That(bound.Select(x => x.GoldUuid), Is.EqualTo(new[] { goldA, goldB }));
+            Assert.That(bound.Select(x => x.Manager),
+                Is.EqualTo(new[] { "GESTOR_A", "GESTOR_B" }));
+            Assert.That(bound[0].Observation, Is.EqualTo(left.Observation));
+            Assert.That(bound[1].Observation, Is.EqualTo(right.Observation));
+        });
+
+        void Reject(IReadOnlyList<V9FrozenRunObservation> rows,
+            V9ControlledDevOperationalCandidateSource.VerifiedRunCandidates source) =>
+            Assert.That((Action)(() =>
+                V9ControlledDevOperationalCandidateSource
+                    .BuildFullyResolvedGraphSourcesForPhysicalReverification(rows, source)),
+                Throws.TypeOf<InvalidDataException>().With.Message.EqualTo(
+                    "RUNNER_V9_DEV_GRAPH_BINDING_NOT_AUTHENTICATED"));
+
+        // A missing/null link cannot be replaced by any Gold candidate UUID
+        // or by the synthetic complete-link grouping diagnostic identifier.
+        Reject([left, right], Receipt(null));
+        Reject([left, right], Receipt(new Dictionary<long, Guid> { [1] = goldA }));
+        Reject([left, right], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [2] = Guid.Empty }));
+        Reject([left, right], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [99] = goldB }));
+        Reject([left, right], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [2] = goldB }, managersOverride:
+            new Dictionary<long, string> { [1] = "GESTOR_A", [2] = " " }));
+        Reject([left, right], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [2] = goldB }, silverOverride:
+            new Dictionary<long, IdentityObservation>
+            {
+                [1] = left.Observation,
+                [2] = right.Observation with { NomeCompleto = "NOME FALSO" }
+            }));
+        Reject([right, left], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [2] = goldB }));
+        Reject([left, left], Receipt(new Dictionary<long, Guid>
+            { [1] = goldA, [2] = goldB }));
+        Reject([], Receipt(new Dictionary<long, Guid>()));
+        Reject([left, right with
+            { Observation = right.Observation with { Cpf = "12345678901" } }],
+            Receipt(new Dictionary<long, Guid> { [1] = goldA, [2] = goldB }));
+    }
+
     [Test]
     public void Zero_pending_DEV_run_requires_real_SQL_admission_not_a_fake_malformed_universe()
     {
