@@ -69,7 +69,11 @@ public static class V9ControlledDevOperationalCandidateSource
     {
         ArgumentNullException.ThrowIfNull(verifiedOperationalUuids);
         ArgumentNullException.ThrowIfNull(joinedGoldCandidates);
-        if (verifiedOperationalUuids.Count != joinedGoldCandidates.Count)
+        // The operational candidate UUID union must be a set; matching two
+        // equally duplicated lists would not establish a valid Gold graph.
+        if (verifiedOperationalUuids.Count != joinedGoldCandidates.Count
+            || verifiedOperationalUuids.Any(uuid => uuid == Guid.Empty)
+            || verifiedOperationalUuids.Distinct().Count() != verifiedOperationalUuids.Count)
             throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
         for (var i = 0; i < verifiedOperationalUuids.Count; i++)
             if (verifiedOperationalUuids[i] == Guid.Empty
@@ -99,7 +103,8 @@ public static class V9ControlledDevOperationalCandidateSource
         // Source IDs are globally ordered immutable run_item IDs, never
         // page-local indexes. The entire SQL run_item membership is checked
         // below before any operational candidate/Gold query.
-        if (frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
+        if (frozenRows.Count == 0
+            || frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
                 || x.Observation is null || x.Observation.Cpf is not null
                 || x.Observation.ResolutionAttributes is { Count: > 0 })
             || !frozenRows.Select(x => x.PessoaObservacaoId)
