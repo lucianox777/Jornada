@@ -257,7 +257,7 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             .BuildFullyResolvedGraphSourcesForPhysicalReverification(
                 [left, right], Receipt(new Dictionary<long, Guid>
                     { [1] = goldA, [2] = goldB }));
-        Assert.Multiple(() =>
+        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
         {
             Assert.That(bound.Select(x => x.ObservationId), Is.EqualTo(new long[] { 1, 2 }));
             Assert.That(bound.Select(x => x.GoldUuid), Is.EqualTo(new[] { goldA, goldB }));
@@ -265,7 +265,7 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
                 Is.EqualTo(new[] { "GESTOR_A", "GESTOR_B" }));
             Assert.That(bound[0].Observation, Is.EqualTo(left.Observation));
             Assert.That(bound[1].Observation, Is.EqualTo(right.Observation));
-        });
+        }));
 
         void Reject(IReadOnlyList<V9FrozenRunObservation> rows,
             V9ControlledDevOperationalCandidateSource.VerifiedRunCandidates source) =>
