@@ -1,0 +1,50 @@
+# Preservação da campanha V9 Standard Linear #38 — inventário e guarda, 23/11/2026
+
+**Natureza:** evidência operacional e registro de pendência, sem nova decisão científica/funcional, sem autorização de ativação. **Etapa:** 0 do plano GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122; rastreabilidade [PR #1913](https://github.com/lucianox777/Jornada/pull/1913), [issue #1851](https://github.com/lucianox777/Jornada/issues/1851), [issue #1830](https://github.com/lucianox777/Jornada/issues/1830) e [registro científico](V9_Campanha_Standard_Linear_38_Evidencias_20261122.md).
+
+## Identidade, origem, tempo e distinção das provas
+
+- Campanha científica **número #38** (não a issue GitHub #38). [Actions run 44970012048](https://github.com/lucianox777/Jornada/actions/runs/44970012048), tentativa **1**, `completed/success`, workflow `.github/workflows/v9-standard-linear-100k.yml`, evento `workflow_dispatch`, branch `master`, SHA do código `30c71a0db1bdeac6ba536db5e428ade4d5c70c9c`.
+- **Consulta somente leitura a Actions em 23/11/2026:** **14/14 artefatos presentes**, `expired=false`, todos os **14 digests informados pelo GitHub** são idênticos aos SHA-256 fixados na ferramenta canônica `Solution/scripts/v9-preserve-campaign38-artifacts.py`. Isso confirma **identidade e metadados**, não download ou novo hash dos bytes.
+- **Prova física histórica de 22/11/2026:** [comentário #7086137610](https://github.com/lucianox777/Jornada/pull/1913#issuecomment-7086137610) documenta cópia **temporária de 12/14 ZIPs** (total 26.744.710 bytes), com SHA-256 dos bytes efetivamente baixados, CRC integral e membros verificados. Vencedor e TEST incluídos nesses 12. [Comentário #7086262500](https://github.com/lucianox777/Jornada/pull/1913#issuecomment-7086262500) confirma adicionalmente o hash do arquivo operacional interno do vencedor. A existência da cópia temporária em conversa passada **não comprova que ela ainda esteja acessível** ou que tenha sido transferida ao destino definitivo.
+- **Bloqueio:** os dois arquivos de handoff, 738.069.463 e 736.908.357 bytes, ultrapassaram o limite de 536.870.912 bytes por transferência do conector. Nenhuma verificação byte a byte desses dois arquivos foi atestada.
+- **Destino privado durável:** **NÃO IDENTIFICADO / NÃO COMPROVADO** nos registros inspecionados até 23/11/2026. Ausentes: identificação do destino, recibo de transferência/cópia de **14/14**, SHA-256 recalculado **no destino**, manifesto final `COMPLETE`, evidência de permissões/controle de acesso, política de retenção e verificação de recuperação. GitHub Actions, com expiração, e workspace temporário **não são** guarda durável.
+
+## Inventário completo — SHA-256 do ZIP de Actions (não do membro interno)
+
+| Papel | Artefato GitHub Actions | Bytes no Actions | SHA-256 do ZIP conforme Actions e pin | Última prova de bytes documentada |
+|---|---|---:|---|---|
+| prepare | [14732438742](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14732438742) | 7671805 | `ba954dd0c3711a5df55055d76f4dc8a625a1118ccce21f4ce56e05336836b1ad` | Conferido no ZIP temporário (22/11) |
+| train | [14742152579](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742152579) | 1195365 | `22029b40ab51e6892f8071fae94d8c2c2d662348ae6dd3484614d95456ac9690` | Conferido no ZIP temporário (22/11) |
+| audit | [14741794442](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14741794442) | 24413 | `e1abc3e5d733836a7360a2511cb94a196ccac015407a6bdb97d447a0dd29bb41` | Conferido no ZIP temporário (22/11) |
+| validation | [14742472448](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742472448) | 501300 | `64e2e8375b5a71f8697e0703496728552a0698998e2585b89439893246b59684` | Conferido no ZIP temporário (22/11) |
+| validation-status | [14742611497](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742611497) | 584 | `1a4da4fcca339f1dd27a1aa2ed0f29cc09d056f9ecf221798880d957b5e2dc0b` | Conferido no ZIP temporário (22/11) |
+| validation-corpus | [14742492418](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742492418) | 7671541 | `c2d682e4d90518d3584a1ed3f2a63aa8448ad183b1baec68feae284a7118bfc1` | Conferido no ZIP temporário (22/11) |
+| winner-operational | [14742452561](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742452561) | 2009583 | `24a890243dff4d988515ac17532ee3720bff0c0b01261aa36c9e0d74426d5de7` | Conferido no ZIP temporário (22/11) |
+| independent-test | [14742233807](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742233807) | 2027 | `dc1f211549a61cfed6a1b5ee81b5e84580ef2eec6ad803b5425a449a489b3344` | Conferido no ZIP temporário (22/11) |
+| test-corpus | [14742890165](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742890165) | 7664131 | `e828414061da54e46dfbacb161bc8e62a073be967d25cb2678b5137578b521d2` | Conferido no ZIP temporário (22/11) |
+| closeout | [14742477968](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742477968) | 641 | `c2f703e0b0f155e6ae4a9c7e4e7f258f1c6b89803c803152942716834da89929` | Conferido no ZIP temporário (22/11) |
+| comparative-report | [14742621957](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742621957) | 2805 | `9659e8593fbab3d5b21d1ab57189ed4bce26c0ce8fd9d17647dbee35761dead0` | Conferido no ZIP temporário (22/11) |
+| prepare-reference | [14742084383](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742084383) | 515 | `5f0f0d1b4f6e2bbe7831650eea167fb0b75b2f2d423085992c77ddf9e4e69880` | Conferido no ZIP temporário (22/11) |
+| preaudit-handoff | [14742267026](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742267026) | 738069463 | `7cb9b20f0602abf8a588a2dd09ec2d4422fcebcf7408cbbb51bf80511d68dced` | **Não conferido em bytes** |
+| validation-handoff | [14742257307](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742257307) | 736908357 | `643b59545a938b63d8dc0cfc9df1abbf0195f9620e0e95ac5d96ebf513251cc6` | **Não conferido em bytes** |
+
+**Somatório dos tamanhos declarados:** 1.501.722.530 bytes de ZIPs (~1,50 GB); operador deve prever margem de armazenamento temporário, metadados e recuperação. **Primeira expiração:** `2026-12-22T01:09:08Z` (PREPARE `14732438742`). Todos os 14 expirariam em 22/12/2026, conforme seus metadados próprios. Essa data **não** é uma política de retenção institucional.
+
+### Vencedor e TEST: hashes de conteúdo separados
+
+- Pacote vencedor: [artifact `14742452561`](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742452561), SHA-256 do **ZIP** `24a890243dff4d988515ac17532ee3720bff0c0b01261aa36c9e0d74426d5de7`.
+- Membro operacional interno `6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee.operational.json`, tamanho histórico documentado **8.769.194 bytes**, SHA-256 interno `6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee`. Não confundir hash do ZIP e hash do JSON; nenhuma fonte de score do Runner foi executada neste checkpoint.
+- TEST independente: [artifact `14742233807`](https://github.com/lucianox777/Jornada/actions/runs/44970012048/artifacts/14742233807), SHA-256 do **ZIP** `dc1f211549a61cfed6a1b5ee81b5e84580ef2eec6ad803b5425a449a489b3344`. O TEST já ocorreu no run histórico; este registro não reexecuta TEST científico.
+
+## Critério objetivo para declarar guarda durável concluída
+
+O operador autorizado precisa produzir no destino institucional já disponibilizado: **(1)** identificação auditável do destino e custódia, sem segredos nem caminho pessoal exposto; **(2)** comprovação dos **14/14 ZIPs** preservados em arquivos reais; **(3)** SHA-256 recalcado após a gravação, igual aos 14 valores acima, com CRC íntegro e SHA interno do vencedor; **(4)** manifesto `campaign38-preservation-manifest.json` que registre `COPIED_AND_VERIFIED_LOCAL_NOT_NAS_CERTIFIED` apenas após todos os 14, vinculando run, tentativa, SHA, operador e arquivos; **(5)** controles de acesso privados, retenção institucional e teste de recuperação. Sem recibo do destino e leitura pós-cópia, não promover o status para `DURABLE_VERIFIED`. O manifesto local `COPIED_AND_VERIFIED_LOCAL_NOT_NAS_CERTIFIED` por si só **não** certifica NAS, retenção ou replay.
+
+**Procedimento já implementado (não executado neste checkpoint):** somente sob credencial do operador, usar `Solution/scripts/v9-preserve-campaign38-artifacts.py --destination <diretório-privado-existente-vazio> --execute` em host e armazenamento realmente duráveis, protegidos, diretório não symlink e permissões apropriadas. Não armazenar ZIPs, tokens, gabarito ou material sigiloso no GitHub. A issue **#1830 proíbe iniciar implementação NAS** sem autorização posterior; preservação pontual em storage institucional existente, caso autorizado, não equivale à implementação do sistema NAS.
+
+## Estado auditado e efeito de governança
+
+**Etapa 0 = `PENDENTE_PRESERVACAO_DURAVEL_14_DE_14`.** Há prova histórica de hash/CRC de **12/14 ZIPs apenas temporários**, hash interno do vencedor e inventário GitHub de **14/14**, mas **não há atestado verificável de local durável**. A solicitação do PO de registrar a guarda é atendida como **registro rastreável de evidências e pendências**, e não como aceite fictício. Nenhum arquivo foi transferido para o destino definitivo nesta atividade, não houve revisão de ciência, merge, execução científica, promoção do vencedor ou mudança em `E2E_NUCLEO_PASS=false`, `E2E_INTEGRAL_PASS=false`, `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`.
+
+**GOV-DOC-01 e precedência:** aplicação documental do plano já aprovado, sem nova decisão do PO; mantém `GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122`, fronteira NAS da #1830, seleção MASTER/DT-15, retenção TEST e histórico científico. O registro foi criado na PR Draft #1920; a documentação **ainda não está integrada à `master`**.

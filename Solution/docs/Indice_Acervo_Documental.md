@@ -2,6 +2,8 @@
 
 > **ACERVO GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122:** [plano original do E2E do sistema inteiro aprovado pelo PO com ajustes obrigatórios, caminho crítico 0–9, frentes paralelas, gates DEV e marcos de aceite](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md). Detalhamento da P0-B; não representa certificação nem ativação. GOV-DOC-01.
 
+> **ACERVO — preservação de artefatos da campanha científica #38, checkpoint 23/11/2026:** [inventário completo de 14 ZIPs, SHA-256, conferência histórica 12/14 e prova de guarda durável ainda pendente](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md). GitHub Actions não é destino durável; prazo inicial de expiração 22/12/2026. [Run #44970012048](https://github.com/lucianox777/Jornada/actions/runs/44970012048) · [PR de ferramenta #1913](https://github.com/lucianox777/Jornada/pull/1913) · [plano aprovado](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md). Sem nova decisão PO, sem certificação NAS/Runner. GOV-DOC-01.
+
 > **V9 Standard Linear 100k — autorização e resultado.** [Regra do último SHA validado](Decisao_GOV_V9_Autorizacao_Condicional_SHA_Final_20261121.md#autorização-dinâmica-vigente) · [Auditoria e recibos do run #44970012048](V9_Standard_Linear_100k_Resultado_Run_44970012048.md) · [Runbook operacional](Runbook_Operacao.md#operação-do-calibrador-v9). GOV-DOC-01.
 
 > **Incidente V9 Standard Linear 100k — run #44930426056 (21/11/2026).** [Diagnóstico do SHA do recibo do TEST, vencedor preservado, evidências e recuperação](Incidente_V9_Standard_Linear_TEST_SHA_20261121.md). GOV-DOC-01.
