@@ -171,7 +171,7 @@ public sealed class BlockingProjectionSqlServerTests
         // O loader SQL real lê limite+1 e recusa antes de projetar Top 5.
         // O serviço HTTP traduz esse caso em busca_completa=false, não em
         // uma resposta vazia interpretada como 'nenhuma pessoa encontrada'.
-        var overflow = Assert.ThrowsAsync<InvalidOperationException>((AsyncTestDelegate)(async () =>
+        var overflow = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
         {
             await BlockingProjectionCandidateLoader.LoadAsync(
                 connection, motherBirthRuleset, noPersonName, maxCandidates: 1,
