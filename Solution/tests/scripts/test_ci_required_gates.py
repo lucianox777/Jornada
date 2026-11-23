@@ -429,7 +429,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertEqual(physical["env"]["JORNADA_E2E_HTTP_VOLUME_COUNT"], "1000")
         self.assertIn("--profile e2e --allow-reset e2e", physical["run"])
 
-    def test_workflow_only_removes_the_sql_volume_owned_by_the_attempt(self):
+    def test_workflow_only_removes_attempt_owned_volumes(self):
         job = self.workflow["jobs"]["dev-1k"]
         namespace = "jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
         self.assertEqual(job["env"]["COMPOSE_PROJECT_NAME"], namespace)
@@ -438,8 +438,9 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         cleanup, = [s for s in self.steps if s.get("id") == "cleanup"]
         self.assertIn("steps.isolation.outcome == 'success'", cleanup["if"])
         self.assertNotIn("--volumes", cleanup["run"])
+        self.assertIn('for volume in "$JORNADA_SQL_VOLUME_NAME"', cleanup["run"])
         self.assertLess(cleanup["run"].index('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]'),
-                        cleanup["run"].index('docker volume rm "$JORNADA_SQL_VOLUME_NAME"'))
+                        cleanup["run"].index('docker volume rm "$volume"'))
 
     def test_all_compose_named_volumes_are_isolated_per_attempt(self):
         compose = (ROOT / "Solution/docker-compose.yml").read_text(encoding="utf-8")
