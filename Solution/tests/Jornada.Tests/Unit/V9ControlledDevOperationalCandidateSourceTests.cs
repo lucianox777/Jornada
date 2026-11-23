@@ -143,6 +143,50 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         Reject(1, "GESTOR_A", original with { CpfAusenteMotivo = "DIVERGENTE" });
     }
 
+
+    [Test]
+    public void Only_physically_existing_active_RESOLVIDO_links_can_bind_a_Gold_uuid()
+    {
+        var realGold = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var frozen = new HashSet<long> { 1, 2 };
+        var verified = new Dictionary<long, Guid>();
+
+        // Legitimate pending observations remain unbound; a hit in blocking
+        // would not change this result or permit a fabricated Gold destination.
+        V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
+            verified, frozen, 2, "NAO_RESOLVIDO", null, null);
+        V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
+            verified, frozen, 1, "RESOLVIDO", realGold, "REFERENCIA");
+        Assert.That(verified.Count, Is.EqualTo(1));
+        Assert.That(verified[1], Is.EqualTo(realGold));
+        Assert.That(verified.ContainsKey(2), Is.False);
+
+        void Reject(long observationId, string? status, Guid? uuid, string? goldState,
+            bool repeated = false)
+        {
+            var state = repeated
+                ? new Dictionary<long, Guid> { [1] = realGold }
+                : new Dictionary<long, Guid>();
+            Assert.That((Action)(() =>
+                V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
+                    state, frozen, observationId, status, uuid, goldState)),
+                Throws.TypeOf<InvalidDataException>().With.Message.EqualTo(
+                    "RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED"));
+        }
+
+        Reject(3, "RESOLVIDO", realGold, "REFERENCIA"); // outside the run
+        Reject(1, null, realGold, "REFERENCIA");
+        Reject(1, "UNKNOWN", realGold, "REFERENCIA");
+        Reject(1, "RESOLVIDO", null, "REFERENCIA");
+        Reject(1, "RESOLVIDO", Guid.Empty, "REFERENCIA");
+        Reject(1, "RESOLVIDO", realGold, null);
+        Reject(1, "RESOLVIDO", realGold, "PROVISORIA");
+        Reject(1, "RESOLVIDO", realGold, "INDEFINIDA");
+        Reject(1, "NAO_RESOLVIDO", realGold, null);
+        Reject(1, "CONFLITO", null, "REFERENCIA");
+        Reject(1, "RESOLVIDO", realGold, "REFERENCIA", repeated: true);
+    }
+
     [Test]
     public void Missing_attempt_and_nonpositive_candidate_capacity_fail_before_SQL()
     {

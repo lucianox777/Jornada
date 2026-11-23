@@ -41,7 +41,11 @@ public static class V9ControlledDevOperationalCandidateSource
         IReadOnlyDictionary<long, string> ManagerByObservation,
         IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation,
         IReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt> EvidenceByObservation,
-        IReadOnlyDictionary<long, IdentityObservation> AuthenticatedSilverByObservation);
+        IReadOnlyDictionary<long, IdentityObservation> AuthenticatedSilverByObservation,
+        // An authenticated SQL subset of pre-existing active RESOLVIDO links.
+        // null means NOT physically read; empty means no such links were found.
+        // NEVER populate missing rows from blocking hits or inferred groups.
+        IReadOnlyDictionary<long, Guid>? ExistingResolvedGoldLinksByObservation = null);
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
     public static string VerifyFrozenSilverObservation(
@@ -56,6 +60,33 @@ public static class V9ControlledDevOperationalCandidateSource
             || !Equals(frozen.Observation, sqlObservation))
             throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
         return manager;
+    }
+
+    /// <summary>
+    /// Validate only links already RESOLVIDO in identidade.vinculo_fonte.
+    /// This guard never invents a destination for an unresolved observation.
+    /// The caller must source status, UUID and Gold state from the SAME SQL SNAPSHOT.
+    /// </summary>
+    public static void RecordExistingResolvedGoldLink(
+        Dictionary<long, Guid> authenticated,
+        IReadOnlySet<long> frozenIds,
+        long observationId, string? status, Guid? linkedUuid, string? goldState)
+    {
+        ArgumentNullException.ThrowIfNull(authenticated);
+        ArgumentNullException.ThrowIfNull(frozenIds);
+        if (!frozenIds.Contains(observationId)
+            || status is not ("RESOLVIDO" or "NAO_RESOLVIDO" or "CONFLITO"))
+            throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
+        if (status != "RESOLVIDO")
+        {
+            if (linkedUuid is not null || goldState is not null)
+                throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
+            return;
+        }
+        if (linkedUuid is not Guid uuid || uuid == Guid.Empty
+            || goldState != "REFERENCIA"
+            || !authenticated.TryAdd(observationId, uuid))
+            throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
     }
 
     /// <summary>
@@ -211,6 +242,35 @@ public static class V9ControlledDevOperationalCandidateSource
                 throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
         }
 
+        // A blocking candidate is NOT proof of identity membership. In the
+        // same read-only SNAPSHOT, collect only ACTIVE, already RESOLVIDO SQL
+        // links to real Gold REFERENCIA persons for this exact run universe.
+        // An unlinked pending Silver observation deliberately stays unbound.
+        var existingResolvedGold = new Dictionary<long, Guid>();
+        var expectedFrozenIds = frozenRows.Select(r => r.PessoaObservacaoId).ToHashSet();
+        await using (var links = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,v.status,v.pessoa_uuid,g.estado_identidade
+              FROM identidade.linkage_run_item ri
+              JOIN identidade.vinculo_fonte v
+                ON v.pessoa_observacao_id=ri.pessoa_observacao_id AND v.ativo=1
+              LEFT JOIN gold.pessoa g ON g.pessoa_uuid=v.pessoa_uuid
+             WHERE ri.linkage_run_id=@run_id
+             ORDER BY ri.pessoa_observacao_id,v.vinculo_id;
+            """, connection, snapshot))
+        {
+            links.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await using var linkRows = await links.ExecuteReaderAsync(cancellationToken);
+            while (await linkRows.ReadAsync(cancellationToken))
+            {
+                if (linkRows.IsDBNull(0) || linkRows.IsDBNull(1))
+                    throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
+                RecordExistingResolvedGoldLink(existingResolvedGold, expectedFrozenIds,
+                    linkRows.GetInt64(0), linkRows.GetString(1),
+                    linkRows.IsDBNull(2) ? null : linkRows.GetGuid(2),
+                    linkRows.IsDBNull(3) ? null : linkRows.GetString(3));
+            }
+        }
+
         var winner = pinnedWinner.FrozenWinner;
         if (pinnedWinner.ModelId !=
                 V9OperationalSqlModelConverter.ModelIdFromWinnerSha(pinnedWinner.WinnerSha256))
@@ -279,6 +339,7 @@ public static class V9ControlledDevOperationalCandidateSource
             new ReadOnlyDictionary<long, string>(managers),
             new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result),
             new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence),
-            new ReadOnlyDictionary<long, IdentityObservation>(authenticatedSilver));
+            new ReadOnlyDictionary<long, IdentityObservation>(authenticatedSilver),
+            new ReadOnlyDictionary<long, Guid>(existingResolvedGold));
     }
 }
