@@ -52,6 +52,23 @@ public sealed class V9ControlledDevAdmissionNegativeMatrixTests
         Assert.That(sql.ConnectionRequests, Is.Zero);
     }
 
+    [Test]
+    public void Physical_preflight_rejects_unbound_attempt_or_closed_connection_without_SQL()
+    {
+        using var closed = new SqlConnection();
+        var empty = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+            V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+                closed, Guid.Empty, CancellationToken.None)));
+        Assert.That(empty!.Message, Is.EqualTo("RUNNER_V9_DEV_ATTEMPT_MISSING"));
+
+        var inaccessible = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+            V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+                closed, Guid.NewGuid(), CancellationToken.None)));
+        Assert.That(inaccessible!.Message,
+            Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+        Assert.That(closed.State, Is.EqualTo(System.Data.ConnectionState.Closed));
+    }
+
     [TestCase(null, null)]
     [TestCase(1, "legacy-model.json")]
     [TestCase(9, null)]
