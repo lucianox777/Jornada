@@ -190,18 +190,18 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 StringComparison.Ordinal))
             throw new InvalidOperationException("RUNNER_V9_DEV_SCORER_WINNER_MISMATCH");
 
-        return await RunCoreAsync(request, ct, controlledDev: true);
+        return await RunCoreAsync(request, controlledDev: true, ct);
     }
 
     public Task<ProbabilisticLinkageRunSummary> RunAsync(
         ProbabilisticLinkageRunRequest request,
         CancellationToken ct) =>
-        RunCoreAsync(request, ct, controlledDev: false);
+        RunCoreAsync(request, controlledDev: false, ct);
 
     private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(
         ProbabilisticLinkageRunRequest request,
-        CancellationToken ct,
-        bool controlledDev)
+        bool controlledDev,
+        CancellationToken ct)
     {
         ValidateRequest(request);
         // Defense in depth: RunAsync is also callable outside Program.cs.
