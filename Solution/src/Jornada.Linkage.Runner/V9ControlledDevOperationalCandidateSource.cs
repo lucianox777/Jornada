@@ -22,7 +22,8 @@ public static class V9ControlledDevOperationalCandidateSource
     // source field integrity are read from the exact SQL run_item/Silver scope.
     public sealed record VerifiedRunCandidates(
         IReadOnlyDictionary<long, string> ManagerByObservation,
-        IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation);
+        IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation,
+        IReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt> EvidenceByObservation);
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
     public static string VerifyFrozenSilverObservation(
@@ -37,6 +38,26 @@ public static class V9ControlledDevOperationalCandidateSource
             || !Equals(frozen.Observation, sqlObservation))
             throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
         return manager;
+    }
+
+    /// <summary>
+    /// A Gold-joined candidate list must be exactly the original operational
+    /// UUID union, including order. Missing/non-REFERENCIA Gold cannot be
+    /// silently treated as an eligible abstention or dropped candidate.
+    /// </summary>
+    public static void VerifyCanonicalCandidateMembership(
+        IReadOnlyList<Guid> verifiedOperationalUuids,
+        IReadOnlyList<GoldCandidate> joinedGoldCandidates)
+    {
+        ArgumentNullException.ThrowIfNull(verifiedOperationalUuids);
+        ArgumentNullException.ThrowIfNull(joinedGoldCandidates);
+        if (verifiedOperationalUuids.Count != joinedGoldCandidates.Count)
+            throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
+        for (var i = 0; i < verifiedOperationalUuids.Count; i++)
+            if (verifiedOperationalUuids[i] == Guid.Empty
+                || joinedGoldCandidates[i] is null
+                || joinedGoldCandidates[i].PessoaUuid != verifiedOperationalUuids[i])
+                throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
     }
 
     public static async Task<VerifiedRunCandidates> ReadAsync(
@@ -72,13 +93,19 @@ public static class V9ControlledDevOperationalCandidateSource
         await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
             connection, attemptId, cancellationToken);
 
+        // One consistent operational READ snapshot for header, run_item,
+        // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
+        // must fail closed; never fall back to independent READ COMMITTED pages.
+        await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(
+            IsolationLevel.Snapshot, cancellationToken);
+
         // An empty submitted universe is not proof that a run exists.
         // Authenticate the exact run/model/mode/state and stored eligible count.
         await using (var header = new SqlCommand("""
             SELECT modelo_id,modelo_versao,tipo_run,status,registros_elegiveis
               FROM identidade.linkage_run
              WHERE linkage_run_id=@run_id;
-            """, connection))
+            """, connection, snapshot))
         {
             header.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             await using var record = await header.ExecuteReaderAsync(cancellationToken);
@@ -100,7 +127,7 @@ public static class V9ControlledDevOperationalCandidateSource
               FROM identidade.linkage_run_item
              WHERE linkage_run_id=@run_id
              ORDER BY pessoa_observacao_id;
-            """, connection))
+            """, connection, snapshot))
         {
             items.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             var index = 0;
@@ -130,7 +157,7 @@ public static class V9ControlledDevOperationalCandidateSource
               JOIN ref.gestor g ON g.gestor_id=po.gestor_id
              WHERE ri.linkage_run_id=@run_id
              ORDER BY po.pessoa_observacao_id;
-            """, connection))
+            """, connection, snapshot))
         {
             silver.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
             var index = 0;
@@ -165,11 +192,22 @@ public static class V9ControlledDevOperationalCandidateSource
             winner.SerializeUtf8(), pinnedWinner.WinnerSha256);
 
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
+        var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>(frozenRows.Count);
         foreach (var row in frozenRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await using var command = connection.CreateCommand();
             command.CommandTimeout = 120;
+            command.Transaction = snapshot;
+            // The established operational reader independently meters the
+            // full Gold-reference UUID union and verifies its SQL cardinality
+            // inside this SAME SNAPSHOT. It is not a new candidate oracle.
+            var authenticated = await V9OperationalCandidateRead.ReadAsync(
+                connection, snapshot, planner, row.Observation, cancellationToken);
+            if (authenticated.CandidateCount > maximumCandidatesPerObservation)
+                throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_GRAPH_TRUNCATED");
+            if (!evidence.TryAdd(row.PessoaObservacaoId, authenticated))
+                throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
             var candidateSql = planner.BuildCandidateUuidQuery(command,
                 row.Observation, planner.ProjectionSchemaVersion,
                 planner.ProjectionFingerprintSha256);
@@ -205,12 +243,15 @@ public static class V9ControlledDevOperationalCandidateSource
                 candidates.Add(new GoldCandidate(id, name,
                     DateOnly.FromDateTime(reader.GetDateTime(2)), mother));
             }
+            VerifyCanonicalCandidateMembership(authenticated.CandidateUuids, candidates);
             if (!result.TryAdd(row.PessoaObservacaoId,
                     Array.AsReadOnly(candidates.ToArray())))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
         }
+        await snapshot.CommitAsync(cancellationToken);
         return new VerifiedRunCandidates(
             new ReadOnlyDictionary<long, string>(managers),
-            new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result));
+            new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result),
+            new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence));
     }
 }
