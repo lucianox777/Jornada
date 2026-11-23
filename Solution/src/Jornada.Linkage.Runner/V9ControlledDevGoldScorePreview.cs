@@ -27,12 +27,13 @@ public static class V9ControlledDevGoldScorePreview
 
         // All three source maps must cover the exact, globally ordered,
         // frozen run universe; do not silently score an incomplete page.
+        if (frozenRows.Any(r => r is null || r.PessoaObservacaoId <= 0
+                || r.Observation is null || r.Observation.Cpf is not null
+                || r.Observation.ResolutionAttributes is { Count: > 0 }))
+            throw new InvalidDataException("RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
         var ids = frozenRows.Select(r => r.PessoaObservacaoId).ToArray();
         var expected = ids.ToHashSet();
-        if (frozenRows.Any(r => r is null || r.PessoaObservacaoId <= 0
-                || r.Observation is null || !string.IsNullOrWhiteSpace(r.Observation.Cpf)
-                || r.Observation.ResolutionAttributes is { Count: > 0 })
-            || expected.Count != frozenRows.Count
+        if (expected.Count != frozenRows.Count
             || !ids.SequenceEqual(ids.OrderBy(x => x))
             || !expected.SetEquals(verifiedSource.ManagerByObservation.Keys)
             || !expected.SetEquals(verifiedSource.CandidatesByObservation.Keys)
