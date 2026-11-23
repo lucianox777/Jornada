@@ -512,6 +512,14 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         script = (ROOT / "Solution/scripts/e2e-v9-grouping-oracle.py").read_text(
             encoding="utf-8")
         self.assertIn("test_e2e_v9_grouping_oracle.py", workflow)
+        self.assertIn("test_e2e_v9_bridge_staging_reconcile.py", workflow)
+        join = (ROOT / "Solution/scripts/e2e-v9-bridge-staging-reconcile.py").read_text(
+            encoding="utf-8")
+        self.assertIn("PREFLIGHT.verify(root)", join)
+        self.assertIn("ORACLE.compare_groupings(", join)
+        self.assertIn('"RECONCILED_OFFLINE_NOT_CERTIFIED"', join)
+        self.assertIn('"linkageSqlRunProvenanceCertified": False', join)
+        self.assertIn('"bridgeToSqlHttpDeliveryProven": False', join)
         self.assertIn('"status": "MEASURED_NOT_CERTIFIED"', script)
         self.assertIn('"E2E_NUCLEO_PASS": False', script)
         self.assertIn('"scientificValidation": False', script)
