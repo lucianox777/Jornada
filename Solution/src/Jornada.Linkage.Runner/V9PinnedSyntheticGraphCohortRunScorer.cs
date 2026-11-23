@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
@@ -73,6 +75,9 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     private readonly int failAfter;
     private readonly ConcurrentDictionary<long, byte> consumed = new();
     private IReadOnlyDictionary<long, (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>? prepared;
+    // TEST_ONLY raw global grouping, separate from nullable linkage_resultado UUIDs.
+    // Do not publish, activate or use as independently certified evidence.
+    private IReadOnlyDictionary<long, Guid>? preparedGrouping;
     private Guid preparedRunId;
     private int scored;
 
@@ -261,8 +266,387 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         }
         if (map.Count != frozenRows.Count)
             throw new InvalidDataException("Decisões V9 não cobrem exatamente o universo.");
+
+        // Nullable pessoa_uuid_resolvido is a decision, NOT a complete-link
+        // grouping. Capture the already-computed operational grouping without
+        // accessing any synthetic truth or changing the scoring kernel.
+        var groups = new Dictionary<long, Guid>(frozenRows.Count);
+        for (var index = 0; index < frozenRows.Count; index++)
+        {
+            var position = index + 1;
+            if (!global.IdentityByObservation.TryGetValue(position, out var group)
+                || group == Guid.Empty
+                || !groups.TryAdd(frozenRows[index].PessoaObservacaoId, group))
+                throw new InvalidDataException("Agrupamento V9 global incompleto ou inválido.");
+        }
+        if (groups.Count != frozenRows.Count)
+            throw new InvalidDataException("Universo V9 e agrupamentos não reconciliados.");
+        preparedGrouping = new ReadOnlyDictionary<long, Guid>(groups);
         prepared = map;
     }
+
+    /// <summary>
+    /// TEST_ONLY, nonpublishing, read-only diagnostic. The method verifies the
+    /// actual completed SQL run, its frozen universe and persisted decisions.
+    /// Exact bidirectional run_item/result membership, row model pin and
+    /// status counters are checked, not only matching cardinalities. Each raw
+    /// persisted score, candidate and abstention reason is also reconciled
+    /// against the scorer's in-memory prepared decision for that run.
+    /// These SQL reads are not a consistent multi-layer snapshot or an
+    /// authentication of HTTP/Gold bytes.
+    /// This is NOT a productive or certified E2E exporter of groups.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(
+        Guid runId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var groups = preparedGrouping;
+        if (runId == Guid.Empty || runId != preparedRunId || groups is null
+            || prepared is null || groups.Count != prepared.Count
+            || consumed.Count != groups.Count || Volatile.Read(ref scored) != groups.Count)
+            throw new InvalidOperationException("Agrupamento V9 TEST incompleto ou run divergente.");
+
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        await using var command = new SqlCommand("""
+            SELECT lr.status,lr.modelo_id,lr.modelo_versao,
+                   lr.registros_elegiveis,lr.avaliados,lr.publicado_em,
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i
+                     WHERE i.linkage_run_id=lr.linkage_run_id),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id),
+                   lr.resolvidos,lr.nao_resolvidos,lr.conflitos,
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i
+                     WHERE i.linkage_run_id=lr.linkage_run_id
+                       AND NOT EXISTS (
+                         SELECT 1 FROM identidade.linkage_resultado r
+                         WHERE r.linkage_run_id=i.linkage_run_id
+                           AND r.pessoa_observacao_id=i.pessoa_observacao_id)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id
+                       AND NOT EXISTS (
+                         SELECT 1 FROM identidade.linkage_run_item i
+                         WHERE i.linkage_run_id=r.linkage_run_id
+                           AND i.pessoa_observacao_id=r.pessoa_observacao_id)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id
+                       AND (r.modelo_id<>lr.modelo_id
+                            OR r.modelo_versao<>lr.modelo_versao)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'RESOLVIDO'),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'NAO_RESOLVIDO'),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'CONFLITO')
+            FROM identidade.linkage_run lr
+            WHERE lr.linkage_run_id=@run;
+            """, connection);
+        command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)
+                || reader.GetString(0) != "CONCLUIDO_SEM_PUBLICACAO"
+                || reader.GetGuid(1) != pinnedModelId || reader.GetInt32(2) != 1
+                || reader.GetInt64(3) != groups.Count || reader.GetInt64(4) != groups.Count
+                || !reader.IsDBNull(5)
+                || reader.GetInt64(6) != groups.Count || reader.GetInt64(7) != groups.Count
+                || reader.GetInt64(8) < 0 || reader.GetInt64(9) < 0 || reader.GetInt64(10) < 0
+                || reader.GetInt64(8) + reader.GetInt64(9) + reader.GetInt64(10) != groups.Count
+                || reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0
+                || reader.GetInt64(13) != 0
+                || reader.GetInt64(14) != reader.GetInt64(8)
+                || reader.GetInt64(15) != reader.GetInt64(9)
+                || reader.GetInt64(16) != reader.GetInt64(10)
+                || await reader.ReadAsync(ct))
+                throw new InvalidOperationException(
+                    "Run SQL V9 sem publicação não está terminal, íntegro ou pinado.");
+        }
+
+        // The immutable SQL raw evidence must equal the actual decisions
+        // prepared for this run, not merely have the same IDs, model and
+        // aggregate status counts. The comparison is bounded (<=512), uses
+        // no truth sidecar and never modifies persisted raw results.
+        await using var decisions = new SqlCommand("""
+            SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,
+                   melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,
+                   score_segundo,margem,motivo
+            FROM identidade.linkage_resultado
+            WHERE linkage_run_id=@run ORDER BY pessoa_observacao_id;
+            """, connection);
+        decisions.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var seen = new HashSet<long>();
+        static bool SameScore(decimal? left, decimal? right) =>
+            left.HasValue == right.HasValue
+            && (!left.HasValue || Math.Abs(left.Value - right!.Value) <= 0.00000001m);
+        await using (var persisted = await decisions.ExecuteReaderAsync(ct))
+        {
+            while (await persisted.ReadAsync(ct))
+            {
+                var id = persisted.GetInt64(0);
+                if (!seen.Add(id) || !prepared.TryGetValue(id, out var source))
+                    throw new InvalidOperationException(
+                        "Resultado bruto SQL fora do universo V9 TEST preparado.");
+                var expected = source.Decision;
+                if (persisted.GetString(1) != expected.Status.ToString()
+                    || (persisted.IsDBNull(2) ? (Guid?)null : persisted.GetGuid(2))
+                        != expected.PessoaUuidResolvido
+                    || (persisted.IsDBNull(3) ? (Guid?)null : persisted.GetGuid(3))
+                        != expected.MelhorCandidatoUuid
+                    || !SameScore(persisted.GetDecimal(4), expected.MelhorScore)
+                    || (persisted.IsDBNull(5) ? (Guid?)null : persisted.GetGuid(5))
+                        != expected.SegundoCandidatoUuid
+                    || !SameScore(
+                        persisted.IsDBNull(6) ? null : persisted.GetDecimal(6),
+                        expected.SegundoScore)
+                    || !SameScore(
+                        persisted.IsDBNull(7) ? null : persisted.GetDecimal(7),
+                        expected.Margem)
+                    || !string.Equals(
+                        persisted.IsDBNull(8) ? null : persisted.GetString(8),
+                        expected.Motivo, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Resultado bruto SQL difere da decisão V9 TEST preparada.");
+            }
+        }
+        if (seen.Count != groups.Count || groups.Keys.Any(id => !seen.Contains(id)))
+            throw new InvalidOperationException(
+                "Resultado SQL V9 não cobre todas as decisões preparadas.");
+        return groups;
+    }
+
+    /// <summary>
+    /// Map SQL-only synthetic source IDs to completed TEST_ONLY V9 groups.
+    /// Source values originate exclusively from the run_item/Silver join, never
+    /// from the external bridge ground-truth sidecar. No Gold state is inferred.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(
+        Guid runId, CancellationToken ct)
+    {
+        var groups = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        await using var command = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,po.cpf
+            FROM identidade.linkage_run_item ri
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+            WHERE ri.linkage_run_id=@run
+            ORDER BY ri.pessoa_observacao_id;
+            """, connection);
+        command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var sources = new Dictionary<string, Guid>(groups.Count, StringComparer.Ordinal);
+        var observedIds = new HashSet<long>();
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1) || !reader.IsDBNull(2))
+                    throw new InvalidDataException("Fonte SQL TEST V9 com CPF ou ID inválido.");
+                var id = reader.GetInt64(0);
+                var source = reader.GetString(1);
+                if (!IsSyntheticDevSource(source)
+                    || !groups.TryGetValue(id, out var group)
+                    || !observedIds.Add(id) || !sources.TryAdd(source, group))
+                    throw new InvalidDataException(
+                        "Fonte opaca SQL do universo V9 ausente, duplicada ou não sintética.");
+            }
+        }
+        if (sources.Count != groups.Count || observedIds.Count != groups.Count
+            || groups.Keys.Any(id => !observedIds.Contains(id)))
+            throw new InvalidDataException("Fonte opaca SQL não cobre a coorte congelada.");
+        // Recheck terminal run state after reading Silver. This is not a claim
+        // of atomic Silver/Gold provenance or operational E2E certification.
+        _ = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        return new ReadOnlyDictionary<string, Guid>(sources);
+    }
+
+    /// <summary>
+    /// Minimal local staging payload for a completed disposable V9 RunAsync.
+    /// No truth labels, ZIP manifests or fabricated Gold states enter here.
+    /// Never publish this data as a GitHub Actions artifact.
+    /// </summary>
+    public async Task<string> BuildCompletedSourceGroupingStagingJsonAsync(
+        Guid runId, string checkoutSha, CancellationToken ct)
+    {
+        if (checkoutSha is not { Length: 40 }
+            || checkoutSha.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+            throw new InvalidDataException("Checkout SHA inválido para diagnóstico V9.");
+
+        var sources = await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct);
+        if (sources.Count == 0 || sources.Count > MaximumSyntheticObservations)
+            throw new InvalidDataException("Coorte SQL sintética fora dos limites TEST.");
+        // This digest uses the same canonical UTF-16LE + LF + ordinal sort
+        // as the IBGE ZIP source-set preflight, but is independently derived
+        // from the frozen SQL run_item -> Silver observation join.
+        // It binds the entire source set, never any synthetic truth label.
+        var sourceSetCanonical = string.Concat(sources.Keys
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .Select(id => id + "\n"));
+        var sourceSetDigest = Convert.ToHexString(
+            SHA256.HashData(Encoding.Unicode.GetBytes(sourceSetCanonical)));
+        // In particular, identityState is ABSENT: this RunAsync did NOT
+        // publish decisions into Gold/Serving. No source digest authenticates
+        // a real HTTP delivery or proves a transactionally atomic SQL snapshot.
+        return JsonSerializer.Serialize(new
+        {
+            schema = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2",
+            status = "STAGING_NOT_CERTIFIED",
+            runId = runId.ToString("D"),
+            commitSha = checkoutSha,
+            modelWinnerSha256 = pinnedWinnerSha.ToUpperInvariant(),
+            observationCount = sources.Count,
+            sourceSetDigestMethod = "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
+            sourceSetSha256Utf16le = sourceSetDigest,
+            identityStatesAvailable = false,
+            certified = false,
+            E2E_NUCLEO_PASS = false,
+            E2E_INTEGRAL_PASS = false,
+            rows = sources.OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(x => new
+                {
+                    opaquePersonId = x.Key,
+                    groupId = x.Value.ToString("D")
+                }).ToArray()
+        });
+    }
+
+    /// <summary>
+    /// TEST_ONLY SQL-ledger diagnostic scoped to one actually completed
+    /// nonpublishing run. The producer sees only SQL frozen observations,
+    /// never the external IBGE identity truth or any HTTP receipt.
+    /// This DOES NOT certify that a request reached the API.
+    /// </summary>
+    public async Task<string> BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+        Guid runId, string checkoutSha, CancellationToken ct)
+    {
+        if (checkoutSha is not { Length: 40 }
+            || checkoutSha.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+            throw new InvalidDataException("Checkout SHA inválido no ledger de execução.");
+
+        var sourceGrouping = await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct);
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        // The LEFT JOIN must not discard a run member just because Bronze
+        // metadata is absent; absence explicitly prevents a provenance claim.
+        await using var cmd = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,
+                   e.entrega_id,g.codigo,e.payload_sha256,e.bytes_recebidos,
+                   CAST(CASE WHEN e.status=N'PROCESSADA'
+                       AND e.bytes_recebidos>0
+                       AND b.payload_sha256=e.payload_sha256
+                       AND b.tamanho_bytes=e.bytes_recebidos
+                       AND EXISTS (
+                           SELECT 1 FROM ingestao.lote ll
+                           WHERE ll.entrega_id=e.entrega_id
+                           GROUP BY ll.entrega_id
+                           HAVING COUNT_BIG(*)=MAX(ll.lote_total)
+                              AND MIN(ll.lote_seq)=1
+                              AND MAX(ll.lote_seq)=MAX(ll.lote_total)
+                              AND SUM(CASE WHEN ll.status=N'PROCESSADO' THEN 1 ELSE 0 END)=COUNT_BIG(*)
+                       ) THEN 1 ELSE 0 END AS BIT) metadata_ok,
+                   CAST(CASE WHEN po.id_pessoa_entrega=po.codigo_pessoa_origem
+                       THEN 1 ELSE 0 END AS BIT) source_delivery_match
+            FROM identidade.linkage_run_item ri
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+            JOIN ingestao.lote l ON l.lote_id=po.lote_id
+            JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+              AND e.gestor_id=po.gestor_id
+            JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+            LEFT JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
+            WHERE ri.linkage_run_id=@run
+            ORDER BY ri.pessoa_observacao_id;
+            """, connection);
+        cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var byDelivery = new Dictionary<Guid, List<(string Source, string Manager,
+            string Payload, long Bytes, bool Metadata, bool DeliveryMatch)>>();
+        var seenSource = new HashSet<string>(StringComparer.Ordinal);
+        var seenObservation = new HashSet<long>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2)
+                    || reader.IsDBNull(3) || reader.IsDBNull(4) || reader.IsDBNull(5))
+                    throw new InvalidDataException("Ledger V9 SQL contém fonte ou entrega nula.");
+                var observation = reader.GetInt64(0);
+                var source = reader.GetString(1);
+                var deliveryId = reader.GetGuid(2);
+                var manager = reader.GetString(3);
+                var payload = reader.GetString(4).ToUpperInvariant();
+                var bytes = reader.GetInt64(5);
+                var metadata = reader.GetBoolean(6);
+                var match = reader.GetBoolean(7);
+                if (deliveryId == Guid.Empty || !sourceGrouping.ContainsKey(source)
+                    || !seenSource.Add(source) || !seenObservation.Add(observation)
+                    || string.IsNullOrWhiteSpace(manager) || payload.Length != 64
+                    || payload.Any(ch => !Uri.IsHexDigit(ch)) || bytes < 0)
+                    throw new InvalidDataException("Ledger V9 SQL possui entrega, fonte ou hash inválido.");
+                if (!byDelivery.TryGetValue(deliveryId, out var list))
+                {
+                    list = [];
+                    byDelivery.Add(deliveryId, list);
+                }
+                list.Add((source, manager, payload, bytes, metadata, match));
+            }
+        }
+        if (seenSource.Count != sourceGrouping.Count
+            || !seenSource.SetEquals(sourceGrouping.Keys)
+            || seenObservation.Count != sourceGrouping.Count || byDelivery.Count == 0)
+            throw new InvalidDataException("Run V9 SQL não possui cobertura integral de entregas.");
+
+        static string SourceDigest(IEnumerable<string> identifiers) =>
+            Convert.ToHexString(SHA256.HashData(Encoding.Unicode.GetBytes(
+                string.Concat(identifiers.OrderBy(id => id, StringComparer.Ordinal)
+                    .Select(id => id + "\n")))));
+        var deliveries = byDelivery.Select(entry =>
+        {
+            var first = entry.Value[0];
+            if (entry.Value.Any(row => row.Manager != first.Manager
+                    || row.Payload != first.Payload || row.Bytes != first.Bytes))
+                throw new InvalidDataException("Metadados SQL divergentes dentro da entrega.");
+            return new
+            {
+                gestor = first.Manager,
+                deliveryIdSha256 = Convert.ToHexString(
+                    SHA256.HashData(Encoding.ASCII.GetBytes(entry.Key.ToString("D")))),
+                packageSha256 = first.Payload,
+                zipBytes = first.Bytes,
+                silverPersons = entry.Value.Count,
+                silverSourceSetSha256Utf16le = SourceDigest(entry.Value.Select(x => x.Source)),
+                sqlPayloadMetadataVerified = entry.Value.All(x => x.Metadata),
+                sourceDeliveryIdMatches = entry.Value.All(x => x.DeliveryMatch)
+            };
+        }).OrderBy(x => x.gestor, StringComparer.Ordinal)
+          .ThenBy(x => x.deliveryIdSha256, StringComparer.Ordinal).ToArray();
+        _ = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        return JsonSerializer.Serialize(new
+        {
+            schema = "E2E_V9_RUN_DELIVERY_SQL_LEDGER_TEST_ONLY_V1",
+            status = "SQL_RUN_LEDGER_DIAGNOSTIC_NOT_CERTIFIED",
+            runId = runId.ToString("D"),
+            commitSha = checkoutSha,
+            modelWinnerSha256 = pinnedWinnerSha.ToUpperInvariant(),
+            observationCount = sourceGrouping.Count,
+            sourceSetDigestMethod = "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
+            sourceSetSha256Utf16le = SourceDigest(sourceGrouping.Keys),
+            deliveryCount = deliveries.Length,
+            deliveryProofs = deliveries,
+            sqlRunTerminalVerified = true,
+            httpDeliveryProven = false,
+            goldIdentityStatesAvailable = false,
+            certified = false,
+            E2E_NUCLEO_PASS = false,
+            E2E_INTEGRAL_PASS = false
+        });
+    }
+
+    private static bool IsSyntheticDevSource(string code) =>
+        (code.Length == 38 && code.StartsWith("SYNTH-", StringComparison.Ordinal)
+            && code[6..].All(c =>
+                (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+        || (code.Length == 11 && code.StartsWith("V9TEST_", StringComparison.Ordinal)
+            && code[7..].All(c => c >= '0' && c <= '9'));
 
     public Task<ProbabilisticLinkageDecision> ResolvePreparedAsync(Guid runId,
         long pessoaObservacaoId, IdentityObservation observation, Guid modelId, CancellationToken ct)

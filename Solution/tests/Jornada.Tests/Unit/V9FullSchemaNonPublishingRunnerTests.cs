@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Bronze.Storage;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
@@ -214,7 +215,10 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             // The real batch transaction commits batch #1 before a deliberately
             // injected exception in batch #2. It MUST NOT fake global rollback.
             // With MaxParallelism=1, the 101st score fails deterministically.
-            var failedRunner = MakeRunner(100);
+            var failedScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256,
+                Array.Empty<(long A, long B)>(), 100);
+            var failedRunner = BuildRunner(failedScorer);
             Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await failedRunner.RunAsync(Request(), CancellationToken.None)));
             await using (var terminal = new SqlCommand("""
@@ -227,6 +231,12 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 var id = await terminal.ExecuteScalarAsync();
                 Assert.That(id, Is.InstanceOf<Guid>());
                 await AssertRunRowsAsync(connection, (Guid)id!, "FALHOU", 100);
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await failedScorer.ReadCompletedGroupingDiagnosticAsync(
+                        (Guid)id!, CancellationToken.None)));
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(
+                        (Guid)id!, CancellationToken.None)));
             }
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before),
                 "Falha no segundo lote não pode expor run parcial em Gold/Serving/vínculo.");
@@ -256,6 +266,168 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(positive.Avaliados, Is.EqualTo(200));
             Assert.That(positive.PublicadoEm, Is.Null);
             await AssertRunRowsAsync(connection, positive.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
+            // The grouping comes from the live V9 runtime and is verified against
+            // the completed SQL ledger; it is not reconstructed from nullable
+            // linkage_resultado.pessoa_uuid_resolvido on abstention.
+            var grouping = await sqlScorer.ReadCompletedGroupingDiagnosticAsync(
+                positive.RunId, CancellationToken.None);
+            Assert.That(grouping.Count, Is.EqualTo(200));
+            Assert.That(grouping.Keys, Is.EquivalentTo(
+                Enumerable.Range(1, 200).Select(i => (long)i)));
+            Assert.That(grouping.Values, Has.All.Not.EqualTo(Guid.Empty));
+            // Both SQL candidate edges are below the frozen complete-link floor.
+            Assert.That(grouping.Values.Distinct().Count(), Is.EqualTo(200));
+            Assert.That(grouping, Is.InstanceOf<
+                System.Collections.ObjectModel.ReadOnlyDictionary<long, Guid>>());
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.ReadCompletedGroupingDiagnosticAsync(
+                    Guid.NewGuid(), CancellationToken.None)));
+            // Source names are read from SQL's actual frozen run_item/Silver
+            // universe, never from the external synthetic identity truth.
+            var sources = await sqlScorer.ReadCompletedSourceGroupingDiagnosticAsync(
+                positive.RunId, CancellationToken.None);
+            Assert.That(sources.Count, Is.EqualTo(200));
+            Assert.That(sources, Is.InstanceOf<
+                System.Collections.ObjectModel.ReadOnlyDictionary<string, Guid>>());
+            for (var i = 1; i <= 200; i++)
+            {
+                var opaque = "V9TEST_" + i.ToString("D4",
+                    System.Globalization.CultureInfo.InvariantCulture);
+                Assert.That(sources.TryGetValue(opaque, out var group), Is.True);
+                Assert.That(group, Is.EqualTo(grouping[(long)i]));
+            }
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.ReadCompletedSourceGroupingDiagnosticAsync(
+                    Guid.NewGuid(), CancellationToken.None)));
+            // Non-publishing staging JSON deliberately excludes Gold states
+            // and the separate bridge truth sidecar. Never emit as CI artifact.
+            var stagingJson = await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                positive.RunId, new string('c', 40), CancellationToken.None);
+            using (var staging = JsonDocument.Parse(stagingJson))
+            {
+                var payload = staging.RootElement;
+                Assert.That(payload.GetProperty("schema").GetString(),
+                    Is.EqualTo("E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"));
+                Assert.That(payload.GetProperty("status").GetString(),
+                    Is.EqualTo("STAGING_NOT_CERTIFIED"));
+                Assert.That(payload.GetProperty("runId").GetString(),
+                    Is.EqualTo(positive.RunId.ToString("D")));
+                Assert.That(payload.GetProperty("modelWinnerSha256").GetString(),
+                    Is.EqualTo(winner.ContentSha256.ToUpperInvariant()));
+                Assert.That(payload.GetProperty("observationCount").GetInt32(),
+                    Is.EqualTo(200));
+                Assert.That(payload.GetProperty("sourceSetDigestMethod").GetString(),
+                    Is.EqualTo("SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1"));
+                var sourceIds = string.Concat(sources.Keys
+                    .OrderBy(x => x, StringComparer.Ordinal)
+                    .Select(x => x + "\n"));
+                var expectedSourceDigest = Convert.ToHexString(
+                    SHA256.HashData(Encoding.Unicode.GetBytes(sourceIds)));
+                Assert.That(payload.GetProperty("sourceSetSha256Utf16le").GetString(),
+                    Is.EqualTo(expectedSourceDigest));
+                Assert.That(payload.GetProperty("identityStatesAvailable").GetBoolean(),
+                    Is.False);
+                Assert.That(payload.GetProperty("certified").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("E2E_NUCLEO_PASS").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("rows").GetArrayLength(), Is.EqualTo(200));
+                Assert.That(payload.GetProperty("rows")[0].GetProperty("opaquePersonId").GetString(),
+                    Is.EqualTo("V9TEST_0001"));
+                Assert.That(payload.GetProperty("rows")[0].GetProperty("groupId").GetString(),
+                    Is.EqualTo(grouping[1].ToString("D")));
+            }
+            Assert.That(stagingJson, Does.Not.Contain("identityState\":"));
+            Assert.That(stagingJson, Does.Not.Contain("BasePersonId"));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                    positive.RunId, "invalid-sha", CancellationToken.None)));
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                    Guid.NewGuid(), new string('c', 40), CancellationToken.None)));
+
+            // TEST_ONLY ledger derives delivery membership from the same
+            // frozen SQL run. This fixture inserts FAKE delivery metadata
+            // (zero bytes, no Bronze, no HTTP), which MUST remain unverified.
+            var ledgerJson = await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                positive.RunId, new string('c', 40), CancellationToken.None);
+            using (var ledger = JsonDocument.Parse(ledgerJson))
+            {
+                var evidence = ledger.RootElement;
+                Assert.That(evidence.GetProperty("schema").GetString(),
+                    Is.EqualTo("E2E_V9_RUN_DELIVERY_SQL_LEDGER_TEST_ONLY_V1"));
+                Assert.That(evidence.GetProperty("status").GetString(),
+                    Is.EqualTo("SQL_RUN_LEDGER_DIAGNOSTIC_NOT_CERTIFIED"));
+                Assert.That(evidence.GetProperty("runId").GetString(),
+                    Is.EqualTo(positive.RunId.ToString("D")));
+                Assert.That(evidence.GetProperty("modelWinnerSha256").GetString(),
+                    Is.EqualTo(winner.ContentSha256.ToUpperInvariant()));
+                Assert.That(evidence.GetProperty("observationCount").GetInt32(),
+                    Is.EqualTo(200));
+                Assert.That(evidence.GetProperty("deliveryCount").GetInt32(),
+                    Is.EqualTo(2));
+                using var staging = JsonDocument.Parse(stagingJson);
+                Assert.That(evidence.GetProperty("sourceSetSha256Utf16le").GetString(),
+                    Is.EqualTo(staging.RootElement.GetProperty(
+                        "sourceSetSha256Utf16le").GetString()));
+                Assert.That(evidence.GetProperty("sqlRunTerminalVerified").GetBoolean(),
+                    Is.True);
+                Assert.That(evidence.GetProperty("httpDeliveryProven").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("goldIdentityStatesAvailable").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("certified").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("E2E_NUCLEO_PASS").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(),
+                    Is.False);
+                var deliveries = evidence.GetProperty("deliveryProofs");
+                Assert.That(deliveries.GetArrayLength(), Is.EqualTo(2));
+                Assert.That(deliveries[0].GetProperty("gestor").GetString(),
+                    Is.EqualTo("V9TEST"));
+                Assert.That(deliveries[1].GetProperty("gestor").GetString(),
+                    Is.EqualTo("V9TEST2"));
+                Assert.That(deliveries.EnumerateArray().Sum(
+                    d => d.GetProperty("silverPersons").GetInt32()), Is.EqualTo(200));
+                foreach (var delivery in deliveries.EnumerateArray())
+                {
+                    Assert.That(delivery.GetProperty("silverPersons").GetInt32(),
+                        Is.EqualTo(100));
+                    Assert.That(delivery.GetProperty("deliveryIdSha256").GetString(),
+                        Has.Length.EqualTo(64));
+                    Assert.That(delivery.GetProperty("sqlPayloadMetadataVerified").GetBoolean(),
+                        Is.False, "Synthetic fixture has no HTTP or Bronze data.");
+                    Assert.That(delivery.GetProperty("sourceDeliveryIdMatches").GetBoolean(),
+                        Is.False, "Synthetic SQL fixture has no delivery person IDs.");
+                }
+            }
+            Assert.That(ledgerJson, Does.Not.Contain("BasePersonId"));
+            Assert.That(ledgerJson, Does.Not.Contain("identityState"));
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                    Guid.NewGuid(), new string('c', 40), CancellationToken.None)));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                    positive.RunId, "not-a-commit", CancellationToken.None)));
+
+            // Physical SQL ledger mutation: positive SQL METADATA is NOT an
+            // authenticated HTTP ZIP or an existing Bronze object in storage.
+            // Force content and source drift and require per-delivery fail-closed.
+            await ProveDisposableRunDeliverySqlMetadataGuardsAsync(
+                connection, sqlScorer, positive.RunId);
+
+            // Counts alone do not bind the stored result rows to the frozen
+            // run_item universe. Exercise real SQL membership/model/status
+            // tampering without publishing, then restore exact SQL state.
+            await ProveCompletedRunResultMembershipGuardsAsync(
+                connection, sqlScorer, positive.RunId);
+
+            // The SQL raw results are immutable. To exercise the additional
+            // read-only row-level decision reconciliation without bypassing
+            // the canonical SQL trigger, corrupt only the ephemeral in-memory
+            // prepared decision and restore it immediately.
+            await ProveCompletedRunPreparedDecisionParityGuardsAsync(
+                sqlScorer, positive.RunId);
 
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
@@ -463,6 +635,352 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+
+    /// <summary>
+    /// Exercise real disposable SQL metadata joins, never HTTP or storage bytes.
+    /// The fake Bronze keys do NOT reference an actual object. Even a perfect
+    /// ledger metadata match remains HTTP-unproven and noncertified.
+    /// </summary>
+    private static async Task ProveDisposableRunDeliverySqlMetadataGuardsAsync(
+        SqlConnection connection, V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        async Task ExecuteAsync(string commandText)
+        {
+            await using var command = new SqlCommand(commandText, connection);
+            command.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            command.Parameters.Add("@batch2", SqlDbType.UniqueIdentifier).Value = BatchId2;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        async Task<Dictionary<string, (bool Metadata, bool Source)>> ReadFlagsAsync()
+        {
+            var text = await scorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                runId, new string('c', 40), CancellationToken.None);
+            using var ledger = JsonDocument.Parse(text);
+            var document = ledger.RootElement;
+            Assert.That(document.GetProperty("sqlRunTerminalVerified").GetBoolean(), Is.True);
+            Assert.That(document.GetProperty("observationCount").GetInt32(), Is.EqualTo(200));
+            Assert.That(document.GetProperty("deliveryCount").GetInt32(), Is.EqualTo(2));
+            Assert.That(document.GetProperty("httpDeliveryProven").GetBoolean(), Is.False,
+                "SQL-only metadata never authenticates actual HTTP request bytes.");
+            Assert.That(document.GetProperty("goldIdentityStatesAvailable").GetBoolean(),
+                Is.False);
+            Assert.That(document.GetProperty("certified").GetBoolean(), Is.False);
+            Assert.That(document.GetProperty("E2E_NUCLEO_PASS").GetBoolean(), Is.False);
+            Assert.That(document.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(), Is.False);
+            return document.GetProperty("deliveryProofs").EnumerateArray()
+                .ToDictionary(
+                    p => p.GetProperty("gestor").GetString()!,
+                    p => (
+                        Metadata: p.GetProperty("sqlPayloadMetadataVerified").GetBoolean(),
+                        Source: p.GetProperty("sourceDeliveryIdMatches").GetBoolean()),
+                    StringComparer.Ordinal);
+        }
+
+        // All modifications are restricted to the empty, disposable
+        // JornadaHarness initialized in this same physical SQL smoke.
+        // These VALUES are invented metadata and NEVER a downloaded HTTP ZIP.
+        try
+        {
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52820,'Somente JornadaHarness descartável.',1;
+                DECLARE @one uniqueidentifier =
+                    (SELECT entrega_id FROM ingestao.lote WHERE lote_id=@batch);
+                DECLARE @two uniqueidentifier =
+                    (SELECT entrega_id FROM ingestao.lote WHERE lote_id=@batch2);
+                IF @one IS NULL OR @two IS NULL OR @one=@two
+                    THROW 52821,'Entregas sintéticas ausentes ou repetidas.',1;
+                UPDATE ingestao.entrega
+                   SET payload_sha256=REPLICATE('a',64),bytes_recebidos=256
+                 WHERE entrega_id=@one;
+                UPDATE ingestao.entrega
+                   SET payload_sha256=REPLICATE('b',64),bytes_recebidos=512
+                 WHERE entrega_id=@two;
+                INSERT bronze.entrega_arquivo(
+                    entrega_id,nome_arquivo,content_type,objeto_chave,
+                    payload_sha256,tamanho_bytes,recebido_em)
+                VALUES
+                    (@one,N'NO_HTTP_FIXTURE_1.zip',N'application/zip',
+                     N'fixture/NO_BYTES_EXIST/one',REPLICATE('a',64),256,
+                     TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00')),
+                    (@two,N'NO_HTTP_FIXTURE_2.zip',N'application/zip',
+                     N'fixture/NO_BYTES_EXIST/two',REPLICATE('b',64),512,
+                     TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'));
+                UPDATE silver.pessoa_observacao
+                   SET id_pessoa_entrega=codigo_pessoa_origem
+                 WHERE lote_id IN (@batch,@batch2);
+                """);
+            var valid = await ReadFlagsAsync();
+            Assert.That(valid.Keys, Is.EquivalentTo(new[] { "V9TEST", "V9TEST2" }));
+            Assert.That(valid.Values.All(p => p.Metadata && p.Source), Is.True,
+                "Only the ledger metadata are internally consistent, NOT real HTTP.");
+
+            // Deliberate Bronze payload SHA substitution in just one delivery.
+            await ExecuteAsync("""
+                UPDATE b SET payload_sha256=REPLICATE('c',64)
+                FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id=@batch;
+                """);
+            var changedBronze = await ReadFlagsAsync();
+            Assert.That(changedBronze["V9TEST"].Metadata, Is.False);
+            Assert.That(changedBronze["V9TEST2"].Metadata, Is.True);
+            Assert.That(changedBronze.Values.All(p => p.Source), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE b SET payload_sha256=REPLICATE('a',64)
+                FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id=@batch;
+                UPDATE silver.pessoa_observacao SET id_pessoa_entrega=N'ALTERADA'
+                WHERE pessoa_observacao_id=(
+                    SELECT MIN(pessoa_observacao_id)
+                    FROM silver.pessoa_observacao WHERE lote_id=@batch2);
+                """);
+            var changedSource = await ReadFlagsAsync();
+            Assert.That(changedSource["V9TEST"].Source, Is.True);
+            Assert.That(changedSource["V9TEST2"].Source, Is.False);
+            Assert.That(changedSource.Values.All(p => p.Metadata), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE silver.pessoa_observacao
+                   SET id_pessoa_entrega=codigo_pessoa_origem WHERE lote_id=@batch2;
+                UPDATE ingestao.lote SET status=N'PENDENTE' WHERE lote_id=@batch2;
+                """);
+            var changedLote = await ReadFlagsAsync();
+            Assert.That(changedLote["V9TEST"].Metadata, Is.True);
+            Assert.That(changedLote["V9TEST2"].Metadata, Is.False);
+            Assert.That(changedLote.Values.All(p => p.Source), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE ingestao.lote SET status=N'PROCESSADO' WHERE lote_id=@batch2;
+                UPDATE e SET bytes_recebidos=513
+                FROM ingestao.entrega e
+                JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+                WHERE l.lote_id=@batch2;
+                """);
+            var changedBytes = await ReadFlagsAsync();
+            Assert.That(changedBytes["V9TEST"].Metadata, Is.True);
+            Assert.That(changedBytes["V9TEST2"].Metadata, Is.False);
+            Assert.That(changedBytes.Values.All(p => p.Source), Is.True);
+        }
+        finally
+        {
+            // Restore all synthetic fixture state even on an assertion failure.
+            // No run, identity, serving or real Gold publication is changed.
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52822,'Somente JornadaHarness descartável.',1;
+                DELETE b FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id IN (@batch,@batch2);
+                UPDATE silver.pessoa_observacao SET id_pessoa_entrega=NULL
+                WHERE lote_id IN (@batch,@batch2);
+                UPDATE ingestao.lote SET status=N'PROCESSADO'
+                WHERE lote_id IN (@batch,@batch2);
+                UPDATE e SET payload_sha256=REPLICATE('0',64),bytes_recebidos=0
+                FROM ingestao.entrega e
+                JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+                WHERE l.lote_id IN (@batch,@batch2);
+                """);
+        }
+        var restored = await ReadFlagsAsync();
+        Assert.That(restored.Values.All(p => !p.Metadata && !p.Source), Is.True,
+            "Disposable fixture must return to its original non-HTTP state.");
+    }
+
+
+    /// <summary>
+    /// Demonstrate that equal SQL row counts are insufficient to prove the
+    /// completed run's frozen decisions. All mutations are disposable only
+    /// and are restored before any subsequent scoring or candidate tests.
+    /// </summary>
+    private static async Task ProveCompletedRunResultMembershipGuardsAsync(
+        SqlConnection connection, V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        async Task ExecuteAsync(string command, long shadow = 0)
+        {
+            await using var query = new SqlCommand(command, connection);
+            query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+            query.Parameters.Add("@shadow", SqlDbType.BigInt).Value = shadow;
+            await query.ExecuteNonQueryAsync();
+        }
+
+        async Task AssertRawMutationBlockedAsync(string command, string reason, long shadow = 0)
+        {
+            await using var query = new SqlCommand(command, connection);
+            query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+            query.Parameters.Add("@shadow", SqlDbType.BigInt).Value = shadow;
+            // The canonically installed 20260919 migration makes raw result
+            // evidence IMMUTABLE. It rejects UPDATE irrespective of row count.
+            // Never disable this trigger to simulate corrupt terminal results.
+            var error = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+                await query.ExecuteNonQueryAsync()));
+            Assert.That(error, Is.Not.Null, reason);
+            Assert.That(error!.Number, Is.AnyOf(51822, 51823), reason);
+            Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+                runId, CancellationToken.None)).Count, Is.EqualTo(200));
+        }
+
+        await ExecuteAsync("""
+            IF DB_NAME()<>N'JornadaHarness'
+                THROW 52830,'Somente JornadaHarness descartável.',1;
+            IF (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+                WHERE linkage_run_id=@run)<>200
+                THROW 52831,'Coorte sintética incompleta.',1;
+            """);
+        Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None)).Count, Is.EqualTo(200));
+
+        // The actual operational schema has an immutable raw scorer ledger.
+        // Fail CLOSED at the SQL trigger; don't try to bypass it or rewrite
+        // a terminal run just to test the fallback read-only consistency.
+        await AssertRawMutationBlockedAsync("""
+            UPDATE identidade.linkage_resultado SET modelo_versao=2
+            WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+            """, "A alteração de versão do modelo bruto precisa ser bloqueada.");
+        await AssertRawMutationBlockedAsync("""
+            UPDATE identidade.linkage_resultado
+               SET status=N'CONFLITO',motivo=N'TAMPER_ONLY'
+            WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+            """, "A decisão bruta imutável não pode ser reescrita.");
+
+        long shadowId = 0;
+        try
+        {
+            // Only a temporary Silver row can be inserted safely; do NOT
+            // tamper with immutable linkage_resultado. The shadow is outside
+            // the frozen universe but has a valid foreign key and identity.
+            await using (var create = new SqlCommand("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52832,'Somente JornadaHarness descartável.',1;
+                INSERT silver.pessoa_observacao(
+                    pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                    versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
+                    nome_completo,nome_cmp,data_nascimento,nome_mae,
+                    nome_mae_cmp,source_as_of)
+                OUTPUT INSERTED.pessoa_observacao_id
+                SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                       2,REPLICATE('f',64),NULL,cpf_ausente_motivo,
+                       nome_completo,nome_cmp,data_nascimento,nome_mae,
+                       nome_mae_cmp,SYSUTCDATETIME()
+                FROM silver.pessoa_observacao
+                WHERE pessoa_observacao_id=1;
+                """, connection))
+            {
+                shadowId = (long)(await create.ExecuteScalarAsync()
+                    ?? throw new InvalidDataException("Shadow Silver DEV ausente."));
+            }
+            Assert.That(shadowId, Is.GreaterThan(200));
+
+            await AssertRawMutationBlockedAsync("""
+                UPDATE identidade.linkage_resultado SET pessoa_observacao_id=@shadow
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """, "A membership de um resultado imutável não pode mudar.", shadowId);
+
+            // Run items don't have the same SQL immutable-result trigger.
+            // Replace ONE frozen membership with a valid shadow ID while
+            // preserving exactly 200 items and 200 immutable results.
+            // ReadCompletedGroupingDiagnosticAsync MUST detect that the sets
+            // diverge, even though both COUNT_BIG(*) remain 200.
+            await ExecuteAsync("""
+                DELETE FROM identidade.linkage_run_item
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                VALUES(@run,@shadow);
+                """, shadowId);
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await scorer.ReadCompletedGroupingDiagnosticAsync(
+                    runId, CancellationToken.None)),
+                "Frozen SQL membership substitution must fail despite 200/200 row counts.");
+        }
+        finally
+        {
+            // Restore only mutable frozen membership. Do NOT update or delete
+            // the append-only raw result rows. This clean-up is a disposable
+            // JornadaHarness fixture, not a general recovery procedure.
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52833,'Somente JornadaHarness descartável.',1;
+                DELETE FROM identidade.linkage_run_item
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=@shadow;
+                IF NOT EXISTS (SELECT 1 FROM identidade.linkage_run_item
+                               WHERE linkage_run_id=@run AND pessoa_observacao_id=1)
+                    INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                    VALUES(@run,1);
+                IF @shadow>0
+                    DELETE FROM silver.pessoa_observacao
+                    WHERE pessoa_observacao_id=@shadow;
+                """, shadowId);
+        }
+        var restored = await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None);
+        Assert.That(restored.Count, Is.EqualTo(200));
+        Assert.That(restored.Keys, Is.EquivalentTo(
+            Enumerable.Range(1, 200).Select(i => (long)i)));
+    }
+
+
+    /// <summary>
+    /// A failed row-by-row comparison is tested by changing ONLY the TEST
+    /// scorer's ephemeral in-memory decision. Immutable SQL evidence is never
+    /// updated, triggers remain active, and the field is restored in finally.
+    /// This is not independent scientific scoring or productive provenance.
+    /// </summary>
+    private static async Task ProveCompletedRunPreparedDecisionParityGuardsAsync(
+        V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        var field = typeof(V9PinnedSyntheticGraphCohortRunScorer).GetField(
+            "prepared", System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, "Prepared V9 TEST scorer state missing.");
+        var original = field!.GetValue(scorer);
+        Assert.That(original, Is.Not.Null);
+        var frozen = (IReadOnlyDictionary<long,
+            (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>)original!;
+
+        void RejectPreparedTamper(
+            Func<ProbabilisticLinkageDecision, ProbabilisticLinkageDecision> alter,
+            string reason)
+        {
+            var mutated = frozen.ToDictionary(pair => pair.Key, pair => pair.Value);
+            var row = mutated[1L];
+            mutated[1L] = (row.Observation, alter(row.Decision));
+            try
+            {
+                field.SetValue(scorer, mutated);
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await scorer.ReadCompletedGroupingDiagnosticAsync(
+                        runId, CancellationToken.None)), reason);
+            }
+            finally
+            {
+                field.SetValue(scorer, original);
+            }
+        }
+
+        RejectPreparedTamper(
+            d => d with { MelhorScore = d.MelhorScore + 0.001m },
+            "Persisted best posterior must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { MelhorCandidatoUuid = null },
+            "Persisted best candidate must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { Status = ResolutionStatus.CONFLITO },
+            "Persisted status must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { Motivo = "TAMPER_ONLY" },
+            "Persisted abstention reason must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { SegundoScore = 0.5m },
+            "Persisted second posterior must equal TEST scorer's prepared decision.");
+
+        Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None)).Count,
+            Is.EqualTo(200), "Prepared V9 TEST source must be restored exactly.");
     }
 
     private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)

@@ -1,4 +1,5 @@
 """Prova HTTP da Resultado.Api sobre as duas entregas sintéticas do local-e2e."""
+import hashlib
 import http.client
 import json
 from pathlib import Path
@@ -8,34 +9,158 @@ import time
 from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_DEV_PACKAGE_BYTES = 64 * 1024 * 1024
 
 
-def check_detail(detail, filename, latest_id):
-    delivery = detail["entrega"]
-    if (delivery["entregaId"] != latest_id or delivery["gestor"] != "SEHAB"
-            or delivery["nomeArquivo"] != filename or delivery["status"] != "PROCESSADA"
-            or detail["entregasEncontradasParaOMesmoNome"] != 2 or detail["finalizado"] is not True):
-        raise ValueError("Detalhe diverge dos dois recibos HTTP da fixture SEHAB.")
-    counts = detail["processamento"]["resumoItens"]
-    totals = [row["totalObservado"] for row in counts
-              if (row["classeItem"], row["resultado"]) == ("REGISTRO", "RETRANSMITIDO")]
-    if totals != [1]:
-        raise ValueError("Resumo diverge do único fato retransmitido no SQL.")
+def read_payload_identity(package, filename):
+    """Measure the exact local synthetic ZIP, not a caller-provided hash/length."""
+    if package.is_symlink() or not package.is_file() or package.name != filename:
+        raise ValueError("ZIP DEV local ausente, indireto ou com nome divergente.")
+    digest = hashlib.sha256()
+    length = 0
+    with package.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            length += len(chunk)
+            if length > MAX_DEV_PACKAGE_BYTES:
+                raise ValueError("ZIP sintético DEV excede limite seguro.")
+            digest.update(chunk)
+    if length == 0:
+        raise ValueError("ZIP sintético DEV está vazio.")
+    sha = digest.hexdigest()
+    if not filename.endswith("_" + sha + ".zip"):
+        raise ValueError("Nome canônico do ZIP diverge dos bytes locais.")
+    return sha, length
 
 
-def run(base_url, filename, latest_id, receipt):
+def check_detail(detail, filename, latest_id, payload_sha256, payload_size):
+    """Bind Resultado.Api to the exact submitted ZIP and reconciled processing."""
+    def count(x):
+        return type(x) is int and x >= 0
+
+    if type(payload_sha256) is not str or len(payload_sha256) != 64 or any(
+            c not in "0123456789abcdefABCDEF" for c in payload_sha256):
+        raise ValueError("SHA-256 local da entrega inválido.")
+    if type(payload_size) is not int or payload_size <= 0:
+        raise ValueError("Tamanho local do ZIP inválido.")
+    if (not isinstance(detail, dict) or detail.get("nomeArquivoConsultado") != filename
+            or detail.get("entregasEncontradasParaOMesmoNome") != 2
+            or detail.get("finalizado") is not True):
+        raise ValueError("Resultado.Api não corresponde às entregas HTTP.")
+    entrega = detail.get("entrega")
+    if (not isinstance(entrega, dict) or entrega.get("entregaId") != latest_id
+            or entrega.get("gestor") != "SEHAB"
+            or entrega.get("nomeArquivo") != filename
+            or entrega.get("status") != "PROCESSADA"
+            or type(entrega.get("bytesRecebidos")) is not int
+            or entrega["bytesRecebidos"] != payload_size
+            or type(entrega.get("payloadSha256")) is not str
+            or entrega["payloadSha256"].lower() != payload_sha256.lower()):
+        raise ValueError("Bytes ou escopo da Entrega divergem do ZIP enviado.")
+
+    processing = detail.get("processamento")
+    if not isinstance(processing, dict):
+        raise ValueError("Resumo de processamento ausente.")
+    lots = processing.get("lotes")
+    if not isinstance(lots, list) or not lots:
+        raise ValueError("Sem lote processado verificável.")
+    ids = set()
+    seqs = set()
+    declared_total = None
+    people = records = 0
+    for lot in lots:
+        if (not isinstance(lot, dict) or type(lot.get("loteId")) is not str
+                or not lot["loteId"] or lot["loteId"] in ids
+                or lot.get("status") != "PROCESSADO"
+                or not count(lot.get("qtdPessoas")) or not count(lot.get("qtdRegistros"))):
+            raise ValueError("Lote duplicado, incompleto ou inválido.")
+        seq, total = lot.get("loteSeq"), lot.get("loteTotal")
+        if (type(seq) is not int or type(total) is not int
+                or seq < 1 or total < 1 or seq > total
+                or (declared_total is not None and total != declared_total)
+                or seq in seqs):
+            raise ValueError("Sequência ou total de lotes inconsistente.")
+        declared_total = total
+        seqs.add(seq)
+        ids.add(lot["loteId"])
+        people += lot["qtdPessoas"]
+        records += lot["qtdRegistros"]
+    # All unique 1-based seqs constrained to [1, total] cover every lot
+    # iff their count matches the declared total. Avoid range(total) for
+    # untrusted, potentially enormous values from an erroneous receipt.
+    if len(seqs) != declared_total:
+        raise ValueError("Quantidade de lotes não cobre o total declarado.")
+    if (people, records) != (1, 1):
+        raise ValueError("Lotes divergem da fixture 1 Pessoa + 1 Registro.")
+
+    rows = processing.get("resumoItens")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("Resumo de itens ausente.")
+    keys = set()
+    detailed = consolidated = 0
+    by_class = {"PESSOA": 0, "REGISTRO": 0}
+    retransmitted = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("Linha de resumo inválida.")
+        key = (row.get("classeItem"), row.get("resultado"))
+        a, b, total = (row.get("quantidadeDetalhada"),
+                       row.get("quantidadeConsolidada"), row.get("totalObservado"))
+        if (not all(type(x) is str and x for x in key) or key in keys
+                or not all(count(x) for x in (a, b, total))
+                or a + b != total):
+            raise ValueError("Resumo por classe incoerente ou duplicado.")
+        if key[0] not in by_class:
+            raise ValueError("Classe de item fora da fixture Pessoa/Registro.")
+        keys.add(key)
+        detailed += a
+        consolidated += b
+        by_class[key[0]] += total
+        if key == ("REGISTRO", "RETRANSMITIDO"):
+            retransmitted.append(total)
+    if by_class != {"PESSOA": people, "REGISTRO": records}:
+        raise ValueError("Resumo por classe diverge das contagens processadas nos lotes.")
+    if retransmitted != [1]:
+        raise ValueError("Resumo não registra o único fato retransmitido.")
+    if (not count(processing.get("itensDetalhadosDisponiveis"))
+            or not count(processing.get("itensConsolidados"))
+            or processing["itensDetalhadosDisponiveis"] != detailed
+            or processing["itensConsolidados"] != consolidated
+            or processing.get("detalheItemAItemIntegral") is not (consolidated == 0)):
+        raise ValueError("Totais detalhados/consolidados ou retenção inconsistentes.")
+    return {"payloadSha256Verified": True, "payloadBytesVerified": True,
+            "lotesProcessados": len(lots), "resumoItensConsistente": True}
+
+
+def typed_negative_headers(credentials, gestor):
+    """Build credential-type and ambiguous-header adversarial requests (synthetic)."""
+    matching = [c for c in credentials
+                if c.get("type") == "BENEFICIO" and c.get("gestorCodigo") == gestor]
+    if len(matching) != 1 or not all(matching[0].get(k) for k in ("publicCode", "accessKey")):
+        raise ValueError("Credencial sintética de benefício ausente ou ambígua.")
+    beneficio = matching[0]
+    typed = {"X-Jornada-Beneficio": beneficio["publicCode"],
+             "X-Jornada-Access-Key": beneficio["accessKey"]}
+    ambiguous = dict(typed, **{"X-Jornada-Gestor": gestor})
+    return typed, ambiguous
+
+
+def run(base_url, filename, latest_id, receipt, package):
+    payload_sha256, payload_size = read_payload_identity(package, filename)
     origin = urlsplit(base_url)
     if origin.scheme != "http" or origin.hostname != "127.0.0.1" or not origin.port:
         raise ValueError("Resultado.Api requer porta efêmera de loopback.")
     keys = json.loads((ROOT / "config/security/test-access-keys.json").read_text())["credentials"]
     gestores = {c["gestorCodigo"]: c["accessKey"] for c in keys if c["type"] == "GESTOR"}
+    beneficio_headers, ambiguous_headers = typed_negative_headers(keys, "SEHAB")
     path = "/api/v1/ingestao/resultados/"
     statuses = {}
     start = time.monotonic()
 
-    def request(case, name, expected, gestor=None):
+    def request(case, name, expected, gestor=None, headers_override=None):
         headers = {} if gestor is None else {
             "X-Jornada-Gestor": gestor, "X-Jornada-Access-Key": gestores[gestor]}
+        if headers_override is not None:
+            headers = headers_override
         connection = http.client.HTTPConnection(origin.hostname, origin.port, timeout=15)
         try:
             connection.request("GET", path + quote(name, safe=""), headers=headers)
@@ -54,17 +179,20 @@ def run(base_url, filename, latest_id, receipt):
     request("semCredencial", filename, 401)
     request("nomeInvalido", "invalido.txt", 400, "SEHAB")
     request("outroGestor", filename, 404, "SMADS")
+    request("tipoBeneficio", filename, 403, headers_override=beneficio_headers)
+    request("cabecalhosAmbiguos", filename, 400, headers_override=ambiguous_headers)
     first = request("consulta", filename, 200, "SEHAB")
-    check_detail(first, filename, latest_id)
+    verified = check_detail(first, filename, latest_id, payload_sha256, payload_size)
     if first != request("releitura", filename, 200, "SEHAB"):
         raise ValueError("Releitura da entrega terminal devolveu outro resultado.")
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     receipt.write_text(json.dumps({
         "sha": sha, "entregaId": latest_id, "http": statuses,
         "registrosRetransmitidos": 1, "entregasMesmoNome": 2,
+        **verified,
         "duracaoSegundos": round(time.monotonic() - start, 3)
     }, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:4], Path(sys.argv[4]))
+    run(*sys.argv[1:4], Path(sys.argv[4]), Path(sys.argv[5]))

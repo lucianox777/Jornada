@@ -127,6 +127,194 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("directions.Count > V9FrozenCohortSqlCandidateGraph.MaximumPairIncidences", query)
         self.assertIn("ct.ThrowIfCancellationRequested();", query)
 
+    def test_nonpublishing_group_diagnostic_has_sql_terminal_guard(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        for required in ("global.IdentityByObservation.TryGetValue(",
+                         "new ReadOnlyDictionary<long, Guid>(groups)",
+                         "lr.status,lr.modelo_id,lr.modelo_versao",
+                         '"CONCLUIDO_SEM_PUBLICACAO"',
+                         "reader.GetInt64(7) != groups.Count"):
+            self.assertIn(required, scorer)
+        self.assertIn("ReadCompletedGroupingDiagnosticAsync(", tests)
+        self.assertIn("failedScorer.ReadCompletedGroupingDiagnosticAsync(", tests)
+        self.assertIn('"FALHOU", 100', tests)
+        self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED",
+                      (ROOT / "V9OperationalRunBoundary.cs").read_text())
+
+    def test_sql_persisted_decisions_match_prepared_runner_rows(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        begin = scorer.index(
+            "public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(")
+        end = scorer.index(
+            "public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(", begin)
+        diagnostic = scorer[begin:end]
+        for requirement in (
+            "SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,",
+            "melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,",
+            "score_segundo,margem,motivo",
+            "WHERE linkage_run_id=@run ORDER BY pessoa_observacao_id;",
+            "seen.Add(id)",
+            "prepared.TryGetValue(id, out var source)",
+            "expected.Status.ToString()",
+            "expected.PessoaUuidResolvido",
+            "expected.MelhorCandidatoUuid",
+            "expected.MelhorScore",
+            "expected.SegundoCandidatoUuid",
+            "expected.SegundoScore",
+            "expected.Margem",
+            "expected.Motivo",
+            "seen.Count != groups.Count",
+            "Resultado bruto SQL difere da decisão V9 TEST preparada.",
+        ):
+            self.assertIn(requirement, diagnostic)
+        self.assertIn("ProveCompletedRunPreparedDecisionParityGuardsAsync(", tests)
+        begin = tests.index(
+            "private static async Task ProveCompletedRunPreparedDecisionParityGuardsAsync(")
+        end = tests.index("private static async Task InsertSyntheticUniverseAsync(", begin)
+        regression = tests[begin:end]
+        for requirement in (
+            'GetField(\n            "prepared"',
+            "System.Reflection.BindingFlags.NonPublic",
+            "MelhorScore = d.MelhorScore + 0.001m",
+            "MelhorCandidatoUuid = null",
+            "Status = ResolutionStatus.CONFLITO",
+            'Motivo = "TAMPER_ONLY"',
+            "SegundoScore = 0.5m",
+            "Assert.ThrowsAsync<InvalidOperationException>",
+            "finally",
+            "field.SetValue(scorer, original)",
+        ):
+            self.assertIn(requirement, regression)
+        self.assertNotIn("UPDATE identidade.linkage_resultado", regression)
+        self.assertNotIn("DELETE FROM identidade.linkage_resultado", regression)
+
+    def test_nonpublishing_sql_source_to_group_map_is_fail_closed(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", scorer)
+        self.assertIn("SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,po.cpf", scorer)
+        self.assertIn("JOIN silver.pessoa_observacao po", scorer)
+        self.assertIn('code.StartsWith("SYNTH-", StringComparison.Ordinal)', scorer)
+        self.assertIn('code.StartsWith("V9TEST_", StringComparison.Ordinal)', scorer)
+        self.assertIn("!reader.IsDBNull(2)", scorer)
+        self.assertIn("sources.Count != groups.Count", scorer)
+        self.assertIn("new ReadOnlyDictionary<string, Guid>(sources)", scorer)
+        self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", tests)
+        self.assertIn("failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(", tests)
+
+    def test_completed_sql_run_result_exact_membership_and_status_guards(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        fixture = (Path(__file__).resolve().parents[2]
+                   / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        start = scorer.index("public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(")
+        end = scorer.index("public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(", start)
+        guard = scorer[start:end]
+        for required in (
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i",
+            "NOT EXISTS (",
+            "SELECT 1 FROM identidade.linkage_resultado r",
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r",
+            "SELECT 1 FROM identidade.linkage_run_item i",
+            "r.pessoa_observacao_id=i.pessoa_observacao_id",
+            "i.pessoa_observacao_id=r.pessoa_observacao_id",
+            "r.modelo_id<>lr.modelo_id",
+            "r.modelo_versao<>lr.modelo_versao",
+            "lr.resolvidos,lr.nao_resolvidos,lr.conflitos",
+            "r.status=N'RESOLVIDO'",
+            "r.status=N'NAO_RESOLVIDO'",
+            "r.status=N'CONFLITO'",
+            "reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0",
+            "reader.GetInt64(13) != 0",
+            "reader.GetInt64(14) != reader.GetInt64(8)",
+        ):
+            self.assertIn(required, guard)
+        start = fixture.index("private static async Task ProveCompletedRunResultMembershipGuardsAsync(")
+        end = fixture.index("private static async Task InsertSyntheticUniverseAsync(", start)
+        adversarial = fixture[start:end]
+        for required in (
+            "IF DB_NAME()<>N'JornadaHarness'",
+            "SET modelo_versao=2",
+            "SET status=N'CONFLITO'",
+            "OUTPUT INSERTED.pessoa_observacao_id",
+            "SET pessoa_observacao_id=@shadow",
+            "INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)",
+            "AssertRawMutationBlockedAsync(",
+            "Assert.ThrowsAsync<SqlException>",
+            "Assert.ThrowsAsync<InvalidOperationException>",
+            "51822, 51823",
+            "DELETE FROM silver.pessoa_observacao",
+            "finally",
+            "restored.Keys",
+        ):
+            self.assertIn(required, adversarial)
+        self.assertIn("await ProveCompletedRunResultMembershipGuardsAsync(", fixture)
+
+    def test_run_scoped_sql_delivery_ledger_requires_frozen_membership(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(", scorer)
+        self.assertIn("await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct)", scorer)
+        self.assertIn("FROM identidade.linkage_run_item ri", scorer)
+        self.assertIn("JOIN silver.pessoa_observacao po", scorer)
+        self.assertIn("JOIN ingestao.lote l ON l.lote_id=po.lote_id", scorer)
+        self.assertIn("JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id", scorer)
+        self.assertIn("LEFT JOIN bronze.entrega_arquivo b", scorer)
+        self.assertIn("e.gestor_id=po.gestor_id", scorer)
+        self.assertIn("sourceDeliveryIdMatches = entry.Value.All", scorer)
+        self.assertIn("sqlPayloadMetadataVerified = entry.Value.All", scorer)
+        self.assertIn("httpDeliveryProven = false", scorer)
+        self.assertIn("E2E_NUCLEO_PASS = false", scorer)
+        self.assertIn("BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(", tests)
+        self.assertIn("Synthetic fixture has no HTTP or Bronze data.", tests)
+
+    def test_physical_disposable_delivery_metadata_tampering_is_detected(self):
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        start = tests.index("private static async Task ProveDisposableRunDeliverySqlMetadataGuardsAsync(")
+        end = tests.index("private static async Task InsertSyntheticUniverseAsync(", start)
+        block = tests[start:end]
+        for required in (
+            "BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(",
+            'DB_NAME()<>N\'JornadaHarness\'',
+            "INSERT bronze.entrega_arquivo(",
+            "payload_sha256=REPLICATE('c',64)",
+            "id_pessoa_entrega=N'ALTERADA'",
+            "status=N'PENDENTE'",
+            "bytes_recebidos=513",
+            "Assert.That(changedBronze[\"V9TEST\"].Metadata, Is.False)",
+            "Assert.That(changedSource[\"V9TEST2\"].Source, Is.False)",
+            "Assert.That(changedLote[\"V9TEST2\"].Metadata, Is.False)",
+            "Assert.That(changedBytes[\"V9TEST2\"].Metadata, Is.False)",
+            "Assert.That(document.GetProperty(\"httpDeliveryProven\").GetBoolean(), Is.False",
+            "DELETE b FROM bronze.entrega_arquivo b",
+            "UPDATE silver.pessoa_observacao SET id_pessoa_entrega=NULL",
+        ):
+            self.assertIn(required, block)
+        self.assertIn("await ProveDisposableRunDeliverySqlMetadataGuardsAsync(", tests)
+        self.assertIn("finally", block)
+        self.assertIn("restored.Values.All(p => !p.Metadata && !p.Source)", block)
+
+    def test_sql_staging_never_invents_gold_state(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("BuildCompletedSourceGroupingStagingJsonAsync(", scorer)
+        self.assertIn('"E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"', scorer)
+        self.assertIn('sourceSetSha256Utf16le = sourceSetDigest', scorer)
+        self.assertIn('Encoding.Unicode.GetBytes(sourceSetCanonical)', scorer)
+        self.assertIn('identityStatesAvailable = false', scorer)
+        self.assertIn('certified = false', scorer)
+        self.assertIn('E2E_NUCLEO_PASS = false', scorer)
+        self.assertIn('await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct)', scorer)
+        self.assertIn('BuildCompletedSourceGroupingStagingJsonAsync(', tests)
+        self.assertIn('Is.EqualTo("STAGING_NOT_CERTIFIED")', tests)
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
