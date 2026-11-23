@@ -17,7 +17,12 @@ namespace Jornada.Linkage.Runner;
 /// PrepareAsync ONCE, then resolves those exact observation IDs in SQL batches.
 /// Legacy IProbabilisticIdentityLinkage behavior is not changed.
 /// </summary>
-public interface IV9NonPublishingFrozenCohortScorer : IProbabilisticIdentityLinkage
+/// <summary>
+/// Shared RunAsync cohort lifecycle for the V9 DEV adapter and the existing
+/// nonpublishing fixture. No scoring, SQL write or publication is performed by
+/// this contract; RunAsync retains all run, batch and publication semantics.
+/// </summary>
+public interface IV9RunScopedCohortScorer : IProbabilisticIdentityLinkage
 {
     Task PrepareAsync(Guid runId, ProbabilisticLinkageModelRef model,
         IReadOnlyList<V9FrozenRunObservation> frozenRows, CancellationToken ct);
@@ -25,6 +30,14 @@ public interface IV9NonPublishingFrozenCohortScorer : IProbabilisticIdentityLink
     Task<ProbabilisticLinkageDecision> ResolvePreparedAsync(Guid runId,
         long pessoaObservacaoId, IdentityObservation observation,
         Guid modelId, CancellationToken ct);
+}
+
+/// <summary>
+/// Existing TEST_ONLY specialization. Its production isolation and 512-row
+/// limit remain unchanged until a separate DEV scorer is actually certified.
+/// </summary>
+public interface IV9NonPublishingFrozenCohortScorer : IV9RunScopedCohortScorer
+{
 }
 
 /// <summary>Immutable observation identity read from the real linkage_run_item universe.</summary>
