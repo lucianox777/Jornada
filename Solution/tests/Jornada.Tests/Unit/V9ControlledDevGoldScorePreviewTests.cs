@@ -98,5 +98,10 @@ public sealed class V9ControlledDevGoldScorePreviewTests
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [SourceRow(2)]);
         Reject(Source([Candidate()]),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [SourceRow(), SourceRow()]);
+        Reject(Source([Candidate()]),
+            "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [null!]);
+        Reject(Source([Candidate()]),
+            "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH",
+            [SourceRow() with { Observation = SourceRow().Observation with { Cpf = "" } }]);
     }
 }
