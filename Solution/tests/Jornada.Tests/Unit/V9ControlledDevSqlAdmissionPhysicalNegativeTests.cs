@@ -98,4 +98,54 @@ public sealed class V9ControlledDevSqlAdmissionPhysicalNegativeTests
             Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
     }
 
+    [Test]
+    public async Task DEV_database_rejects_nonexistent_run_before_candidate_or_Gold_reads()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "JORNADA_V9_DEV_VALID_ATTEMPT_SQL");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Assert.Ignore("Exige tentativa DEV descartável com propriedades residentes válidas.");
+            return;
+        }
+
+        var database = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        const string prefix = "JornadaV9Dev_";
+        if (!database.StartsWith(prefix, StringComparison.Ordinal)
+            || database.Length != prefix.Length + 32
+            || !Guid.TryParseExact(database[prefix.Length..], "N", out var attempt)
+            || attempt == Guid.Empty)
+            throw new InvalidOperationException("SQL DEV deve usar o nome JornadaV9Dev_<GUID N>.");
+
+        await using var sql = new SqlConnection(connectionString);
+        await sql.OpenAsync();
+        // A valid physical DEV attempt is a fixture prerequisite here;
+        // do not confuse a wrong database with proof of a nonexistent run.
+        await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+            sql, attempt, CancellationToken.None);
+
+        var missingRun = Guid.NewGuid();
+        await using (var check = new SqlCommand(
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run WHERE linkage_run_id=@run;", sql))
+        {
+            var param = check.Parameters.Add("@run", System.Data.SqlDbType.UniqueIdentifier);
+            while (true)
+            {
+                param.Value = missingRun;
+                if (Convert.ToInt64(await check.ExecuteScalarAsync(),
+                    System.Globalization.CultureInfo.InvariantCulture) == 0)
+                    break;
+                missingRun = Guid.NewGuid();
+            }
+        }
+
+        var winner = V9OperationalPinnedCohortRuntime.FromVerifiedFileSnapshot(
+            V9FittedSnapshotTests.CompleteTf4OperationalWinner());
+        var error = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() =>
+            V9ControlledDevOperationalCandidateSource.ReadAsync(
+                sql, winner, attempt, missingRun,
+                Array.Empty<V9FrozenRunObservation>(), 10, CancellationToken.None)));
+        Assert.That(error!.Message, Is.EqualTo("RUNNER_V9_DEV_RUN_HEADER_MISMATCH"));
+    }
+
 }
