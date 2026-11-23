@@ -18,7 +18,28 @@ public static class V9ControlledDevOperationalCandidateSource
     public sealed record GoldCandidate(Guid PessoaUuid, string NomeCompleto,
         DateOnly DataNascimento, string NomeMae);
 
-    public static async Task<IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>> ReadAsync(
+    // The caller cannot supply a manager lookup or truth label: managers and
+    // source field integrity are read from the exact SQL run_item/Silver scope.
+    public sealed record VerifiedRunCandidates(
+        IReadOnlyDictionary<long, string> ManagerByObservation,
+        IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation);
+
+    /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
+    public static string VerifyFrozenSilverObservation(
+        V9FrozenRunObservation frozen, long sqlId, string? manager,
+        IdentityObservation sqlObservation)
+    {
+        ArgumentNullException.ThrowIfNull(frozen);
+        ArgumentNullException.ThrowIfNull(sqlObservation);
+        if (frozen.PessoaObservacaoId <= 0 || sqlId != frozen.PessoaObservacaoId
+            || string.IsNullOrWhiteSpace(manager)
+            || !string.IsNullOrWhiteSpace(sqlObservation.Cpf)
+            || !Equals(frozen.Observation, sqlObservation))
+            throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
+        return manager;
+    }
+
+    public static async Task<VerifiedRunCandidates> ReadAsync(
         SqlConnection connection,
         V9OperationalPinnedCohortRuntime pinnedWinner,
         Guid attemptId,
@@ -95,6 +116,47 @@ public static class V9ControlledDevOperationalCandidateSource
                 throw new InvalidDataException("RUNNER_V9_DEV_RUN_UNIVERSE_MISMATCH");
         }
 
+        // Authenticated managers come from real SQL only. Validate the
+        // fields materialized for scoring against current Silver; missing,
+        // duplicated or stale references must fail before Gold candidates.
+        var managers = new Dictionary<long, string>(frozenRows.Count);
+        await using (var silver = new SqlCommand("""
+            SELECT po.pessoa_observacao_id,g.codigo,po.cpf,
+                   po.cpf_ausente_motivo,po.nome_completo,
+                   po.data_nascimento,po.nome_mae
+              FROM identidade.linkage_run_item ri
+              JOIN silver.pessoa_observacao po
+                ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+              JOIN ref.gestor g ON g.gestor_id=po.gestor_id
+             WHERE ri.linkage_run_id=@run_id
+             ORDER BY po.pessoa_observacao_id;
+            """, connection))
+        {
+            silver.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            var index = 0;
+            await using var rows = await silver.ExecuteReaderAsync(cancellationToken);
+            while (await rows.ReadAsync(cancellationToken))
+            {
+                if (index >= frozenRows.Count || rows.IsDBNull(0) || rows.IsDBNull(1))
+                    throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
+                var loaded = new IdentityObservation(
+                    rows.IsDBNull(2) ? null : rows.GetString(2),
+                    rows.IsDBNull(3) ? null : rows.GetString(3),
+                    rows.IsDBNull(4) ? null : rows.GetString(4),
+                    rows.IsDBNull(5) ? null : DateOnly.FromDateTime(rows.GetDateTime(5)),
+                    rows.IsDBNull(6) ? null : rows.GetString(6),
+                    frozenRows[index].Observation.ResolutionAttributes);
+                var id = rows.GetInt64(0);
+                var manager = VerifyFrozenSilverObservation(
+                    frozenRows[index], id, rows.GetString(1), loaded);
+                if (!managers.TryAdd(id, manager))
+                    throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
+                index++;
+            }
+            if (index != frozenRows.Count)
+                throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
+        }
+
         var winner = pinnedWinner.FrozenWinner;
         if (pinnedWinner.ModelId !=
                 V9OperationalSqlModelConverter.ModelIdFromWinnerSha(pinnedWinner.WinnerSha256))
@@ -147,6 +209,8 @@ public static class V9ControlledDevOperationalCandidateSource
                     Array.AsReadOnly(candidates.ToArray())))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
         }
-        return new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result);
+        return new VerifiedRunCandidates(
+            new ReadOnlyDictionary<long, string>(managers),
+            new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result));
     }
 }
