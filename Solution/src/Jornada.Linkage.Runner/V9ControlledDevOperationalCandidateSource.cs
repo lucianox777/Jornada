@@ -51,6 +51,27 @@ public static class V9ControlledDevOperationalCandidateSource
         await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
             connection, attemptId, cancellationToken);
 
+        // An empty submitted universe is not proof that a run exists.
+        // Authenticate the exact run/model/mode/state and stored eligible count.
+        await using (var header = new SqlCommand("""
+            SELECT modelo_id,modelo_versao,tipo_run,status,registros_elegiveis
+              FROM identidade.linkage_run
+             WHERE linkage_run_id=@run_id;
+            """, connection))
+        {
+            header.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await using var record = await header.ExecuteReaderAsync(cancellationToken);
+            if (!await record.ReadAsync(cancellationToken)
+                || record.IsDBNull(0) || record.GetGuid(0) != pinnedWinner.ModelId
+                || record.IsDBNull(1) || record.GetInt32(1) != 9
+                || record.IsDBNull(2)
+                || record.GetString(2) is not ("FULL" or "INCREMENTAL")
+                || record.IsDBNull(3) || record.GetString(3) != "EXECUTANDO"
+                || record.IsDBNull(4) || record.GetInt64(4) != frozenRows.Count
+                || await record.ReadAsync(cancellationToken))
+                throw new InvalidDataException("RUNNER_V9_DEV_RUN_HEADER_MISMATCH");
+        }
+
         // Reconcile EXACT SQL membership, not a page-local or caller-truncated
         // sample. A single missing/extra row is fatal before candidate scoring.
         await using (var items = new SqlCommand("""
