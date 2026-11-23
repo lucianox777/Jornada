@@ -80,6 +80,25 @@ class ResultadoDevReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             MOD.check_detail(obj, NAME, ID, SHA)
 
+    def test_summary_class_totals_must_reconcile_with_processed_lots(self):
+        # A valid per-row sum and retention total cannot mask an extra item.
+        for row_index in (0, 1):
+            with self.subTest(extra_item_in_row=row_index):
+                obj = fixture()
+                row = obj["processamento"]["resumoItens"][row_index]
+                row["quantidadeDetalhada"] += 1
+                row["totalObservado"] += 1
+                obj["processamento"]["itensDetalhadosDisponiveis"] += 1
+                with self.assertRaisesRegex(ValueError, "diverge das contagens"):
+                    MOD.check_detail(obj, NAME, ID, SHA)
+
+        for classe in ("DESCONHECIDA", "REGISTRO"):
+            with self.subTest(classe=classe):
+                obj = fixture()
+                obj["processamento"]["resumoItens"][0]["classeItem"] = classe
+                with self.assertRaises(ValueError):
+                    MOD.check_detail(obj, NAME, ID, SHA)
+
     def test_ambiguous_processing_or_retention_fails(self):
         for key, bad in (("quantidadeDetalhada", 2),
                          ("quantidadeConsolidada", True), ("totalObservado", 3)):

@@ -58,6 +58,7 @@ def check_detail(detail, filename, latest_id, payload_sha256):
         raise ValueError("Resumo de itens ausente.")
     keys = set()
     detailed = consolidated = 0
+    by_class = {"PESSOA": 0, "REGISTRO": 0}
     retransmitted = []
     for row in rows:
         if not isinstance(row, dict):
@@ -69,11 +70,16 @@ def check_detail(detail, filename, latest_id, payload_sha256):
                 or not all(count(x) for x in (a, b, total))
                 or a + b != total):
             raise ValueError("Resumo por classe incoerente ou duplicado.")
+        if key[0] not in by_class:
+            raise ValueError("Classe de item fora da fixture Pessoa/Registro.")
         keys.add(key)
         detailed += a
         consolidated += b
+        by_class[key[0]] += total
         if key == ("REGISTRO", "RETRANSMITIDO"):
             retransmitted.append(total)
+    if by_class != {"PESSOA": people, "REGISTRO": records}:
+        raise ValueError("Resumo por classe diverge das contagens processadas nos lotes.")
     if retransmitted != [1]:
         raise ValueError("Resumo não registra o único fato retransmitido.")
     if (not count(processing.get("itensDetalhadosDisponiveis"))
