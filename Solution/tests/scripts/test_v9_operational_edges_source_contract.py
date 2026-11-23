@@ -177,6 +177,33 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(", tests)
         self.assertIn("Synthetic fixture has no HTTP or Bronze data.", tests)
 
+    def test_physical_disposable_delivery_metadata_tampering_is_detected(self):
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        start = tests.index("private static async Task ProveDisposableRunDeliverySqlMetadataGuardsAsync(")
+        end = tests.index("private static async Task InsertSyntheticUniverseAsync(", start)
+        block = tests[start:end]
+        for required in (
+            "BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(",
+            'DB_NAME()<>N\'JornadaHarness\'',
+            "INSERT bronze.entrega_arquivo(",
+            "payload_sha256=REPLICATE('c',64)",
+            "id_pessoa_entrega=N'ALTERADA'",
+            "status=N'PENDENTE'",
+            "bytes_recebidos=513",
+            "Assert.That(changedBronze[\"V9TEST\"].Metadata, Is.False)",
+            "Assert.That(changedSource[\"V9TEST2\"].Source, Is.False)",
+            "Assert.That(changedLote[\"V9TEST2\"].Metadata, Is.False)",
+            "Assert.That(changedBytes[\"V9TEST2\"].Metadata, Is.False)",
+            "Assert.That(document.GetProperty(\"httpDeliveryProven\").GetBoolean(), Is.False",
+            "DELETE b FROM bronze.entrega_arquivo b",
+            "UPDATE silver.pessoa_observacao SET id_pessoa_entrega=NULL",
+        ):
+            self.assertIn(required, block)
+        self.assertIn("await ProveDisposableRunDeliverySqlMetadataGuardsAsync(", tests)
+        self.assertIn("finally", block)
+        self.assertIn("restored.Values.All(p => !p.Metadata && !p.Source)", block)
+
     def test_sql_staging_never_invents_gold_state(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         tests = (Path(__file__).resolve().parents[2]

@@ -410,6 +410,12 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
                     positive.RunId, "not-a-commit", CancellationToken.None)));
 
+            // Physical SQL ledger mutation: positive SQL METADATA is NOT an
+            // authenticated HTTP ZIP or an existing Bronze object in storage.
+            // Force content and source drift and require per-delivery fail-closed.
+            await ProveDisposableRunDeliverySqlMetadataGuardsAsync(
+                connection, sqlScorer, positive.RunId);
+
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
             // comparison levels are used: FULL (FirstName TF) and exact LAST
@@ -616,6 +622,161 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+
+    /// <summary>
+    /// Exercise real disposable SQL metadata joins, never HTTP or storage bytes.
+    /// The fake Bronze keys do NOT reference an actual object. Even a perfect
+    /// ledger metadata match remains HTTP-unproven and noncertified.
+    /// </summary>
+    private static async Task ProveDisposableRunDeliverySqlMetadataGuardsAsync(
+        SqlConnection connection, V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        async Task ExecuteAsync(string commandText)
+        {
+            await using var command = new SqlCommand(commandText, connection);
+            command.Parameters.Add("@batch", SqlDbType.UniqueIdentifier).Value = BatchId;
+            command.Parameters.Add("@batch2", SqlDbType.UniqueIdentifier).Value = BatchId2;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        async Task<Dictionary<string, (bool Metadata, bool Source)>> ReadFlagsAsync()
+        {
+            var text = await scorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                runId, new string('c', 40), CancellationToken.None);
+            using var ledger = JsonDocument.Parse(text);
+            var document = ledger.RootElement;
+            Assert.That(document.GetProperty("sqlRunTerminalVerified").GetBoolean(), Is.True);
+            Assert.That(document.GetProperty("observationCount").GetInt32(), Is.EqualTo(200));
+            Assert.That(document.GetProperty("deliveryCount").GetInt32(), Is.EqualTo(2));
+            Assert.That(document.GetProperty("httpDeliveryProven").GetBoolean(), Is.False,
+                "SQL-only metadata never authenticates actual HTTP request bytes.");
+            Assert.That(document.GetProperty("goldIdentityStatesAvailable").GetBoolean(),
+                Is.False);
+            Assert.That(document.GetProperty("certified").GetBoolean(), Is.False);
+            Assert.That(document.GetProperty("E2E_NUCLEO_PASS").GetBoolean(), Is.False);
+            Assert.That(document.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(), Is.False);
+            return document.GetProperty("deliveryProofs").EnumerateArray()
+                .ToDictionary(
+                    p => p.GetProperty("gestor").GetString()!,
+                    p => (
+                        Metadata: p.GetProperty("sqlPayloadMetadataVerified").GetBoolean(),
+                        Source: p.GetProperty("sourceDeliveryIdMatches").GetBoolean()),
+                    StringComparer.Ordinal);
+        }
+
+        // All modifications are restricted to the empty, disposable
+        // JornadaHarness initialized in this same physical SQL smoke.
+        // These VALUES are invented metadata and NEVER a downloaded HTTP ZIP.
+        try
+        {
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52820,'Somente JornadaHarness descartável.',1;
+                DECLARE @one uniqueidentifier =
+                    (SELECT entrega_id FROM ingestao.lote WHERE lote_id=@batch);
+                DECLARE @two uniqueidentifier =
+                    (SELECT entrega_id FROM ingestao.lote WHERE lote_id=@batch2);
+                IF @one IS NULL OR @two IS NULL OR @one=@two
+                    THROW 52821,'Entregas sintéticas ausentes ou repetidas.',1;
+                UPDATE ingestao.entrega
+                   SET payload_sha256=REPLICATE('a',64),bytes_recebidos=256
+                 WHERE entrega_id=@one;
+                UPDATE ingestao.entrega
+                   SET payload_sha256=REPLICATE('b',64),bytes_recebidos=512
+                 WHERE entrega_id=@two;
+                INSERT bronze.entrega_arquivo(
+                    entrega_id,nome_arquivo,content_type,objeto_chave,
+                    payload_sha256,tamanho_bytes,recebido_em)
+                VALUES
+                    (@one,N'NO_HTTP_FIXTURE_1.zip',N'application/zip',
+                     N'fixture/NO_BYTES_EXIST/one',REPLICATE('a',64),256,
+                     TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00')),
+                    (@two,N'NO_HTTP_FIXTURE_2.zip',N'application/zip',
+                     N'fixture/NO_BYTES_EXIST/two',REPLICATE('b',64),512,
+                     TODATETIMEOFFSET(SYSUTCDATETIME(),'+00:00'));
+                UPDATE silver.pessoa_observacao
+                   SET id_pessoa_entrega=codigo_pessoa_origem
+                 WHERE lote_id IN (@batch,@batch2);
+                """);
+            var valid = await ReadFlagsAsync();
+            Assert.That(valid.Keys, Is.EquivalentTo(new[] { "V9TEST", "V9TEST2" }));
+            Assert.That(valid.Values.All(p => p.Metadata && p.Source), Is.True,
+                "Only the ledger metadata are internally consistent, NOT real HTTP.");
+
+            // Deliberate Bronze payload SHA substitution in just one delivery.
+            await ExecuteAsync("""
+                UPDATE b SET payload_sha256=REPLICATE('c',64)
+                FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id=@batch;
+                """);
+            var changedBronze = await ReadFlagsAsync();
+            Assert.That(changedBronze["V9TEST"].Metadata, Is.False);
+            Assert.That(changedBronze["V9TEST2"].Metadata, Is.True);
+            Assert.That(changedBronze.Values.All(p => p.Source), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE b SET payload_sha256=REPLICATE('a',64)
+                FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id=@batch;
+                UPDATE silver.pessoa_observacao SET id_pessoa_entrega=N'ALTERADA'
+                WHERE pessoa_observacao_id=(
+                    SELECT MIN(pessoa_observacao_id)
+                    FROM silver.pessoa_observacao WHERE lote_id=@batch2);
+                """);
+            var changedSource = await ReadFlagsAsync();
+            Assert.That(changedSource["V9TEST"].Source, Is.True);
+            Assert.That(changedSource["V9TEST2"].Source, Is.False);
+            Assert.That(changedSource.Values.All(p => p.Metadata), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE silver.pessoa_observacao
+                   SET id_pessoa_entrega=codigo_pessoa_origem WHERE lote_id=@batch2;
+                UPDATE ingestao.lote SET status=N'PENDENTE' WHERE lote_id=@batch2;
+                """);
+            var changedLote = await ReadFlagsAsync();
+            Assert.That(changedLote["V9TEST"].Metadata, Is.True);
+            Assert.That(changedLote["V9TEST2"].Metadata, Is.False);
+            Assert.That(changedLote.Values.All(p => p.Source), Is.True);
+
+            await ExecuteAsync("""
+                UPDATE ingestao.lote SET status=N'PROCESSADO' WHERE lote_id=@batch2;
+                UPDATE e SET bytes_recebidos=513
+                FROM ingestao.entrega e
+                JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+                WHERE l.lote_id=@batch2;
+                """);
+            var changedBytes = await ReadFlagsAsync();
+            Assert.That(changedBytes["V9TEST"].Metadata, Is.True);
+            Assert.That(changedBytes["V9TEST2"].Metadata, Is.False);
+            Assert.That(changedBytes.Values.All(p => p.Source), Is.True);
+        }
+        finally
+        {
+            // Restore all synthetic fixture state even on an assertion failure.
+            // No run, identity, serving or real Gold publication is changed.
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52822,'Somente JornadaHarness descartável.',1;
+                DELETE b FROM bronze.entrega_arquivo b
+                JOIN ingestao.lote l ON l.entrega_id=b.entrega_id
+                WHERE l.lote_id IN (@batch,@batch2);
+                UPDATE silver.pessoa_observacao SET id_pessoa_entrega=NULL
+                WHERE lote_id IN (@batch,@batch2);
+                UPDATE ingestao.lote SET status=N'PROCESSADO'
+                WHERE lote_id IN (@batch,@batch2);
+                UPDATE e SET payload_sha256=REPLICATE('0',64),bytes_recebidos=0
+                FROM ingestao.entrega e
+                JOIN ingestao.lote l ON l.entrega_id=e.entrega_id
+                WHERE l.lote_id IN (@batch,@batch2);
+                """);
+        }
+        var restored = await ReadFlagsAsync();
+        Assert.That(restored.Values.All(p => !p.Metadata && !p.Source), Is.True,
+            "Disposable fixture must return to its original non-HTTP state.");
     }
 
     private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)
