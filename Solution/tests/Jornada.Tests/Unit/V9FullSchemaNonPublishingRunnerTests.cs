@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Bronze.Storage;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
@@ -298,6 +299,42 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await sqlScorer.ReadCompletedSourceGroupingDiagnosticAsync(
                     Guid.NewGuid(), CancellationToken.None)));
+            // Non-publishing staging JSON deliberately excludes Gold states
+            // and the separate bridge truth sidecar. Never emit as CI artifact.
+            var stagingJson = await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                positive.RunId, new string('c', 40), CancellationToken.None);
+            using (var staging = JsonDocument.Parse(stagingJson))
+            {
+                var payload = staging.RootElement;
+                Assert.That(payload.GetProperty("schema").GetString(),
+                    Is.EqualTo("E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"));
+                Assert.That(payload.GetProperty("status").GetString(),
+                    Is.EqualTo("STAGING_NOT_CERTIFIED"));
+                Assert.That(payload.GetProperty("runId").GetString(),
+                    Is.EqualTo(positive.RunId.ToString("D")));
+                Assert.That(payload.GetProperty("modelWinnerSha256").GetString(),
+                    Is.EqualTo(winner.ContentSha256.ToUpperInvariant()));
+                Assert.That(payload.GetProperty("observationCount").GetInt32(),
+                    Is.EqualTo(200));
+                Assert.That(payload.GetProperty("identityStatesAvailable").GetBoolean(),
+                    Is.False);
+                Assert.That(payload.GetProperty("certified").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("E2E_NUCLEO_PASS").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(), Is.False);
+                Assert.That(payload.GetProperty("rows").GetArrayLength(), Is.EqualTo(200));
+                Assert.That(payload.GetProperty("rows")[0].GetProperty("opaquePersonId").GetString(),
+                    Is.EqualTo("V9TEST_0001"));
+                Assert.That(payload.GetProperty("rows")[0].GetProperty("groupId").GetString(),
+                    Is.EqualTo(grouping[1].ToString("D")));
+            }
+            Assert.That(stagingJson, Does.Not.Contain("identityState\":"));
+            Assert.That(stagingJson, Does.Not.Contain("BasePersonId"));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                    positive.RunId, "invalid-sha", CancellationToken.None)));
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
+                    Guid.NewGuid(), new string('c', 40), CancellationToken.None)));
 
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different

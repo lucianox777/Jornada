@@ -151,6 +151,91 @@ class GroupingOracleTests(unittest.TestCase):
             ORACLE.compare_groupings(
                 self.manifest, self.truth, self.truth, COMMIT, WINNER)
 
+    def write_linkage_only_staging(self):
+        # Staging has only runtime groups, NOT a fabricated Gold state.
+        self.source_rows = [
+            (f"SYNTH-{i:032X}", person)
+            for i, (_, person) in enumerate(self.source_rows, 1)
+        ]
+        self.write()
+        raw = json.loads(self.observed.read_text(encoding="utf-8"))
+        group_a = "00000000-0000-0000-0000-000000000001"
+        group_b = "00000000-0000-0000-0000-000000000003"
+        staging = {
+            "schema": ORACLE.STAGING_SCHEMA,
+            "status": "STAGING_NOT_CERTIFIED",
+            "runId": "11111111-1111-1111-1111-111111111111",
+            "commitSha": COMMIT,
+            "modelWinnerSha256": WINNER,
+            "observationCount": 4,
+            "identityStatesAvailable": False,
+            "certified": False,
+            "E2E_NUCLEO_PASS": False,
+            "E2E_INTEGRAL_PASS": False,
+            "rows": [
+                {"opaquePersonId": row["opaquePersonId"],
+                 "groupId": (group_a if i < 3 else group_b)}
+                for i, row in enumerate(raw["rows"])
+            ]
+        }
+        self.observed.write_text(json.dumps(staging), encoding="utf-8")
+        return staging
+
+    def test_sql_staging_groups_can_be_compared_without_gold_inference(self):
+        self.write_linkage_only_staging()
+        receipt = self.evaluate()
+        self.assertEqual(
+            (receipt["truePositivePairs"], receipt["falsePositivePairs"],
+             receipt["falseNegativePairs"]), (1, 2, 1))
+        self.assertEqual(receipt["sourceSchema"], ORACLE.STAGING_SCHEMA)
+        self.assertEqual(receipt["status"], "MEASURED_NOT_CERTIFIED")
+        self.assertFalse(receipt["identityStatesAvailable"])
+        self.assertIsNone(receipt["identityStates"])
+        self.assertFalse(receipt["producerBridgeBinding"])
+        self.assertFalse(receipt["scientificValidation"])
+        self.assertFalse(receipt["operationalParityCertified"])
+        self.assertFalse(receipt["E2E_NUCLEO_PASS"])
+        self.assertFalse(receipt["E2E_INTEGRAL_PASS"])
+        self.assertNotIn("SYNTH-", json.dumps(receipt))
+
+    def test_staging_rejects_gold_states_certification_and_bad_uuid(self):
+        for key, bad in (
+            ("identityStatesAvailable", True),
+            ("certified", True),
+            ("E2E_NUCLEO_PASS", True),
+            ("E2E_INTEGRAL_PASS", True),
+            ("status", "PASS"),
+            ("runId", "not-a-run"),
+            ("observationCount", True),
+            ("observationCount", 3),
+            ("modelWinnerSha256", "f" * 64),
+        ):
+            with self.subTest(key=key, bad=bad):
+                data = self.write_linkage_only_staging()
+                data[key] = bad
+                self.observed.write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    self.evaluate()
+        for modification in ("identity-state", "bad-group", "missing-group",
+                             "group-null", "unknown-source", "extra-metadata"):
+            with self.subTest(modification=modification):
+                data = self.write_linkage_only_staging()
+                if modification == "identity-state":
+                    data["rows"][0]["identityState"] = "REFERENCIA"
+                elif modification == "bad-group":
+                    data["rows"][0]["groupId"] = "not-a-guid"
+                elif modification == "missing-group":
+                    data["rows"][0].pop("groupId")
+                elif modification == "group-null":
+                    data["rows"][0]["groupId"] = None
+                elif modification == "unknown-source":
+                    data["rows"][0]["opaquePersonId"] = "SYNTH-UNEXPECTED"
+                else:
+                    data["bridgeManifestSha256"] = "0" * 64
+                self.observed.write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    self.evaluate()
+
     def test_without_true_positive_pairs_cannot_measure_recall(self):
         self.source_rows = [(obs, "BASE-" + str(i))
                             for i, (obs, _) in enumerate(self.source_rows)]

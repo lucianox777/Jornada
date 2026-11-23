@@ -158,6 +158,19 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", tests)
         self.assertIn("failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(", tests)
 
+    def test_sql_staging_never_invents_gold_state(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("BuildCompletedSourceGroupingStagingJsonAsync(", scorer)
+        self.assertIn('"E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"', scorer)
+        self.assertIn('identityStatesAvailable = false', scorer)
+        self.assertIn('certified = false', scorer)
+        self.assertIn('E2E_NUCLEO_PASS = false', scorer)
+        self.assertIn('await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct)', scorer)
+        self.assertIn('BuildCompletedSourceGroupingStagingJsonAsync(', tests)
+        self.assertIn('Is.EqualTo("STAGING_NOT_CERTIFIED")', tests)
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()

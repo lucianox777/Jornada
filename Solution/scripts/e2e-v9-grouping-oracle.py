@@ -5,12 +5,15 @@ from collections import Counter, defaultdict
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
+import uuid
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_TRUTH_BYTES = 8 * 1024 * 1024
 MAX_OBSERVATIONS = 4000
 SCHEMA = "E2E_V9_GROUPING_OBSERVED_DEV_V1"
+STAGING_SCHEMA = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1"
 
 
 def require(condition, message):
@@ -98,14 +101,36 @@ def compare_groupings(manifest_path, truth_path, observed_path,
         require(len(truth_by_source) <= MAX_OBSERVATIONS, "grouping DEV bound exceeded")
     require(len(truth_by_source) >= 2, "insufficient grouping truth")
     observed = parse_json(checked_bytes(observed_path, MAX_JSON_BYTES))
-    require(isinstance(observed, dict)
-            and set(observed) == {"schema", "bridgeManifestSha256",
-                                  "commitSha", "modelWinnerSha256", "rows"}
-            and observed["schema"] == SCHEMA,
-            "invalid observed grouping contract")
+    require(isinstance(observed, dict), "invalid observed grouping object")
+    staging = observed.get("schema") == STAGING_SCHEMA
+    if staging:
+        require(set(observed) == {
+            "schema", "status", "runId", "commitSha", "modelWinnerSha256",
+            "observationCount", "identityStatesAvailable", "certified",
+            "E2E_NUCLEO_PASS", "E2E_INTEGRAL_PASS", "rows"
+        }, "invalid linkage-only staging contract")
+        require(observed["status"] == "STAGING_NOT_CERTIFIED"
+                and observed["identityStatesAvailable"] is False
+                and observed["certified"] is False
+                and observed["E2E_NUCLEO_PASS"] is False
+                and observed["E2E_INTEGRAL_PASS"] is False,
+                "linkage-only staging attempted certification or Gold inference")
+        require(isinstance(observed["runId"], str)
+                and str(uuid.UUID(observed["runId"])) == observed["runId"]
+                and observed["runId"] != str(uuid.UUID(int=0)),
+                "invalid staging run ID")
+        require(type(observed["observationCount"]) is int
+                and observed["observationCount"] == len(truth_by_source),
+                "staging observation count mismatches independent truth")
+    else:
+        require(observed.get("schema") == SCHEMA
+                and set(observed) == {"schema", "bridgeManifestSha256",
+                                      "commitSha", "modelWinnerSha256", "rows"},
+                "invalid observed grouping contract")
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest().upper()
-    require(observed["bridgeManifestSha256"] == manifest_sha,
-            "observed grouping not bound to bridge manifest")
+    if not staging:
+        require(observed["bridgeManifestSha256"] == manifest_sha,
+                "observed grouping not bound to bridge manifest")
     require(observed["commitSha"] == expected_commit,
             "observed grouping not bound to checkout SHA")
     require(hex_digest(observed["modelWinnerSha256"], 64)
@@ -120,20 +145,29 @@ def compare_groupings(manifest_path, truth_path, observed_path,
     states = Counter()
     without_group = 0
     for row in rows:
-        require(isinstance(row, dict)
-                and set(row) == {"opaquePersonId", "groupId", "identityState"},
+        required_fields = ({"opaquePersonId", "groupId"} if staging
+                           else {"opaquePersonId", "groupId", "identityState"})
+        require(isinstance(row, dict) and set(row) == required_fields,
                 "invalid observed grouping row")
-        source, group, state = (row["opaquePersonId"], row["groupId"],
-                                row["identityState"])
+        source, group = row["opaquePersonId"], row["groupId"]
         require(isinstance(source, str) and source in truth_by_source
                 and source not in seen, "unknown or duplicated observed source")
+        if staging:
+            require(re.fullmatch(r"SYNTH-[0-9A-F]{32}", source) is not None,
+                    "noncanonical bridge source in linkage-only staging")
+            require(isinstance(group, str)
+                    and str(uuid.UUID(group)) == group
+                    and group != str(uuid.UUID(int=0)),
+                    "invalid SQL staging grouping GUID")
         seen.add(source)
-        require(state in ("PROVISORIA", "REFERENCIA", "INDEFINIDA"),
-                "invalid observed identity state")
+        if not staging:
+            state = row["identityState"]
+            require(state in ("PROVISORIA", "REFERENCIA", "INDEFINIDA"),
+                    "invalid observed identity state")
+            states[state] += 1
         require(group is None or (isinstance(group, str)
                 and 0 < len(group) <= 128 and group == group.strip()),
                 "invalid observed group")
-        states[state] += 1
         if group is None:
             without_group += 1
         else:
@@ -151,7 +185,12 @@ def compare_groupings(manifest_path, truth_path, observed_path,
     predicted_pairs = tp + fp
     return {
         "status": "MEASURED_NOT_CERTIFIED",
-        "scope": "GROUPING_ONLY_NO_BLOCKING_SCORES_OR_SCIENTIFIC_TEST",
+        "scope": ("LINKAGE_ONLY_NO_GOLD_OR_PHYSICAL_PROVENANCE_CERTIFICATION"
+                  if staging else
+                  "GROUPING_ONLY_NO_BLOCKING_SCORES_OR_SCIENTIFIC_TEST"),
+        "sourceSchema": observed["schema"],
+        "identityStatesAvailable": not staging,
+        "producerBridgeBinding": not staging,
         "sha": expected_commit,
         "modelWinnerSha256": expected_winner.upper(),
         "bridgeManifestSha256": manifest_sha,
@@ -159,8 +198,9 @@ def compare_groupings(manifest_path, truth_path, observed_path,
         "truthIdentities": len(actual_base),
         "predictedGroups": len(groups),
         "withoutGroup": without_group,
-        "identityStates": {key: states[key] for key in
-                           ("PROVISORIA", "REFERENCIA", "INDEFINIDA")},
+        "identityStates": (None if staging else
+                           {key: states[key] for key in
+                            ("PROVISORIA", "REFERENCIA", "INDEFINIDA")}),
         "truePositivePairs": tp, "falsePositivePairs": fp,
         "falseNegativePairs": fn,
         "pairwiseRecallPercent": round(100 * tp / true_pairs, 6),

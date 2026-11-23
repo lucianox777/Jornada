@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
@@ -347,6 +348,45 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         // of atomic Silver/Gold provenance or operational E2E certification.
         _ = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
         return new ReadOnlyDictionary<string, Guid>(sources);
+    }
+
+    /// <summary>
+    /// Minimal local staging payload for a completed disposable V9 RunAsync.
+    /// No truth labels, ZIP manifests or fabricated Gold states enter here.
+    /// Never publish this data as a GitHub Actions artifact.
+    /// </summary>
+    public async Task<string> BuildCompletedSourceGroupingStagingJsonAsync(
+        Guid runId, string checkoutSha, CancellationToken ct)
+    {
+        if (checkoutSha is not { Length: 40 }
+            || checkoutSha.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+            throw new InvalidDataException("Checkout SHA inválido para diagnóstico V9.");
+
+        var sources = await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct);
+        if (sources.Count == 0 || sources.Count > MaximumSyntheticObservations)
+            throw new InvalidDataException("Coorte SQL sintética fora dos limites TEST.");
+        // All values originate from the read-only run-scoped SQL diagnostic.
+        // In particular, identityState is intentionally ABSENT: this RunAsync
+        // did NOT publish decisions into Gold/Serving.
+        return JsonSerializer.Serialize(new
+        {
+            schema = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V1",
+            status = "STAGING_NOT_CERTIFIED",
+            runId = runId.ToString("D"),
+            commitSha = checkoutSha,
+            modelWinnerSha256 = pinnedWinnerSha.ToUpperInvariant(),
+            observationCount = sources.Count,
+            identityStatesAvailable = false,
+            certified = false,
+            E2E_NUCLEO_PASS = false,
+            E2E_INTEGRAL_PASS = false,
+            rows = sources.OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(x => new
+                {
+                    opaquePersonId = x.Key,
+                    groupId = x.Value.ToString("D")
+                }).ToArray()
+        });
     }
 
     private static bool IsSyntheticDevSource(string code) =>
