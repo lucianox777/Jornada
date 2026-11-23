@@ -44,10 +44,10 @@ public sealed class V9ControlledDevAdmissionNegativeMatrixTests
     public void Missing_attempt_fails_before_loading_winner_or_connecting_to_SQL()
     {
         var sql = new NeverOpenSql();
-        var error = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var error = Assert.ThrowsAsync<InvalidOperationException>((NUnit.Framework.AsyncTestDelegate)(async () =>
             await V9ControlledDevSelection.VerifyAsync(
                 Selection(9, "never-load-a-selection.json"), sql,
-                Guid.Empty, CancellationToken.None));
+                Guid.Empty, CancellationToken.None)));
         Assert.That(error!.Message, Is.EqualTo("RUNNER_V9_DEV_ATTEMPT_MISSING"));
         Assert.That(sql.ConnectionRequests, Is.Zero);
     }
@@ -61,9 +61,9 @@ public sealed class V9ControlledDevAdmissionNegativeMatrixTests
         int? modelVersion, string? file)
     {
         var sql = new NeverOpenSql();
-        var error = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var error = Assert.ThrowsAsync<InvalidOperationException>((NUnit.Framework.AsyncTestDelegate)(async () =>
             await V9ControlledDevSelection.VerifyAsync(
-                Selection(modelVersion, file), sql, Guid.NewGuid(), CancellationToken.None));
+                Selection(modelVersion, file), sql, Guid.NewGuid(), CancellationToken.None)));
         Assert.That(error!.Message, Is.EqualTo("RUNNER_V9_DEV_SELECTION_REQUIRED"));
         Assert.That(sql.ConnectionRequests, Is.Zero);
     }
