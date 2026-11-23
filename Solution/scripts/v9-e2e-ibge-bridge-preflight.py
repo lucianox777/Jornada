@@ -7,6 +7,7 @@ the generated population, ZIPs or truth sidecars as GitHub Actions artifacts.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -21,6 +22,7 @@ PEOPLE = 1000
 # compressed inputs as evidence or consume arbitrary memory while parsing.
 MAX_METADATA_BYTES = 8 * 1024 * 1024
 MAX_TRUTH_BYTES = 32 * 1024 * 1024
+MAX_SOURCE_CSV_BYTES = 32 * 1024 * 1024
 MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PERSON_MEMBER_BYTES = 16 * 1024 * 1024
 MAX_MANIFEST_MEMBER_BYTES = 1024 * 1024
@@ -59,6 +61,65 @@ def sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
+
+def source_observation_truth(corpus_dir: Path, corpus: dict):
+    """Read separately emitted generator CSVs; never return person-level values."""
+    outputs = corpus.get("outputs")
+    required_names = {"pessoas_verdade.csv", "observacoes.csv", "gabarito.json"}
+    require(isinstance(outputs, list) and len(outputs) == len(required_names),
+            "Generator output manifest must enumerate the three source files")
+    seen = set()
+    for entry in outputs:
+        require(isinstance(entry, dict), "Invalid generator output entry")
+        name, digest = entry.get("path"), entry.get("sha256")
+        require(isinstance(name, str) and name in required_names and name not in seen,
+                "Missing, repeated or unrecognized generator output")
+        require(isinstance(digest, str) and len(digest) == 64
+                and all(c in "0123456789ABCDEF" for c in digest.upper()),
+                "Invalid generator output digest")
+        path = corpus_dir / name
+        require(path.is_file() and not path.is_symlink()
+                and path.stat().st_size <= MAX_SOURCE_CSV_BYTES
+                and sha256(path) == digest.upper(),
+                "Generator output bytes not bound to source manifest")
+        seen.add(name)
+    require(seen == required_names, "Incomplete generator output manifest")
+
+    def rows(name, headers):
+        path = corpus_dir / name
+        with path.open("r", encoding="utf-8-sig", newline="") as stream:
+            reader = csv.DictReader(stream)
+            require(reader.fieldnames is not None
+                    and len(set(reader.fieldnames)) == len(reader.fieldnames)
+                    and set(headers).issubset(reader.fieldnames),
+                    "Invalid or ambiguous generator CSV header")
+            yield from reader
+
+    people = {}
+    for row in rows("pessoas_verdade.csv", ("base_person_id", "particao")):
+        person, partition = row["base_person_id"], row["particao"]
+        require(person and person not in people
+                and partition in ("TRAIN", "VALIDATION", "TEST"),
+                "Invalid or duplicated source person")
+        people[person] = partition
+        require(len(people) <= PEOPLE, "Source person count exceeds 1k DEV")
+    require(len(people) == PEOPLE, "Source generator person count differs from 1k")
+
+    observations = {}
+    for row in rows("observacoes.csv",
+                    ("observacao_id", "base_person_id", "particao", "gestor")):
+        observation, person = row["observacao_id"], row["base_person_id"]
+        partition, gestor = row["particao"], row["gestor"]
+        require(observation and observation not in observations
+                and person in people and partition == people[person]
+                and gestor in ("G0", "G1", "G2", "G3"),
+                "Invalid source observation/person/partition mapping")
+        observations[observation] = (person, partition, gestor)
+        require(len(observations) <= PEOPLE * 4,
+                "Source observation count exceeds declared DEV maximum")
+    return observations
+
+
 def verify(root: Path) -> dict:
     require(root.is_dir() and not root.is_symlink(), "Missing or symlinked IBGE DEV root")
     corpus_dir = root / "corpus"
@@ -69,6 +130,7 @@ def verify(root: Path) -> dict:
     truth = read_json(corpus_dir / "gabarito.json")
     bridge_file = ingestion_dir / "bridge-manifest.json"
     bridge = read_json(bridge_file)
+    csv_observations = source_observation_truth(corpus_dir, corpus)
     require(corpus.get("generator_version") == GENERATOR, "Unexpected C# generator version")
     require(corpus.get("population_profile") == PROFILE, "Must reuse demographic IBGE model")
     require(type(corpus.get("seed")) is int and corpus["seed"] == SEED, "Unexpected DEV seed")
@@ -110,6 +172,7 @@ def verify(root: Path) -> dict:
     sidecar_lines = truth_file.read_text(encoding="utf-8").splitlines()
     require(len(sidecar_lines) == source, "Ground-truth row count mismatch")
     truth_by_opaque = {}
+    truth_source_observations = {}
     base_ids = set()
     observation_ids = set()
     for raw_row in sidecar_lines:
@@ -129,10 +192,15 @@ def verify(root: Path) -> dict:
                 and observation not in observation_ids,
                 "Duplicated source observation or opaque identity")
         truth_by_opaque[opaque] = (row["GestorCodigo"], row["PackageFileName"])
+        truth_source_observations[observation] = (
+            row["BasePersonId"], row["Partition"], row.get("SyntheticGestor"))
         observation_ids.add(observation)
         base_ids.add(row["BasePersonId"])
     require(len(base_ids) == PEOPLE,
             "Synthetic generator lost or duplicated base identities")
+    require(len(csv_observations) == source
+            and csv_observations == truth_source_observations,
+            "Source CSV and bridge truth sidecar differ")
 
     packages = bridge.get("packages")
     require(isinstance(packages, list) and len(packages) == 4,

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Adversarial offline contract for the already-implemented C# IBGE-to-ZIP bridge."""
 import hashlib
+import csv
 import importlib.util
 import json
 from pathlib import Path
@@ -41,6 +42,7 @@ def fixture(directory):
     ground = ingestion / "bridge-truth.jsonl"
     truth_rows = []
     packages = []
+    synthetic_by_gestor = {"SEHAB": "G0", "SMADS": "G1", "SMDET": "G2", "SMS": "G3"}
     for gestor in PREFLIGHT.EXPECTED_GESTORES:
         name = f"SYNTH-{gestor}.zip"
         path = ingestion / name
@@ -54,6 +56,7 @@ def fixture(directory):
                 "ObservationId": f"OBS-{gestor}-{i}",
                 "BasePersonId": f"DEV_TRUTH_ONLY-{gestor}-{i}",
                 "Partition": "TRAIN" if i % 3 == 0 else ("VALIDATION" if i % 3 == 1 else "TEST"),
+                "SyntheticGestor": synthetic_by_gestor[gestor],
                 "GestorCodigo": gestor,
                 "OpaquePersonId": f"SYNTH-{gestor}-{i}",
                 "PackageFileName": name,
@@ -68,6 +71,24 @@ def fixture(directory):
             "PeopleCount": 250, "sha256": digest(path)})
     ground.write_text("".join(json.dumps(row) + "\n" for row in truth_rows),
                       encoding="utf-8")
+    people_path = corpus / "pessoas_verdade.csv"
+    observations_path = corpus / "observacoes.csv"
+    with people_path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("base_person_id", "particao"))
+        writer.writerows((row["BasePersonId"], row["Partition"]) for row in truth_rows)
+    with observations_path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(("observacao_id", "base_person_id", "particao", "gestor"))
+        writer.writerows((row["ObservationId"], row["BasePersonId"], row["Partition"],
+                          row["SyntheticGestor"]) for row in truth_rows)
+    source_manifest = corpus / "generation-manifest.json"
+    metadata = json.loads(source_manifest.read_text(encoding="utf-8"))
+    metadata["outputs"] = [
+        {"path": name, "sha256": digest(corpus / name)}
+        for name in ("gabarito.json", "observacoes.csv", "pessoas_verdade.csv")
+    ]
+    dump(source_manifest, metadata)
     dump(ingestion / "bridge-manifest.json", {
         "generatorVersion": PREFLIGHT.GENERATOR,
         "bridgeVersion": "SYNTHETIC_INGESTION_BRIDGE_V1",
@@ -144,6 +165,57 @@ class IbgeGeneratorBridgePreflightTests(unittest.TestCase):
             manifest["packages"][0]["sha256"] = digest(path)
             dump(bridge_path, manifest)
             with self.assertRaisesRegex(ValueError, "exceeds its approved bound"):
+                PREFLIGHT.verify(Path(directory))
+
+
+    def test_generator_source_csv_hash_drift_is_rejected_before_bridge(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus, _ = fixture(directory)
+            path = corpus / "observacoes.csv"
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write("UNDECLARED,UNKNOWN,TEST,G0\n")
+            with self.assertRaisesRegex(ValueError, "output bytes"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_source_csv_vs_sidecar_mismatch_fails_even_with_rehashed_generator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus, _ = fixture(directory)
+            path = corpus / "observacoes.csv"
+            with path.open("r", encoding="utf-8", newline="") as stream:
+                reader = csv.DictReader(stream)
+                records = list(reader)
+                headers = reader.fieldnames
+            records[0]["observacao_id"] = "OBS-TAMPERED"
+            with path.open("w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=headers)
+                writer.writeheader()
+                writer.writerows(records)
+            manifest_path = corpus / "generation-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for entry in manifest["outputs"]:
+                if entry["path"] == "observacoes.csv":
+                    entry["sha256"] = digest(path)
+            dump(manifest_path, manifest)
+            with self.assertRaisesRegex(ValueError, "Source CSV and bridge truth"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_sidecar_cross_format_identity_swap_fails_even_if_sidecar_rehashed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            path = ingestion / "bridge-truth.jsonl"
+            lines = path.read_text(encoding="utf-8").splitlines()
+            first = json.loads(lines[0])
+            second = json.loads(lines[1])
+            first["BasePersonId"], second["BasePersonId"] = (
+                second["BasePersonId"], first["BasePersonId"])
+            lines[0] = json.dumps(first)
+            lines[1] = json.dumps(second)
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            manifest_path = ingestion / "bridge-manifest.json"
+            bridge = json.loads(manifest_path.read_text(encoding="utf-8"))
+            bridge["truthSidecar"]["sha256"] = digest(path)
+            dump(manifest_path, bridge)
+            with self.assertRaisesRegex(ValueError, "Source CSV and bridge truth"):
                 PREFLIGHT.verify(Path(directory))
 
     def test_modified_zip_fails_closed(self):
