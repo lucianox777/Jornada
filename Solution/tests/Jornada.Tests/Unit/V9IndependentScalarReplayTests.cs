@@ -416,8 +416,8 @@ public sealed class V9IndependentScalarReplayTests
             var calibration = slot.Calibration!;
             var token = unit == NominalFrequencyUnitV9.FirstName ? first : last;
             var frequency = Math.Max(calibration.Frequencies[token], calibration.MinimumFrequency);
-            return Math.Pow((double)(calibration.NominalUReference!.Probability / frequency),
-                (double)calibration.Weight);
+            var weight = calibration.Weight ?? throw new InvalidDataException("Active TF slot has no weight.");
+            return Math.Pow((double)(calibration.NominalUReference!.Probability / frequency), (double)weight);
         }
     }
 
