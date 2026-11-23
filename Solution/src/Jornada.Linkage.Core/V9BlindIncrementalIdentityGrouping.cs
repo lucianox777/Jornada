@@ -79,7 +79,9 @@ public static class V9BlindIncrementalIdentityGrouping
                 "Exige posterior FS em (0.5,1) e cap de identidade >= 2.");
 
         var rows = observations.ToArray();
-        if (rows.Length < 2 || rows.Any(x => x is null
+        // An eligible DEV FULL/INCREMENTAL run may have 0 or 1 pending rows;
+        // keep the scientific VALIDATION/TEST minimum of two unchanged.
+        if ((purpose != "DEV" && rows.Length < 2) || rows.Any(x => x is null
             || x.Partition != purpose || x.ObservationId <= 0
             || string.IsNullOrWhiteSpace(x.Gestor))
             || rows.Select(x => x.ObservationId).Distinct().Count() != rows.Length)
