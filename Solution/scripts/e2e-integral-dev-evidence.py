@@ -72,36 +72,70 @@ def main():
                 measurements["harnessProcessTree"] = {"cpuSeconds": round(cpu, 2), "maxRssKiB": int(rss)}
         except ValueError:
             failures.append("Métricas de recursos indisponíveis.")
-    # Each pending component requires its own physical verifier to be integrated
-    # before either milestone can be admitted. No dispatch input can waive it.
+    verified = [
+        ("Despacho, ref protegida, SHA local e remoto", ("ADMISSION", "CHECKOUT"), None),
+        ("Isolamento e limpeza da tentativa", ("ISOLATION", "CLEANUP"), None),
+        ("HTTP 1k, Bronze, Processor, Silver, Gold de pessoas e Serving; replay HTTP",
+         ("HTTP",), "counts"),
+        ("Resultado.Api por entrega, releitura e negativas", ("HTTP",), "resultadoHttp"),
+        ("Busca semicega desabilitada: negativas HTTP e auditoria SQL", ("HTTP",), "semiblindHttpDenials"),
+        ("OpenAPI versionado e igualdade de operações mapeadas nos dois hosts",
+         ("CONTRACTS", "RUNTIME"), None),
+        ("ZIP sintético determinístico do Apoio sem envio", ("APOIO",), None),
+    ]
+    coverage = []
+    for requirement, gates, measurement in verified:
+        passed = all(steps[gate] == "success" for gate in gates)
+        passed = passed and (measurement is None or bool(measurements.get(measurement)))
+        coverage.append({
+            "requirement": requirement, "sha": sha, "status": "PASS" if passed else "NAO_VALIDADO",
+            "steps": {gate: steps[gate] for gate in gates}, "measurement": measurement,
+            "reason": None if passed else "Etapa incompleta, negativa ou sem recibo físico compatível.",
+        })
+
     blocked = {
         "nucleo": [
-            "#1488/#1584: seleção autorizada e proveniência do vencedor; RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED.",
-            "#1851: RunAsync V9 após HTTP/Processor, linkage persistido, três estados Gold e APIs no mesmo banco.",
-            "#1584/#1851: comparação por observação com gabarito externo e oráculo de candidatos, scores e decisões.",
-            "#1851: recuperação após falha intermediária, concorrência e rollback do linkage.",
-            "#1851: 10 entregas de 1k aguardam o aceite funcional V9 em 1k.",
+            ("Seleção DEV e proveniência do modelo vencedor", "#1488/#1584: RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED."),
+            ("HTTP, Gold de fatos por tipo, Runner V9, linkage_resultado e recomposição de pessoas",
+             "#1851: falta a cadeia física no mesmo banco descartável."),
+            ("Estados PROVISORIA, REFERENCIA e INDEFINIDA, abstenção e APIs do núcleo",
+             "#1851: falta verificar as decisões operacionais V9 e as respostas correspondentes."),
+            ("Gabarito externo e oráculo de candidatos, scores, agrupamento e decisão",
+             "#1584/#1851: falta a comparação por observação na cadeia física."),
+            ("Reprocessamento, concorrência e rollback após falha intermediária",
+             "#1851: faltam as provas do Runner na cadeia de ingestão."),
+            ("10k em dez entregas de 1k e métricas de desempenho",
+             "#1851: depende da prova funcional V9 1k."),
         ],
         "integral": [
-            "#1854: Top 5, Nenhum destes e visibilidade positiva da busca semicega.",
-            "#1855/#1194: ZIP do Apoio até o receptor com autorização por tipo de fato.",
-            "#1851: serviços, monitor e contratos de todos os gestores no fluxo integrado.",
+            ("Top 5, Nenhum destes, seletividade, projeção e visibilidade da busca semicega",
+             "#1854/#539: falta a prova com a busca habilitada em DEV sintético."),
+            ("ZIP do Apoio até o receptor com autorização por tipo de fato",
+             "#1855/#1194: autorização por recurso permanece pendente."),
+            ("APIs de pessoa, identidade, registros, benefícios, serviços e monitor",
+             "#1851: falta a cadeia integral com estados V9 e contratos de gestores/tipos de fato."),
         ],
     }
+    for scope, entries in blocked.items():
+        coverage.extend(
+            {"requirement": requirement, "scope": scope, "sha": sha, "status": "BLOQUEADO", "reason": reason}
+            for requirement, reason in entries
+        )
     receipt = {
         "sha": sha, "runId": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"],
         "job": os.environ["GITHUB_JOB"], "ref": os.environ["GITHUB_REF"], "event": os.environ["GITHUB_EVENT_NAME"],
         "runUrl": f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}/attempts/{os.environ["GITHUB_RUN_ATTEMPT"]}',
-        "steps": steps, "measurements": measurements, "failedOrMissing": failures, "blocked": blocked,
+        "steps": steps, "measurements": measurements, "failedOrMissing": failures, "coverage": coverage,
         "E2E_NUCLEO_PASS": False, "E2E_INTEGRAL_PASS": False,
     }
     (temp / "e2e-integral-dev.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n")
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
         print("## E2E V9 DEV\n\n**Núcleo e sistema integral: NÃO VALIDADOS.**\n", file=summary)
-        for scope, reasons in blocked.items():
-            print(f"### {scope.capitalize()}\n", file=summary)
-            for reason in reasons:
-                print("-", reason, file=summary)
+        print("| Requisito | Resultado | Evidência ou bloqueio |", file=summary)
+        print("| --- | --- | --- |", file=summary)
+        for row in coverage:
+            detail = row["reason"] or ", ".join(row["steps"])
+            print(f'| {row["requirement"]} | {row["status"]} | {detail} |', file=summary)
         if failures:
             print("\nFalhas ou evidências ausentes: " + ", ".join(failures), file=summary)
     return 1

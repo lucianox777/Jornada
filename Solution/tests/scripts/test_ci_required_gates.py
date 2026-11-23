@@ -440,3 +440,32 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertNotIn("--volumes", cleanup["run"])
         self.assertLess(cleanup["run"].index('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]'),
                         cleanup["run"].index('docker volume rm "$JORNADA_SQL_VOLUME_NAME"'))
+
+    def test_missing_receipts_never_approve_the_milestones(self):
+        import importlib.util
+        import tempfile
+        from unittest.mock import patch
+
+        script = ROOT / "Solution/scripts/e2e-integral-dev-evidence.py"
+        spec = importlib.util.spec_from_file_location("integral_dev_evidence", script)
+        evidence = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(evidence)
+        sha = "a" * 40
+        with tempfile.TemporaryDirectory() as temp:
+            env = {key + "_STEP": "success" for key in (
+                "ADMISSION", "CHECKOUT", "ISOLATION", "HTTP", "CONTRACTS", "APOIO", "RUNTIME", "CLEANUP")}
+            env.update(RUNNER_TEMP=temp, GITHUB_SHA=sha, GITHUB_RUN_ID="1", GITHUB_RUN_ATTEMPT="2",
+                       GITHUB_JOB="dev-1k", GITHUB_REF="refs/heads/master", GITHUB_EVENT_NAME="workflow_dispatch",
+                       GITHUB_REPOSITORY="lucianox777/Jornada", GITHUB_STEP_SUMMARY=str(Path(temp, "summary.md")))
+            with patch.dict("os.environ", env), patch.object(evidence, "OUT", Path(temp)):
+                self.assertEqual(evidence.main(), 1)
+            receipt = json.loads(Path(temp, "e2e-integral-dev.json").read_text())
+            self.assertFalse(receipt["E2E_NUCLEO_PASS"])
+            self.assertFalse(receipt["E2E_INTEGRAL_PASS"])
+            self.assertTrue(receipt["failedOrMissing"])
+            rows = {row.get("measurement"): row for row in receipt["coverage"]}
+            for measurement in ("counts", "resultadoHttp", "semiblindHttpDenials"):
+                self.assertEqual(rows[measurement]["status"], "NAO_VALIDADO")
+            self.assertTrue(all(row["sha"] == sha for row in receipt["coverage"]))
+            self.assertEqual({row["scope"] for row in receipt["coverage"] if row["status"] == "BLOQUEADO"},
+                             {"nucleo", "integral"})
