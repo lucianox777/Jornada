@@ -21,6 +21,37 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             "ANA PAULA SILVA", new DateOnly(1990, 1, 1), "MARIA SILVA"));
 
     [Test]
+    public void Canonical_blocking_union_must_equal_all_Gold_joined_UUIDs()
+    {
+        var a = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var b = Guid.Parse("22222222-2222-4222-8222-222222222222");
+        var joined = new[]
+        {
+            new V9ControlledDevOperationalCandidateSource.GoldCandidate(
+                a, "ANA", new DateOnly(1990, 1, 1), "MARIA"),
+            new V9ControlledDevOperationalCandidateSource.GoldCandidate(
+                b, "JOAO", new DateOnly(1980, 1, 1), "TERESA")
+        };
+
+        Assert.DoesNotThrow((Action)(() =>
+            V9ControlledDevOperationalCandidateSource.VerifyCanonicalCandidateMembership(
+                [a, b], joined)));
+
+        void Reject(IReadOnlyList<Guid> verified,
+            IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate> actual) =>
+            Assert.That((Action)(() =>
+                V9ControlledDevOperationalCandidateSource.VerifyCanonicalCandidateMembership(
+                    verified, actual)), Throws.TypeOf<InvalidDataException>()
+                    .With.Message.EqualTo("RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH"));
+
+        Reject([a], joined);
+        Reject([a, b], [joined[0]]);
+        Reject([b, a], joined);
+        Reject([Guid.Empty, b], joined);
+        Reject([a, b], [joined[0], joined[0]]);
+    }
+
+    [Test]
     public void Malformed_frozen_universe_fails_before_any_SQL_candidate_query()
     {
         using var closed = new SqlConnection();
