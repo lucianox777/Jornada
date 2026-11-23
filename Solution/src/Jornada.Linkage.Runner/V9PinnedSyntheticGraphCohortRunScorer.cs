@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
@@ -51,6 +52,9 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     private readonly int failAfter;
     private readonly ConcurrentDictionary<long, byte> consumed = new();
     private IReadOnlyDictionary<long, (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>? prepared;
+    // TEST_ONLY raw global grouping, separate from nullable linkage_resultado UUIDs.
+    // Do not publish, activate or use as independently certified evidence.
+    private IReadOnlyDictionary<long, Guid>? preparedGrouping;
     private Guid preparedRunId;
     private int scored;
 
@@ -239,7 +243,64 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         }
         if (map.Count != frozenRows.Count)
             throw new InvalidDataException("Decisões V9 não cobrem exatamente o universo.");
+
+        // Nullable pessoa_uuid_resolvido is a decision, NOT a complete-link
+        // grouping. Capture the already-computed operational grouping without
+        // accessing any synthetic truth or changing the scoring kernel.
+        var groups = new Dictionary<long, Guid>(frozenRows.Count);
+        for (var index = 0; index < frozenRows.Count; index++)
+        {
+            var position = index + 1;
+            if (!global.IdentityByObservation.TryGetValue(position, out var group)
+                || group == Guid.Empty
+                || !groups.TryAdd(frozenRows[index].PessoaObservacaoId, group))
+                throw new InvalidDataException("Agrupamento V9 global incompleto ou inválido.");
+        }
+        if (groups.Count != frozenRows.Count)
+            throw new InvalidDataException("Universo V9 e agrupamentos não reconciliados.");
+        preparedGrouping = new ReadOnlyDictionary<long, Guid>(groups);
         prepared = map;
+    }
+
+    /// <summary>
+    /// TEST_ONLY, nonpublishing, read-only diagnostic. The method verifies the
+    /// actual completed SQL run, its frozen universe and persisted decisions.
+    /// This is NOT a productive or certified E2E exporter of groups.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(
+        Guid runId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var groups = preparedGrouping;
+        if (runId == Guid.Empty || runId != preparedRunId || groups is null
+            || prepared is null || groups.Count != prepared.Count
+            || consumed.Count != groups.Count || Volatile.Read(ref scored) != groups.Count)
+            throw new InvalidOperationException("Agrupamento V9 TEST incompleto ou run divergente.");
+
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        await using var command = new SqlCommand("""
+            SELECT lr.status,lr.modelo_id,lr.modelo_versao,
+                   lr.registros_elegiveis,lr.avaliados,lr.publicado_em,
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i
+                     WHERE i.linkage_run_id=lr.linkage_run_id),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id)
+            FROM identidade.linkage_run lr
+            WHERE lr.linkage_run_id=@run;
+            """, connection);
+        command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)
+            || reader.GetString(0) != "CONCLUIDO_SEM_PUBLICACAO"
+            || reader.GetGuid(1) != pinnedModelId || reader.GetInt32(2) != 1
+            || reader.GetInt64(3) != groups.Count || reader.GetInt64(4) != groups.Count
+            || !reader.IsDBNull(5)
+            || reader.GetInt64(6) != groups.Count || reader.GetInt64(7) != groups.Count
+            || await reader.ReadAsync(ct))
+            throw new InvalidOperationException(
+                "Run SQL V9 sem publicação não está terminal, íntegro ou pinado.");
+        return groups;
     }
 
     public Task<ProbabilisticLinkageDecision> ResolvePreparedAsync(Guid runId,

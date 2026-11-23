@@ -127,6 +127,22 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("directions.Count > V9FrozenCohortSqlCandidateGraph.MaximumPairIncidences", query)
         self.assertIn("ct.ThrowIfCancellationRequested();", query)
 
+    def test_nonpublishing_group_diagnostic_has_sql_terminal_guard(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        for required in ("global.IdentityByObservation.TryGetValue(",
+                         "new ReadOnlyDictionary<long, Guid>(groups)",
+                         "lr.status,lr.modelo_id,lr.modelo_versao",
+                         '"CONCLUIDO_SEM_PUBLICACAO"',
+                         "reader.GetInt64(7) != groups.Count"):
+            self.assertIn(required, scorer)
+        self.assertIn("ReadCompletedGroupingDiagnosticAsync(", tests)
+        self.assertIn("failedScorer.ReadCompletedGroupingDiagnosticAsync(", tests)
+        self.assertIn('"FALHOU", 100', tests)
+        self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED",
+                      (ROOT / "V9OperationalRunBoundary.cs").read_text())
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()

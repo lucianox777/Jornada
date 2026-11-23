@@ -214,7 +214,10 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             // The real batch transaction commits batch #1 before a deliberately
             // injected exception in batch #2. It MUST NOT fake global rollback.
             // With MaxParallelism=1, the 101st score fails deterministically.
-            var failedRunner = MakeRunner(100);
+            var failedScorer = new V9PinnedSyntheticGraphCohortRunScorer(
+                sql, stored.ModelId, winner.ContentSha256,
+                Array.Empty<(long A, long B)>(), 100);
+            var failedRunner = BuildRunner(failedScorer);
             Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await failedRunner.RunAsync(Request(), CancellationToken.None)));
             await using (var terminal = new SqlCommand("""
@@ -227,6 +230,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 var id = await terminal.ExecuteScalarAsync();
                 Assert.That(id, Is.InstanceOf<Guid>());
                 await AssertRunRowsAsync(connection, (Guid)id!, "FALHOU", 100);
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await failedScorer.ReadCompletedGroupingDiagnosticAsync(
+                        (Guid)id!, CancellationToken.None)));
             }
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before),
                 "Falha no segundo lote não pode expor run parcial em Gold/Serving/vínculo.");
@@ -256,6 +262,22 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Assert.That(positive.Avaliados, Is.EqualTo(200));
             Assert.That(positive.PublicadoEm, Is.Null);
             await AssertRunRowsAsync(connection, positive.RunId, "CONCLUIDO_SEM_PUBLICACAO", 200);
+            // The grouping comes from the live V9 runtime and is verified against
+            // the completed SQL ledger; it is not reconstructed from nullable
+            // linkage_resultado.pessoa_uuid_resolvido on abstention.
+            var grouping = await sqlScorer.ReadCompletedGroupingDiagnosticAsync(
+                positive.RunId, CancellationToken.None);
+            Assert.That(grouping.Count, Is.EqualTo(200));
+            Assert.That(grouping.Keys, Is.EquivalentTo(
+                Enumerable.Range(1, 200).Select(i => (long)i)));
+            Assert.That(grouping.Values, Has.All.Not.EqualTo(Guid.Empty));
+            // Both SQL candidate edges are below the frozen complete-link floor.
+            Assert.That(grouping.Values.Distinct().Count(), Is.EqualTo(200));
+            Assert.That(grouping, Is.InstanceOf<
+                System.Collections.ObjectModel.ReadOnlyDictionary<long, Guid>>());
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.ReadCompletedGroupingDiagnosticAsync(
+                    Guid.NewGuid(), CancellationToken.None)));
 
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
