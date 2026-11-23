@@ -622,6 +622,31 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", http)
         self.assertNotIn("SemiblindIdentitySearch:Enabled=true", http)
 
+    def test_semiblind_real_service_http_pr_proof_is_two_cases_and_no_sql(self):
+        # The fast unit-runtime job compiles this TestHost fixture, but does
+        # NOT run it; this independent workflow requires 2 physical HTTP tests.
+        source = (ROOT / ".github/workflows/jornada-semiblind-http-pr.yml").read_text(
+            encoding="utf-8")
+        for expected in (
+            "pull_request:",
+            "branches: [master]",
+            "github.event.pull_request.head.repo.full_name == github.repository",
+            "EXPECTED_PR_HEAD:",
+            "dotnet restore Jornada.sln --locked-mode",
+            "Dev_http_real_service_enforces_person_authorization_and_top_five",
+            "--forbid-skipped --minimum-tests 2",
+            'exact = {"total": 2, "passed": 2, "failed": 0, "skipped": 0, "other": 0}',
+            '"realSqlRetrieverValidated": False',
+            '"institutionalAuthorizationValidated": False',
+            '"productiveActivation": False',
+            "path: Solution/.local/semiblind-http/receipt.json",
+        ):
+            self.assertIn(expected, source)
+        self.assertNotIn("workflow_dispatch:", source)
+        self.assertNotIn("pull_request_target:", source)
+        self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", source)
+        self.assertNotIn("Solution/.local/semiblind-http/semiblind-http.trx\n          if-no-files-found", source)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
