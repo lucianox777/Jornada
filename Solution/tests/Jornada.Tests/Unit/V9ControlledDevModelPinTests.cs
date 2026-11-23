@@ -30,19 +30,19 @@ public sealed class V9ControlledDevModelPinTests
             V9ControlledDevSelection.VerifyRunModelPin(Model(), WinnerSha)));
 
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model(modelId: Guid.NewGuid()), WinnerSha),
+                Model(modelId: Guid.NewGuid()), WinnerSha)),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_MODEL_PIN_MISMATCH"));
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model(version: 1), WinnerSha),
+                Model(version: 1), WinnerSha)),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_MODEL_PIN_MISMATCH"));
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model(fingerprint: new string('b', 64)), WinnerSha),
+                Model(fingerprint: new string('b', 64)), WinnerSha)),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_MODEL_PIN_MISMATCH"));
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model() with { BlockingContract = null }, WinnerSha),
+                Model() with { BlockingContract = null }, WinnerSha)),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_MODEL_PIN_MISMATCH"));
     }
@@ -51,11 +51,11 @@ public sealed class V9ControlledDevModelPinTests
     public void Invalid_winner_SHA_cannot_become_a_model_or_rule_set_pin()
     {
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model(), new string('A', 64)),
+                Model(), new string('A', 64))),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_WINNER_SHA_INVALID"));
         Assert.That((Action)(() => V9ControlledDevSelection.VerifyRunModelPin(
-                Model(), "bad"),
+                Model(), "bad")),
             Throws.TypeOf<InvalidDataException>()
                 .With.Message.EqualTo("RUNNER_V9_DEV_WINNER_SHA_INVALID"));
     }
