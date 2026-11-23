@@ -135,8 +135,14 @@ def main():
              "#1851: depende da prova funcional V9 1k."),
         ],
         "integral": [
-            ("Top 5, Nenhum destes, seletividade, projeção e visibilidade da busca semicega",
-             "#1854/#539: falta a prova com a busca habilitada em DEV sintético."),
+            ("Busca semicega DEV habilitada: Top 5, Nenhum destes, busca completa/incompleta, "
+             "passes seletivos, fan-out/timeout sem truncamento",
+             "#1854/#612: faltam SQL/HTTP sintéticos com combinações opcionais, "
+             "busca_completa/motivo_incompletude, seletividade e limites de custo; "
+             "as negativas 401/403/503 não comprovam esses casos."),
+            ("Busca semicega: projeção restrita, visibilidade por órgão/atributo e auditoria",
+             "#1854/#539/#378: faltam política institucional e prova SQL/HTTP "
+             "entre órgãos com pessoa restrita; HML/PROD permanecem bloqueados."),
             ("ZIP do Apoio até o receptor com autorização por tipo de fato",
              "#1855/#1194: autorização por recurso permanece pendente."),
             ("APIs de pessoa, identidade, registros, benefícios, serviços e monitor",

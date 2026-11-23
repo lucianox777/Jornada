@@ -530,3 +530,12 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             self.assertTrue(all(row["sha"] == sha for row in receipt["coverage"]))
             self.assertEqual({row["scope"] for row in receipt["coverage"] if row["status"] == "BLOQUEADO"},
                              {"nucleo", "integral"})
+            # #612 is residual selectivity/completeness, not mandatory-name policy;
+            # #539 is the separate institution/attribute visibility gate.
+            integral = [row for row in receipt["coverage"]
+                        if row.get("scope") == "integral" and row["status"] == "BLOQUEADO"]
+            self.assertTrue(any("#1854/#612" in row["reason"]
+                                and "busca_completa" in row["reason"] for row in integral))
+            self.assertTrue(any("#1854/#539/#378" in row["reason"]
+                                and "pessoa restrita" in row["reason"] for row in integral))
+            self.assertFalse(any("#1348" in row["reason"] for row in integral))
