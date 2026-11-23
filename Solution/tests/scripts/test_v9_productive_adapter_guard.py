@@ -17,7 +17,7 @@ class V9ProductiveAdapterGuardTests(unittest.TestCase):
     def test_typed_v9_stays_fail_closed(self):
         section = self.source.split(
             "public Task<ProbabilisticLinkageRunSummary> RunV9Async(", 1)[1].split(
-            "public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[0]
+            "public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", 1)[0]
         self.assertIn("boundary.EnsureProductiveCertified();", section)
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", section)
         self.assertIn("RUNNER_V9_REPLAY_NOT_SUPPORTED", section)
@@ -26,8 +26,9 @@ class V9ProductiveAdapterGuardTests(unittest.TestCase):
                         section.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED"))
 
     def test_legacy_runasync_refuses_v9_selection(self):
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", self.source)
         section = self.source.split(
-            "public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1]
+            "private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", 1)[1]
         self.assertIn("request.ModelVersion == 9", section)
         self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9', section)
         self.assertIn('configuration["Linkage:V9SelectionFile"]', section)
