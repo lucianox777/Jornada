@@ -66,6 +66,7 @@ def inspect_run(directory, sha):
     result_ok = (result.get("sha") == sha and result.get("http") == codes
                  and result.get("registrosRetransmitidos") == 1 and result.get("entregasMesmoNome") == 2
                  and result.get("payloadSha256Verified") is True
+                 and result.get("payloadBytesVerified") is True
                  and type(result.get("lotesProcessados")) is int
                  and result["lotesProcessados"] >= 1
                  and result.get("resumoItensConsistente") is True)

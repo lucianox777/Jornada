@@ -1,4 +1,5 @@
 """Prova HTTP da Resultado.Api sobre as duas entregas sintéticas do local-e2e."""
+import hashlib
 import http.client
 import json
 from pathlib import Path
@@ -8,9 +9,30 @@ import time
 from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_DEV_PACKAGE_BYTES = 64 * 1024 * 1024
 
 
-def check_detail(detail, filename, latest_id, payload_sha256):
+def read_payload_identity(package, filename):
+    """Measure the exact local synthetic ZIP, not a caller-provided hash/length."""
+    if package.is_symlink() or not package.is_file() or package.name != filename:
+        raise ValueError("ZIP DEV local ausente, indireto ou com nome divergente.")
+    digest = hashlib.sha256()
+    length = 0
+    with package.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            length += len(chunk)
+            if length > MAX_DEV_PACKAGE_BYTES:
+                raise ValueError("ZIP sintético DEV excede limite seguro.")
+            digest.update(chunk)
+    if length == 0:
+        raise ValueError("ZIP sintético DEV está vazio.")
+    sha = digest.hexdigest()
+    if not filename.endswith("_" + sha + ".zip"):
+        raise ValueError("Nome canônico do ZIP diverge dos bytes locais.")
+    return sha, length
+
+
+def check_detail(detail, filename, latest_id, payload_sha256, payload_size):
     """Bind Resultado.Api to the exact submitted ZIP and reconciled processing."""
     def count(x):
         return type(x) is int and x >= 0
@@ -18,6 +40,8 @@ def check_detail(detail, filename, latest_id, payload_sha256):
     if type(payload_sha256) is not str or len(payload_sha256) != 64 or any(
             c not in "0123456789abcdefABCDEF" for c in payload_sha256):
         raise ValueError("SHA-256 local da entrega inválido.")
+    if type(payload_size) is not int or payload_size <= 0:
+        raise ValueError("Tamanho local do ZIP inválido.")
     if (not isinstance(detail, dict) or detail.get("nomeArquivoConsultado") != filename
             or detail.get("entregasEncontradasParaOMesmoNome") != 2
             or detail.get("finalizado") is not True):
@@ -27,8 +51,8 @@ def check_detail(detail, filename, latest_id, payload_sha256):
             or entrega.get("gestor") != "SEHAB"
             or entrega.get("nomeArquivo") != filename
             or entrega.get("status") != "PROCESSADA"
-            or not count(entrega.get("bytesRecebidos"))
-            or entrega["bytesRecebidos"] == 0
+            or type(entrega.get("bytesRecebidos")) is not int
+            or entrega["bytesRecebidos"] != payload_size
             or type(entrega.get("payloadSha256")) is not str
             or entrega["payloadSha256"].lower() != payload_sha256.lower()):
         raise ValueError("Bytes ou escopo da Entrega divergem do ZIP enviado.")
@@ -103,11 +127,12 @@ def check_detail(detail, filename, latest_id, payload_sha256):
             or processing["itensConsolidados"] != consolidated
             or processing.get("detalheItemAItemIntegral") is not (consolidated == 0)):
         raise ValueError("Totais detalhados/consolidados ou retenção inconsistentes.")
-    return {"payloadSha256Verified": True, "lotesProcessados": len(lots),
-            "resumoItensConsistente": True}
+    return {"payloadSha256Verified": True, "payloadBytesVerified": True,
+            "lotesProcessados": len(lots), "resumoItensConsistente": True}
 
 
-def run(base_url, filename, latest_id, receipt, payload_sha256):
+def run(base_url, filename, latest_id, receipt, package):
+    payload_sha256, payload_size = read_payload_identity(package, filename)
     origin = urlsplit(base_url)
     if origin.scheme != "http" or origin.hostname != "127.0.0.1" or not origin.port:
         raise ValueError("Resultado.Api requer porta efêmera de loopback.")
@@ -139,7 +164,7 @@ def run(base_url, filename, latest_id, receipt, payload_sha256):
     request("nomeInvalido", "invalido.txt", 400, "SEHAB")
     request("outroGestor", filename, 404, "SMADS")
     first = request("consulta", filename, 200, "SEHAB")
-    verified = check_detail(first, filename, latest_id, payload_sha256)
+    verified = check_detail(first, filename, latest_id, payload_sha256, payload_size)
     if first != request("releitura", filename, 200, "SEHAB"):
         raise ValueError("Releitura da entrega terminal devolveu outro resultado.")
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -152,4 +177,4 @@ def run(base_url, filename, latest_id, receipt, payload_sha256):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:4], Path(sys.argv[4]), sys.argv[5])
+    run(*sys.argv[1:4], Path(sys.argv[4]), Path(sys.argv[5]))

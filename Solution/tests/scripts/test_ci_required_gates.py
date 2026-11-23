@@ -512,10 +512,12 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         local = (ROOT / "Solution/scripts/local-e2e.sh").read_text(encoding="utf-8")
         script = (ROOT / "Solution/scripts/e2e-resultado-entrega.py").read_text(encoding="utf-8")
         evidence = (ROOT / "Solution/scripts/e2e-integral-dev-evidence.py").read_text(encoding="utf-8")
-        self.assertIn('package_sha256="$(sha256sum "$package"', local)
-        self.assertIn('"$package_sha256"', local)
+        self.assertIn('"$OUT/resultado-api-evidence.json" "$package"', local)
+        self.assertIn('hashlib.sha256()', script)
         self.assertIn('"payloadSha256"', script)
+        self.assertIn('"bytesRecebidos"', script)
         self.assertIn('result.get("payloadSha256Verified") is True', evidence)
+        self.assertIn('result.get("payloadBytesVerified") is True', evidence)
         self.assertIn('result.get("resumoItensConsistente") is True', evidence)
         subprocess.run([sys.executable, "-m", "unittest",
                         "Solution/tests/scripts/test_e2e_resultado_entrega_contract.py"],
