@@ -65,9 +65,24 @@ public sealed class BlockingProjectionSqlServerTests
             null,
             reserved.DataReferencia);
 
+        // Segunda identidade inteiramente sintética: mesmo prenome materno e ano,
+        // nome civil e CPF distintos. Exige recuperar duas pessoas distintas por
+        // mother-year e recusar fan-out com orçamento de apenas uma pessoa.
+        // CPF 73124896645 possui dígitos verificadores válidos.
+        var secondPerson = person with
+        {
+            IdPessoaEntrega = "BLOCKING-SQLSERVER-002",
+            CodigoPessoaOrigem = "BLOCKING-SQLSERVER-002",
+            ConteudoHash = new string('b', 64),
+            SourceTransactionId = "TX-BLOCKING-SQLSERVER-002",
+            Cpf = "73124896645",
+            NomeCompleto = "Beatriz Soares Teste",
+            Atributos = [],
+            ConferenciasDocumentais = []
+        };
         await repository.PersistValidatedAsync(
             reserved,
-            new ParsedPackage(manifest, [person], []),
+            new ParsedPackage(manifest, [person, secondPerson], []),
             CancellationToken.None);
 
         await using var connection = new SqlConnection(connectionString);
@@ -145,8 +160,48 @@ public sealed class BlockingProjectionSqlServerTests
         var foundWithoutPersonName = await BlockingProjectionCandidateLoader.LoadAsync(
             connection, motherBirthRuleset, noPersonName, maxCandidates: 20, commandTimeoutSeconds: 60,
             ct: CancellationToken.None, searchPasses: motherBirthPasses);
-        Assert.That(foundWithoutPersonName.Select(candidate => candidate.NomeCompleto),
+        var motherYearNames = foundWithoutPersonName
+            .Select(candidate => candidate.NomeCompleto).ToArray();
+        Assert.That(motherYearNames, Does.Contain("María Silva Teste"));
+        Assert.That(motherYearNames, Does.Contain("Beatriz Soares Teste"));
+        Assert.That(foundWithoutPersonName.Select(x => x.PessoaUuid).Distinct().Count(),
+            Is.EqualTo(foundWithoutPersonName.Count),
+            "O UNION deve retornar cada UUID uma vez, sem truncamento silencioso.");
+
+        // O loader SQL real lê limite+1 e recusa antes de projetar Top 5.
+        // O serviço HTTP traduz esse caso em busca_completa=false, não em
+        // uma resposta vazia interpretada como 'nenhuma pessoa encontrada'.
+        var overflow = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await BlockingProjectionCandidateLoader.LoadAsync(
+                connection, motherBirthRuleset, noPersonName, maxCandidates: 1,
+                commandTimeoutSeconds: 60, ct: CancellationToken.None,
+                searchPasses: motherBirthPasses);
+        });
+        Assert.That(overflow!.Message, Does.Contain("MaxCandidatesPerBlock"));
+
+        // Ano informado incorreto em +1: a união deve manter o passe
+        // combined-neighbor-year no SQL, sem suprimir mother-year.
+        var adjacentYear = new IdentityObservation(
+            null, "NAO_INFORMADO", "María Silva Teste",
+            new DateOnly(1992, 4, 13), "Ana Souza Teste");
+        var adjacentPasses = SemiblindCandidatePassPlanner.Plan(
+            motherBirthRuleset, adjacentYear);
+        Assert.That(adjacentPasses.Select(p => p.PassId),
+            Does.Contain("combined-neighbor-year"));
+        Assert.That(adjacentPasses.Select(p => p.PassId), Does.Contain("mother-year"));
+        var adjacentCandidates = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, motherBirthRuleset, adjacentYear, maxCandidates: 20,
+            commandTimeoutSeconds: 60, ct: CancellationToken.None,
+            searchPasses: adjacentPasses);
+        Assert.That(adjacentCandidates.Select(candidate => candidate.NomeCompleto),
             Does.Contain("María Silva Teste"));
+
+        // Nenhum passe elegível é INCOMPLETUDE antes do SQL, diferente da
+        // consulta SQL concluída com zero candidatos abaixo.
+        var noEvidence = new IdentityObservation(
+            null, "NAO_INFORMADO", null, null, null);
+        Assert.That(SemiblindCandidatePassPlanner.Plan(ruleset, noEvidence), Is.Empty);
 
         var missing = new IdentityObservation(
             null, "NAO_INFORMADO", "Pessoa Inexistente No Corpus", null, null);

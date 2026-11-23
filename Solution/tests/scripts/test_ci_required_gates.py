@@ -521,6 +521,20 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn('!string.IsNullOrWhiteSpace(databaseName)', gate)
         self.assertIn('"Development", StringComparison.Ordinal', gate)
 
+    def test_semiblind_selectivity_sql_probe_is_real_but_optional(self):
+        # #612: SQL proof is source-backed, but not a PASS unless physically run.
+        source = (ROOT / "Solution/tests/Jornada.Integration.Tests/Integration/"
+                  "BlockingProjectionSqlServerTests.cs").read_text(encoding="utf-8")
+        self.assertIn("JORNADA_TEST_SQL_CONNECTION", source)
+        self.assertIn("new ParsedPackage(manifest, [person, secondPerson], [])", source)
+        self.assertIn("SemiblindCandidatePassPlanner.Plan(motherBirthRuleset, noPersonName)", source)
+        self.assertIn("maxCandidates: 1", source)
+        self.assertIn("MaxCandidatesPerBlock", source)
+        self.assertIn('Does.Contain("combined-neighbor-year")', source)
+        self.assertIn("SemiblindCandidatePassPlanner.Plan(ruleset, noEvidence)", source)
+        self.assertIn("Assert.That(noMatches, Is.Empty)", source)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", source)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
