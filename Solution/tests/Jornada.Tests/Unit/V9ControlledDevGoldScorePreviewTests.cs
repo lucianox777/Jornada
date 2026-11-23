@@ -117,6 +117,8 @@ public sealed class V9ControlledDevGoldScorePreviewTests
                 SourceRow().Observation with { NomeCompleto = "OUTRA PESSOA" }),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
         Reject(Source([Candidate()]),
+            "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", Array.Empty<V9FrozenRunObservation>());
+        Reject(Source([Candidate()]),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [SourceRow(2)]);
         Reject(Source([Candidate()]),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [SourceRow(), SourceRow()]);
