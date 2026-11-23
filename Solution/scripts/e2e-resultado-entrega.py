@@ -40,6 +40,8 @@ def check_detail(detail, filename, latest_id, payload_sha256):
     if not isinstance(lots, list) or not lots:
         raise ValueError("Sem lote processado verificável.")
     ids = set()
+    seqs = set()
+    declared_total = None
     people = records = 0
     for lot in lots:
         if (not isinstance(lot, dict) or type(lot.get("loteId")) is not str
@@ -47,9 +49,22 @@ def check_detail(detail, filename, latest_id, payload_sha256):
                 or lot.get("status") != "PROCESSADO"
                 or not count(lot.get("qtdPessoas")) or not count(lot.get("qtdRegistros"))):
             raise ValueError("Lote duplicado, incompleto ou inválido.")
+        seq, total = lot.get("loteSeq"), lot.get("loteTotal")
+        if (type(seq) is not int or type(total) is not int
+                or seq < 1 or total < 1 or seq > total
+                or (declared_total is not None and total != declared_total)
+                or seq in seqs):
+            raise ValueError("Sequência ou total de lotes inconsistente.")
+        declared_total = total
+        seqs.add(seq)
         ids.add(lot["loteId"])
         people += lot["qtdPessoas"]
         records += lot["qtdRegistros"]
+    # All unique 1-based seqs constrained to [1, total] cover every lot
+    # iff their count matches the declared total. Avoid range(total) for
+    # untrusted, potentially enormous values from an erroneous receipt.
+    if len(seqs) != declared_total:
+        raise ValueError("Quantidade de lotes não cobre o total declarado.")
     if (people, records) != (1, 1):
         raise ValueError("Lotes divergem da fixture 1 Pessoa + 1 Registro.")
 

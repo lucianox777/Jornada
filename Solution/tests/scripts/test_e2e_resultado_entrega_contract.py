@@ -25,6 +25,7 @@ def fixture():
                     "bytesRecebidos": 4096},
         "processamento": {
             "lotes": [{"loteId": "22222222-2222-4222-8222-222222222222",
+                       "loteSeq": 1, "loteTotal": 1,
                        "status": "PROCESSADO", "qtdPessoas": 1, "qtdRegistros": 1}],
             "resumoItens": [
                 {"classeItem": "PESSOA", "resultado": "INCLUIDO",
@@ -79,6 +80,42 @@ class ResultadoDevReceiptTests(unittest.TestCase):
         obj["processamento"]["lotes"].append(copy.deepcopy(obj["processamento"]["lotes"][0]))
         with self.assertRaises(ValueError):
             MOD.check_detail(obj, NAME, ID, SHA)
+
+    def test_lot_sequence_is_complete_and_consistent(self):
+        valid = fixture()
+        first = valid["processamento"]["lotes"][0]
+        first["loteTotal"] = 2
+        first["qtdRegistros"] = 0
+        second = copy.deepcopy(first)
+        second["loteId"] = "33333333-3333-4333-8333-333333333333"
+        second["loteSeq"] = 2
+        second["qtdPessoas"] = 0
+        second["qtdRegistros"] = 1
+        valid["processamento"]["lotes"].append(second)
+        self.assertEqual(MOD.check_detail(valid, NAME, ID, SHA)["lotesProcessados"], 2)
+
+        for field, bad in (("loteSeq", 0), ("loteSeq", True),
+                           ("loteSeq", 2), ("loteTotal", 0),
+                           ("loteTotal", False), ("loteTotal", 2),
+                           ("loteTotal", 100000000)):
+            with self.subTest(field=field, bad=bad):
+                obj = fixture()
+                obj["processamento"]["lotes"][0][field] = bad
+                with self.assertRaises(ValueError):
+                    MOD.check_detail(obj, NAME, ID, SHA)
+        for field, bad in (("loteSeq", 1), ("loteTotal", 3),
+                           ("loteTotal", "2")):
+            with self.subTest(second_lot_field=field, bad=bad):
+                obj = copy.deepcopy(valid)
+                obj["processamento"]["lotes"][1][field] = bad
+                with self.assertRaises(ValueError):
+                    MOD.check_detail(obj, NAME, ID, SHA)
+        missing = copy.deepcopy(valid)
+        missing["processamento"]["lotes"][1]["loteSeq"] = 3
+        missing["processamento"]["lotes"][0]["loteTotal"] = 3
+        missing["processamento"]["lotes"][1]["loteTotal"] = 3
+        with self.assertRaises(ValueError):
+            MOD.check_detail(missing, NAME, ID, SHA)
 
     def test_summary_class_totals_must_reconcile_with_processed_lots(self):
         # A valid per-row sum and retention total cannot mask an extra item.
