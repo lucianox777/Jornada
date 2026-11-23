@@ -124,6 +124,16 @@ class DevCompositeReceiptsTests(unittest.TestCase):
             COMPOSITE.combine(self.root, self.root / "ingestion/bridge-manifest.json",
                               self.sql, self.stage, COMMIT, WINNER)
 
+    def test_composite_rejects_hardlink_aliases_of_receipts(self):
+        alias = Path(self.tmp.name) / "sql-hardlink.json"
+        try:
+            alias.hardlink_to(self.http)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"hardlinks unavailable in test filesystem: {exc}")
+        with self.assertRaisesRegex(ValueError, "distinct physical files"):
+            COMPOSITE.combine(self.root, self.http, alias, self.stage,
+                              COMMIT, WINNER)
+
     def test_exclusive_aggregate_receipt_without_private_inputs(self):
         dest = Path(self.tmp.name) / "composite.json"
         args = ["composite", "--ibge-root", str(self.root),
