@@ -506,6 +506,16 @@ class IntegralDevWorkflowTests(unittest.TestCase):
                         "Solution/tests/scripts/test_v9_e2e_ibge_bridge_preflight.py"],
                        cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
 
+    def test_e2e_grouping_oracle_is_required_and_noncertifying(self):
+        workflow = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(
+            encoding="utf-8")
+        script = (ROOT / "Solution/scripts/e2e-v9-grouping-oracle.py").read_text(
+            encoding="utf-8")
+        self.assertIn("test_e2e_v9_grouping_oracle.py", workflow)
+        self.assertIn('"status": "MEASURED_NOT_CERTIFIED"', script)
+        self.assertIn('"E2E_NUCLEO_PASS": False', script)
+        self.assertIn('"scientificValidation": False', script)
+
     def test_resultado_api_e2e_receipt_reconciles_payload_and_lots(self):
         import subprocess
         import sys
