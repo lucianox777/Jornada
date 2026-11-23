@@ -441,6 +441,36 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertLess(cleanup["run"].index('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]'),
                         cleanup["run"].index('docker volume rm "$JORNADA_SQL_VOLUME_NAME"'))
 
+    def test_all_compose_named_volumes_are_isolated_per_attempt(self):
+        import yaml
+        compose = yaml.load((ROOT / "Solution/docker-compose.yml").read_text(encoding="utf-8"),
+                            Loader=yaml.BaseLoader)
+        job = self.workflow["jobs"]["dev-1k"]
+        namespace = "jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+        isolation, = [s for s in self.steps if s.get("id") == "isolation"]
+        cleanup, = [s for s in self.steps if s.get("id") == "cleanup"]
+        volumes = {
+            "JORNADA_SQL_VOLUME_NAME": ("jornada_sql_data", "data"),
+            "JORNADA_BRONZE_VOLUME_NAME": ("jornada_bronze", "bronze"),
+            "JORNADA_STAGING_1_VOLUME_NAME": ("jornada_staging_1", "staging-1"),
+            "JORNADA_STAGING_2_VOLUME_NAME": ("jornada_staging_2", "staging-2"),
+            "JORNADA_LOGS_1_VOLUME_NAME": ("jornada_logs_1", "logs-1"),
+            "JORNADA_LOGS_2_VOLUME_NAME": ("jornada_logs_2", "logs-2"),
+            "JORNADA_NODE_DATA_1_VOLUME_NAME": ("jornada_node_data_1", "node-1"),
+            "JORNADA_NODE_DATA_2_VOLUME_NAME": ("jornada_node_data_2", "node-2"),
+        }
+        for key, (legacy, suffix) in volumes.items():
+            with self.subTest(volume=legacy):
+                self.assertEqual(compose["volumes"][legacy]["name"], "${" + key + ":-" + legacy + "}")
+                self.assertEqual(job["env"][key], namespace + "-" + suffix)
+                self.assertIn('"$' + key + '"', isolation["run"])
+                self.assertIn('"$' + key + '"', cleanup["run"])
+        self.assertIn('for volume in', isolation["run"])
+        self.assertIn('for volume in', cleanup["run"])
+        self.assertIn('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]', cleanup["run"])
+        self.assertIn('docker volume rm "$volume"', cleanup["run"])
+        self.assertNotIn("--volumes", cleanup["run"])
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile

@@ -148,16 +148,16 @@ volumes:
   jornada_sql_data:
     name: "${JORNADA_SQL_VOLUME_NAME:-jornada_sql_data}"
   jornada_bronze:
-    name: jornada_bronze
+    name: "${JORNADA_BRONZE_VOLUME_NAME:-jornada_bronze}"
   jornada_staging_1:
-    name: jornada_staging_1
+    name: "${JORNADA_STAGING_1_VOLUME_NAME:-jornada_staging_1}"
   jornada_staging_2:
-    name: jornada_staging_2
+    name: "${JORNADA_STAGING_2_VOLUME_NAME:-jornada_staging_2}"
   jornada_logs_1:
-    name: jornada_logs_1
+    name: "${JORNADA_LOGS_1_VOLUME_NAME:-jornada_logs_1}"
   jornada_logs_2:
-    name: jornada_logs_2
+    name: "${JORNADA_LOGS_2_VOLUME_NAME:-jornada_logs_2}"
   jornada_node_data_1:
-    name: jornada_node_data_1
+    name: "${JORNADA_NODE_DATA_1_VOLUME_NAME:-jornada_node_data_1}"
   jornada_node_data_2:
-    name: jornada_node_data_2
+    name: "${JORNADA_NODE_DATA_2_VOLUME_NAME:-jornada_node_data_2}"
