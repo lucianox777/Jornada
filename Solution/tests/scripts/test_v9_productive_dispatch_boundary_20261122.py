@@ -19,7 +19,11 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         core_start = source.index(
             "private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", facade_start)
         core_end = source.index("private async Task CaptureBronzeSourcesAsync(", core_start)
-        cls.typed = source[typed_start:dev_start]
+        # The DEV entry has its own XML documentation preceding its signature.
+        # Stop at the real RunV9Async closing brace, not at the next signature:
+        # including that comment caused the observed CI endswith("}") failure.
+        typed_close = source.index("\n    }\n", typed_start, dev_start) + len("\n    }\n")
+        cls.typed = source[typed_start:typed_close]
         cls.facade = source[facade_start:core_start]
         cls.run_source = source[core_start:core_end]
 
