@@ -17,7 +17,14 @@ SMOKE=ROOT.parent / ".github/workflows/v9-operational-model-sql-smoke.yml"
 class V9ProductionBatchOptInSafety(unittest.TestCase):
     def test_actual_production_runner_has_isolated_nonpublishing_entry(self):
         src=(RUNNER / "ProbabilisticLinkageBatchRunner.cs").read_text()
-        entry=src.split("public async Task<V9NonPublishingBatchExecutionReceipt> RehearseV9NonPublishingSyntheticTestAsync(",1)[1].split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(",1)[0]
+        # Regression: the old RunAsync signature was replaced by a facade.
+        # Scope the isolated TEST rehearsal to the NEXT method, never the
+        # shared production RunCoreAsync containing real SQL publication.
+        start=src.index("public async Task<V9NonPublishingBatchExecutionReceipt> RehearseV9NonPublishingSyntheticTestAsync(")
+        end=src.index("public async Task<V9SyntheticNonPublishingLedgerReceipt> PersistV9SyntheticRehearsalLedgerAsync(",start)
+        entry=src[start:end]
+        self.assertTrue(entry.rstrip().endswith("/// </summary>") or
+                        entry.rstrip().endswith("}"))
         self.assertIn("operationalSql.OpenAsync(cancellationToken)", entry)
         self.assertIn("V9ReadOnlyTestBatchRunner.RunAsync(connection,", entry)
         self.assertIn("proof.Resolved + proof.Unresolved + proof.Conflicts",entry)
