@@ -31,11 +31,22 @@ public static class V9FrozenSourceResolveReplay
         IReadOnlyList<(int A, int B)> completePhysicalSqlEdges)
         => ReplayForPartition(snapshot, test, completePhysicalSqlEdges, "TEST");
 
+    /// <summary>
+    /// Controlled DEV run only. Uses the original pinned FS, complete-link and
+    /// Resolve kernel. The caller must supply all operational SQL edges for
+    /// the full frozen DEV run; no fixture TEST replay or model refit occurs.
+    /// This method alone cannot certify SQL/Gold publication or E2E parity.
+    /// </summary>
+    public static V9FrozenSourceReplayResult ReplayDev(V9FittedSnapshot snapshot,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> dev,
+        IReadOnlyList<(int A, int B)> completeOperationalSqlEdges)
+        => ReplayForPartition(snapshot, dev, completeOperationalSqlEdges, "DEV");
+
     private static V9FrozenSourceReplayResult ReplayForPartition(V9FittedSnapshot snapshot,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
         IReadOnlyList<(int A, int B)> completePhysicalSqlEdges, string partition)
     {
-        if (partition is not ("VALIDATION" or "TEST"))
+        if (partition is not ("VALIDATION" or "TEST" or "DEV"))
             throw new InvalidDataException("Apenas coortes de avaliação externas são admitidas.");
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(validation);
@@ -79,11 +90,15 @@ public static class V9FrozenSourceResolveReplay
             }
             return new V9BlindFsSqlEdge(edge.A, edge.B, forward.LogOdds, backward.LogOdds);
         }).Where(edge => edge is not null).Cast<V9BlindFsSqlEdge>().ToArray();
-        var inferred = partition == "TEST"
-            ? V9BlindIncrementalIdentityGrouping.BuildTest(rows, edges,
+        var inferred = partition switch
+        {
+            "TEST" => V9BlindIncrementalIdentityGrouping.BuildTest(rows, edges,
+                grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity),
+            "DEV" => V9BlindIncrementalIdentityGrouping.BuildDev(rows, edges,
+                grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity),
+            _ => V9BlindIncrementalIdentityGrouping.Build(rows, edges,
                 grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity)
-            : V9BlindIncrementalIdentityGrouping.Build(rows, edges,
-                grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity);
+        };
         var decisions = rows.Select(source =>
         {
             var collapsed = ranked[source.ObservationId]
