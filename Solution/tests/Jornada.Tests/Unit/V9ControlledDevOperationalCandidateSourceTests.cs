@@ -21,6 +21,40 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             "ANA PAULA SILVA", new DateOnly(1990, 1, 1), "MARIA SILVA"));
 
     [Test]
+    public void Gold_REFERENCIA_with_PARCIAL_core_preserves_null_evidence_without_repair()
+    {
+        var id = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var partial =
+            V9ControlledDevOperationalCandidateSource.PreserveReferenceEvidence(
+                id, "REFERENCIA", null, null, null);
+        Assert.That(partial.PessoaUuid, Is.EqualTo(id));
+        Assert.That(partial.NomeCompleto, Is.Null);
+        Assert.That(partial.DataNascimento, Is.Null);
+        Assert.That(partial.NomeMae, Is.Null);
+
+        Assert.That((Action)(() =>
+            V9ControlledDevOperationalCandidateSource.PreserveReferenceEvidence(
+                id, "PROVISORIA", null, null, null)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.EqualTo("RUNNER_V9_DEV_GOLD_REFERENCE_STALE"));
+        Assert.That((Action)(() =>
+            V9ControlledDevOperationalCandidateSource.PreserveReferenceEvidence(
+                id, "INDEFINIDA", null, null, null)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.EqualTo("RUNNER_V9_DEV_GOLD_REFERENCE_STALE"));
+        Assert.That((Action)(() =>
+            V9ControlledDevOperationalCandidateSource.PreserveReferenceEvidence(
+                id, null, null, null, null)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.EqualTo("RUNNER_V9_DEV_GOLD_REFERENCE_MISSING"));
+        Assert.That((Action)(() =>
+            V9ControlledDevOperationalCandidateSource.PreserveReferenceEvidence(
+                Guid.Empty, "REFERENCIA", null, null, null)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.EqualTo("RUNNER_V9_DEV_GOLD_REFERENCE_MISSING"));
+    }
+
+    [Test]
     public void Canonical_blocking_union_must_equal_all_Gold_joined_UUIDs()
     {
         var a = Guid.Parse("11111111-1111-4111-8111-111111111111");
