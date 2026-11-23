@@ -158,6 +158,50 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", tests)
         self.assertIn("failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(", tests)
 
+    def test_completed_sql_run_result_exact_membership_and_status_guards(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        fixture = (Path(__file__).resolve().parents[2]
+                   / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        start = scorer.index("public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(")
+        end = scorer.index("public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(", start)
+        guard = scorer[start:end]
+        for required in (
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i",
+            "NOT EXISTS (",
+            "SELECT 1 FROM identidade.linkage_resultado r",
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r",
+            "SELECT 1 FROM identidade.linkage_run_item i",
+            "r.pessoa_observacao_id=i.pessoa_observacao_id",
+            "i.pessoa_observacao_id=r.pessoa_observacao_id",
+            "r.modelo_id<>lr.modelo_id",
+            "r.modelo_versao<>lr.modelo_versao",
+            "lr.resolvidos,lr.nao_resolvidos,lr.conflitos",
+            "r.status=N'RESOLVIDO'",
+            "r.status=N'NAO_RESOLVIDO'",
+            "r.status=N'CONFLITO'",
+            "reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0",
+            "reader.GetInt64(13) != 0",
+            "reader.GetInt64(14) != reader.GetInt64(8)",
+        ):
+            self.assertIn(required, guard)
+        start = fixture.index("private static async Task ProveCompletedRunResultMembershipGuardsAsync(")
+        end = fixture.index("private static async Task InsertSyntheticUniverseAsync(", start)
+        adversarial = fixture[start:end]
+        for required in (
+            "IF DB_NAME()<>N'JornadaHarness'",
+            "SET modelo_versao=2",
+            "SET status=N'CONFLITO'",
+            "OUTPUT INSERTED.pessoa_observacao_id",
+            "SET pessoa_observacao_id=@shadow",
+            "INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)",
+            "AssertRejectedAsync(",
+            "DELETE FROM silver.pessoa_observacao",
+            "finally",
+            "restored.Keys",
+        ):
+            self.assertIn(required, adversarial)
+        self.assertIn("await ProveCompletedRunResultMembershipGuardsAsync(", fixture)
+
     def test_run_scoped_sql_delivery_ledger_requires_frozen_membership(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         tests = (Path(__file__).resolve().parents[2]

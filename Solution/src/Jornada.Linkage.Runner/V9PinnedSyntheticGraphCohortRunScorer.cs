@@ -266,6 +266,10 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     /// <summary>
     /// TEST_ONLY, nonpublishing, read-only diagnostic. The method verifies the
     /// actual completed SQL run, its frozen universe and persisted decisions.
+    /// Exact bidirectional run_item/result membership, row model pin and
+    /// status counters are checked, not only matching cardinalities.
+    /// These SQL reads are not a consistent multi-layer snapshot or an
+    /// authentication of HTTP/Gold bytes.
     /// This is NOT a productive or certified E2E exporter of groups.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(
@@ -286,7 +290,30 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
                    (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i
                      WHERE i.linkage_run_id=lr.linkage_run_id),
                    (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
-                     WHERE r.linkage_run_id=lr.linkage_run_id)
+                     WHERE r.linkage_run_id=lr.linkage_run_id),
+                   lr.resolvidos,lr.nao_resolvidos,lr.conflitos,
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_run_item i
+                     WHERE i.linkage_run_id=lr.linkage_run_id
+                       AND NOT EXISTS (
+                         SELECT 1 FROM identidade.linkage_resultado r
+                         WHERE r.linkage_run_id=i.linkage_run_id
+                           AND r.pessoa_observacao_id=i.pessoa_observacao_id)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id
+                       AND NOT EXISTS (
+                         SELECT 1 FROM identidade.linkage_run_item i
+                         WHERE i.linkage_run_id=r.linkage_run_id
+                           AND i.pessoa_observacao_id=r.pessoa_observacao_id)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id
+                       AND (r.modelo_id<>lr.modelo_id
+                            OR r.modelo_versao<>lr.modelo_versao)),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'RESOLVIDO'),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'NAO_RESOLVIDO'),
+                   (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+                     WHERE r.linkage_run_id=lr.linkage_run_id AND r.status=N'CONFLITO')
             FROM identidade.linkage_run lr
             WHERE lr.linkage_run_id=@run;
             """, connection);
@@ -298,6 +325,13 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             || reader.GetInt64(3) != groups.Count || reader.GetInt64(4) != groups.Count
             || !reader.IsDBNull(5)
             || reader.GetInt64(6) != groups.Count || reader.GetInt64(7) != groups.Count
+            || reader.GetInt64(8) < 0 || reader.GetInt64(9) < 0 || reader.GetInt64(10) < 0
+            || reader.GetInt64(8) + reader.GetInt64(9) + reader.GetInt64(10) != groups.Count
+            || reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0
+            || reader.GetInt64(13) != 0
+            || reader.GetInt64(14) != reader.GetInt64(8)
+            || reader.GetInt64(15) != reader.GetInt64(9)
+            || reader.GetInt64(16) != reader.GetInt64(10)
             || await reader.ReadAsync(ct))
             throw new InvalidOperationException(
                 "Run SQL V9 sem publicação não está terminal, íntegro ou pinado.");

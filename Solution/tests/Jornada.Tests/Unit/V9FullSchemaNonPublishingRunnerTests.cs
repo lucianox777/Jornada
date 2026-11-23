@@ -416,6 +416,12 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await ProveDisposableRunDeliverySqlMetadataGuardsAsync(
                 connection, sqlScorer, positive.RunId);
 
+            // Counts alone do not bind the stored result rows to the frozen
+            // run_item universe. Exercise real SQL membership/model/status
+            // tampering without publishing, then restore exact SQL state.
+            await ProveCompletedRunResultMembershipGuardsAsync(
+                connection, sqlScorer, positive.RunId);
+
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
             // comparison levels are used: FULL (FirstName TF) and exact LAST
@@ -777,6 +783,148 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         var restored = await ReadFlagsAsync();
         Assert.That(restored.Values.All(p => !p.Metadata && !p.Source), Is.True,
             "Disposable fixture must return to its original non-HTTP state.");
+    }
+
+
+    /// <summary>
+    /// Demonstrate that equal SQL row counts are insufficient to prove the
+    /// completed run's frozen decisions. All mutations are disposable only
+    /// and are restored before any subsequent scoring or candidate tests.
+    /// </summary>
+    private static async Task ProveCompletedRunResultMembershipGuardsAsync(
+        SqlConnection connection, V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        async Task ExecuteAsync(string command, long shadow = 0)
+        {
+            await using var query = new SqlCommand(command, connection);
+            query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+            query.Parameters.Add("@shadow", SqlDbType.BigInt).Value = shadow;
+            await query.ExecuteNonQueryAsync();
+        }
+
+        Task AssertRejectedAsync(string reason)
+        {
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await scorer.ReadCompletedGroupingDiagnosticAsync(
+                    runId, CancellationToken.None)), reason);
+            return Task.CompletedTask;
+        }
+
+        await ExecuteAsync("""
+            IF DB_NAME()<>N'JornadaHarness'
+                THROW 52830,'Somente JornadaHarness descartável.',1;
+            IF (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+                WHERE linkage_run_id=@run)<>200
+                THROW 52831,'Coorte sintética incompleta.',1;
+            """);
+        Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None)).Count, Is.EqualTo(200));
+
+        long shadowId = 0;
+        try
+        {
+            // Row count stays exactly 200, but the persisted model version
+            // has drifted from the pinned run. SQL FK/model id stays intact.
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado SET modelo_versao=2
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """);
+            await AssertRejectedAsync("A count-consistent run cannot contain results for another model version.");
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado SET modelo_versao=1
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """);
+
+            // Header continues to report all rows NAO_RESOLVIDO. One SQL
+            // result is maliciously rewritten to CONFLITO (still DB-valid).
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado
+                    SET status=N'CONFLITO',motivo=N'TAMPER_ONLY'
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """);
+            await AssertRejectedAsync("Persisted decisions must reconcile with run status counters.");
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado
+                    SET status=N'NAO_RESOLVIDO',motivo=N'ABAIXO_T_LINKAGE'
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """);
+
+            // Add a synthetic SECOND internal version of one observation,
+            // outside the frozen run-item set, without touching the source
+            // identity, Gold, external truth or the real V9 model.
+            await using (var create = new SqlCommand("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52832,'Somente JornadaHarness descartável.',1;
+                INSERT silver.pessoa_observacao(
+                    pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                    versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
+                    nome_completo,nome_cmp,data_nascimento,nome_mae,
+                    nome_mae_cmp,source_as_of)
+                OUTPUT INSERTED.pessoa_observacao_id
+                SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                       2,REPLICATE('f',64),NULL,cpf_ausente_motivo,
+                       nome_completo,nome_cmp,data_nascimento,nome_mae,
+                       nome_mae_cmp,SYSUTCDATETIME()
+                FROM silver.pessoa_observacao
+                WHERE pessoa_observacao_id=1;
+                """, connection))
+            {
+                shadowId = Convert.ToInt64(
+                    await create.ExecuteScalarAsync()
+                    ?? throw new InvalidDataException("Shadow Silver DEV ausente."));
+            }
+            Assert.That(shadowId, Is.GreaterThan(200));
+
+            // Result membership changed 1 -> shadow; both SQL tables still
+            // contain exactly 200 rows. The bidirectional proof must fail.
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado SET pessoa_observacao_id=@shadow
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                """, shadowId);
+            await AssertRejectedAsync("Extra result and missing frozen result must be rejected.");
+            await ExecuteAsync("""
+                UPDATE identidade.linkage_resultado SET pessoa_observacao_id=1
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=@shadow;
+                """, shadowId);
+
+            // The inverse: exchange a frozen run_item ID without changing
+            // its 200-row count or the actual result rows.
+            await ExecuteAsync("""
+                DELETE FROM identidade.linkage_run_item
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+                INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                VALUES(@run,@shadow);
+                """, shadowId);
+            await AssertRejectedAsync("Frozen run_items cannot be replaced by a shadow Silver row.");
+        }
+        finally
+        {
+            // Restore the original frozen item/result set, counters and one
+            // deliberate extra observation, even on a failed assertion.
+            await ExecuteAsync("""
+                IF DB_NAME()<>N'JornadaHarness'
+                    THROW 52833,'Somente JornadaHarness descartável.',1;
+                UPDATE identidade.linkage_resultado
+                   SET pessoa_observacao_id=1,modelo_versao=1,
+                       status=N'NAO_RESOLVIDO',motivo=N'ABAIXO_T_LINKAGE'
+                 WHERE linkage_run_id=@run
+                   AND pessoa_observacao_id IN (1,@shadow);
+                DELETE FROM identidade.linkage_run_item
+                WHERE linkage_run_id=@run AND pessoa_observacao_id=@shadow;
+                IF NOT EXISTS (SELECT 1 FROM identidade.linkage_run_item
+                               WHERE linkage_run_id=@run AND pessoa_observacao_id=1)
+                    INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                    VALUES(@run,1);
+                IF @shadow>0
+                    DELETE FROM silver.pessoa_observacao
+                    WHERE pessoa_observacao_id=@shadow;
+                """, shadowId);
+        }
+        var restored = await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None);
+        Assert.That(restored.Count, Is.EqualTo(200));
+        Assert.That(restored.Keys, Is.EquivalentTo(
+            Enumerable.Range(1, 200).Select(i => (long)i)));
     }
 
     private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)
