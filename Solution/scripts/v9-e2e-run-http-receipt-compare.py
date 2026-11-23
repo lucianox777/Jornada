@@ -191,7 +191,11 @@ def main():
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
     inputs = (args.preflight, args.http, args.sql_ledger, args.staging)
-    require(len({p.resolve() for p in inputs + (args.receipt,)}) == 5
+    require(all(p.is_file() and not p.is_symlink() for p in inputs)
+            and len({p.resolve() for p in inputs + (args.receipt,)}) == 5
+            and not any(left.samefile(right)
+                        for i, left in enumerate(inputs)
+                        for right in inputs[i + 1:])
             and not args.receipt.exists() and not args.receipt.is_symlink(),
             "cannot overwrite or alias run/HTTP receipts")
     data = [LINEAGE.load(p) for p in inputs]
