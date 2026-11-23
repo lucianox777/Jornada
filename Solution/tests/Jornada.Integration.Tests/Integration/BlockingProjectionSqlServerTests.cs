@@ -121,6 +121,33 @@ public sealed class BlockingProjectionSqlServerTests
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
         Assert.That(count, Is.EqualTo(14));
 
+        // #1851: prove the exact UTF-16LE + LF + ordinal source digest used
+        // by the 1k IBGE HTTP-to-Silver verification on real disposable SQL.
+        // This does not prove the HTTP step, Runner V9 or institutional policy.
+        await using (var sourceDigest = connection.CreateCommand())
+        {
+            sourceDigest.CommandText = """
+                SELECT UPPER(CONVERT(VARCHAR(64),
+                    HASHBYTES('SHA2_256',
+                        STRING_AGG(CONVERT(NVARCHAR(MAX),
+                            po.codigo_pessoa_origem + NCHAR(10)), N'')
+                        WITHIN GROUP (ORDER BY po.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2)
+                    ), 2))
+                FROM silver.pessoa_observacao po
+                WHERE po.codigo_pessoa_origem IN (
+                    N'BLOCKING-SQLSERVER-001', N'BLOCKING-SQLSERVER-002');
+                """;
+            var observedDigest = Convert.ToString(
+                await sourceDigest.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+            var expectedBytes = System.Text.Encoding.Unicode.GetBytes(
+                "BLOCKING-SQLSERVER-001\nBLOCKING-SQLSERVER-002\n");
+            var expectedDigest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(expectedBytes));
+            Assert.That(observedDigest, Is.EqualTo(expectedDigest),
+                "Hash SQL ordenado deve igualar SHA-256 UTF-16LE/LF do preflight E2E.");
+        }
+
         // SQL real: sem nascimento, CombinedIdentityCandidatePlanner não pode atuar.
         // Um passe dinâmico nominal elegível ainda deve devolver a referência da Gold.
         var ruleset = LinkageDynamicRuleSet.CreateWithPasses(
