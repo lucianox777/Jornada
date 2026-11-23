@@ -157,6 +157,28 @@ public sealed class V9BlindIncrementalIdentityGroupingTests
     }
 
     [Test]
+    public void Controlled_DEV_accepts_empty_and_singleton_universe_without_TEST_bypass()
+    {
+        var empty = V9BlindIncrementalIdentityGrouping.BuildDev(
+            Array.Empty<V9PhysicalCalibrationObservation>(),
+            Array.Empty<V9BlindFsSqlEdge>());
+        Assert.That(empty.IdentityByObservation, Is.Empty);
+        Assert.That(empty.AcceptedTransitions, Is.Zero);
+
+        var one = new[] { Row(1, "G1", partition: "DEV") };
+        var singleton = V9BlindIncrementalIdentityGrouping.BuildDev(one,
+            Array.Empty<V9BlindFsSqlEdge>());
+        Assert.That(singleton.IdentityByObservation.Count, Is.EqualTo(1));
+        Assert.That(singleton.OperationallyCertified, Is.False);
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.Build(
+                Array.Empty<V9PhysicalCalibrationObservation>(), Array.Empty<V9BlindFsSqlEdge>())),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildTest(
+                [one[0] with { Partition = "TEST" }], Array.Empty<V9BlindFsSqlEdge>())),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Controlled_DEV_reuses_complete_link_without_leaking_scientific_partitions()
     {
         var dev = new[]
