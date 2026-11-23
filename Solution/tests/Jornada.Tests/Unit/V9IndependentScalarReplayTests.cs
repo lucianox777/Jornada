@@ -264,6 +264,36 @@ public sealed class V9IndependentScalarReplayTests
     }
 
     [Test]
+    public void Controlled_DEV_uses_identical_pinned_FS_and_Resolve_without_TEST_partition_fallback()
+    {
+        var winner = BlindScalarOracleWinner();
+        var test = TwoIndependentPairs();
+        var dev = test.Select(row => row with { Partition = "DEV" }).ToArray();
+        var edges = new[] { (A: 1, B: 2), (A: 3, B: 4) };
+
+        var expected = V9FrozenSourceResolveReplay.ReplayTest(winner, test, edges);
+        var actual = V9FrozenSourceResolveReplay.ReplayDev(winner, dev, edges);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(actual.SnapshotSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(actual.Decisions, Is.EqualTo(expected.Decisions));
+            Assert.That(actual.IdentityByObservation, Is.EquivalentTo(expected.IdentityByObservation));
+        }));
+        // The new DEV entry neither disguises TEST records nor permits
+        // a mixed partition; scientific replay entry remains TEST-only.
+        Assert.That((Action)(() =>
+            V9FrozenSourceResolveReplay.ReplayDev(winner, test, edges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() =>
+            V9FrozenSourceResolveReplay.ReplayTest(winner, dev, edges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() =>
+            V9FrozenSourceResolveReplay.ReplayDev(winner,
+                [dev[0], test[1], dev[2], dev[3]], edges)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Independent_TEST_oracle_abstains_without_SQL_edges_and_is_blind_to_truth_labels()
     {
         var model = BlindScalarOracleWinner();
