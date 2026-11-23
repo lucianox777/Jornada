@@ -869,8 +869,7 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 WHERE pessoa_observacao_id=1;
                 """, connection))
             {
-                shadowId = Convert.ToInt64(
-                    await create.ExecuteScalarAsync()
+                shadowId = (long)(await create.ExecuteScalarAsync()
                     ?? throw new InvalidDataException("Shadow Silver DEV ausente."));
             }
             Assert.That(shadowId, Is.GreaterThan(200));
