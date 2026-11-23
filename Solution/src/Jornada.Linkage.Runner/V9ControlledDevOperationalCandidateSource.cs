@@ -21,6 +21,20 @@ public static class V9ControlledDevOperationalCandidateSource
     public sealed record GoldCandidate(Guid PessoaUuid, string? NomeCompleto,
         DateOnly? DataNascimento, string? NomeMae);
 
+    /// <summary>
+    /// Gold REFERENCIA is mandatory, but its core can legitimately be PARCIAL.
+    /// Preserve missing fields as missing FS evidence; never synthesize values.
+    /// </summary>
+    public static GoldCandidate PreserveReferenceEvidence(
+        Guid uuid, string? state, string? name, DateOnly? birth, string? mother)
+    {
+        if (uuid == Guid.Empty || state is null)
+            throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_MISSING");
+        if (!string.Equals(state, "REFERENCIA", StringComparison.Ordinal))
+            throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_STALE");
+        return new GoldCandidate(uuid, name, birth, mother);
+    }
+
     // The caller cannot supply a manager lookup or truth label: managers and
     // source field integrity are read from the exact SQL run_item/Silver scope.
     public sealed record VerifiedRunCandidates(
@@ -235,8 +249,6 @@ public static class V9ControlledDevOperationalCandidateSource
                 var id = reader.GetGuid(0);
                 if (id == Guid.Empty || !seen.Add(id))
                     throw new InvalidDataException("RUNNER_V9_DEV_GOLD_CANDIDATE_DUPLICATE");
-                if (reader.GetString(4) != "REFERENCIA")
-                    throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_STALE");
                 if (candidates.Count >= maximumCandidatesPerObservation)
                     throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_GRAPH_TRUNCATED");
                 // Optional core attributes are nullable in the real Gold
@@ -245,7 +257,8 @@ public static class V9ControlledDevOperationalCandidateSource
                 var birth = reader.IsDBNull(2) ? (DateOnly?)null
                     : DateOnly.FromDateTime(reader.GetDateTime(2));
                 var mother = reader.IsDBNull(3) ? null : reader.GetString(3);
-                candidates.Add(new GoldCandidate(id, name, birth, mother));
+                candidates.Add(PreserveReferenceEvidence(
+                    id, reader.GetString(4), name, birth, mother));
             }
             VerifyCanonicalCandidateMembership(authenticated.CandidateUuids, candidates);
             if (!result.TryAdd(row.PessoaObservacaoId,
