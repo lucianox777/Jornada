@@ -143,6 +143,55 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED",
                       (ROOT / "V9OperationalRunBoundary.cs").read_text())
 
+    def test_sql_persisted_decisions_match_prepared_runner_rows(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        begin = scorer.index(
+            "public async Task<IReadOnlyDictionary<long, Guid>> ReadCompletedGroupingDiagnosticAsync(")
+        end = scorer.index(
+            "public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(", begin)
+        diagnostic = scorer[begin:end]
+        for requirement in (
+            "SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,",
+            "melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,",
+            "score_segundo,margem,motivo",
+            "WHERE linkage_run_id=@run ORDER BY pessoa_observacao_id;",
+            "seen.Add(id)",
+            "prepared.TryGetValue(id, out var source)",
+            "expected.Status.ToString()",
+            "expected.PessoaUuidResolvido",
+            "expected.MelhorCandidatoUuid",
+            "expected.MelhorScore",
+            "expected.SegundoCandidatoUuid",
+            "expected.SegundoScore",
+            "expected.Margem",
+            "expected.Motivo",
+            "seen.Count != groups.Count",
+            "Resultado bruto SQL difere da decisão V9 TEST preparada.",
+        ):
+            self.assertIn(requirement, diagnostic)
+        self.assertIn("ProveCompletedRunPreparedDecisionParityGuardsAsync(", tests)
+        begin = tests.index(
+            "private static async Task ProveCompletedRunPreparedDecisionParityGuardsAsync(")
+        end = tests.index("private static async Task InsertSyntheticUniverseAsync(", begin)
+        regression = tests[begin:end]
+        for requirement in (
+            'GetField(\n            "prepared"',
+            "System.Reflection.BindingFlags.NonPublic",
+            "MelhorScore = d.MelhorScore + 0.001m",
+            "MelhorCandidatoUuid = null",
+            "Status = ResolutionStatus.CONFLITO",
+            'Motivo = "TAMPER_ONLY"',
+            "SegundoScore = 0.5m",
+            "Assert.ThrowsAsync<InvalidOperationException>",
+            "finally",
+            "field.SetValue(scorer, original)",
+        ):
+            self.assertIn(requirement, regression)
+        self.assertNotIn("UPDATE identidade.linkage_resultado", regression)
+        self.assertNotIn("DELETE FROM identidade.linkage_resultado", regression)
+
     def test_nonpublishing_sql_source_to_group_map_is_fail_closed(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         tests = (Path(__file__).resolve().parents[2]

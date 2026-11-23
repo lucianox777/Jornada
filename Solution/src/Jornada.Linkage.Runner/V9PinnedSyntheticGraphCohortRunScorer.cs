@@ -267,7 +267,9 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
     /// TEST_ONLY, nonpublishing, read-only diagnostic. The method verifies the
     /// actual completed SQL run, its frozen universe and persisted decisions.
     /// Exact bidirectional run_item/result membership, row model pin and
-    /// status counters are checked, not only matching cardinalities.
+    /// status counters are checked, not only matching cardinalities. Each raw
+    /// persisted score, candidate and abstention reason is also reconciled
+    /// against the scorer's in-memory prepared decision for that run.
     /// These SQL reads are not a consistent multi-layer snapshot or an
     /// authentication of HTTP/Gold bytes.
     /// This is NOT a productive or certified E2E exporter of groups.
@@ -318,23 +320,75 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
             WHERE lr.linkage_run_id=@run;
             """, connection);
         command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)
-            || reader.GetString(0) != "CONCLUIDO_SEM_PUBLICACAO"
-            || reader.GetGuid(1) != pinnedModelId || reader.GetInt32(2) != 1
-            || reader.GetInt64(3) != groups.Count || reader.GetInt64(4) != groups.Count
-            || !reader.IsDBNull(5)
-            || reader.GetInt64(6) != groups.Count || reader.GetInt64(7) != groups.Count
-            || reader.GetInt64(8) < 0 || reader.GetInt64(9) < 0 || reader.GetInt64(10) < 0
-            || reader.GetInt64(8) + reader.GetInt64(9) + reader.GetInt64(10) != groups.Count
-            || reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0
-            || reader.GetInt64(13) != 0
-            || reader.GetInt64(14) != reader.GetInt64(8)
-            || reader.GetInt64(15) != reader.GetInt64(9)
-            || reader.GetInt64(16) != reader.GetInt64(10)
-            || await reader.ReadAsync(ct))
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)
+                || reader.GetString(0) != "CONCLUIDO_SEM_PUBLICACAO"
+                || reader.GetGuid(1) != pinnedModelId || reader.GetInt32(2) != 1
+                || reader.GetInt64(3) != groups.Count || reader.GetInt64(4) != groups.Count
+                || !reader.IsDBNull(5)
+                || reader.GetInt64(6) != groups.Count || reader.GetInt64(7) != groups.Count
+                || reader.GetInt64(8) < 0 || reader.GetInt64(9) < 0 || reader.GetInt64(10) < 0
+                || reader.GetInt64(8) + reader.GetInt64(9) + reader.GetInt64(10) != groups.Count
+                || reader.GetInt64(11) != 0 || reader.GetInt64(12) != 0
+                || reader.GetInt64(13) != 0
+                || reader.GetInt64(14) != reader.GetInt64(8)
+                || reader.GetInt64(15) != reader.GetInt64(9)
+                || reader.GetInt64(16) != reader.GetInt64(10)
+                || await reader.ReadAsync(ct))
+                throw new InvalidOperationException(
+                    "Run SQL V9 sem publicação não está terminal, íntegro ou pinado.");
+        }
+
+        // The immutable SQL raw evidence must equal the actual decisions
+        // prepared for this run, not merely have the same IDs, model and
+        // aggregate status counts. The comparison is bounded (<=512), uses
+        // no truth sidecar and never modifies persisted raw results.
+        await using var decisions = new SqlCommand("""
+            SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,
+                   melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,
+                   score_segundo,margem,motivo
+            FROM identidade.linkage_resultado
+            WHERE linkage_run_id=@run ORDER BY pessoa_observacao_id;
+            """, connection);
+        decisions.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var seen = new HashSet<long>();
+        static bool SameScore(decimal? left, decimal? right) =>
+            left.HasValue == right.HasValue
+            && (!left.HasValue || Math.Abs(left.Value - right!.Value) <= 0.00000001m);
+        await using (var persisted = await decisions.ExecuteReaderAsync(ct))
+        {
+            while (await persisted.ReadAsync(ct))
+            {
+                var id = persisted.GetInt64(0);
+                if (!seen.Add(id) || !prepared.TryGetValue(id, out var source))
+                    throw new InvalidOperationException(
+                        "Resultado bruto SQL fora do universo V9 TEST preparado.");
+                var expected = source.Decision;
+                if (persisted.GetString(1) != expected.Status.ToString()
+                    || (persisted.IsDBNull(2) ? (Guid?)null : persisted.GetGuid(2))
+                        != expected.PessoaUuidResolvido
+                    || (persisted.IsDBNull(3) ? (Guid?)null : persisted.GetGuid(3))
+                        != expected.MelhorCandidatoUuid
+                    || !SameScore(persisted.GetDecimal(4), expected.MelhorScore)
+                    || (persisted.IsDBNull(5) ? (Guid?)null : persisted.GetGuid(5))
+                        != expected.SegundoCandidatoUuid
+                    || !SameScore(
+                        persisted.IsDBNull(6) ? null : persisted.GetDecimal(6),
+                        expected.SegundoScore)
+                    || !SameScore(
+                        persisted.IsDBNull(7) ? null : persisted.GetDecimal(7),
+                        expected.Margem)
+                    || !string.Equals(
+                        persisted.IsDBNull(8) ? null : persisted.GetString(8),
+                        expected.Motivo, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Resultado bruto SQL difere da decisão V9 TEST preparada.");
+            }
+        }
+        if (seen.Count != groups.Count || groups.Keys.Any(id => !seen.Contains(id)))
             throw new InvalidOperationException(
-                "Run SQL V9 sem publicação não está terminal, íntegro ou pinado.");
+                "Resultado SQL V9 não cobre todas as decisões preparadas.");
         return groups;
     }
 

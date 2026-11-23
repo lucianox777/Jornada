@@ -422,6 +422,13 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await ProveCompletedRunResultMembershipGuardsAsync(
                 connection, sqlScorer, positive.RunId);
 
+            // The SQL raw results are immutable. To exercise the additional
+            // read-only row-level decision reconciliation without bypassing
+            // the canonical SQL trigger, corrupt only the ephemeral in-memory
+            // prepared decision and restore it immediately.
+            await ProveCompletedRunPreparedDecisionParityGuardsAsync(
+                sqlScorer, positive.RunId);
+
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
             // comparison levels are used: FULL (FirstName TF) and exact LAST
@@ -914,6 +921,66 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         Assert.That(restored.Count, Is.EqualTo(200));
         Assert.That(restored.Keys, Is.EquivalentTo(
             Enumerable.Range(1, 200).Select(i => (long)i)));
+    }
+
+
+    /// <summary>
+    /// A failed row-by-row comparison is tested by changing ONLY the TEST
+    /// scorer's ephemeral in-memory decision. Immutable SQL evidence is never
+    /// updated, triggers remain active, and the field is restored in finally.
+    /// This is not independent scientific scoring or productive provenance.
+    /// </summary>
+    private static async Task ProveCompletedRunPreparedDecisionParityGuardsAsync(
+        V9PinnedSyntheticGraphCohortRunScorer scorer, Guid runId)
+    {
+        var field = typeof(V9PinnedSyntheticGraphCohortRunScorer).GetField(
+            "prepared", System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, "Prepared V9 TEST scorer state missing.");
+        var original = field!.GetValue(scorer);
+        Assert.That(original, Is.Not.Null);
+        var frozen = (IReadOnlyDictionary<long,
+            (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>)original!;
+
+        void RejectPreparedTamper(
+            Func<ProbabilisticLinkageDecision, ProbabilisticLinkageDecision> alter,
+            string reason)
+        {
+            var mutated = frozen.ToDictionary(pair => pair.Key, pair => pair.Value);
+            var row = mutated[1L];
+            mutated[1L] = (row.Observation, alter(row.Decision));
+            try
+            {
+                field.SetValue(scorer, mutated);
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await scorer.ReadCompletedGroupingDiagnosticAsync(
+                        runId, CancellationToken.None)), reason);
+            }
+            finally
+            {
+                field.SetValue(scorer, original);
+            }
+        }
+
+        RejectPreparedTamper(
+            d => d with { MelhorScore = d.MelhorScore + 0.001m },
+            "Persisted best posterior must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { MelhorCandidatoUuid = null },
+            "Persisted best candidate must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { Status = ResolutionStatus.CONFLITO },
+            "Persisted status must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { Motivo = "TAMPER_ONLY" },
+            "Persisted abstention reason must equal TEST scorer's prepared decision.");
+        RejectPreparedTamper(
+            d => d with { SegundoScore = 0.5m },
+            "Persisted second posterior must equal TEST scorer's prepared decision.");
+
+        Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+            runId, CancellationToken.None)).Count,
+            Is.EqualTo(200), "Prepared V9 TEST source must be restored exactly.");
     }
 
     private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)
