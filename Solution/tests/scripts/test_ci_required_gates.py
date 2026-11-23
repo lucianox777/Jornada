@@ -502,6 +502,25 @@ class IntegralDevWorkflowTests(unittest.TestCase):
                         "Solution/tests/scripts/test_v9_e2e_ibge_bridge_preflight.py"],
                        cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
 
+    def test_semiblind_http_contract_separates_complete_from_incomplete(self):
+        # #612 is residual SQL selectivity, not a mandatory-name rule.
+        # These scenarios guard only the in-memory HTTP serialization contract.
+        http = (ROOT / "Solution/tests/Jornada.Tests/Unit/SemiblindIdentityHttpTests.cs").read_text(
+            encoding="utf-8")
+        for scenario in ("complete_empty", "incomplete_no_pass",
+                         "incomplete_fanout", "incomplete_timeout"):
+            self.assertIn('[TestCase("' + scenario + '", HttpStatusCode.OK)]', http)
+        for field in ("busca_completa", "motivo_incompletude", "nenhumDestes"):
+            self.assertIn('GetProperty("' + field + '")', http)
+        for reason in ("NoEligiblePass", "FanoutLimitExceeded", "Timeout"):
+            self.assertIn("SemiblindRetrievalReasons." + reason, http)
+        self.assertIn('payload.TryGetProperty("score", out _)', http)
+        self.assertIn('payload.TryGetProperty("pessoaUuid", out _)', http)
+        gate = (ROOT / "Solution/src/Jornada.Api/SemiblindSearchActivationGate.cs").read_text(
+            encoding="utf-8")
+        self.assertIn('!string.IsNullOrWhiteSpace(databaseName)', gate)
+        self.assertIn('"Development", StringComparison.Ordinal', gate)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
