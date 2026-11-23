@@ -36,6 +36,9 @@ ibge_deliveries=0
 ibge_silver=0
 ibge_bronze=0
 ibge_source_sets=0
+http_lineage_proofs="$bridge_root/http-delivery-ledger-private.jsonl"
+[[ ! -e "$http_lineage_proofs" && ! -L "$http_lineage_proofs" ]] || exit 47
+: > "$http_lineage_proofs"
 # The preflight has authenticated exactly these manager-specific ZIP files.
 # The shell only receives manager, basename, digest and counts; never truth data.
 while IFS=$'\t' read -r gestor zip_name zip_digest expected; do
@@ -89,6 +92,47 @@ PYSOURCESHA
   [[ "$actual_source_sha" =~ ^[0-9A-F]{64}$ && "$actual_source_sha" == "$expected_source_sha" ]] || {
     echo "ERRO: ponte IBGE $gestor Silver diverge do conjunto de origens esperado; nenhum identificador divulgado." >&2; exit 52;
   }
+  # Bind the received HTTP ZIP bytes to the exact SQL entrega and its
+  # content-addressed Bronze object metadata, not only to Silver row counts.
+  # Fail closed if metadata is absent, substituted, incomplete or nonterminal.
+  zip_bytes="$(wc -c < "$package" | tr -d '[:space:]')"
+  [[ "$zip_bytes" =~ ^[0-9]+$ && "$zip_bytes" -gt 0 ]] || exit 53
+  ledger_sha="$(scalar "SELECT UPPER(e.payload_sha256)
+    FROM ingestao.entrega e
+    JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+    JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
+    WHERE e.entrega_id='$entrega' AND g.codigo=N'$gestor'
+      AND e.status=N'PROCESSADA'
+      AND e.payload_sha256=b.payload_sha256
+      AND e.bytes_recebidos=$zip_bytes
+      AND b.tamanho_bytes=e.bytes_recebidos
+      AND b.tamanho_bytes>0
+      AND EXISTS (SELECT 1 FROM ingestao.lote l WHERE l.entrega_id=e.entrega_id
+          GROUP BY l.entrega_id
+          HAVING COUNT_BIG(*)=MAX(l.lote_total)
+            AND MIN(l.lote_seq)=1 AND MAX(l.lote_seq)=MAX(l.lote_total)
+            AND SUM(CASE WHEN l.status=N'PROCESSADO' THEN 1 ELSE 0 END)=COUNT_BIG(*));")"
+  [[ "$ledger_sha" =~ ^[0-9A-F]{64}$ && "$ledger_sha" == "$zip_digest" ]] || {
+    echo "ERRO: ZIP HTTP não coincide com Entrega/Bronze/lotes terminais ($gestor), sem conteúdo pessoal." >&2; exit 53;
+  }
+  # Only hashed delivery UUID, verified package/source digests and counts
+  # enter the private transient proof. No raw delivery UUID or person ID.
+  python3 - "$http_lineage_proofs" "$gestor" "$entrega" "$zip_digest" "$zip_bytes" "$silver" "$actual_source_sha" <<'PYLEDGER'
+import hashlib,json,pathlib,sys,uuid
+path=pathlib.Path(sys.argv[1])
+if path.is_symlink() or not path.is_file():
+    raise SystemExit("Invalid private HTTP lineage proof path")
+manager,delivery,package,size,count,source=sys.argv[2:]
+delivery_hash=hashlib.sha256(str(uuid.UUID(delivery)).encode("ascii")).hexdigest().upper()
+proof={
+    "gestor":manager,"deliveryIdSha256":delivery_hash,
+    "packageSha256":package,"zipBytes":int(size),"silverPersons":int(count),
+    "silverSourceSetSha256Utf16le":source,"httpStatus":202,
+    "bronzePayloadAndBytesVerified":True,"lotesProcessadosVerified":True,
+}
+with path.open("a",encoding="utf-8") as stream:
+    stream.write(json.dumps(proof,sort_keys=True)+"\n")
+PYLEDGER
   ibge_source_sets=$((ibge_source_sets + 1))
   ibge_deliveries=$((ibge_deliveries + 1))
   ibge_silver=$((ibge_silver + silver))
@@ -101,40 +145,13 @@ for item in sorted(manifest["packages"],key=lambda x:x["GestorCodigo"]):
 PYPACKAGES
 )
 
-python3 - "$preflight" "$OUT/ibge-http-1k-summary.json" "$ibge_deliveries" "$ibge_bronze" "$ibge_silver" "$ibge_source_sets" <<'PYSUMMARY'
-import json,os,pathlib,sys
-pre=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-deliveries,bronze,silver,source_sets=map(int,sys.argv[3:])
-if deliveries!=4 or bronze!=4 or source_sets!=4 or pre["packages"]!=4:
-    raise SystemExit("Missing per-manager HTTP/Bronze deliveries")
-if silver!=pre["materializedObservations"] or silver<1000:
-    raise SystemExit("Synthetic observation materialization mismatch")
-if pre["seed"]!=355 or pre["baseIdentities"]!=1000:
-    raise SystemExit("Unexpected synthetic population")
-summary={
-    "schema":"V9_E2E_IBGE_HTTP_1K_V1","status":"PASS",
-    "scope":"SYNTHETIC_DEV_PERSON_ONLY_NOT_V9_LINKAGE_CERTIFICATION",
-    "commitSha":os.environ.get("GITHUB_SHA",""),
-    "seed":355,"baseIdentities":1000,
-    "generatorVersion":pre["generatorVersion"],
-    "populationProfile":pre["populationProfile"],
-    "generatorFingerprintSha256":pre["corpusInputFingerprintSha256"],
-    "bridgeManifestSha256":pre["bridgeManifestSha256"],
-    "groundTruthSidecarSha256":pre["truthSha256"],
-    "sourceObservations":pre["sourceObservations"],
-    "materializedObservations":silver,
-    "excludedObservations":0,
-    "deliveries":deliveries,"bronzeFiles":bronze,"silverPersons":silver,
-    "silverSourceIdentitySetsVerified":source_sets,
-    "silverSourceIdentityDigestMethod":pre["sourceIdentitySetDigestMethod"],
-    "scientificValidation":False,"activated":False,"v9RunnerVerified":False,
-}
-out=pathlib.Path(sys.argv[2])
-if out.exists() or out.is_symlink():
-    raise SystemExit("Refusing to overwrite an existing E2E evidence receipt")
-out.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-print("IBGE-derived C# generator -> 4 manager ZIPs -> HTTP/Bronze/Silver: PASS (DEV person-only).")
-PYSUMMARY
+# The receipt builder independently binds all four per-manager SHA/count
+# claims to the already verified ZIP preflight, without any truth rows.
+[[ "$ibge_deliveries" == 4 && "$ibge_bronze" == 4 && "$ibge_source_sets" == 4 ]] || exit 54
+python3 "$ROOT/scripts/v9-e2e-ibge-http-lineage.py" \
+  --preflight "$preflight" --proofs "$http_lineage_proofs" \
+  --expected-sha "${GITHUB_SHA:-}" \
+  --receipt "$OUT/ibge-http-1k-summary.json"
 
 # Truth, synthetic identifiers, names, ZIPs and private HMAC provenance never enter Actions artifacts.
 rm -rf -- "$bridge_root"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Emit only verified aggregate DEV observations and fail unproved milestones."""
+import importlib.util
 import json
 import math
 import os
@@ -56,6 +57,18 @@ def validate_volume(receipt, sha):
     return dict(COUNTS, elapsedMs=elapsed, personsPerSecond=round(1_000_000 / elapsed, 3))
 
 
+def verify_ibge_http_lineage(directory, ibge, sha):
+    # V2 receipts are verified against the independently generated ZIP
+    # preflight, not merely accepted by a status or aggregate count flag.
+    path = Path(__file__).with_name("v9-e2e-ibge-http-lineage.py")
+    spec = importlib.util.spec_from_file_location("v9_e2e_ibge_http_lineage", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("Missing HTTP/SQL lineage validator")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.verify(read(directory / "ibge-1k-preflight.json"), ibge, sha)
+
+
 def inspect_run(directory, sha):
     counts = validate_volume(read(directory / "http-volume-1k-summary.json"), sha)
     result = read(directory / "resultado-api-evidence.json")
@@ -77,7 +90,7 @@ def inspect_run(directory, sha):
     denied = (semiblind.get("sha") == sha and semiblind.get("scope") == "SEMIBLIND_DEV_ACCESS_DENIALS"
               and denials == [("missing_auth", 401, 0, 1), ("missing_scope", 403, 0, 1), ("disabled", 503, 0, 1)])
     ibge_ok = (
-        ibge.get("schema") == "V9_E2E_IBGE_HTTP_1K_V1"
+        ibge.get("schema") == "V9_E2E_IBGE_HTTP_1K_V2"
         and ibge.get("status") == "PASS" and ibge.get("commitSha") == sha
         and ibge.get("generatorVersion") == "JORNADA_SYNTH_CORPUS_CSHARP_V1"
         and ibge.get("populationProfile") == "DEMOGRAPHIC_PRIMARY_V1"
@@ -92,6 +105,7 @@ def inspect_run(directory, sha):
         and ibge["silverSourceIdentitySetsVerified"] == 4
         and ibge.get("silverSourceIdentityDigestMethod")
             == "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1"
+        and verify_ibge_http_lineage(directory, ibge, sha) is True
         and ibge.get("scientificValidation") is False
         and ibge.get("activated") is False
         and ibge.get("v9RunnerVerified") is False
