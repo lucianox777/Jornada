@@ -802,12 +802,20 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             await query.ExecuteNonQueryAsync();
         }
 
-        Task AssertRejectedAsync(string reason)
+        async Task AssertRawMutationBlockedAsync(string command, string reason, long shadow = 0)
         {
-            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
-                await scorer.ReadCompletedGroupingDiagnosticAsync(
-                    runId, CancellationToken.None)), reason);
-            return Task.CompletedTask;
+            await using var query = new SqlCommand(command, connection);
+            query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+            query.Parameters.Add("@shadow", SqlDbType.BigInt).Value = shadow;
+            // The canonically installed 20260919 migration makes raw result
+            // evidence IMMUTABLE. It rejects UPDATE irrespective of row count.
+            // Never disable this trigger to simulate corrupt terminal results.
+            var error = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+                await query.ExecuteNonQueryAsync()));
+            Assert.That(error, Is.Not.Null, reason);
+            Assert.That(error!.Number, Is.AnyOf(51822, 51823), reason);
+            Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
+                runId, CancellationToken.None)).Count, Is.EqualTo(200));
         }
 
         await ExecuteAsync("""
@@ -820,38 +828,25 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
         Assert.That((await scorer.ReadCompletedGroupingDiagnosticAsync(
             runId, CancellationToken.None)).Count, Is.EqualTo(200));
 
+        // The actual operational schema has an immutable raw scorer ledger.
+        // Fail CLOSED at the SQL trigger; don't try to bypass it or rewrite
+        // a terminal run just to test the fallback read-only consistency.
+        await AssertRawMutationBlockedAsync("""
+            UPDATE identidade.linkage_resultado SET modelo_versao=2
+            WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+            """, "A alteração de versão do modelo bruto precisa ser bloqueada.");
+        await AssertRawMutationBlockedAsync("""
+            UPDATE identidade.linkage_resultado
+               SET status=N'CONFLITO',motivo=N'TAMPER_ONLY'
+            WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
+            """, "A decisão bruta imutável não pode ser reescrita.");
+
         long shadowId = 0;
         try
         {
-            // Row count stays exactly 200, but the persisted model version
-            // has drifted from the pinned run. SQL FK/model id stays intact.
-            await ExecuteAsync("""
-                UPDATE identidade.linkage_resultado SET modelo_versao=2
-                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
-                """);
-            await AssertRejectedAsync("A count-consistent run cannot contain results for another model version.");
-            await ExecuteAsync("""
-                UPDATE identidade.linkage_resultado SET modelo_versao=1
-                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
-                """);
-
-            // Header continues to report all rows NAO_RESOLVIDO. One SQL
-            // result is maliciously rewritten to CONFLITO (still DB-valid).
-            await ExecuteAsync("""
-                UPDATE identidade.linkage_resultado
-                    SET status=N'CONFLITO',motivo=N'TAMPER_ONLY'
-                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
-                """);
-            await AssertRejectedAsync("Persisted decisions must reconcile with run status counters.");
-            await ExecuteAsync("""
-                UPDATE identidade.linkage_resultado
-                    SET status=N'NAO_RESOLVIDO',motivo=N'ABAIXO_T_LINKAGE'
-                WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
-                """);
-
-            // Add a synthetic SECOND internal version of one observation,
-            // outside the frozen run-item set, without touching the source
-            // identity, Gold, external truth or the real V9 model.
+            // Only a temporary Silver row can be inserted safely; do NOT
+            // tamper with immutable linkage_resultado. The shadow is outside
+            // the frozen universe but has a valid foreign key and identity.
             await using (var create = new SqlCommand("""
                 IF DB_NAME()<>N'JornadaHarness'
                     THROW 52832,'Somente JornadaHarness descartável.',1;
@@ -874,40 +869,35 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             }
             Assert.That(shadowId, Is.GreaterThan(200));
 
-            // Result membership changed 1 -> shadow; both SQL tables still
-            // contain exactly 200 rows. The bidirectional proof must fail.
-            await ExecuteAsync("""
+            await AssertRawMutationBlockedAsync("""
                 UPDATE identidade.linkage_resultado SET pessoa_observacao_id=@shadow
                 WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
-                """, shadowId);
-            await AssertRejectedAsync("Extra result and missing frozen result must be rejected.");
-            await ExecuteAsync("""
-                UPDATE identidade.linkage_resultado SET pessoa_observacao_id=1
-                WHERE linkage_run_id=@run AND pessoa_observacao_id=@shadow;
-                """, shadowId);
+                """, "A membership de um resultado imutável não pode mudar.", shadowId);
 
-            // The inverse: exchange a frozen run_item ID without changing
-            // its 200-row count or the actual result rows.
+            // Run items don't have the same SQL immutable-result trigger.
+            // Replace ONE frozen membership with a valid shadow ID while
+            // preserving exactly 200 items and 200 immutable results.
+            // ReadCompletedGroupingDiagnosticAsync MUST detect that the sets
+            // diverge, even though both COUNT_BIG(*) remain 200.
             await ExecuteAsync("""
                 DELETE FROM identidade.linkage_run_item
                 WHERE linkage_run_id=@run AND pessoa_observacao_id=1;
                 INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
                 VALUES(@run,@shadow);
                 """, shadowId);
-            await AssertRejectedAsync("Frozen run_items cannot be replaced by a shadow Silver row.");
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await scorer.ReadCompletedGroupingDiagnosticAsync(
+                    runId, CancellationToken.None)),
+                "Frozen SQL membership substitution must fail despite 200/200 row counts.");
         }
         finally
         {
-            // Restore the original frozen item/result set, counters and one
-            // deliberate extra observation, even on a failed assertion.
+            // Restore only mutable frozen membership. Do NOT update or delete
+            // the append-only raw result rows. This clean-up is a disposable
+            // JornadaHarness fixture, not a general recovery procedure.
             await ExecuteAsync("""
                 IF DB_NAME()<>N'JornadaHarness'
                     THROW 52833,'Somente JornadaHarness descartável.',1;
-                UPDATE identidade.linkage_resultado
-                   SET pessoa_observacao_id=1,modelo_versao=1,
-                       status=N'NAO_RESOLVIDO',motivo=N'ABAIXO_T_LINKAGE'
-                 WHERE linkage_run_id=@run
-                   AND pessoa_observacao_id IN (1,@shadow);
                 DELETE FROM identidade.linkage_run_item
                 WHERE linkage_run_id=@run AND pessoa_observacao_id=@shadow;
                 IF NOT EXISTS (SELECT 1 FROM identidade.linkage_run_item
