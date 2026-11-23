@@ -1069,7 +1069,7 @@ public sealed class V9FittedSnapshotTests
         }));
     }
 
-    internal static V9FittedSnapshot CompleteTf4OperationalWinner()
+    internal static V9FittedSnapshot CompleteTf4OperationalWinner(bool distinctCellRatios = false)
     {
         var payload = FourUnitTfPayload() with
         {
@@ -1088,7 +1088,8 @@ public sealed class V9FittedSnapshotTests
         };
         var levels = Enum.GetValues<CompositeNominalLevelV9>();
         var observed = levels.SelectMany(person => levels.Select(mother =>
-            new V9JointObservedCell(person, mother, 1, 1))).ToArray();
+            new V9JointObservedCell(person, mother,
+                distinctCellRatios ? 100 + (int)person * levels.Length + (int)mother : 1, 1))).ToArray();
         var estimated = V9JointSupportEstimation.Estimate(observed,
             new V9JointSupportPolicy(.99m, 0, 0), 1m, payload.TrainCorpusSha256);
         return V9FittedSnapshot.Create(payload with

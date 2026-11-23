@@ -157,6 +157,26 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await MakeRunner(int.MaxValue).RunAsync(unsafeRequest, CancellationToken.None)));
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before));
 
+            // Filtering the frozen cohort can hide cross-manager or cross-page
+            // candidates. Every filter must be rejected before creating a run.
+            foreach (var partial in new[]
+            {
+                Request() with { PessoaObservacaoId = 1 },
+                Request() with { GestorCodigo = "GESTOR_A" },
+                Request() with { Since = DateTimeOffset.UnixEpoch },
+                Request() with { MaxRecords = 100 }
+            })
+            {
+                var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await MakeRunner(int.MaxValue).RunAsync(partial, CancellationToken.None)));
+                Assert.That(error!.Message, Does.Contain("MODEL_VALIDATION integral"));
+                await using var lookup = new SqlCommand(
+                    "SELECT COUNT_BIG(*) FROM identidade.linkage_run WHERE correlation_id=@correlation;",
+                    connection);
+                lookup.Parameters.Add("@correlation", SqlDbType.UniqueIdentifier).Value = partial.CorrelationId;
+                Assert.That((long)(await lookup.ExecuteScalarAsync())!, Is.Zero);
+            }
+
             // Invalid intra-manager edge must fail before any SQL decision is
             // persisted; the scorer cannot silently drop or repair bad graph.
             Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>

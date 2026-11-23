@@ -189,7 +189,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
             // acquisition, run creation, model read or any SQL write.
             if (request.Publish || request.Mode != LinkageRunType.MODEL_VALIDATION
                 || request.ReplaySourceRunId is not null
-                || request.MaxRecords is not null || request.ModelVersion != 1)
+                || request.PessoaObservacaoId is not null || request.GestorCodigo is not null
+                || request.Since is not null || request.MaxRecords is not null || request.ModelVersion != 1)
                 throw new InvalidOperationException(
                     "V9 agrupado só admite MODEL_VALIDATION integral, modelo v1 e Publish=false em JornadaHarness.");
             await using var v9GuardConnection = await operationalSql.OpenAsync(ct);
