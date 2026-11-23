@@ -65,9 +65,24 @@ public sealed class BlockingProjectionSqlServerTests
             null,
             reserved.DataReferencia);
 
+        // Segunda identidade inteiramente sintética: mesmo prenome materno e ano,
+        // nome civil e CPF distintos. Exige recuperar duas pessoas distintas por
+        // mother-year e recusar fan-out com orçamento de apenas uma pessoa.
+        // CPF 73124896645 possui dígitos verificadores válidos.
+        var secondPerson = person with
+        {
+            IdPessoaEntrega = "BLOCKING-SQLSERVER-002",
+            CodigoPessoaOrigem = "BLOCKING-SQLSERVER-002",
+            ConteudoHash = new string('b', 64),
+            SourceTransactionId = "TX-BLOCKING-SQLSERVER-002",
+            Cpf = "73124896645",
+            NomeCompleto = "Beatriz Soares Teste",
+            Atributos = [],
+            ConferenciasDocumentais = []
+        };
         await repository.PersistValidatedAsync(
             reserved,
-            new ParsedPackage(manifest, [person], []),
+            new ParsedPackage(manifest, [person, secondPerson], []),
             CancellationToken.None);
 
         await using var connection = new SqlConnection(connectionString);
@@ -105,6 +120,33 @@ public sealed class BlockingProjectionSqlServerTests
         command.Parameters.AddWithValue("@projection_fingerprint", PersonResolutionProjectionContract.FingerprintSha256);
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
         Assert.That(count, Is.EqualTo(14));
+
+        // #1851: prove the exact UTF-16LE + LF + ordinal source digest used
+        // by the 1k IBGE HTTP-to-Silver verification on real disposable SQL.
+        // This does not prove the HTTP step, Runner V9 or institutional policy.
+        await using (var sourceDigest = connection.CreateCommand())
+        {
+            sourceDigest.CommandText = """
+                SELECT UPPER(CONVERT(VARCHAR(64),
+                    HASHBYTES('SHA2_256',
+                        STRING_AGG(CONVERT(NVARCHAR(MAX),
+                            po.codigo_pessoa_origem + NCHAR(10)), N'')
+                        WITHIN GROUP (ORDER BY po.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2)
+                    ), 2))
+                FROM silver.pessoa_observacao po
+                WHERE po.codigo_pessoa_origem IN (
+                    N'BLOCKING-SQLSERVER-001', N'BLOCKING-SQLSERVER-002');
+                """;
+            var observedDigest = Convert.ToString(
+                await sourceDigest.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+            var expectedBytes = System.Text.Encoding.Unicode.GetBytes(
+                "BLOCKING-SQLSERVER-001\nBLOCKING-SQLSERVER-002\n");
+            var expectedDigest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(expectedBytes));
+            Assert.That(observedDigest, Is.EqualTo(expectedDigest),
+                "Hash SQL ordenado deve igualar SHA-256 UTF-16LE/LF do preflight E2E.");
+        }
 
         // SQL real: sem nascimento, CombinedIdentityCandidatePlanner não pode atuar.
         // Um passe dinâmico nominal elegível ainda deve devolver a referência da Gold.
@@ -145,8 +187,99 @@ public sealed class BlockingProjectionSqlServerTests
         var foundWithoutPersonName = await BlockingProjectionCandidateLoader.LoadAsync(
             connection, motherBirthRuleset, noPersonName, maxCandidates: 20, commandTimeoutSeconds: 60,
             ct: CancellationToken.None, searchPasses: motherBirthPasses);
-        Assert.That(foundWithoutPersonName.Select(candidate => candidate.NomeCompleto),
+        var motherYearNames = foundWithoutPersonName
+            .Select(candidate => candidate.NomeCompleto).ToArray();
+        Assert.That(motherYearNames, Does.Contain("María Silva Teste"));
+        Assert.That(motherYearNames, Does.Contain("Beatriz Soares Teste"));
+        Assert.That(foundWithoutPersonName.Select(x => x.PessoaUuid).Distinct().Count(),
+            Is.EqualTo(foundWithoutPersonName.Count),
+            "O UNION deve retornar cada UUID uma vez, sem truncamento silencioso.");
+
+        // #612: contrato residual explícito da issue: PRENOME ISOLADO
+        // + NOME COMPLETO DA MÃE + NASCIMENTO (dia, mês, ano).
+        // O passe é executado no índice SQL real, não inferido da existência
+        // das features. As duas identidades compartilham mãe e nascimento;
+        // somente o prenome deve separar Maria de Beatriz.
+        var firstMotherBirthRuleset = LinkageDynamicRuleSet.CreateWithPasses(
+            "INTEGRATION-SEMIBLIND-FIRST-MOTHER-DOB", "INTEGRATION-TEST",
+            [LinkageBlockingPass.Create("first-mother-dob",
+                [BlockingFeatureNames.FirstName,
+                 BlockingFeatureNames.MotherFullName,
+                 BlockingFeatureNames.BirthDay,
+                 BlockingFeatureNames.BirthMonth,
+                 BlockingFeatureNames.BirthYear])],
+            Array.Empty<KeyValuePair<string, decimal>>()) with
+        {
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256
+        };
+        var firstOnlyMaria = new IdentityObservation(
+            null, "NAO_INFORMADO", "María",
+            new DateOnly(1991, 4, 13), "Ana Souza Teste");
+        var preciseMariaPasses = BlockingRuleSetCandidatePlanner.Plan(
+            firstMotherBirthRuleset, firstOnlyMaria);
+        Assert.That(preciseMariaPasses.Select(p => p.PassId),
+            Is.EqualTo(new[] { "first-mother-dob" }));
+        var preciseMaria = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, firstMotherBirthRuleset, firstOnlyMaria,
+            maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: preciseMariaPasses);
+        Assert.That(preciseMaria.Select(p => p.NomeCompleto),
             Does.Contain("María Silva Teste"));
+        Assert.That(preciseMaria.Select(p => p.NomeCompleto),
+            Does.Not.Contain("Beatriz Soares Teste"));
+
+        var firstOnlyBeatriz = firstOnlyMaria with { NomeCompleto = "Beatriz" };
+        var preciseBeatrizPasses = BlockingRuleSetCandidatePlanner.Plan(
+            firstMotherBirthRuleset, firstOnlyBeatriz);
+        Assert.That(preciseBeatrizPasses.Select(p => p.PassId),
+            Is.EqualTo(new[] { "first-mother-dob" }));
+        var preciseBeatriz = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, firstMotherBirthRuleset, firstOnlyBeatriz,
+            maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: preciseBeatrizPasses);
+        Assert.That(preciseBeatriz.Select(p => p.NomeCompleto),
+            Does.Contain("Beatriz Soares Teste"));
+        Assert.That(preciseBeatriz.Select(p => p.NomeCompleto),
+            Does.Not.Contain("María Silva Teste"));
+        Assert.That(preciseMaria.Select(p => p.PessoaUuid)
+            .Intersect(preciseBeatriz.Select(p => p.PessoaUuid)), Is.Empty,
+            "O passe SQL seletivo não pode confundir pessoas com a mesma mãe e data.");
+
+        // O loader SQL real lê limite+1 e recusa antes de projetar Top 5.
+        // O serviço HTTP traduz esse caso em busca_completa=false, não em
+        // uma resposta vazia interpretada como 'nenhuma pessoa encontrada'.
+        var overflow = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+        {
+            await BlockingProjectionCandidateLoader.LoadAsync(
+                connection, motherBirthRuleset, noPersonName, maxCandidates: 1,
+                commandTimeoutSeconds: 60, ct: CancellationToken.None,
+                searchPasses: motherBirthPasses);
+        }));
+        Assert.That(overflow!.Message, Does.Contain("MaxCandidatesPerBlock"));
+
+        // Ano informado incorreto em +1: a união deve manter o passe
+        // combined-neighbor-year no SQL, sem suprimir mother-year.
+        var adjacentYear = new IdentityObservation(
+            null, "NAO_INFORMADO", "María Silva Teste",
+            new DateOnly(1992, 4, 13), "Ana Souza Teste");
+        var adjacentPasses = SemiblindCandidatePassPlanner.Plan(
+            motherBirthRuleset, adjacentYear);
+        Assert.That(adjacentPasses.Select(p => p.PassId),
+            Does.Contain("combined-neighbor-year"));
+        Assert.That(adjacentPasses.Select(p => p.PassId), Does.Contain("mother-year"));
+        var adjacentCandidates = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, motherBirthRuleset, adjacentYear, maxCandidates: 20,
+            commandTimeoutSeconds: 60, ct: CancellationToken.None,
+            searchPasses: adjacentPasses);
+        Assert.That(adjacentCandidates.Select(candidate => candidate.NomeCompleto),
+            Does.Contain("María Silva Teste"));
+
+        // Nenhum passe elegível é INCOMPLETUDE antes do SQL, diferente da
+        // consulta SQL concluída com zero candidatos abaixo.
+        var noEvidence = new IdentityObservation(
+            null, "NAO_INFORMADO", null, null, null);
+        Assert.That(SemiblindCandidatePassPlanner.Plan(ruleset, noEvidence), Is.Empty);
 
         var missing = new IdentityObservation(
             null, "NAO_INFORMADO", "Pessoa Inexistente No Corpus", null, null);

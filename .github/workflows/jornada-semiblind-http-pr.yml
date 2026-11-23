@@ -1,0 +1,86 @@
+name: Jornada semiblind real-service HTTP synthetic PR proof
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/jornada-semiblind-http-pr.yml'
+      - 'Solution/tests/Jornada.Tests/Unit/SemiblindIdentityHttpTests.cs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jornada-semiblind-http-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  semiblind-http-dev:
+    # Synthetic, in-memory TestHost only. No SQL, user data or GitHub secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Guard PR merge provenance and restore locked dependencies
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_PR_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          dotnet restore Jornada.sln --locked-mode
+      - name: Execute real HTTP service with synthetic retriever and person policy
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          mkdir -p .local/semiblind-http
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj \
+            --configuration Release --no-restore \
+            --filter 'FullyQualifiedName~SemiblindIdentityHttpTests.Dev_http_real_service_enforces_person_authorization_and_top_five' \
+            --results-directory "$PWD/.local/semiblind-http" \
+            --logger 'trx;LogFileName=semiblind-http.trx'
+          python3 scripts/test-evidence-gate.py .local/semiblind-http/semiblind-http.trx \
+            --forbid-skipped --minimum-tests 2 --summary .local/semiblind-http/internal.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          base = Path(".local/semiblind-http")
+          evidence = json.loads((base / "internal.json").read_text(encoding="utf-8"))
+          exact = {"total": 2, "passed": 2, "failed": 0, "skipped": 0, "other": 0}
+          if evidence.get("status") != "PASS" or evidence.get("aggregate") != exact:
+              raise SystemExit("Expected exactly two real-service HTTP tests, no skips")
+          receipt = {
+              "schema": "JORNADA_SEMIBLIND_HTTP_DEV_PR_PROOF_V1",
+              "status": "PASS",
+              "prHeadSha": os.environ["EXPECTED_PR_HEAD"],
+              "testedMergeSha": os.environ["GITHUB_SHA"],
+              "total": 2, "passed": 2, "failed": 0, "skipped": 0,
+              "source": "TESTHOST_REAL_HTTP_SERVICE_WITH_FAKE_RETRIEVER_AND_POLICY",
+              "scope": "HTTP_SERVICE_CONTRACT_ONLY_NOT_SQL_OR_INSTITUTIONAL_E2E",
+              "realSqlRetrieverValidated": False,
+              "institutionalAuthorizationValidated": False,
+              "scientificValidation": False,
+              "productiveActivation": False,
+          }
+          (base / "receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print("Semiblind in-memory HTTP real-service proof PASS: 2/2 (not SQL E2E)")
+          PY
+      - name: Archive only aggregate provenance receipt, never TRX or test data
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: semiblind-http-${{ github.sha }}-${{ github.run_id }}
+          path: Solution/.local/semiblind-http/receipt.json
+          if-no-files-found: error
+          retention-days: 14

@@ -32,3 +32,15 @@ A duração agregada aproximada reportada da campanha é 5h05, incluindo TRAIN ~
 - **#1478/#1575:** permanecem fechadas conforme histórico; não reabrir.
 
 **Precedência:** este documento adiciona evidência à governança vigente, sem revogar decisões anteriores, alterar LOCKED, liberar HML/PROD ou autorizar promoção pelo Operador Master. Revisão e checks da PR documental são necessários antes da integração em `master`.
+
+## Atualização de preservação SHA-256 / guarda durável — 23/11/2026
+
+**Registro auditável:** [inventário completo de 14 artefatos, SHA-256 e situação da guarda](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md), ligado ao run científico #38 `44970012048` (tentativa 1). A consulta atual ao GitHub Actions confirma 14/14 artefatos disponíveis, `expired=false`, e SHA-256 **declarado nos metadados GitHub** coincidente com o inventário fixado no código, mas não verifica novamente os bytes baixados. A evidência histórica [PR #1913, comentário 7086137610](https://github.com/lucianox777/Jornada/pull/1913#issuecomment-7086137610) comprova hash/CRC dos **12 ZIPs temporários**, incluindo TEST e vencedor; os dois handoffs de ~738/737 MB ainda não foram verificados localmente. **Não há destino de armazenamento durável nem SHA após gravação atestados**. Primeira expiração Actions: `2026-12-22T01:09:08Z`. A etapa 0 permanece **PENDENTE_PRESERVACAO_DURAVEL_14_DE_14**, sem habilitação do Runner ou alteração científica.
+
+### Atualização de custódia declarada pelo PO — 23/11/2026
+
+O PO confirmou expressamente que **já armazenou os artefatos em lugar durável**. [Registro atualizado, procedimento de conferência local e estado separado de validação](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md). Trata-se de confirmação do responsável, **não de comprovante de leitura/hashes dos 14 ZIPs no destino**, cujo escopo e hashes pós-cópia ainda não foram apresentados. Status vigente `GUARDA_DURAVEL_DECLARADA_PELO_PO__VALIDACAO_SHA256_14_DE_14_PENDENTE`; o checkpoint anterior de 12/14 temporários permanece histórico. Nenhum novo TEST, NAS ou liberação do Runner.
+
+### Confirmação PO de custódia integral — 14/14 (23/11/2026)
+
+O PO confirmou que estão no local durável **os 14 ZIPs da campanha científica #38, inclusive ambos os handoffs de ~738/737 MB**. A ausência de cópia desses dois ZIPs no workspace temporário de 22/11 não prova ausência no destino declarado pelo PO. Novo estado operacional: `14_DE_14_EM_GUARDA_DURAVEL_DECLARADOS_PELO_PO__SHA256_POS_COPIA_PENDENTE`; ver [registro com hashes, precedência e auditoria posterior](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md). O SHA-256 pós-cópia e recuperabilidade no local durável continuam sem recibo independente. Sem certificação NAS, inferência científica ou liberação V9.

@@ -46,6 +46,8 @@ cleanup(){
   [[ -z "$worker_pid" ]] || kill "$worker_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || kill "$api_pid" 2>/dev/null || true
   wait "$worker_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true
+  # Raw IBGE synthetic ZIPs/truth never survive successful or failed harness cleanup.
+  rm -rf -- "$OUT/ibge-1k"
 }
 trap cleanup EXIT INT TERM
 
@@ -368,7 +370,8 @@ if [[ "${JORNADA_E2E_RESULTADO_API:-false}" == "true" ]]; then
     sleep 1
   done
   [[ -n "$resultado_url" ]] || { echo 'ERRO: Resultado.Api não abriu porta local.' >&2; exit 31; }
-  python3 "$ROOT/scripts/e2e-resultado-entrega.py" "$resultado_url" "$filename" "$id2" "$OUT/resultado-api-evidence.json"
+  # O probe recebe o arquivo concreto e mede os próprios bytes (SHA-256 + comprimento).
+  python3 "$ROOT/scripts/e2e-resultado-entrega.py" "$resultado_url" "$filename" "$id2" "$OUT/resultado-api-evidence.json" "$package"
 fi
 # A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa,
 # portanto a segunda Entrega recebe nova observação da Pessoa, ancorada ao mesmo CPF,
@@ -638,6 +641,14 @@ pathlib.Path(out).write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
 print("HTTP 1k real SQL E2E: PASS, no synthetic identity data in summary.")
 PYVOLUME
 fi
+
+# Opt-in on the existing manual E2E workflow: reuse the C# IBGE-derived
+# generator and bridge without replacing the original AA01 1k/Serving proof.
+case "${JORNADA_E2E_IBGE_1K:-false}" in
+  true) source "$ROOT/scripts/v9-e2e-ibge-http.sh" ;;
+  false) : ;;
+  *) echo 'ERRO: JORNADA_E2E_IBGE_1K exige true/false.' >&2; exit 51 ;;
+esac
 
 # Stage 2: ten distinct 1k ZIP deliveries = 10k people, with per-delivery
 # SQL reconciliation and explicit multi-batch latency observations.

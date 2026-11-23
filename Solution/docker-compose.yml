@@ -31,7 +31,7 @@ x-jornada-node-common: &jornada-node-common
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
-    container_name: jornada-sqlserver-local
+    container_name: "${JORNADA_SQL_CONTAINER_NAME:-jornada-sqlserver-local}"
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
@@ -146,18 +146,18 @@ services:
 
 volumes:
   jornada_sql_data:
-    name: jornada_sql_data
+    name: "${JORNADA_SQL_VOLUME_NAME:-jornada_sql_data}"
   jornada_bronze:
-    name: jornada_bronze
+    name: "${JORNADA_BRONZE_VOLUME_NAME:-jornada_bronze}"
   jornada_staging_1:
-    name: jornada_staging_1
+    name: "${JORNADA_STAGING_1_VOLUME_NAME:-jornada_staging_1}"
   jornada_staging_2:
-    name: jornada_staging_2
+    name: "${JORNADA_STAGING_2_VOLUME_NAME:-jornada_staging_2}"
   jornada_logs_1:
-    name: jornada_logs_1
+    name: "${JORNADA_LOGS_1_VOLUME_NAME:-jornada_logs_1}"
   jornada_logs_2:
-    name: jornada_logs_2
+    name: "${JORNADA_LOGS_2_VOLUME_NAME:-jornada_logs_2}"
   jornada_node_data_1:
-    name: jornada_node_data_1
+    name: "${JORNADA_NODE_DATA_1_VOLUME_NAME:-jornada_node_data_1}"
   jornada_node_data_2:
-    name: jornada_node_data_2
+    name: "${JORNADA_NODE_DATA_2_VOLUME_NAME:-jornada_node_data_2}"

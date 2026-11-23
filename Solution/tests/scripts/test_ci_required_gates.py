@@ -355,3 +355,450 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
         fast = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
         for tag in ("actions/checkout@v4", "actions/setup-python@v5", "actions/setup-dotnet@v4"):
             self.assertNotIn(tag, fast)
+
+
+class IntegralDevWorkflowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Ubuntu provides PyYAML for system Python, independently of setup-python.
+        import subprocess
+        workflow = ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml"
+        parse = "import json,sys,yaml; print(json.dumps(yaml.load(sys.stdin, Loader=yaml.BaseLoader)))"
+        cls.workflow = json.loads(subprocess.check_output(
+            ["/usr/bin/python3", "-c", parse], input=workflow.read_text(), text=True))
+        cls.steps = cls.workflow["jobs"]["dev-1k"]["steps"]
+
+    def test_only_manual_dispatch_on_a_read_only_hosted_runner(self):
+        self.assertEqual(list(self.workflow["on"]), ["workflow_dispatch"])
+        inputs = self.workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(list(inputs), ["expected_sha"])
+        self.assertEqual(inputs["expected_sha"]["required"], "true")
+        self.assertEqual(self.workflow["permissions"], {"contents": "read"})
+        job = self.workflow["jobs"]["dev-1k"]
+        self.assertEqual(job["runs-on"], "ubuntu-latest")
+        self.assertLessEqual(int(job["timeout-minutes"]), 360)
+        self.assertEqual(self.steps[0]["id"], "admission")
+        self.assertEqual(self.steps[1]["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(self.steps[1]["with"]["persist-credentials"], "false")
+
+    def test_dispatch_guard_rejects_wrong_ref_sha_event_owner_or_protection(self):
+        import subprocess
+        sha = "a" * 40
+        env = {"GITHUB_REPOSITORY": "lucianox777/Jornada", "GITHUB_EVENT_NAME": "workflow_dispatch",
+               "GITHUB_REF": "refs/heads/master", "GITHUB_REF_TYPE": "branch", "GITHUB_REF_PROTECTED": "true",
+               "GITHUB_ACTOR": "lucianox777", "GITHUB_TRIGGERING_ACTOR": "lucianox777",
+               "GITHUB_REPOSITORY_OWNER": "lucianox777", "GITHUB_SHA": sha, "EXPECTED_SHA": sha}
+        script = self.steps[0]["run"]
+        self.assertEqual(subprocess.run(["bash", "-c", script], env=env).returncode, 0)
+        for key, value in [("GITHUB_REF", "refs/heads/feature"), ("GITHUB_REF_TYPE", "tag"),
+                           ("GITHUB_EVENT_NAME", "push"), ("GITHUB_REF_PROTECTED", "false"),
+                           ("EXPECTED_SHA", "b" * 40), ("EXPECTED_SHA", "abc"),
+                           ("GITHUB_REPOSITORY", "fork/Jornada"), ("GITHUB_ACTOR", "other"),
+                           ("GITHUB_TRIGGERING_ACTOR", "other")]:
+            with self.subTest(key=key, value=value):
+                self.assertNotEqual(subprocess.run(["bash", "-c", script], env={**env, key: value}).returncode, 0)
+
+    def test_checkout_guard_rejects_a_master_that_moved(self):
+        import os
+        import subprocess
+        import tempfile
+        guard = self.steps[2]["run"]
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp, "repo")
+            subprocess.run(["git", "init", "-q", "-b", "master", str(repo)], check=True)
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "user.name=Test", "-c", "user.email=test@localhost",
+                                                *args], cwd=repo, text=True).strip()
+            git("commit", "-q", "--allow-empty", "-m", "initial")
+            sha = git("rev-parse", "HEAD")
+            job = Path(temp, "job")
+            subprocess.run(["git", "clone", "-q", str(repo), str(job)], check=True)
+            def verify(value):
+                return subprocess.run(["bash", "-c", guard], cwd=job, env={**os.environ, "GITHUB_SHA": value}).returncode
+            self.assertEqual(verify(sha), 0)
+            self.assertNotEqual(verify("f" * 40), 0)
+            git("commit", "-q", "--allow-empty", "-m", "advanced")
+            self.assertNotEqual(verify(sha), 0)
+
+    def test_artifact_is_exact_receipt_and_physical_failure_is_not_ignored(self):
+        upload, = [s for s in self.steps if "upload-artifact@" in s.get("uses", "")]
+        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/e2e-integral-dev.json")
+        self.assertEqual(upload["with"]["if-no-files-found"], "error")
+        self.assertTrue(all("continue-on-error" not in step for step in self.steps))
+        physical, = [s for s in self.steps if s.get("id") == "http"]
+        self.assertEqual(physical["env"]["JORNADA_E2E_HTTP_VOLUME_COUNT"], "1000")
+        self.assertIn("--profile e2e --allow-reset e2e", physical["run"])
+
+    def test_workflow_only_removes_attempt_owned_volumes(self):
+        job = self.workflow["jobs"]["dev-1k"]
+        namespace = "jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+        self.assertEqual(job["env"]["COMPOSE_PROJECT_NAME"], namespace)
+        self.assertEqual(job["env"]["JORNADA_SQL_CONTAINER_NAME"], namespace + "-sql")
+        self.assertEqual(job["env"]["JORNADA_SQL_VOLUME_NAME"], namespace + "-data")
+        cleanup, = [s for s in self.steps if s.get("id") == "cleanup"]
+        self.assertIn("steps.isolation.outcome == 'success'", cleanup["if"])
+        self.assertNotIn("--volumes", cleanup["run"])
+        self.assertIn('for volume in "$JORNADA_SQL_VOLUME_NAME"', cleanup["run"])
+        self.assertLess(cleanup["run"].index('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]'),
+                        cleanup["run"].index('docker volume rm "$volume"'))
+
+    def test_all_compose_named_volumes_are_isolated_per_attempt(self):
+        compose = (ROOT / "Solution/docker-compose.yml").read_text(encoding="utf-8")
+        job = self.workflow["jobs"]["dev-1k"]
+        namespace = "jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+        isolation, = [s for s in self.steps if s.get("id") == "isolation"]
+        cleanup, = [s for s in self.steps if s.get("id") == "cleanup"]
+        volumes = {
+            "JORNADA_SQL_VOLUME_NAME": ("jornada_sql_data", "data"),
+            "JORNADA_BRONZE_VOLUME_NAME": ("jornada_bronze", "bronze"),
+            "JORNADA_STAGING_1_VOLUME_NAME": ("jornada_staging_1", "staging-1"),
+            "JORNADA_STAGING_2_VOLUME_NAME": ("jornada_staging_2", "staging-2"),
+            "JORNADA_LOGS_1_VOLUME_NAME": ("jornada_logs_1", "logs-1"),
+            "JORNADA_LOGS_2_VOLUME_NAME": ("jornada_logs_2", "logs-2"),
+            "JORNADA_NODE_DATA_1_VOLUME_NAME": ("jornada_node_data_1", "node-1"),
+            "JORNADA_NODE_DATA_2_VOLUME_NAME": ("jornada_node_data_2", "node-2"),
+        }
+        for key, (legacy, suffix) in volumes.items():
+            with self.subTest(volume=legacy):
+                self.assertIn("  " + legacy + ':\n    name: "${' + key + ':-' + legacy + '}"', compose)
+                self.assertEqual(job["env"][key], namespace + "-" + suffix)
+                self.assertIn('"$' + key + '"', isolation["run"])
+                self.assertIn('"$' + key + '"', cleanup["run"])
+        self.assertIn('for volume in', isolation["run"])
+        self.assertIn('for volume in', cleanup["run"])
+        self.assertIn('[[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]', cleanup["run"])
+        self.assertIn('docker volume rm "$volume"', cleanup["run"])
+        self.assertNotIn("--volumes", cleanup["run"])
+
+    def test_canonical_ibge_generator_is_used_only_for_dev_http_bridge(self):
+        # Never replace the historical AA01 1k fixture, or touch scientific seed42.
+        import subprocess
+        import sys
+        job = self.workflow["jobs"]["dev-1k"]
+        http, = [s for s in self.steps if s.get("id") == "http"]
+        self.assertEqual(http["env"]["JORNADA_E2E_IBGE_1K"], "true")
+        self.assertEqual(http["env"]["JORNADA_E2E_HTTP_VOLUME_COUNT"], "1000")
+        local = (ROOT / "Solution/scripts/local-e2e.sh").read_text(encoding="utf-8")
+        bridge = (ROOT / "Solution/scripts/v9-e2e-ibge-http.sh").read_text(encoding="utf-8")
+        verify = (ROOT / "Solution/scripts/v9-e2e-ibge-bridge-preflight.py").read_text(encoding="utf-8")
+        evidence = (ROOT / "Solution/scripts/e2e-integral-dev-evidence.py").read_text(encoding="utf-8")
+        self.assertIn('source "$ROOT/scripts/v9-e2e-ibge-http.sh"', local)
+        self.assertIn("scripts/v9-http-volume-fixture.py", local)
+        self.assertIn("generate-ingestion", bridge)
+        self.assertIn("Jornada.Linkage.SyntheticCorpus.csproj", bridge)
+        self.assertIn('--population-profile demographic-primary', bridge)
+        self.assertIn('--people 1000 --seed 355 --error-profile clean', bridge)
+        self.assertIn("data/reference/ibge-nomes-2022", bridge)
+        self.assertIn("data/reference/synthetic-birth-sp/", bridge)
+        self.assertIn("bridge-truth.jsonl", verify)
+        self.assertIn('"allowedForScoring") is False', verify)
+        self.assertIn('"ibgeSyntheticHttp"', evidence)
+        self.assertIn("HASHBYTES('SHA2_256'", bridge)
+        self.assertIn('po.codigo_pessoa_origem + NCHAR(10)', bridge)
+        self.assertIn("silverSourceIdentitySetsVerified", evidence)
+        self.assertIn('verify_ibge_http_lineage(directory, ibge, sha) is True', evidence)
+        self.assertIn('V9_E2E_IBGE_HTTP_1K_V2', evidence)
+        self.assertIn("v9-e2e-ibge-http-lineage.py", bridge)
+        self.assertIn("bronze.entrega_arquivo b", bridge)
+        self.assertIn("e.payload_sha256=b.payload_sha256", bridge)
+        self.assertIn("b.tamanho_bytes=e.bytes_recebidos", bridge)
+        self.assertIn("l.status=N'PROCESSADO'", bridge)
+        self.assertIn("http-delivery-ledger-private.jsonl", bridge)
+        self.assertIn("rm -rf -- \"$bridge_root\"", bridge)
+        self.assertIn("SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1", verify)
+        self.assertNotIn("TRAIN", bridge)
+        self.assertNotIn("TEST", bridge)
+        self.assertIn("rm -rf -- .local/e2e/bronze", (ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml").read_text(encoding="utf-8"))
+        self.assertIn(".local/e2e/ibge-1k", (ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml").read_text(encoding="utf-8"))
+        subprocess.run(["bash", "-n", str(ROOT / "Solution/scripts/v9-e2e-ibge-http.sh")], check=True)
+        subprocess.run([sys.executable, "-m", "unittest",
+                        "Solution/tests/scripts/test_v9_e2e_ibge_bridge_preflight.py"],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+
+    def test_e2e_grouping_oracle_is_required_and_noncertifying(self):
+        workflow = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(
+            encoding="utf-8")
+        script = (ROOT / "Solution/scripts/e2e-v9-grouping-oracle.py").read_text(
+            encoding="utf-8")
+        self.assertIn("test_e2e_v9_grouping_oracle.py", workflow)
+        self.assertIn("test_e2e_v9_bridge_staging_reconcile.py", workflow)
+        self.assertIn("test_v9_e2e_ibge_http_lineage.py", workflow)
+        self.assertIn("test_v9_e2e_run_http_receipt_compare.py", workflow)
+        self.assertIn("test_v9_e2e_dev_composite_reconcile.py", workflow)
+        composed = (ROOT / "Solution/scripts/v9-e2e-dev-composite-reconcile.py").read_text(
+            encoding="utf-8")
+        self.assertIn("BRIDGE.reconcile(root, staging_path,", composed)
+        self.assertIn("RUN.compare(preflight, http, sql, staging,", composed)
+        self.assertIn('"sourceSqlRuntimeAuthenticatedExternally": False', composed)
+        self.assertIn('"httpRunExecutionAuthenticatedExternally": False', composed)
+        self.assertIn('"E2E_INTEGRAL_PASS": False', composed)
+        self.assertIn("test_v9_verify_campaign38_saved_artifacts.py", workflow)
+        local_check = (ROOT / "Solution/scripts/v9-verify-campaign38-saved-artifacts.py").read_text(
+            encoding="utf-8")
+        self.assertIn("hashlib.sha256()", local_check)
+        self.assertIn("archive.testzip() is None", local_check)
+        self.assertIn("_pins.WINNER_SHA", local_check)
+        self.assertIn('"storageDurabilityIndependentlyVerified": False', local_check)
+        self.assertIn('"nasCertified": False', local_check)
+        self.assertIn('"E2E_INTEGRAL_PASS": False', local_check)
+        cmp = (ROOT / "Solution/scripts/v9-e2e-run-http-receipt-compare.py").read_text(
+            encoding="utf-8")
+        self.assertIn("LINEAGE.verify(preflight, http, commit)", cmp)
+        self.assertIn("sqlRunTerminalVerified", cmp)
+        self.assertIn("sourceDeliveryIdMatches", cmp)
+        self.assertIn('"sourceSqlRuntimeAuthenticatedExternally": False', cmp)
+        self.assertIn('"httpRunExecutionAuthenticatedExternally": False', cmp)
+        self.assertIn('sql["runId"]', cmp)
+        join = (ROOT / "Solution/scripts/e2e-v9-bridge-staging-reconcile.py").read_text(
+            encoding="utf-8")
+        self.assertIn("PREFLIGHT.verify(root)", join)
+        self.assertIn("ORACLE.compare_groupings(", join)
+        self.assertIn('staged.get("schema") == ORACLE.STAGING_SCHEMA_V2', join)
+        self.assertIn('staged.get("sourceSetSha256Utf16le") == bridge["sourceSetSha256Utf16le"]', join)
+        self.assertIn('receipt["sourceSetDigestValidated"] is True', join)
+        self.assertIn('STAGING_SCHEMA_V2 = "E2E_V9_GROUPING_LINKAGE_ONLY_DEV_V2"', script)
+        self.assertIn('"sourceSetSha256Utf16le"', script)
+        self.assertIn('"RECONCILED_OFFLINE_NOT_CERTIFIED"', join)
+        self.assertIn('"linkageSqlRunProvenanceCertified": False', join)
+        self.assertIn('"bridgeToSqlHttpDeliveryProven": False', join)
+        self.assertIn('"status": "MEASURED_NOT_CERTIFIED"', script)
+        self.assertIn('"E2E_NUCLEO_PASS": False', script)
+        self.assertIn('"scientificValidation": False', script)
+
+    def test_resultado_api_e2e_receipt_reconciles_payload_and_lots(self):
+        import subprocess
+        import sys
+        local = (ROOT / "Solution/scripts/local-e2e.sh").read_text(encoding="utf-8")
+        script = (ROOT / "Solution/scripts/e2e-resultado-entrega.py").read_text(encoding="utf-8")
+        evidence = (ROOT / "Solution/scripts/e2e-integral-dev-evidence.py").read_text(encoding="utf-8")
+        self.assertIn('"$OUT/resultado-api-evidence.json" "$package"', local)
+        self.assertIn('hashlib.sha256()', script)
+        self.assertIn('"payloadSha256"', script)
+        self.assertIn('"bytesRecebidos"', script)
+        self.assertIn('result.get("payloadSha256Verified") is True', evidence)
+        self.assertIn('result.get("payloadBytesVerified") is True', evidence)
+        self.assertIn('result.get("resumoItensConsistente") is True', evidence)
+        for scenario in ('request("tipoBeneficio", filename, 403',
+                         'request("cabecalhosAmbiguos", filename, 400'):
+            self.assertIn(scenario, script)
+        for code in ('"tipoBeneficio": 403', '"cabecalhosAmbiguos": 400'):
+            self.assertIn(code, evidence)
+        subprocess.run([sys.executable, "-m", "unittest",
+                        "Solution/tests/scripts/test_e2e_resultado_entrega_contract.py"],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+
+    def test_semiblind_http_contract_separates_complete_from_incomplete(self):
+        # #612 is residual SQL selectivity, not a mandatory-name rule.
+        # These scenarios guard only the in-memory HTTP serialization contract.
+        http = (ROOT / "Solution/tests/Jornada.Tests/Unit/SemiblindIdentityHttpTests.cs").read_text(
+            encoding="utf-8")
+        for scenario in ("complete_empty", "incomplete_no_pass",
+                         "incomplete_fanout", "incomplete_timeout"):
+            self.assertIn('[TestCase("' + scenario + '", HttpStatusCode.OK)]', http)
+        for field in ("busca_completa", "motivo_incompletude", "nenhumDestes"):
+            self.assertIn('GetProperty("' + field + '")', http)
+        for reason in ("NoEligiblePass", "FanoutLimitExceeded", "Timeout"):
+            self.assertIn("SemiblindRetrievalReasons." + reason, http)
+        self.assertIn('payload.TryGetProperty("score", out _)', http)
+        self.assertIn('payload.TryGetProperty("pessoaUuid", out _)', http)
+        gate = (ROOT / "Solution/src/Jornada.Api/SemiblindSearchActivationGate.cs").read_text(
+            encoding="utf-8")
+        self.assertIn('!string.IsNullOrWhiteSpace(databaseName)', gate)
+        self.assertIn('"Development", StringComparison.Ordinal', gate)
+
+    def test_semiblind_selectivity_sql_probe_is_real_but_optional(self):
+        # #612: SQL proof is source-backed, but not a PASS unless physically run.
+        source = (ROOT / "Solution/tests/Jornada.Integration.Tests/Integration/"
+                  "BlockingProjectionSqlServerTests.cs").read_text(encoding="utf-8")
+        self.assertIn("JORNADA_TEST_SQL_CONNECTION", source)
+        self.assertIn("new ParsedPackage(manifest, [person, secondPerson], [])", source)
+        self.assertIn("SemiblindCandidatePassPlanner.Plan(motherBirthRuleset, noPersonName)", source)
+        self.assertIn("maxCandidates: 1", source)
+        self.assertIn("MaxCandidatesPerBlock", source)
+        self.assertIn('Does.Contain("combined-neighbor-year")', source)
+        self.assertIn("SemiblindCandidatePassPlanner.Plan(ruleset, noEvidence)", source)
+        self.assertIn("Assert.That(noMatches, Is.Empty)", source)
+        # Explicit #612 residual example must be executed against real SQL.
+        self.assertIn('"INTEGRATION-SEMIBLIND-FIRST-MOTHER-DOB"', source)
+        self.assertIn('LinkageBlockingPass.Create("first-mother-dob"', source)
+        for feature in ("BlockingFeatureNames.FirstName",
+                        "BlockingFeatureNames.MotherFullName",
+                        "BlockingFeatureNames.BirthDay",
+                        "BlockingFeatureNames.BirthMonth",
+                        "BlockingFeatureNames.BirthYear"):
+            self.assertIn(feature, source)
+        self.assertIn('"María"', source)
+        self.assertIn('"Beatriz"', source)
+        self.assertIn("BlockingRuleSetCandidatePlanner.Plan(", source)
+        self.assertIn("Does.Not.Contain(\"Beatriz Soares Teste\")", source)
+        self.assertIn("Does.Not.Contain(\"María Silva Teste\")", source)
+        self.assertIn(".Intersect(preciseBeatriz.Select(p => p.PessoaUuid))", source)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", source)
+
+    def test_semiblind_pr_sql_evidence_is_ephemeral_and_non_certifying(self):
+        # #612: SQL evidence must use a local Development-only connection, not
+        # a new security policy exception for an arbitrary CI workflow.
+        workflow = (ROOT / ".github/workflows/jornada-semiblind-sql-pr.yml").read_text(
+            encoding="utf-8")
+        script = (ROOT / "Solution/scripts/local-semiblind-sql-pr.sh").read_text(
+            encoding="utf-8")
+        for requirement in (
+            "pull_request:",
+            "branches: [master]",
+            "github.event.pull_request.head.repo.full_name == github.repository",
+            "2022-CU26-ubuntu-22.04@sha256:",
+            "dotnet restore Jornada.sln --locked-mode",
+            "CREATE DATABASE [JornadaSemiblind_Test_${GITHUB_RUN_ID}]",
+            "bash scripts/local-semiblind-sql-pr.sh",
+            "--forbid-skipped --minimum-tests 1",
+            "test-evidence-gate.py",
+            '"prHeadSha": os.environ["EXPECTED_PR_HEAD"]',
+            '"testedMergeSha": os.environ["GITHUB_SHA"]',
+            '"scientificValidation": False',
+            '"institutionalAuthorizationValidated": False',
+            '"productiveActivation": False',
+            "path: Solution/.local/semiblind-sql/receipt.json",
+            "JORNADA_RUNTIME_MODE: DEV",
+            "DOTNET_ENVIRONMENT: Development",
+            "ASPNETCORE_ENVIRONMENT: Development",
+        ):
+            self.assertIn(requirement, workflow)
+        for requirement in (
+            "GITHUB_EVENT_NAME:-",
+            "GITHUB_REPOSITORY:-",
+            "GITHUB_REF:-",
+            "JORNADA_RUNTIME_MODE:-",
+            "DOTNET_ENVIRONMENT:-",
+            "ASPNETCORE_ENVIRONMENT:-",
+            '[[ -z "${JORNADA_TEST_SQL_CONNECTION:-}" ]]',
+            "Server=127.0.0.1,1433;",
+            "TrustServerCertificate" + "=true;Encrypt" + "=false",
+            "JornadaSemiblind_Test_${GITHUB_RUN_ID}",
+            "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
+            "dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+        ):
+            self.assertIn(requirement, script)
+        self.assertNotIn("workflow_dispatch:", workflow)
+        self.assertNotIn("pull_request_target:", workflow)
+        self.assertNotIn("TrustServerCertificate" + "=true", workflow)
+        self.assertNotIn("Encrypt" + "=false", workflow)
+        self.assertNotIn("Password=", workflow)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", workflow + script)
+        self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx", workflow)
+        self.assertNotIn("test_v9_standard", workflow + script)
+
+    def test_semiblind_dev_http_uses_real_service_with_fakes_not_sql_e2e(self):
+        # #1854: service/endpoint path is real, SQL retriever and policy are not.
+        http = (ROOT / "Solution/tests/Jornada.Tests/Unit/SemiblindIdentityHttpTests.cs").read_text(
+            encoding="utf-8")
+        self.assertIn("Dev_http_real_service_enforces_person_authorization_and_top_five", http)
+        self.assertIn("[TestCase(false)]", http)
+        self.assertIn("[TestCase(true)]", http)
+        self.assertIn("AddSingleton<ISemiblindIdentitySearchService, SemiblindIdentitySearchService>()", http)
+        self.assertIn("new RealServiceHttpFakeRetriever(fixture)", http)
+        self.assertIn("new RealServiceHttpPersonPolicy(denied)", http)
+        for field in ('"nenhumDestes"', '"busca_completa"', '"motivo_incompletude"',
+                      '"candidatos"', '"nome_completo"', '"opcaoId"'):
+            self.assertIn("GetProperty(" + field + ")", http)
+        self.assertIn("new SemiblindIdentitySearchRequest(\n                    null,", http)
+        self.assertIn("Assert.That(audit.Successful, Is.EqualTo(1)", http)
+        self.assertIn("Is.EquivalentTo(new[]", http)
+        self.assertIn("Does.Not.Contain(person.PessoaUuid.ToString())", http)
+        self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", http)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", http)
+
+    def test_semiblind_real_service_http_pr_proof_is_two_cases_and_no_sql(self):
+        # The fast unit-runtime job compiles this TestHost fixture, but does
+        # NOT run it; this independent workflow requires 2 physical HTTP tests.
+        source = (ROOT / ".github/workflows/jornada-semiblind-http-pr.yml").read_text(
+            encoding="utf-8")
+        for expected in (
+            "pull_request:",
+            "branches: [master]",
+            "github.event.pull_request.head.repo.full_name == github.repository",
+            "EXPECTED_PR_HEAD:",
+            "dotnet restore Jornada.sln --locked-mode",
+            "Dev_http_real_service_enforces_person_authorization_and_top_five",
+            "--forbid-skipped --minimum-tests 2",
+            'exact = {"total": 2, "passed": 2, "failed": 0, "skipped": 0, "other": 0}',
+            '"realSqlRetrieverValidated": False',
+            '"institutionalAuthorizationValidated": False',
+            '"productiveActivation": False',
+            "path: Solution/.local/semiblind-http/receipt.json",
+        ):
+            self.assertIn(expected, source)
+        self.assertNotIn("workflow_dispatch:", source)
+        self.assertNotIn("pull_request_target:", source)
+        self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", source)
+        self.assertNotIn("Solution/.local/semiblind-http/semiblind-http.trx\n          if-no-files-found", source)
+
+    def test_e2e_receipt_rejects_ambiguous_nonfinite_symlink_and_oversized_json(self):
+        # A duplicated PASS key must never hide an earlier FAIL key.
+        import importlib.util
+        import tempfile
+
+        path = ROOT / "Solution/scripts/e2e-integral-dev-evidence.py"
+        spec = importlib.util.spec_from_file_location("integral_dev_evidence_adversarial", path)
+        evidence = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(evidence)
+        with tempfile.TemporaryDirectory() as temp:
+            receipt = Path(temp, "receipt.json")
+            self.assertEqual(evidence.read(receipt), {})
+            for payload in (
+                '{"status":"FAIL","status":"PASS"}',
+                '{"cases":[{"auditEvents":0,"auditEvents":1}]}',
+                '{"e2eElapsedMs":NaN}',
+                '{"e2eElapsedMs":Infinity}',
+                "[]",
+            ):
+                with self.subTest(payload=payload):
+                    receipt.write_text(payload, encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        evidence.read(receipt)
+            receipt.write_text('{"status":"PASS"}', encoding="utf-8")
+            self.assertEqual(evidence.read(receipt), {"status": "PASS"})
+            alias = Path(temp, "alias.json")
+            alias.symlink_to(receipt)
+            with self.assertRaises(ValueError):
+                evidence.read(alias)
+            receipt.write_text(" " * (evidence.MAX_RECEIPT_BYTES + 1), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                evidence.read(receipt)
+
+    def test_missing_receipts_never_approve_the_milestones(self):
+        import importlib.util
+        import tempfile
+        from unittest.mock import patch
+
+        script = ROOT / "Solution/scripts/e2e-integral-dev-evidence.py"
+        spec = importlib.util.spec_from_file_location("integral_dev_evidence", script)
+        evidence = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(evidence)
+        sha = "a" * 40
+        with tempfile.TemporaryDirectory() as temp:
+            env = {key + "_STEP": "success" for key in (
+                "ADMISSION", "CHECKOUT", "ISOLATION", "HTTP", "CONTRACTS", "APOIO", "RUNTIME", "CLEANUP")}
+            env.update(RUNNER_TEMP=temp, GITHUB_SHA=sha, GITHUB_RUN_ID="1", GITHUB_RUN_ATTEMPT="2",
+                       GITHUB_JOB="dev-1k", GITHUB_REF="refs/heads/master", GITHUB_EVENT_NAME="workflow_dispatch",
+                       GITHUB_REPOSITORY="lucianox777/Jornada", GITHUB_STEP_SUMMARY=str(Path(temp, "summary.md")))
+            with patch.dict("os.environ", env), patch.object(evidence, "OUT", Path(temp)):
+                self.assertEqual(evidence.main(), 1)
+            receipt = json.loads(Path(temp, "e2e-integral-dev.json").read_text())
+            self.assertFalse(receipt["E2E_NUCLEO_PASS"])
+            self.assertFalse(receipt["E2E_INTEGRAL_PASS"])
+            self.assertTrue(receipt["failedOrMissing"])
+            rows = {row.get("measurement"): row for row in receipt["coverage"]}
+            for measurement in ("counts", "ibgeSyntheticHttp", "resultadoHttp", "semiblindHttpDenials"):
+                self.assertEqual(rows[measurement]["status"], "NAO_VALIDADO")
+            self.assertTrue(all(row["sha"] == sha for row in receipt["coverage"]))
+            self.assertEqual({row["scope"] for row in receipt["coverage"] if row["status"] == "BLOQUEADO"},
+                             {"nucleo", "integral"})
+            # #612 is residual selectivity/completeness, not mandatory-name policy;
+            # #539 is the separate institution/attribute visibility gate.
+            integral = [row for row in receipt["coverage"]
+                        if row.get("scope") == "integral" and row["status"] == "BLOQUEADO"]
+            self.assertTrue(any("#1854/#612" in row["reason"]
+                                and "busca_completa" in row["reason"] for row in integral))
+            self.assertTrue(any("#1854/#539/#378" in row["reason"]
+                                and "pessoa restrita" in row["reason"] for row in integral))
+            self.assertFalse(any("#1348" in row["reason"] for row in integral))

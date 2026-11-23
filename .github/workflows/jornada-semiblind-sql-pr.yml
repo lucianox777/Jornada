@@ -1,0 +1,107 @@
+name: Jornada semiblind SQL synthetic PR proof
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/jornada-semiblind-sql-pr.yml'
+      - 'Solution/tests/Jornada.Integration.Tests/Integration/BlockingProjectionSqlServerTests.cs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jornada-semiblind-sql-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  semiblind-sql-synthetic:
+    # No external fork, no organizational secrets, no actual citizen data.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+    env:
+      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
+      EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Verify PR merge SHA and locked dependencies
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          [[ "$EXPECTED_PR_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          dotnet restore Jornada.sln --locked-mode
+      - name: Create isolated test database on ephemeral SQL container
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          container="$(docker ps -q --filter publish=1433 | head -n 1)"
+          test -n "$container"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$container" \
+            /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b \
+            -Q "CREATE DATABASE [JornadaSemiblind_Test_${GITHUB_RUN_ID}];"
+      - name: Execute targeted real SQL pass selectivity test (no skips)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          mkdir -p .local/semiblind-sql
+          # Only the guarded, allowlisted local DEV script can construct the
+          # short-lived loopback SQL connection (never in this workflow YAML).
+          bash scripts/local-semiblind-sql-pr.sh
+          python3 scripts/test-evidence-gate.py .local/semiblind-sql/semiblind.trx \
+            --forbid-skipped --minimum-tests 1 --summary .local/semiblind-sql/internal.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          internal = json.loads(Path(".local/semiblind-sql/internal.json").read_text(encoding="utf-8"))
+          counts = internal["aggregate"]
+          if internal["status"] != "PASS" or counts != {
+                  "total": 1, "passed": 1, "failed": 0, "skipped": 0, "other": 0}:
+              raise SystemExit("Expected exactly one physical SQL semiblind PASS, no skips")
+          receipt = {
+              "schema": "JORNADA_SEMIBLIND_SQL_PR_PROOF_V1",
+              "status": "PASS",
+              "testedMergeSha": os.environ["GITHUB_SHA"],
+              "prHeadSha": os.environ["EXPECTED_PR_HEAD"],
+              "source": "DISPOSABLE_SQL_SERVER_SYNTHETIC_FIXTURE",
+              "test": "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
+              "total": 1, "passed": 1, "skipped": 0, "failed": 0,
+              "scope": "SQL_BLOCKING_COMPONENT_ONLY_NOT_ENABLED_HTTP_E2E",
+              "scientificValidation": False,
+              "institutionalAuthorizationValidated": False,
+              "productiveActivation": False
+          }
+          Path(".local/semiblind-sql/receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print("Physical SQL synthetic semiblind component: PASS (1 test; no PII published)")
+          PY
+      - name: Publish strictly aggregate receipt, never TRX or SQL data
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: semiblind-sql-${{ github.sha }}-${{ github.run_id }}
+          path: Solution/.local/semiblind-sql/receipt.json
+          if-no-files-found: error
+          retention-days: 14
