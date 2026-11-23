@@ -17,6 +17,13 @@ GENERATOR = "JORNADA_SYNTH_CORPUS_CSHARP_V1"
 PROFILE = "DEMOGRAPHIC_PRIMARY_V1"
 SEED = 355
 PEOPLE = 1000
+# Ephemeral 1k DEV packages only; do not silently accept unbounded/untrusted
+# compressed inputs as evidence or consume arbitrary memory while parsing.
+MAX_METADATA_BYTES = 8 * 1024 * 1024
+MAX_TRUTH_BYTES = 32 * 1024 * 1024
+MAX_PACKAGE_BYTES = 64 * 1024 * 1024
+MAX_PERSON_MEMBER_BYTES = 16 * 1024 * 1024
+MAX_MANIFEST_MEMBER_BYTES = 1024 * 1024
 
 
 def require(condition: bool, message: str) -> None:
@@ -32,8 +39,16 @@ def no_duplicate_keys(pairs):
     return data
 
 
+def reject_nonfinite(value):
+    raise ValueError(f"Non-finite numeric token in synthetic DEV evidence: {value}")
+
+
 def read_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_keys)
+    require(path.is_file() and not path.is_symlink(), "Missing or symlinked synthetic manifest")
+    require(path.stat().st_size <= MAX_METADATA_BYTES, "Oversized synthetic manifest")
+    return json.loads(path.read_text(encoding="utf-8"),
+                      object_pairs_hook=no_duplicate_keys,
+                      parse_constant=reject_nonfinite)
 
 
 def sha256(path: Path) -> str:
@@ -89,6 +104,7 @@ def verify(root: Path) -> dict:
             "Ground truth must remain separate and inaccessible to scoring")
     truth_file = ingestion_dir / "bridge-truth.jsonl"
     require(truth_file.is_file() and not truth_file.is_symlink()
+            and truth_file.stat().st_size <= MAX_TRUTH_BYTES
             and sha256(truth_file) == sidecar.get("sha256"),
             "Missing or modified sidecar truth")
     sidecar_lines = truth_file.read_text(encoding="utf-8").splitlines()
@@ -97,7 +113,8 @@ def verify(root: Path) -> dict:
     base_ids = set()
     observation_ids = set()
     for raw_row in sidecar_lines:
-        row = json.loads(raw_row, object_pairs_hook=no_duplicate_keys)
+        row = json.loads(raw_row, object_pairs_hook=no_duplicate_keys,
+                         parse_constant=reject_nonfinite)
         require(isinstance(row, dict) and row.get("Status") == "MATERIALIZADA"
                 and row.get("ExclusionReason") is None
                 and row.get("Partition") in ("TRAIN", "VALIDATION", "TEST"),
@@ -140,15 +157,25 @@ def verify(root: Path) -> dict:
                 "Invalid ZIP digest")
         package = ingestion_dir / filename
         require(package.is_file() and not package.is_symlink()
+                and package.stat().st_size <= MAX_PACKAGE_BYTES
                 and sha256(package) == digest.upper(), "ZIP bytes differ from bridge receipt")
         with zipfile.ZipFile(package, "r") as archive:
-            require(archive.namelist() == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],
+            info = archive.infolist()
+            require([entry.filename for entry in info]
+                    == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],
                     "Unexpected ZIP members, possible truth leak")
+            require(all(not (entry.flag_bits & 1) for entry in info),
+                    "Encrypted synthetic ZIP member forbidden")
+            require(info[0].file_size <= MAX_MANIFEST_MEMBER_BYTES
+                    and info[1].file_size <= MAX_PERSON_MEMBER_BYTES
+                    and info[2].file_size == 0,
+                    "Synthetic ZIP member exceeds its approved bound")
             require(not archive.read("registros.jsonl"), "Person-only bridge may not fabricate facts")
             rows = archive.read("pessoas.jsonl").splitlines()
             require(len(rows) == count, "ZIP materialized person count mismatch")
             for row in rows:
-                obj = json.loads(row, object_pairs_hook=no_duplicate_keys)
+                obj = json.loads(row, object_pairs_hook=no_duplicate_keys,
+                                 parse_constant=reject_nonfinite)
                 require(isinstance(obj, dict) and isinstance(obj.get("idPessoaEntrega"), str)
                         and obj["idPessoaEntrega"].startswith("SYNTH-"),
                         "Invalid opaque synthetic person")

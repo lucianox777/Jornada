@@ -94,6 +94,58 @@ class IbgeGeneratorBridgePreflightTests(unittest.TestCase):
             self.assertNotIn("basePersonId", json.dumps(summary))
             self.assertNotIn("DEV_TRUTH_ONLY", json.dumps(summary))
 
+
+    def test_nonfinite_manifest_field_is_rejected_even_when_not_used_for_scoring(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus, _ = fixture(directory)
+            path = corpus / "generation-manifest.json"
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            manifest["unusedDiagnostic"] = float("nan")
+            dump(path, manifest)
+            with self.assertRaisesRegex(ValueError, "Non-finite"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_symlinked_manifest_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            corpus, _ = fixture(directory)
+            original = corpus / "generation-manifest.json"
+            alternate = corpus / "manifest-real.json"
+            original.rename(alternate)
+            original.symlink_to(alternate)
+            with self.assertRaisesRegex(ValueError, "symlinked"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_nonfinite_truth_row_is_rejected_even_when_hash_is_recomputed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            path = ingestion / "bridge-truth.jsonl"
+            lines = path.read_text(encoding="utf-8").splitlines()
+            tampered = json.loads(lines[0])
+            tampered["unusedStatistic"] = float("inf")
+            lines[0] = json.dumps(tampered)
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            bridge_path = ingestion / "bridge-manifest.json"
+            manifest = json.loads(bridge_path.read_text(encoding="utf-8"))
+            manifest["truthSidecar"]["sha256"] = digest(path)
+            dump(bridge_path, manifest)
+            with self.assertRaisesRegex(ValueError, "Non-finite"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_oversized_zip_member_fails_before_decompression_even_with_updated_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            path = ingestion / "SYNTH-SEHAB.zip"
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("manifest.json", "{}")
+                archive.writestr("pessoas.jsonl", b" " * (PREFLIGHT.MAX_PERSON_MEMBER_BYTES + 1))
+                archive.writestr("registros.jsonl", b"")
+            bridge_path = ingestion / "bridge-manifest.json"
+            manifest = json.loads(bridge_path.read_text(encoding="utf-8"))
+            manifest["packages"][0]["sha256"] = digest(path)
+            dump(bridge_path, manifest)
+            with self.assertRaisesRegex(ValueError, "exceeds its approved bound"):
+                PREFLIGHT.verify(Path(directory))
+
     def test_modified_zip_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             _, ingestion = fixture(directory)
