@@ -82,7 +82,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
 
     def test_direct_runasync_v9_fails_before_sql_and_pipeline_lock(self):
         s = self.runner
-        self.assertIn("RunCoreAsync(request, ct, controlledDev: false)", s)
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", s)
         start = s.index("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(")
         gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", start)
         self.assertLess(start, gate)
@@ -150,11 +150,11 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertIn("request.ModelVersion != 9 || !request.Publish", stage3)
         self.assertIn("V9ControlledDevSelection.VerifyAsync(", stage3)
         self.assertIn("boundary.Runtime.WinnerSha256, devScorer.WinnerSha256", stage3)
-        self.assertIn("RunCoreAsync(request, ct, controlledDev: true)", stage3)
+        self.assertIn("RunCoreAsync(request, controlledDev: true, ct)", stage3)
         self.assertNotIn("PublishAsync(", stage3)
         self.assertNotIn("PersistBatchAsync(", stage3)
         self.assertLess(stage3.index("V9ControlledDevSelection.VerifyAsync("),
-                        stage3.index("RunCoreAsync(request, ct, controlledDev: true)"))
+                        stage3.index("RunCoreAsync(request, controlledDev: true, ct)"))
         scorer = self.scorer
         self.assertIn("IV9ControlledDevCohortScorer : IV9RunScopedCohortScorer", scorer)
         self.assertIn("string WinnerSha256 { get; }", scorer)
