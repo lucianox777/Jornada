@@ -40,7 +40,8 @@ public static class V9ControlledDevOperationalCandidateSource
     public sealed record VerifiedRunCandidates(
         IReadOnlyDictionary<long, string> ManagerByObservation,
         IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation,
-        IReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt> EvidenceByObservation);
+        IReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt> EvidenceByObservation,
+        IReadOnlyDictionary<long, IdentityObservation> AuthenticatedSilverByObservation);
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
     public static string VerifyFrozenSilverObservation(
@@ -165,6 +166,9 @@ public static class V9ControlledDevOperationalCandidateSource
         // fields materialized for scoring against current Silver; missing,
         // duplicated or stale references must fail before Gold candidates.
         var managers = new Dictionary<long, string>(frozenRows.Count);
+        // Retain the actual SQL-authenticated Silver values from this snapshot.
+        // A later preview must not score different attributes with only matching IDs.
+        var authenticatedSilver = new Dictionary<long, IdentityObservation>(frozenRows.Count);
         await using (var silver = new SqlCommand("""
             SELECT po.pessoa_observacao_id,g.codigo,po.cpf,
                    po.cpf_ausente_motivo,po.nome_completo,
@@ -194,7 +198,7 @@ public static class V9ControlledDevOperationalCandidateSource
                 var id = rows.GetInt64(0);
                 var manager = VerifyFrozenSilverObservation(
                     frozenRows[index], id, rows.GetString(1), loaded);
-                if (!managers.TryAdd(id, manager))
+                if (!managers.TryAdd(id, manager) || !authenticatedSilver.TryAdd(id, loaded))
                     throw new InvalidDataException("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT");
                 index++;
             }
@@ -269,6 +273,7 @@ public static class V9ControlledDevOperationalCandidateSource
         return new VerifiedRunCandidates(
             new ReadOnlyDictionary<long, string>(managers),
             new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result),
-            new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence));
+            new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence),
+            new ReadOnlyDictionary<long, IdentityObservation>(authenticatedSilver));
     }
 }
