@@ -149,13 +149,14 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         var realGold = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var frozen = new HashSet<long> { 1, 2 };
         var verified = new Dictionary<long, Guid>();
+        var seenActive = new HashSet<long>();
 
         // Legitimate pending observations remain unbound; a hit in blocking
         // would not change this result or permit a fabricated Gold destination.
         V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
-            verified, frozen, 2, "NAO_RESOLVIDO", null, null);
+            verified, seenActive, frozen, 2, "NAO_RESOLVIDO", null, null);
         V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
-            verified, frozen, 1, "RESOLVIDO", realGold, "REFERENCIA");
+            verified, seenActive, frozen, 1, "RESOLVIDO", realGold, "REFERENCIA");
         Assert.That(verified.Count, Is.EqualTo(1));
         Assert.That(verified[1], Is.EqualTo(realGold));
         Assert.That(verified.ContainsKey(2), Is.False);
@@ -166,9 +167,10 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             var state = repeated
                 ? new Dictionary<long, Guid> { [1] = realGold }
                 : new Dictionary<long, Guid>();
+            var seen = repeated ? new HashSet<long> { 1 } : new HashSet<long>();
             Assert.That((Action)(() =>
                 V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
-                    state, frozen, observationId, status, uuid, goldState)),
+                    state, seen, frozen, observationId, status, uuid, goldState)),
                 Throws.TypeOf<InvalidDataException>().With.Message.EqualTo(
                     "RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED"));
         }
@@ -184,6 +186,40 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         Reject(1, "NAO_RESOLVIDO", realGold, null);
         Reject(1, "CONFLITO", null, "REFERENCIA");
         Reject(1, "RESOLVIDO", realGold, "REFERENCIA", repeated: true);
+    }
+
+
+    [Test]
+    public void Two_active_source_links_for_one_observation_are_ambiguous_even_when_only_one_is_resolved()
+    {
+        // Real schema indexes vinculo_fonte( ... ativo=1 ) non-uniquely.
+        // Before the fix, NAO_RESOLVIDO followed by RESOLVIDO could
+        // silently become an authenticated Gold link.
+        var gold = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var frozen = new HashSet<long> { 1L };
+        void RejectSecond(
+            string firstStatus, Guid? firstUuid, string? firstGold,
+            string secondStatus, Guid? secondUuid, string? secondGold)
+        {
+            var links = new Dictionary<long, Guid>();
+            var seen = new HashSet<long>();
+            V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
+                links, seen, frozen, 1, firstStatus, firstUuid, firstGold);
+            Assert.That((Action)(() =>
+                V9ControlledDevOperationalCandidateSource.RecordExistingResolvedGoldLink(
+                    links, seen, frozen, 1, secondStatus, secondUuid, secondGold)),
+                Throws.TypeOf<InvalidDataException>().With.Message.EqualTo(
+                    "RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED"));
+        }
+
+        RejectSecond("NAO_RESOLVIDO", null, null,
+            "RESOLVIDO", gold, "REFERENCIA");
+        RejectSecond("RESOLVIDO", gold, "REFERENCIA",
+            "NAO_RESOLVIDO", null, null);
+        RejectSecond("NAO_RESOLVIDO", null, null,
+            "NAO_RESOLVIDO", null, null);
+        RejectSecond("CONFLITO", null, null,
+            "CONFLITO", null, null);
     }
 
     [Test]

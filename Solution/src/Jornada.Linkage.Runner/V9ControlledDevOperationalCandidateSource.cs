@@ -69,13 +69,19 @@ public static class V9ControlledDevOperationalCandidateSource
     /// </summary>
     public static void RecordExistingResolvedGoldLink(
         Dictionary<long, Guid> authenticated,
+        ISet<long> activeLinkRowsSeen,
         IReadOnlySet<long> frozenIds,
         long observationId, string? status, Guid? linkedUuid, string? goldState)
     {
         ArgumentNullException.ThrowIfNull(authenticated);
+        ArgumentNullException.ThrowIfNull(activeLinkRowsSeen);
         ArgumentNullException.ThrowIfNull(frozenIds);
+        // There is no filtered UNIQUE constraint on active vinculo_fonte by
+        // observation. Two active rows with different statuses are ambiguous
+        // even when only one of them is RESOLVIDO; never select one silently.
         if (!frozenIds.Contains(observationId)
-            || status is not ("RESOLVIDO" or "NAO_RESOLVIDO" or "CONFLITO"))
+            || status is not ("RESOLVIDO" or "NAO_RESOLVIDO" or "CONFLITO")
+            || !activeLinkRowsSeen.Add(observationId))
             throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
         if (status != "RESOLVIDO")
         {
@@ -249,6 +255,7 @@ public static class V9ControlledDevOperationalCandidateSource
         // links to real Gold REFERENCIA persons for this exact run universe.
         // An unlinked pending Silver observation deliberately stays unbound.
         var existingResolvedGold = new Dictionary<long, Guid>();
+        var activeLinkRowsSeen = new HashSet<long>();
         var expectedFrozenIds = frozenRows.Select(r => r.PessoaObservacaoId).ToHashSet();
         await using (var links = new SqlCommand("""
             SELECT ri.pessoa_observacao_id,v.status,v.pessoa_uuid,g.estado_identidade
@@ -266,8 +273,8 @@ public static class V9ControlledDevOperationalCandidateSource
             {
                 if (linkRows.IsDBNull(0) || linkRows.IsDBNull(1))
                     throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED");
-                RecordExistingResolvedGoldLink(existingResolvedGold, expectedFrozenIds,
-                    linkRows.GetInt64(0), linkRows.GetString(1),
+                RecordExistingResolvedGoldLink(existingResolvedGold, activeLinkRowsSeen,
+                    expectedFrozenIds, linkRows.GetInt64(0), linkRows.GetString(1),
                     linkRows.IsDBNull(2) ? null : linkRows.GetGuid(2),
                     linkRows.IsDBNull(3) ? null : linkRows.GetString(3));
             }

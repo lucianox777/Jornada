@@ -92,3 +92,8 @@ Trata-se de guardas para provas de entrada do componente *read-only*, **não** d
 ## Correção de precedência — coorte DEV com zero pendentes (23/11/2026)
 
 A negativa anterior `frozenRows.Count == 0` do leitor DEV foi **SUPERADA** por incompatibilidade com os contratos `BuildDev` e `ReplayDev`, que já admitem 0/1 elegíveis. Universo vazio **não** é aceito como prova autônoma: o leitor agora deve verificar banco DEV, run e cardinalidade SQL exata de zero membros antes de retornar recibo. A prévia FS sem linhas, quando usada isoladamente e sem contexto SQL, continua recusada. Teste unitário de regressão `Zero_pending_DEV_run_requires_real_SQL_admission_not_a_fake_malformed_universe` valida apenas caminho até o preflight, não o caso SQL positivo. CI do HEAD corrigido pendente; não há certificação de E2E e a proposta #1767 permanece NÃO APROVADA.
+
+
+## Regra negativa adicional — duplicidade de vínculo ativo em `vinculo_fonte` (23/11/2026)
+
+**Invariante consultiva #1767 itens 2/3/6, cobertura PARCIAL:** mesmo se apenas uma das linhas duplicadas estiver `RESOLVIDO`, a observação com múltiplos registros `ativo=1` **não possui um vínculo Gold autenticável sem ambiguidade**. O leitor DEV mantém um conjunto de todos os IDs vistos, não só os resolvidos, e recusa o segundo vínculo com `RUNNER_V9_DEV_GOLD_LINK_NOT_AUTHENTICATED`. Regressão NUnit `Two_active_source_links_for_one_observation_are_ambiguous_even_when_only_one_is_resolved`: pendente/resolvido nos dois sentidos, pendente/pendente e conflito/conflito. Não alterar os índices ou corrigir dados em silêncio; sem teste SQL físico provisionado ou inferência de certificação. #1767 segue NÃO APROVADA.
