@@ -39,3 +39,7 @@ A versão inicial dos dois testes negativos chegou à CI do HEAD `2128a7cc7f9c4e
 ### Correção adicional CS0618 — API NUnit não obsoleta
 
 O HEAD `2154d45dd5c274f746ed61937d97e139c0273928` teve falha real de compilação `CS0618` porque `NUnit.Framework.AsyncTestDelegate` está obsoleto. Commit `78b060e06b00325e16a9f506d939974405b905d1` troca explicitamente por `Func<Task>`, a API indicada pelo próprio erro, sem modificar casos de seleção/tentativa nem resultados esperados. PASS da matriz negativa permanece dependente da CI posterior.
+
+## Incremento de cobertura física negativa — isolamento por tentativa
+
+**Ref. invariante 3 da proposta #1767:** o SQL de validação do perfil de banco DEV foi extraído *sem mudar* o preflight para `V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync` (commit `de76255cf2eb8d44df85e4008f97d50025b1ceb5`). O teste opt-in `V9ControlledDevSqlAdmissionPhysicalNegativeTests` (commit `288fe970f2bceb2ca6c6830bacf2ef1e59faf697`) usa SQL físico **somente se** `JORNADA_V9_DEV_NEGATIVE_SQL` apontar para `JornadaV9Dev_<GUID N>`, e exige rejeição de uma tentativa diferente do nome do banco; nenhuma escrita ou dependência de TEST. **Estado:** implementação da negativa física de mismatch concluída, **execução física ainda não comprovada** na ausência do banco de tentativa. Não declarar testado o caso de extended properties desatualizadas, Gold obsoleto, truncamento ou rollback.
