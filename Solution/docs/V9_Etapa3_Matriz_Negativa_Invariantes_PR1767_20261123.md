@@ -35,3 +35,7 @@ A falha sem correção das rotas negativas não é presumida: os novos testes ex
 ## Evidência de CI e correção de sobrecarga NUnit
 
 A versão inicial dos dois testes negativos chegou à CI do HEAD `2128a7cc7f9c4e43afef6d22db8e79cb2de88fdb` e gerou erros CS0121 de ambiguidade de `Assert.ThrowsAsync` (duas asserções). O commit `c4acc47afd172449898e2b7ec779df02f883ea4f` resolve a ambiguidade com cast `NUnit.Framework.AsyncTestDelegate`, sem afrouxar as verificações. A versão anterior falhou realmente em compilação; a aprovação da versão corrigida depende do check obrigatório no novo SHA. Essa correção não altera a classificação COBERTO/PARCIAL/PENDENTE da matriz nem gera prova SQL física.
+
+### Correção adicional CS0618 — API NUnit não obsoleta
+
+O HEAD `2154d45dd5c274f746ed61937d97e139c0273928` teve falha real de compilação `CS0618` porque `NUnit.Framework.AsyncTestDelegate` está obsoleto. Commit `78b060e06b00325e16a9f506d939974405b905d1` troca explicitamente por `Func<Task>`, a API indicada pelo próprio erro, sem modificar casos de seleção/tentativa nem resultados esperados. PASS da matriz negativa permanece dependente da CI posterior.
