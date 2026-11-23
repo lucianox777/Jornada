@@ -131,6 +131,19 @@ def check_detail(detail, filename, latest_id, payload_sha256, payload_size):
             "lotesProcessados": len(lots), "resumoItensConsistente": True}
 
 
+def typed_negative_headers(credentials, gestor):
+    """Build credential-type and ambiguous-header adversarial requests (synthetic)."""
+    matching = [c for c in credentials
+                if c.get("type") == "BENEFICIO" and c.get("gestorCodigo") == gestor]
+    if len(matching) != 1 or not all(matching[0].get(k) for k in ("publicCode", "accessKey")):
+        raise ValueError("Credencial sintética de benefício ausente ou ambígua.")
+    beneficio = matching[0]
+    typed = {"X-Jornada-Beneficio": beneficio["publicCode"],
+             "X-Jornada-Access-Key": beneficio["accessKey"]}
+    ambiguous = dict(typed, **{"X-Jornada-Gestor": gestor})
+    return typed, ambiguous
+
+
 def run(base_url, filename, latest_id, receipt, package):
     payload_sha256, payload_size = read_payload_identity(package, filename)
     origin = urlsplit(base_url)
@@ -138,13 +151,16 @@ def run(base_url, filename, latest_id, receipt, package):
         raise ValueError("Resultado.Api requer porta efêmera de loopback.")
     keys = json.loads((ROOT / "config/security/test-access-keys.json").read_text())["credentials"]
     gestores = {c["gestorCodigo"]: c["accessKey"] for c in keys if c["type"] == "GESTOR"}
+    beneficio_headers, ambiguous_headers = typed_negative_headers(keys, "SEHAB")
     path = "/api/v1/ingestao/resultados/"
     statuses = {}
     start = time.monotonic()
 
-    def request(case, name, expected, gestor=None):
+    def request(case, name, expected, gestor=None, headers_override=None):
         headers = {} if gestor is None else {
             "X-Jornada-Gestor": gestor, "X-Jornada-Access-Key": gestores[gestor]}
+        if headers_override is not None:
+            headers = headers_override
         connection = http.client.HTTPConnection(origin.hostname, origin.port, timeout=15)
         try:
             connection.request("GET", path + quote(name, safe=""), headers=headers)
@@ -163,6 +179,8 @@ def run(base_url, filename, latest_id, receipt, package):
     request("semCredencial", filename, 401)
     request("nomeInvalido", "invalido.txt", 400, "SEHAB")
     request("outroGestor", filename, 404, "SMADS")
+    request("tipoBeneficio", filename, 403, headers_override=beneficio_headers)
+    request("cabecalhosAmbiguos", filename, 400, headers_override=ambiguous_headers)
     first = request("consulta", filename, 200, "SEHAB")
     verified = check_detail(first, filename, latest_id, payload_sha256, payload_size)
     if first != request("releitura", filename, 200, "SEHAB"):

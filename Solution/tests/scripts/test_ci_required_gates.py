@@ -519,6 +519,11 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn('result.get("payloadSha256Verified") is True', evidence)
         self.assertIn('result.get("payloadBytesVerified") is True', evidence)
         self.assertIn('result.get("resumoItensConsistente") is True', evidence)
+        for scenario in ('request("tipoBeneficio", filename, 403',
+                         'request("cabecalhosAmbiguos", filename, 400'):
+            self.assertIn(scenario, script)
+        for code in ('"tipoBeneficio": 403', '"cabecalhosAmbiguos": 400'):
+            self.assertIn(code, evidence)
         subprocess.run([sys.executable, "-m", "unittest",
                         "Solution/tests/scripts/test_e2e_resultado_entrega_contract.py"],
                        cwd=ROOT, check=True, stdout=subprocess.DEVNULL)

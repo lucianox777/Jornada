@@ -62,6 +62,7 @@ def inspect_run(directory, sha):
     semiblind = read(directory / "semiblind-denials.json")
     ibge = read(directory / "ibge-http-1k-summary.json")
     codes = {"semCredencial": 401, "nomeInvalido": 400, "outroGestor": 404,
+             "tipoBeneficio": 403, "cabecalhosAmbiguos": 400,
              "consulta": 200, "releitura": 200}
     result_ok = (result.get("sha") == sha and result.get("http") == codes
                  and result.get("registrosRetransmitidos") == 1 and result.get("entregasMesmoNome") == 2

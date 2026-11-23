@@ -77,6 +77,25 @@ class ResultadoDevReceiptTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     MOD.check_detail(fixture(), NAME, ID, SHA, bad)
 
+    def test_typed_credentials_and_ambiguous_headers_are_denied(self):
+        # Explicitly use a synthetic BENEFICIO key, not a GESTOR credential.
+        typed, ambiguous = MOD.typed_negative_headers(
+            [{"type": "BENEFICIO", "gestorCodigo": "SEHAB",
+              "publicCode": "B-AA01-DEV", "accessKey": "synthetic-benefit-key"}],
+            "SEHAB")
+        self.assertEqual(typed, {
+            "X-Jornada-Beneficio": "B-AA01-DEV",
+            "X-Jornada-Access-Key": "synthetic-benefit-key"})
+        self.assertEqual(ambiguous["X-Jornada-Gestor"], "SEHAB")
+        self.assertEqual(ambiguous["X-Jornada-Beneficio"], "B-AA01-DEV")
+        with self.assertRaises(ValueError):
+            MOD.typed_negative_headers([], "SEHAB")
+        with self.assertRaises(ValueError):
+            MOD.typed_negative_headers([
+                {"type": "BENEFICIO", "gestorCodigo": "SEHAB", "publicCode": "B1", "accessKey": "x"},
+                {"type": "BENEFICIO", "gestorCodigo": "SEHAB", "publicCode": "B2", "accessKey": "y"}],
+                "SEHAB")
+
     def test_wrong_delivery_hash_scope_or_payload_fails(self):
         for key, bad in (("entregaId", "33333333-3333-4333-8333-333333333333"),
                          ("nomeArquivo", "outro.zip"), ("gestor", "SMADS"),
