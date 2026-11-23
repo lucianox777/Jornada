@@ -116,6 +116,34 @@ class DevCompositeReceiptsTests(unittest.TestCase):
         self.http.write_text(json.dumps(original_http) + "\n", encoding="utf-8")
         self.assertEqual(self.evaluate()["sqlHttpDeliveryReceiptsMatched"], 4)
 
+    def test_composite_rejects_inconsistent_pair_rates(self):
+        original_reconcile = COMPOSITE.BRIDGE.reconcile
+        baseline = original_reconcile(self.root, self.stage, COMMIT, WINNER)
+        for mutation in ("wrong_recall", "wrong_fdr", "null_fdr",
+                         "nonfinite_recall", "boolean_fdr", "no_true_pairs"):
+            with self.subTest(mutation=mutation):
+                result = json.loads(json.dumps(baseline))
+                pairs = result["sourceGroupPairs"]
+                if mutation == "wrong_recall":
+                    pairs["recallPercent"] = 0
+                elif mutation == "wrong_fdr":
+                    pairs["observedFdrPercent"] = 25
+                elif mutation == "null_fdr":
+                    pairs["observedFdrPercent"] = None
+                elif mutation == "nonfinite_recall":
+                    pairs["recallPercent"] = float("nan")
+                elif mutation == "boolean_fdr":
+                    pairs["observedFdrPercent"] = False
+                else:
+                    pairs["truePositive"] = 0
+                    pairs["falseNegative"] = 0
+                    pairs["recallPercent"] = 0
+                    pairs["observedFdrPercent"] = None
+                with patch.object(COMPOSITE.BRIDGE, "reconcile",
+                                  return_value=result):
+                    with self.assertRaisesRegex(ValueError, "pair"):
+                        self.evaluate()
+
     def test_composite_requires_independent_receipt_file_owners(self):
         with self.assertRaisesRegex(ValueError, "distinct physical files"):
             COMPOSITE.combine(self.root, self.http, self.http, self.stage,
