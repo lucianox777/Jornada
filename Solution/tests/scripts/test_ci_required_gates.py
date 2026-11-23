@@ -536,8 +536,11 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertNotIn("SemiblindIdentitySearch:Enabled=true", source)
 
     def test_semiblind_pr_sql_evidence_is_ephemeral_and_non_certifying(self):
-        # #612: verify real SQL execution is scoped, no skipped tests or private artifacts.
-        flow = (ROOT / ".github/workflows/jornada-semiblind-sql-pr.yml").read_text(
+        # #612: SQL evidence must use a local Development-only connection, not
+        # a new security policy exception for an arbitrary CI workflow.
+        workflow = (ROOT / ".github/workflows/jornada-semiblind-sql-pr.yml").read_text(
+            encoding="utf-8")
+        script = (ROOT / "Solution/scripts/local-semiblind-sql-pr.sh").read_text(
             encoding="utf-8")
         for requirement in (
             "pull_request:",
@@ -547,7 +550,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             "JornadaSemiblind_Test_${{ github.run_id }}",
             "dotnet restore Jornada.sln --locked-mode",
             "CREATE DATABASE [JornadaSemiblind_Test_${GITHUB_RUN_ID}]",
-            "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
+            "bash scripts/local-semiblind-sql-pr.sh",
             "--forbid-skipped --minimum-tests 1",
             "test-evidence-gate.py",
             '"prHeadSha": os.environ["EXPECTED_PR_HEAD"]',
@@ -556,13 +559,34 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             '"institutionalAuthorizationValidated": False',
             '"productiveActivation": False',
             "path: Solution/.local/semiblind-sql/receipt.json",
+            "JORNADA_RUNTIME_MODE: DEV",
+            "DOTNET_ENVIRONMENT: Development",
+            "ASPNETCORE_ENVIRONMENT: Development",
         ):
-            self.assertIn(requirement, flow)
-        self.assertNotIn("workflow_dispatch:", flow)
-        self.assertNotIn("pull_request_target:", flow)
-        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", flow)
-        self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx\n          if-no-files-found", flow)
-        self.assertNotIn("test_v9_standard", flow)
+            self.assertIn(requirement, workflow)
+        for requirement in (
+            "GITHUB_EVENT_NAME:-",
+            "GITHUB_REPOSITORY:-",
+            "GITHUB_REF:-",
+            "JORNADA_RUNTIME_MODE:-",
+            "DOTNET_ENVIRONMENT:-",
+            "ASPNETCORE_ENVIRONMENT:-",
+            '[[ -z "${JORNADA_TEST_SQL_CONNECTION:-}" ]]',
+            "Server=127.0.0.1,1433;",
+            "TrustServerCertificate=true;Encrypt=false",
+            "JornadaSemiblind_Test_${GITHUB_RUN_ID}",
+            "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
+            "dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
+        ):
+            self.assertIn(requirement, script)
+        self.assertNotIn("workflow_dispatch:", workflow)
+        self.assertNotIn("pull_request_target:", workflow)
+        self.assertNotIn("TrustServerCertificate=true", workflow)
+        self.assertNotIn("Encrypt=false", workflow)
+        self.assertNotIn("Password=", workflow)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", workflow + script)
+        self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx", workflow)
+        self.assertNotIn("test_v9_standard", workflow + script)
 
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util

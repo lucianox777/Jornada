@@ -35,7 +35,9 @@ jobs:
     env:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
       EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
-      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaSemiblind_Test_${{ github.run_id }};User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -65,11 +67,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .local/semiblind-sql
-          dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj \
-            --configuration Release --no-restore \
-            --filter 'FullyQualifiedName~BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path' \
-            --results-directory "$PWD/.local/semiblind-sql" \
-            --logger 'trx;LogFileName=semiblind.trx'
+          # Only the guarded, allowlisted local DEV script can construct the
+          # short-lived loopback SQL connection (never in this workflow YAML).
+          bash scripts/local-semiblind-sql-pr.sh
           python3 scripts/test-evidence-gate.py .local/semiblind-sql/semiblind.trx \
             --forbid-skipped --minimum-tests 1 --summary .local/semiblind-sql/internal.json
           python3 - <<'PY'
