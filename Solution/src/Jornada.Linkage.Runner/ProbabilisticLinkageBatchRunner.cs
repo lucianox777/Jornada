@@ -181,6 +181,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 || !string.IsNullOrWhiteSpace(configuration["Linkage:V9SelectionFile"])))
             throw new InvalidOperationException(
                 "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: RunAsync V9 exige adaptador de coorte certificado; fallback SQL proibido.");
+        // No DEV V9 scorer can be injected into the normal RunAsync entrypoint:
+        // an explicitly controlled and isolated entrypoint is required first.
+        // The existing TEST_ONLY fixture retains its stricter guards below.
+        if (linkage is IV9RunScopedCohortScorer
+            && linkage is not IV9NonPublishingFrozenCohortScorer)
+            throw new InvalidOperationException(
+                "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: V9 DEV scorer requires controlled invocation.");
         if (linkage is IV9NonPublishingFrozenCohortScorer)
         {
             // This is an opt-in, bounded TEST fixture, never the productive
@@ -329,10 +336,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 throw new InvalidOperationException(
                     $"Métricas do universo incremental inconsistentes: elegíveis={universe.Eligible}, fresh={universe.FreshPending}, reavaliados={universe.Reevaluated}.");
 
-            if (linkage is IV9NonPublishingFrozenCohortScorer v9Grouped)
+            if (linkage is IV9RunScopedCohortScorer v9Grouped)
             {
-                if (eligible is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
+                if (linkage is IV9NonPublishingFrozenCohortScorer
+                    && eligible is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
                     throw new InvalidDataException("Universo V9 sintético fora do limite 2..512; nenhuma decisão será avaliada.");
+                if (eligible > int.MaxValue)
+                    throw new InvalidDataException("Universo V9 excede o limite de indexação por run.");
                 var frozen = new List<V9FrozenRunObservation>((int)eligible);
                 long frozenAfterId = 0;
                 while (frozen.Count < eligible)
@@ -482,7 +492,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             new ParallelOptions { MaxDegreeOfParallelism = maxParallelism, CancellationToken = ct },
             async (row, token) =>
             {
-                var decision = linkage is IV9NonPublishingFrozenCohortScorer v9
+                var decision = linkage is IV9RunScopedCohortScorer v9
                     ? await v9.ResolvePreparedAsync(runId, row.PessoaObservacaoId, row.Observation, model.ModelId, token)
                     : await linkage.ResolveWithoutCpfAsync(row.Observation, model.ModelId, token);
                 if (decision.ModeloId != model.ModelId)
