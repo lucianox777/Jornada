@@ -101,9 +101,6 @@ class CiImpactClassifierTests(unittest.TestCase):
         self.assertTrue(probe.classify([], manual=True)["run_physical_30k"])
 
 
-if __name__=="__main__": unittest.main()
-
-
 class EventDiffTests(unittest.TestCase):
     def setUp(self):
         import contextlib
@@ -173,8 +170,22 @@ class EventDiffTests(unittest.TestCase):
         self.git("commit","-qm","symlink")
         self.assertTrue(self.push(self.base,self.git("rev-parse","HEAD"))["run_full"])
 
+    def test_binary_document_requires_full_ci(self):
+        Path("README.md").write_bytes(b"text\0binary")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "binary document")
+        result = self.push(self.base, self.git("rev-parse", "HEAD"))
+        self.assertTrue(result["run_full"])
+        self.assertTrue(result["run_dt10"])
+        self.assertEqual(result["paths"], ["README.md"])
+        self.assertEqual(result["reason"], "binary or unverified document diff")
+
     def test_closed_list_paths(self):
         for path in [".github/docs.md", "Solution/docs/LOCKED.md", "Solution/docs/manifest.txt",
                      "Solution/docs/openapi.md", "Solution/docs/fixtures/input.md", "Solution/docs/fixture.txt",
                      "Solution/tests/readme.txt", "Solution/docs/SolutionSchema.md", "Solution/docs/x.json"]:
             self.assertTrue(m.classify([path])["run_full"], path)
+
+
+if __name__ == "__main__":
+    unittest.main()

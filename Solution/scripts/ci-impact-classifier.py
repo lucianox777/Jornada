@@ -93,6 +93,11 @@ def event_impact(event: dict, event_name: str, checkout_sha: str) -> dict:
         if not paths or not modes_ok:
             raise ValueError("empty diff or non-document Git mode")
         result = classify(paths)
+        if result["docs_only"]:
+            stats = git("diff", "--numstat", "-z", "--no-renames", "--no-ext-diff",
+                        "--no-textconv", base, head).split(b"\0")[:-1]
+            if len(stats) != len(paths) or any(row.startswith(b"-\t-\t") for row in stats):
+                raise ValueError("binary or unverified document diff")
         # Preserve the complete existing post-merge suite for substantive pushes.
         if event_name == "push" and result["run_full"]:
             result["run_dt10"] = True
