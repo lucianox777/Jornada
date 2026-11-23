@@ -104,6 +104,7 @@ jobs:
           JORNADA_E2E_LOCKED_RESTORE: 'true'
           JORNADA_E2E_CONSOLE_ZIP: 'false'
           JORNADA_E2E_HTTP_VOLUME_COUNT: '1000'
+          JORNADA_E2E_IBGE_1K: 'true'
           JORNADA_E2E_STATUS_POLL_SECONDS: '4'
           JORNADA_E2E_RESULTADO_API: 'true'
           JORNADA_E2E_SEMIBLIND_DENIALS: 'true'
@@ -142,7 +143,7 @@ jobs:
               docker volume rm "$volume"
             fi
           done
-          rm -rf -- .local/e2e/bronze .local/e2e/staging .local/e2e/packages .local/e2e/volume-1k-fixture
+          rm -rf -- .local/e2e/bronze .local/e2e/staging .local/e2e/packages .local/e2e/volume-1k-fixture .local/e2e/ibge-1k
           rm -f -- .env "$RUNNER_TEMP/jornada-e2e-internal.log"
       - name: Avaliar evidências dos dois marcos
         if: always() && steps.checkout.outcome == 'success'

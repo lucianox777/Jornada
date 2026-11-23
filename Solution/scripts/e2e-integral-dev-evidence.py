@@ -37,6 +37,7 @@ def inspect_run(directory, sha):
     counts = validate_volume(read(directory / "http-volume-1k-summary.json"), sha)
     result = read(directory / "resultado-api-evidence.json")
     semiblind = read(directory / "semiblind-denials.json")
+    ibge = read(directory / "ibge-http-1k-summary.json")
     codes = {"semCredencial": 401, "nomeInvalido": 400, "outroGestor": 404,
              "consulta": 200, "releitura": 200}
     result_ok = (result.get("sha") == sha and result.get("http") == codes
@@ -46,8 +47,32 @@ def inspect_run(directory, sha):
                for c in cases]
     denied = (semiblind.get("sha") == sha and semiblind.get("scope") == "SEMIBLIND_DEV_ACCESS_DENIALS"
               and denials == [("missing_auth", 401, 0, 1), ("missing_scope", 403, 0, 1), ("disabled", 503, 0, 1)])
+    ibge_ok = (
+        ibge.get("schema") == "V9_E2E_IBGE_HTTP_1K_V1"
+        and ibge.get("status") == "PASS" and ibge.get("commitSha") == sha
+        and ibge.get("generatorVersion") == "JORNADA_SYNTH_CORPUS_CSHARP_V1"
+        and ibge.get("populationProfile") == "DEMOGRAPHIC_PRIMARY_V1"
+        and ibge.get("seed") == 355 and ibge.get("baseIdentities") == 1000
+        and ibge.get("sourceObservations") == ibge.get("materializedObservations")
+        and type(ibge.get("silverPersons")) is int
+        and 1000 <= ibge["silverPersons"] <= 4000
+        and ibge["silverPersons"] == ibge.get("sourceObservations")
+        and ibge.get("excludedObservations") == 0
+        and ibge.get("deliveries") == ibge.get("bronzeFiles") == 4
+        and ibge.get("scientificValidation") is False
+        and ibge.get("activated") is False
+        and ibge.get("v9RunnerVerified") is False
+        and all(isinstance(ibge.get(key), str) and len(ibge[key]) == 64
+                and all(char in "0123456789ABCDEF" for char in ibge[key])
+                for key in ("generatorFingerprintSha256",
+                            "bridgeManifestSha256", "groundTruthSidecarSha256"))
+    )
     return {"counts": counts, "resultadoHttp": codes if result_ok else {},
-            "semiblindHttpDenials": [401, 403, 503] if denied else []}
+            "semiblindHttpDenials": [401, 403, 503] if denied else [],
+            "ibgeSyntheticHttp": {
+                "baseIdentities": 1000, "silverPersons": ibge["silverPersons"],
+                "deliveries": 4, "bridgeManifestSha256": ibge["bridgeManifestSha256"]}
+            if ibge_ok else {}}
 
 
 def main():
@@ -77,6 +102,8 @@ def main():
         ("Isolamento e limpeza da tentativa", ("ISOLATION", "CLEANUP"), None),
         ("HTTP 1k, Bronze, Processor, Silver, Gold de pessoas e Serving; replay HTTP",
          ("HTTP",), "counts"),
+        ("Gerador IBGE C# (1k) → ponte ZIP por gestor → HTTP/Bronze/Silver; sem Runner",
+         ("HTTP",), "ibgeSyntheticHttp"),
         ("Resultado.Api por entrega, releitura e negativas", ("HTTP",), "resultadoHttp"),
         ("Busca semicega desabilitada: negativas HTTP e auditoria SQL", ("HTTP",), "semiblindHttpDenials"),
         ("OpenAPI versionado e igualdade de operações mapeadas nos dois hosts",

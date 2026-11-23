@@ -470,6 +470,38 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn('docker volume rm "$volume"', cleanup["run"])
         self.assertNotIn("--volumes", cleanup["run"])
 
+    def test_canonical_ibge_generator_is_used_only_for_dev_http_bridge(self):
+        # Never replace the historical AA01 1k fixture, or touch scientific seed42.
+        import subprocess
+        import sys
+        job = self.workflow["jobs"]["dev-1k"]
+        http, = [s for s in self.steps if s.get("id") == "http"]
+        self.assertEqual(http["env"]["JORNADA_E2E_IBGE_1K"], "true")
+        self.assertEqual(http["env"]["JORNADA_E2E_HTTP_VOLUME_COUNT"], "1000")
+        local = (ROOT / "Solution/scripts/local-e2e.sh").read_text(encoding="utf-8")
+        bridge = (ROOT / "Solution/scripts/v9-e2e-ibge-http.sh").read_text(encoding="utf-8")
+        verify = (ROOT / "Solution/scripts/v9-e2e-ibge-bridge-preflight.py").read_text(encoding="utf-8")
+        evidence = (ROOT / "Solution/scripts/e2e-integral-dev-evidence.py").read_text(encoding="utf-8")
+        self.assertIn('source "$ROOT/scripts/v9-e2e-ibge-http.sh"', local)
+        self.assertIn("scripts/v9-http-volume-fixture.py", local)
+        self.assertIn("generate-ingestion", bridge)
+        self.assertIn("Jornada.Linkage.SyntheticCorpus.csproj", bridge)
+        self.assertIn('--population-profile demographic-primary', bridge)
+        self.assertIn('--people 1000 --seed 355 --error-profile clean', bridge)
+        self.assertIn("data/reference/ibge-nomes-2022", bridge)
+        self.assertIn("data/reference/synthetic-birth-sp/", bridge)
+        self.assertIn("bridge-truth.jsonl", verify)
+        self.assertIn('"allowedForScoring") is False', verify)
+        self.assertIn('"ibgeSyntheticHttp"', evidence)
+        self.assertNotIn("TRAIN", bridge)
+        self.assertNotIn("TEST", bridge)
+        self.assertIn("rm -rf -- .local/e2e/bronze", (ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml").read_text(encoding="utf-8"))
+        self.assertIn(".local/e2e/ibge-1k", (ROOT / ".github/workflows/jornada-e2e-integral-v9-dev.yml").read_text(encoding="utf-8"))
+        subprocess.run(["bash", "-n", str(ROOT / "Solution/scripts/v9-e2e-ibge-http.sh")], check=True)
+        subprocess.run([sys.executable, "-m", "unittest",
+                        "Solution/tests/scripts/test_v9_e2e_ibge_bridge_preflight.py"],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
@@ -493,7 +525,7 @@ class IntegralDevWorkflowTests(unittest.TestCase):
             self.assertFalse(receipt["E2E_INTEGRAL_PASS"])
             self.assertTrue(receipt["failedOrMissing"])
             rows = {row.get("measurement"): row for row in receipt["coverage"]}
-            for measurement in ("counts", "resultadoHttp", "semiblindHttpDenials"):
+            for measurement in ("counts", "ibgeSyntheticHttp", "resultadoHttp", "semiblindHttpDenials"):
                 self.assertEqual(rows[measurement]["status"], "NAO_VALIDADO")
             self.assertTrue(all(row["sha"] == sha for row in receipt["coverage"]))
             self.assertEqual({row["scope"] for row in receipt["coverage"] if row["status"] == "BLOQUEADO"},
