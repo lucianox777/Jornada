@@ -37,7 +37,9 @@ def combine(root, http_path, sql_path, staging_path, expected_sha, expected_winn
     require(all(p.is_file() and not p.is_symlink()
                 and not p.resolve().is_relative_to(root.resolve()) for p in inputs),
             "HTTP/SQL/staging must be outside the private bridge generator tree")
-    require(len({p.resolve() for p in inputs}) == 3,
+    require(len({p.resolve() for p in inputs}) == 3
+            and not any(left.samefile(right) for i, left in enumerate(inputs)
+                        for right in inputs[i + 1:]),
             "HTTP/SQL/staging inputs must be distinct physical files")
 
     # First: read all real ZIP bytes, validate complete truth sidecar and run
