@@ -11,10 +11,33 @@ COUNTS = {"personCount": 1000, "bronzeFiles": 1, "silverPersons": 1000,
           "servingRecords": 1000}
 
 
+# Only small, local, unambiguous aggregate receipts can influence PASS rows.
+MAX_RECEIPT_BYTES = 1024 * 1024
+
+
+def reject_duplicate_keys(pairs):
+    seen = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError(f"Duplicate key in E2E receipt: {key}")
+        seen[key] = value
+    return seen
+
+
+def reject_nonfinite(token):
+    raise ValueError(f"Non-finite number in E2E receipt: {token}")
+
+
 def read(path):
+    if path.is_symlink():
+        raise ValueError("Symlink E2E receipt forbidden")
     if not path.is_file():
         return {}
-    value = json.loads(path.read_text(encoding="utf-8"))
+    if path.stat().st_size > MAX_RECEIPT_BYTES:
+        raise ValueError("Oversized E2E receipt")
+    value = json.loads(path.read_text(encoding="utf-8"),
+                       object_pairs_hook=reject_duplicate_keys,
+                       parse_constant=reject_nonfinite)
     if not isinstance(value, dict):
         raise ValueError("Expected a receipt object")
     return value

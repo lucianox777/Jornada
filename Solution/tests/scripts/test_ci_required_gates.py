@@ -647,6 +647,39 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertNotIn("JORNADA_TEST_SQL_CONNECTION", source)
         self.assertNotIn("Solution/.local/semiblind-http/semiblind-http.trx\n          if-no-files-found", source)
 
+    def test_e2e_receipt_rejects_ambiguous_nonfinite_symlink_and_oversized_json(self):
+        # A duplicated PASS key must never hide an earlier FAIL key.
+        import importlib.util
+        import tempfile
+
+        path = ROOT / "Solution/scripts/e2e-integral-dev-evidence.py"
+        spec = importlib.util.spec_from_file_location("integral_dev_evidence_adversarial", path)
+        evidence = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(evidence)
+        with tempfile.TemporaryDirectory() as temp:
+            receipt = Path(temp, "receipt.json")
+            self.assertEqual(evidence.read(receipt), {})
+            for payload in (
+                '{"status":"FAIL","status":"PASS"}',
+                '{"cases":[{"auditEvents":0,"auditEvents":1}]}',
+                '{"e2eElapsedMs":NaN}',
+                '{"e2eElapsedMs":Infinity}',
+                "[]",
+            ):
+                with self.subTest(payload=payload):
+                    receipt.write_text(payload, encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        evidence.read(receipt)
+            receipt.write_text('{"status":"PASS"}', encoding="utf-8")
+            self.assertEqual(evidence.read(receipt), {"status": "PASS"})
+            alias = Path(temp, "alias.json")
+            alias.symlink_to(receipt)
+            with self.assertRaises(ValueError):
+                evidence.read(alias)
+            receipt.write_text(" " * (evidence.MAX_RECEIPT_BYTES + 1), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                evidence.read(receipt)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
