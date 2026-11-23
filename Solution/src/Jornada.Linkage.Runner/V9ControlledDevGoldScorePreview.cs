@@ -37,7 +37,8 @@ public static class V9ControlledDevGoldScorePreview
             || !ids.SequenceEqual(ids.OrderBy(x => x))
             || !expected.SetEquals(verifiedSource.ManagerByObservation.Keys)
             || !expected.SetEquals(verifiedSource.CandidatesByObservation.Keys)
-            || !expected.SetEquals(verifiedSource.EvidenceByObservation.Keys))
+            || !expected.SetEquals(verifiedSource.EvidenceByObservation.Keys)
+            || !expected.SetEquals(verifiedSource.AuthenticatedSilverByObservation.Keys))
             throw new InvalidDataException("RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
 
         var winner = pinnedWinner.FrozenWinner;
@@ -57,7 +58,11 @@ public static class V9ControlledDevGoldScorePreview
                 || !verifiedSource.CandidatesByObservation.TryGetValue(id, out var candidates)
                 || candidates is null
                 || !verifiedSource.EvidenceByObservation.TryGetValue(id, out var evidence)
-                || evidence is null)
+                || evidence is null
+                || !verifiedSource.AuthenticatedSilverByObservation.TryGetValue(
+                    id, out var authenticatedSilver)
+                || authenticatedSilver is null
+                || !Equals(authenticatedSilver, frozen.Observation))
                 throw new InvalidDataException("RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
 
             if (evidence.CandidateCount != candidates.Count
