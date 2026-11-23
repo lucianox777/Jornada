@@ -46,7 +46,8 @@ while IFS=$'\t' read -r gestor zip_name zip_digest expected; do
 import json,sys
 creds=json.load(open(sys.argv[1],encoding="utf-8"))["credentials"]
 matches=[x for x in creds if x.get("type")=="GESTOR" and x.get("gestorCodigo")==sys.argv[2]]
-assert len(matches)==1
+if len(matches)!=1:
+    raise SystemExit("Expected exactly one DEV manager credential")
 print(matches[0]["accessKey"])
 PYKEY
 )"
@@ -86,9 +87,12 @@ python3 - "$preflight" "$OUT/ibge-http-1k-summary.json" "$ibge_deliveries" "$ibg
 import json,os,pathlib,sys
 pre=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 deliveries,bronze,silver=map(int,sys.argv[3:])
-assert deliveries==bronze==pre["packages"]==4
-assert silver==pre["materializedObservations"]>=1000
-assert pre["seed"]==355 and pre["baseIdentities"]==1000
+if deliveries!=4 or bronze!=4 or pre["packages"]!=4:
+    raise SystemExit("Missing per-manager HTTP/Bronze deliveries")
+if silver!=pre["materializedObservations"] or silver<1000:
+    raise SystemExit("Synthetic observation materialization mismatch")
+if pre["seed"]!=355 or pre["baseIdentities"]!=1000:
+    raise SystemExit("Unexpected synthetic population")
 summary={
     "schema":"V9_E2E_IBGE_HTTP_1K_V1","status":"PASS",
     "scope":"SYNTHETIC_DEV_PERSON_ONLY_NOT_V9_LINKAGE_CERTIFICATION",
@@ -106,7 +110,8 @@ summary={
     "scientificValidation":False,"activated":False,"v9RunnerVerified":False,
 }
 out=pathlib.Path(sys.argv[2])
-assert not out.exists()
+if out.exists() or out.is_symlink():
+    raise SystemExit("Refusing to overwrite an existing E2E evidence receipt")
 out.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n",encoding="utf-8")
 print("IBGE-derived C# generator -> 4 manager ZIPs -> HTTP/Bronze/Silver: PASS (DEV person-only).")
 PYSUMMARY
