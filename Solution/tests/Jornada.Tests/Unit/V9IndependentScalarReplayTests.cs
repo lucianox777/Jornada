@@ -264,6 +264,29 @@ public sealed class V9IndependentScalarReplayTests
     }
 
     [Test]
+    public void Controlled_DEV_replay_handles_zero_or_one_pending_without_scientific_TEST()
+    {
+        var winner = BlindScalarOracleWinner();
+        var empty = V9FrozenSourceResolveReplay.ReplayDev(winner,
+            Array.Empty<V9PhysicalCalibrationObservation>(), Array.Empty<(int A, int B)>());
+        Assert.That(empty.Decisions, Is.Empty);
+        Assert.That(empty.IdentityByObservation, Is.Empty);
+        Assert.That(empty.SnapshotSha256, Is.EqualTo(winner.ContentSha256));
+
+        var one = TwoIndependentPairs()[0] with { Partition = "DEV" };
+        var result = V9FrozenSourceResolveReplay.ReplayDev(winner, [one],
+            Array.Empty<(int A, int B)>());
+        Assert.That(result.Decisions.Count, Is.EqualTo(1));
+        Assert.That(result.IdentityByObservation.Count, Is.EqualTo(1));
+        Assert.That(result.Decisions.Single().Decision.Status,
+            Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That((Action)(() => V9FrozenSourceResolveReplay.ReplayTest(
+                winner, [one with { Partition = "TEST" }],
+                Array.Empty<(int A, int B)>())),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Controlled_DEV_uses_identical_pinned_FS_and_Resolve_without_TEST_partition_fallback()
     {
         var winner = BlindScalarOracleWinner();
