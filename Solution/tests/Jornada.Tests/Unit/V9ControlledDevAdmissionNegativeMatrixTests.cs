@@ -41,7 +41,7 @@ public sealed class V9ControlledDevAdmissionNegativeMatrixTests
             }).Build();
 
     [Test]
-    public async Task Missing_attempt_fails_before_loading_winner_or_connecting_to_SQL()
+    public void Missing_attempt_fails_before_loading_winner_or_connecting_to_SQL()
     {
         var sql = new NeverOpenSql();
         var error = Assert.ThrowsAsync<InvalidOperationException>(async () =>
