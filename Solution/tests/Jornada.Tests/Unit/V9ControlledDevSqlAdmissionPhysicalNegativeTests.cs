@@ -124,6 +124,23 @@ public sealed class V9ControlledDevSqlAdmissionPhysicalNegativeTests
         await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
             sql, attempt, CancellationToken.None);
 
+        // Reader requires one read-only SNAPSHOT for run, Silver, blocking
+        // and Gold. Missing SQL Server SNAPSHOT support is not evidence that
+        // the nonexistent-run negative passed; treat as missing fixture.
+        await using (var isolation = new SqlCommand("""
+            SELECT snapshot_isolation_state
+              FROM sys.databases WHERE name=DB_NAME();
+            """, sql))
+        {
+            var state = Convert.ToInt32(await isolation.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+            if (state != 1)
+            {
+                Assert.Ignore("Tentativa DEV não habilitada para SNAPSHOT; prova física não executada.");
+                return;
+            }
+        }
+
         var missingRun = Guid.NewGuid();
         await using (var check = new SqlCommand(
             "SELECT COUNT_BIG(*) FROM identidade.linkage_run WHERE linkage_run_id=@run;", sql))
