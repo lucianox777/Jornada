@@ -26,7 +26,7 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         using var closed = new SqlConnection();
         async Task ExecuteAsync(IReadOnlyList<V9FrozenRunObservation> rows) =>
             await V9ControlledDevOperationalCandidateSource.ReadAsync(
-                closed, Pinned, Guid.NewGuid(), rows, 10, CancellationToken.None);
+                closed, Pinned, Guid.NewGuid(), Guid.NewGuid(), rows, 10, CancellationToken.None);
 
         foreach (var bad in new IReadOnlyList<V9FrozenRunObservation>[]
         {
@@ -49,15 +49,19 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         var rows = new[] { Row(1) };
         Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
             V9ControlledDevOperationalCandidateSource.ReadAsync(
-                closed, Pinned, Guid.Empty, rows, 10, CancellationToken.None)))!.Message,
+                closed, Pinned, Guid.Empty, Guid.NewGuid(), rows, 10, CancellationToken.None)))!.Message,
             Is.EqualTo("RUNNER_V9_DEV_ATTEMPT_MISSING"));
+        Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+            V9ControlledDevOperationalCandidateSource.ReadAsync(
+                closed, Pinned, Guid.NewGuid(), Guid.Empty, rows, 10, CancellationToken.None)))!.Message,
+            Is.EqualTo("RUNNER_V9_DEV_RUN_MISSING"));
         Assert.That(Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(() =>
             V9ControlledDevOperationalCandidateSource.ReadAsync(
-                closed, Pinned, Guid.NewGuid(), rows, 0, CancellationToken.None)))!.ParamName,
+                closed, Pinned, Guid.NewGuid(), Guid.NewGuid(), rows, 0, CancellationToken.None)))!.ParamName,
             Is.EqualTo("maximumCandidatesPerObservation"));
         Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
             V9ControlledDevOperationalCandidateSource.ReadAsync(
-                closed, Pinned, Guid.NewGuid(), rows, 10, CancellationToken.None)))!.Message,
+                closed, Pinned, Guid.NewGuid(), Guid.NewGuid(), rows, 10, CancellationToken.None)))!.Message,
             Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
         Assert.That(closed.State, Is.EqualTo(System.Data.ConnectionState.Closed));
     }
