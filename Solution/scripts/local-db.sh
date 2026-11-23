@@ -40,9 +40,13 @@ sql_scalar() {
     | awk 'NF{last=$0} END{gsub(/^[[:space:]]+|[[:space:]]+$/, "", last); print last}'
 }
 wait_healthy() {
-  local i status
+  local i status container_id
   for i in $(seq 1 60); do
-    status="$(docker inspect -f '{{.State.Health.Status}}' jornada-sqlserver-local 2>/dev/null || true)"
+    container_id="$(compose ps -q sqlserver 2>/dev/null || true)"
+    status=''
+    if [[ -n "$container_id" ]]; then
+      status="$(docker inspect -f '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)"
+    fi
     [[ "$status" == "healthy" ]] && return 0
     sleep 2
   done

@@ -53,7 +53,8 @@ def inspect_run(directory, sha):
 def main():
     temp = Path(os.environ["RUNNER_TEMP"])
     sha = os.environ["GITHUB_SHA"]
-    steps = {name: os.environ[name + "_STEP"] for name in ("HTTP", "CONTRACTS", "APOIO", "RUNTIME", "CLEANUP")}
+    step_names = ("ADMISSION", "CHECKOUT", "ISOLATION", "HTTP", "CONTRACTS", "APOIO", "RUNTIME", "CLEANUP")
+    steps = {name: os.environ[name + "_STEP"] for name in step_names}
     failures = [name for name, outcome in steps.items() if outcome != "success"]
     try:
         measurements = inspect_run(OUT, sha)

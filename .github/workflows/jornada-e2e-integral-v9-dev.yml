@@ -19,6 +19,10 @@ jobs:
   dev-1k:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      COMPOSE_PROJECT_NAME: jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      JORNADA_SQL_CONTAINER_NAME: jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}-sql
+      JORNADA_SQL_VOLUME_NAME: jornada-e2e-${{ github.run_id }}-${{ github.run_attempt }}-data
     steps:
       - name: Autorizar despacho antes de obter código
         id: admission
@@ -59,6 +63,23 @@ jobs:
       - name: Preparar restore bloqueado
         working-directory: Solution
         run: ./scripts/nuget-lock-bootstrap.sh
+      - name: Reservar infraestrutura descartável da tentativa
+        id: isolation
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          [[ "$COMPOSE_PROJECT_NAME" == "jornada-e2e-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]]
+          [[ "$JORNADA_SQL_CONTAINER_NAME" == "$COMPOSE_PROJECT_NAME-sql" ]]
+          [[ "$JORNADA_SQL_VOLUME_NAME" == "$COMPOSE_PROJECT_NAME-data" ]]
+          [[ ! -e .env && ! -L .env && ! -e .local/e2e && ! -L .local/e2e ]]
+          named="$(docker ps -aq --filter "name=^/$JORNADA_SQL_CONTAINER_NAME$")"
+          project="$(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")"
+          [[ -z "$named" && -z "$project" ]]
+          volumes="$(docker volume ls --format '{{.Name}}')"
+          networks="$(docker network ls --format '{{.Name}}')"
+          [[ $'\n'"$volumes"$'\n' != *$'\n'"$JORNADA_SQL_VOLUME_NAME"$'\n'* ]]
+          [[ $'\n'"$networks"$'\n' != *$'\n'"${COMPOSE_PROJECT_NAME}_default"$'\n'* ]]
+          python3 scripts/local_env_bootstrap.py
       - name: Executar aplicação HTTP e SQL descartável para 1k
         id: http
         timeout-minutes: 85
@@ -92,16 +113,25 @@ jobs:
           PYTHON
       - name: Descartar SQL, volumes e armazenamento DEV
         id: cleanup
-        if: always() && steps.checkout.outcome == 'success'
+        if: always() && steps.isolation.outcome == 'success'
         working-directory: Solution
         run: |
           set -euo pipefail
-          if [[ -f .env ]]; then docker compose --env-file .env down --volumes --remove-orphans; fi
-          rm -rf -- .local/e2e/bronze .local/e2e/staging .local/e2e/packages
-          rm -f -- "$RUNNER_TEMP/jornada-e2e-internal.log"
+          docker compose --env-file .env down
+          volumes="$(docker volume ls --format '{{.Name}}')"
+          if [[ $'\n'"$volumes"$'\n' == *$'\n'"$JORNADA_SQL_VOLUME_NAME"$'\n'* ]]; then
+            owner="$(docker volume inspect -f '{{ index .Labels "com.docker.compose.project" }}' "$JORNADA_SQL_VOLUME_NAME")"
+            [[ "$owner" == "$COMPOSE_PROJECT_NAME" ]]
+            docker volume rm "$JORNADA_SQL_VOLUME_NAME"
+          fi
+          rm -rf -- .local/e2e/bronze .local/e2e/staging .local/e2e/packages .local/e2e/volume-1k-fixture
+          rm -f -- .env "$RUNNER_TEMP/jornada-e2e-internal.log"
       - name: Avaliar evidências dos dois marcos
         if: always() && steps.checkout.outcome == 'success'
         env:
+          ADMISSION_STEP: ${{ steps.admission.outcome }}
+          CHECKOUT_STEP: ${{ steps.checkout.outcome }}
+          ISOLATION_STEP: ${{ steps.isolation.outcome }}
           HTTP_STEP: ${{ steps.http.outcome }}
           CONTRACTS_STEP: ${{ steps.contracts.outcome }}
           APOIO_STEP: ${{ steps.apoio.outcome }}

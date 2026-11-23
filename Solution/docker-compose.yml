@@ -31,7 +31,7 @@ x-jornada-node-common: &jornada-node-common
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
-    container_name: jornada-sqlserver-local
+    container_name: "${JORNADA_SQL_CONTAINER_NAME:-jornada-sqlserver-local}"
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
@@ -146,7 +146,7 @@ services:
 
 volumes:
   jornada_sql_data:
-    name: jornada_sql_data
+    name: "${JORNADA_SQL_VOLUME_NAME:-jornada_sql_data}"
   jornada_bronze:
     name: jornada_bronze
   jornada_staging_1:
