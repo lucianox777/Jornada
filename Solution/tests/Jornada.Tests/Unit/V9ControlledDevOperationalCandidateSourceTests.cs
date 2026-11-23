@@ -43,6 +43,31 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
     }
 
     [Test]
+    public void Frozen_Silver_and_manager_must_match_its_real_run_item_identity()
+    {
+        var frozen = Row(1);
+        var original = frozen.Observation;
+        Assert.That(V9ControlledDevOperationalCandidateSource.VerifyFrozenSilverObservation(
+                frozen, 1, "GESTOR_A", original), Is.EqualTo("GESTOR_A"));
+
+        void Reject(long id, string? manager, IdentityObservation observed) =>
+            Assert.That((Action)(() =>
+                V9ControlledDevOperationalCandidateSource.VerifyFrozenSilverObservation(
+                    frozen, id, manager, observed)),
+                Throws.TypeOf<InvalidDataException>()
+                    .With.Message.EqualTo("RUNNER_V9_DEV_SILVER_OR_MANAGER_DRIFT"));
+
+        Reject(2, "GESTOR_A", original); // identity mismatch
+        Reject(1, null, original);       // absent manager
+        Reject(1, " ", original);        // blank manager
+        Reject(1, "GESTOR_A", original with { NomeCompleto = "DIVERGENTE" });
+        Reject(1, "GESTOR_A", original with { NomeMae = "DIVERGENTE" });
+        Reject(1, "GESTOR_A", original with { DataNascimento = new DateOnly(2001, 1, 1) });
+        Reject(1, "GESTOR_A", original with { Cpf = "12345678901" });
+        Reject(1, "GESTOR_A", original with { CpfAusenteMotivo = "DIVERGENTE" });
+    }
+
+    [Test]
     public void Missing_attempt_and_nonpositive_candidate_capacity_fail_before_SQL()
     {
         using var closed = new SqlConnection();
