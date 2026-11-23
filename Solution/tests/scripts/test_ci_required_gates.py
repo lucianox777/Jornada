@@ -524,6 +524,14 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn("test_e2e_v9_bridge_staging_reconcile.py", workflow)
         self.assertIn("test_v9_e2e_ibge_http_lineage.py", workflow)
         self.assertIn("test_v9_e2e_run_http_receipt_compare.py", workflow)
+        self.assertIn("test_v9_e2e_dev_composite_reconcile.py", workflow)
+        composed = (ROOT / "Solution/scripts/v9-e2e-dev-composite-reconcile.py").read_text(
+            encoding="utf-8")
+        self.assertIn("BRIDGE.reconcile(root, staging_path,", composed)
+        self.assertIn("RUN.compare(preflight, http, sql, staging,", composed)
+        self.assertIn('"sourceSqlRuntimeAuthenticatedExternally": False', composed)
+        self.assertIn('"httpRunExecutionAuthenticatedExternally": False', composed)
+        self.assertIn('"E2E_INTEGRAL_PASS": False', composed)
         self.assertIn("test_v9_verify_campaign38_saved_artifacts.py", workflow)
         local_check = (ROOT / "Solution/scripts/v9-verify-campaign38-saved-artifacts.py").read_text(
             encoding="utf-8")

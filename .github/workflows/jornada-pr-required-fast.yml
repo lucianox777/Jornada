@@ -147,6 +147,7 @@ jobs:
           python3 -m unittest Solution/tests/scripts/test_e2e_v9_bridge_staging_reconcile.py
           python3 -m unittest Solution/tests/scripts/test_v9_e2e_ibge_http_lineage.py
           python3 -m unittest Solution/tests/scripts/test_v9_e2e_run_http_receipt_compare.py
+          python3 -m unittest Solution/tests/scripts/test_v9_e2e_dev_composite_reconcile.py
           python3 -m unittest Solution/tests/scripts/test_e2e_processor_runner_explicit_boundary.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_offline_100k_presql_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_physical_memory_evidence.py'

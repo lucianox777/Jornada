@@ -40,3 +40,7 @@ A duração agregada aproximada reportada da campanha é 5h05, incluindo TRAIN ~
 ### Atualização de custódia declarada pelo PO — 23/11/2026
 
 O PO confirmou expressamente que **já armazenou os artefatos em lugar durável**. [Registro atualizado, procedimento de conferência local e estado separado de validação](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md). Trata-se de confirmação do responsável, **não de comprovante de leitura/hashes dos 14 ZIPs no destino**, cujo escopo e hashes pós-cópia ainda não foram apresentados. Status vigente `GUARDA_DURAVEL_DECLARADA_PELO_PO__VALIDACAO_SHA256_14_DE_14_PENDENTE`; o checkpoint anterior de 12/14 temporários permanece histórico. Nenhum novo TEST, NAS ou liberação do Runner.
+
+### Confirmação PO de custódia integral — 14/14 (23/11/2026)
+
+O PO confirmou que estão no local durável **os 14 ZIPs da campanha científica #38, inclusive ambos os handoffs de ~738/737 MB**. A ausência de cópia desses dois ZIPs no workspace temporário de 22/11 não prova ausência no destino declarado pelo PO. Novo estado operacional: `14_DE_14_EM_GUARDA_DURAVEL_DECLARADOS_PELO_PO__SHA256_POS_COPIA_PENDENTE`; ver [registro com hashes, precedência e auditoria posterior](V9_Campanha_38_Preservacao_SHA256_Guarda_Duravel_Status_20261123.md). O SHA-256 pós-cópia e recuperabilidade no local durável continuam sem recibo independente. Sem certificação NAS, inferência científica ou liberação V9.

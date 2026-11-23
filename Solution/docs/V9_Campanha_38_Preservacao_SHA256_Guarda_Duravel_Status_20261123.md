@@ -2,6 +2,14 @@
 
 **Natureza:** evidência operacional e registro de pendência, sem nova decisão científica/funcional, sem autorização de ativação. **Etapa:** 0 do plano GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122; rastreabilidade [PR #1913](https://github.com/lucianox777/Jornada/pull/1913), [issue #1851](https://github.com/lucianox777/Jornada/issues/1851), [issue #1830](https://github.com/lucianox777/Jornada/issues/1830) e [registro científico](V9_Campanha_Standard_Linear_38_Evidencias_20261122.md).
 
+## Confirmação adicional do PO — 14 ZIPs guardados (23/11/2026)
+
+**Nova informação expressa do Product Owner:** à pergunta específica sobre a existência, no local durável, de **todos os 14 ZIPs**, incluindo os dois handoffs grandes `14742267026` e `14742257307`, a resposta foi **“Sim. Dar continuidade no restante”**. Esta declaração complementa a anterior “Eu armazenei em lugar durável”, confirmando **14/14 armazenados segundo o responsável**. Não confundir os dois handoffs classificados como *não conferidos em bytes neste ambiente em 22/11* com handoffs *ausentes do local durável do PO*; a ausência não foi afirmada pelo PO.
+
+**Estado oficial superveniente da custódia (substitui somente o status operacional anterior, sem apagar as evidências históricas):** `14_DE_14_EM_GUARDA_DURAVEL_DECLARADOS_PELO_PO__SHA256_POS_COPIA_PENDENTE`. A existência e a durabilidade são relatadas pelo proprietário; **não** foram abertas ou lidas por este assistente as cópias do destino, nem apresentado recibo local de 14 hashes SHA-256/CRC, teste de recuperação, controle de acesso ou retenção. A ferramenta de verificação `Solution/scripts/v9-verify-campaign38-saved-artifacts.py` segue disponível ao PO sem rede, credenciais ou publicação de diretórios privados. O fechamento criptográfico da etapa 0 e a certificação NAS permanecem **pendentes de evidência**; a custódia declarada **não** libera Runner, TEST, DT-15, escala ou HML/PROD.
+
+**Precedência/GOV-DOC-01:** detalhe factual da decisão GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122, sob os itens 0/7–9 da PR Draft #1920; nenhum novo mandato sobre arquitetura NAS #1830 ou critério científico. Status da confirmação preservado no repositório sem modificar o índice de decisões vigentes.
+
 ## Atualização posterior — declaração de guarda durável pelo PO (23/11/2026)
 
 **Declaração expressa do Product Owner nesta conversa:** “Eu armazenei em lugar durável”. A partir desta informação, a guarda física **foi declarada realizada pelo responsável**, sem que o destino exato, o conjunto de arquivos, a data/hora da cópia, as permissões ou o recibo de verificação tenham sido fornecidos ao repositório. O projeto reconhece essa confirmação; **não afirma** que somente o Actions ou a cópia temporária sejam os únicos locais onde os dados estejam guardados.
