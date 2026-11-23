@@ -97,7 +97,6 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
 
         foreach (var bad in new IReadOnlyList<V9FrozenRunObservation>[]
         {
-            Array.Empty<V9FrozenRunObservation>(),
             [Row(2), Row(1)],
             [Row(1), Row(1)],
             [Row(0)],
@@ -185,6 +184,21 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         Reject(1, "NAO_RESOLVIDO", realGold, null);
         Reject(1, "CONFLITO", null, "REFERENCIA");
         Reject(1, "RESOLVIDO", realGold, "REFERENCIA", repeated: true);
+    }
+
+    [Test]
+    public void Zero_pending_DEV_run_requires_real_SQL_admission_not_a_fake_malformed_universe()
+    {
+        // A DEV FULL/INCREMENTAL run may legitimately have zero eligible rows.
+        // Closed SQL fails at the original disposable-attempt guard, not at
+        // frozen-universe validation; a positive SQL run still needs a fixture.
+        using var closed = new SqlConnection();
+        var rejected = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+            V9ControlledDevOperationalCandidateSource.ReadAsync(
+                closed, Pinned, Guid.NewGuid(), Guid.NewGuid(),
+                Array.Empty<V9FrozenRunObservation>(), 10, CancellationToken.None)));
+        Assert.That(rejected!.Message,
+            Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
     }
 
     [Test]

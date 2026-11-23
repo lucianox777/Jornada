@@ -134,8 +134,10 @@ public static class V9ControlledDevOperationalCandidateSource
         // Source IDs are globally ordered immutable run_item IDs, never
         // page-local indexes. The entire SQL run_item membership is checked
         // below before any operational candidate/Gold query.
-        if (frozenRows.Count == 0
-            || frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
+        // An empty FULL/INCREMENTAL DEV run is legitimate. Authenticate its
+        // run header and zero run_item count in SQL instead of mistaking it
+        // for a malformed submission (BuildDev already supports 0 rows).
+        if (frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
                 || x.Observation is null || x.Observation.Cpf is not null
                 || x.Observation.ResolutionAttributes is { Count: > 0 })
             || !frozenRows.Select(x => x.PessoaObservacaoId)
