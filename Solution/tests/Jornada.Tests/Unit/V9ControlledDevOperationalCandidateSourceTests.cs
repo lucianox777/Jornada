@@ -83,6 +83,8 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
         Reject([b, a], joined);
         Reject([Guid.Empty, b], joined);
         Reject([a, b], [joined[0], joined[0]]);
+        // Matching lists that each repeat a UUID must not be accepted as a set.
+        Reject([a, a], [joined[0], joined[0]]);
     }
 
     [Test]
@@ -95,6 +97,7 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
 
         foreach (var bad in new IReadOnlyList<V9FrozenRunObservation>[]
         {
+            Array.Empty<V9FrozenRunObservation>(),
             [Row(2), Row(1)],
             [Row(1), Row(1)],
             [Row(0)],
