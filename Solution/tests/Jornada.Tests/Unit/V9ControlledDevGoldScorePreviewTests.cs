@@ -23,7 +23,8 @@ public sealed class V9ControlledDevGoldScorePreviewTests
     private static V9ControlledDevOperationalCandidateSource.VerifiedRunCandidates Source(
         IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate> gold,
         IReadOnlyList<Guid>? receiptIds = null, long? count = null,
-        string? manager = "GESTOR_A", bool includeEvidence = true)
+        string? manager = "GESTOR_A", bool includeEvidence = true,
+        IdentityObservation? authenticatedSilver = null)
     {
         receiptIds ??= gold.Select(g => g.PessoaUuid).ToArray();
         var bytes = Encoding.UTF8.GetBytes(string.Concat(
@@ -36,7 +37,9 @@ public sealed class V9ControlledDevGoldScorePreviewTests
             includeEvidence
                 ? new Dictionary<long, V9OperationalCandidateRead.Receipt>
                     { [1] = new(count ?? receiptIds.Count, digest, receiptIds) }
-                : new Dictionary<long, V9OperationalCandidateRead.Receipt>());
+                : new Dictionary<long, V9OperationalCandidateRead.Receipt>(),
+            new Dictionary<long, IdentityObservation>
+                { [1] = authenticatedSilver ?? SourceRow().Observation });
     }
 
     private static V9ControlledDevOperationalCandidateSource.GoldCandidate Candidate() =>
@@ -107,6 +110,11 @@ public sealed class V9ControlledDevGoldScorePreviewTests
         Reject(Source([Candidate()], manager: " "),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
         Reject(Source([Candidate()], includeEvidence: false),
+            "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
+        // An authenticated SQL candidate receipt may not be replayed against
+        // a different Silver observation with the same observation ID.
+        Reject(Source([Candidate()], authenticatedSilver:
+                SourceRow().Observation with { NomeCompleto = "OUTRA PESSOA" }),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
         Reject(Source([Candidate()]),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH", [SourceRow(2)]);
