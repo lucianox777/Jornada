@@ -168,6 +168,57 @@ public sealed class BlockingProjectionSqlServerTests
             Is.EqualTo(foundWithoutPersonName.Count),
             "O UNION deve retornar cada UUID uma vez, sem truncamento silencioso.");
 
+        // #612: contrato residual explícito da issue: PRENOME ISOLADO
+        // + NOME COMPLETO DA MÃE + NASCIMENTO (dia, mês, ano).
+        // O passe é executado no índice SQL real, não inferido da existência
+        // das features. As duas identidades compartilham mãe e nascimento;
+        // somente o prenome deve separar Maria de Beatriz.
+        var firstMotherBirthRuleset = LinkageDynamicRuleSet.CreateWithPasses(
+            "INTEGRATION-SEMIBLIND-FIRST-MOTHER-DOB", "INTEGRATION-TEST",
+            [LinkageBlockingPass.Create("first-mother-dob",
+                [BlockingFeatureNames.FirstName,
+                 BlockingFeatureNames.MotherFullName,
+                 BlockingFeatureNames.BirthDay,
+                 BlockingFeatureNames.BirthMonth,
+                 BlockingFeatureNames.BirthYear])],
+            Array.Empty<KeyValuePair<string, decimal>>()) with
+        {
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256
+        };
+        var firstOnlyMaria = new IdentityObservation(
+            null, "NAO_INFORMADO", "María",
+            new DateOnly(1991, 4, 13), "Ana Souza Teste");
+        var preciseMariaPasses = BlockingRuleSetCandidatePlanner.Plan(
+            firstMotherBirthRuleset, firstOnlyMaria);
+        Assert.That(preciseMariaPasses.Select(p => p.PassId),
+            Is.EqualTo(new[] { "first-mother-dob" }));
+        var preciseMaria = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, firstMotherBirthRuleset, firstOnlyMaria,
+            maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: preciseMariaPasses);
+        Assert.That(preciseMaria.Select(p => p.NomeCompleto),
+            Does.Contain("María Silva Teste"));
+        Assert.That(preciseMaria.Select(p => p.NomeCompleto),
+            Does.Not.Contain("Beatriz Soares Teste"));
+
+        var firstOnlyBeatriz = firstOnlyMaria with { NomeCompleto = "Beatriz" };
+        var preciseBeatrizPasses = BlockingRuleSetCandidatePlanner.Plan(
+            firstMotherBirthRuleset, firstOnlyBeatriz);
+        Assert.That(preciseBeatrizPasses.Select(p => p.PassId),
+            Is.EqualTo(new[] { "first-mother-dob" }));
+        var preciseBeatriz = await BlockingProjectionCandidateLoader.LoadAsync(
+            connection, firstMotherBirthRuleset, firstOnlyBeatriz,
+            maxCandidates: 20, commandTimeoutSeconds: 60,
+            ct: CancellationToken.None, searchPasses: preciseBeatrizPasses);
+        Assert.That(preciseBeatriz.Select(p => p.NomeCompleto),
+            Does.Contain("Beatriz Soares Teste"));
+        Assert.That(preciseBeatriz.Select(p => p.NomeCompleto),
+            Does.Not.Contain("María Silva Teste"));
+        Assert.That(preciseMaria.Select(p => p.PessoaUuid)
+            .Intersect(preciseBeatriz.Select(p => p.PessoaUuid)), Is.Empty,
+            "O passe SQL seletivo não pode confundir pessoas com a mesma mãe e data.");
+
         // O loader SQL real lê limite+1 e recusa antes de projetar Top 5.
         // O serviço HTTP traduz esse caso em busca_completa=false, não em
         // uma resposta vazia interpretada como 'nenhuma pessoa encontrada'.

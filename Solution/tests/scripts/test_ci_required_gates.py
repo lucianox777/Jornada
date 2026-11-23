@@ -533,6 +533,21 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn('Does.Contain("combined-neighbor-year")', source)
         self.assertIn("SemiblindCandidatePassPlanner.Plan(ruleset, noEvidence)", source)
         self.assertIn("Assert.That(noMatches, Is.Empty)", source)
+        # Explicit #612 residual example must be executed against real SQL.
+        self.assertIn('"INTEGRATION-SEMIBLIND-FIRST-MOTHER-DOB"', source)
+        self.assertIn('LinkageBlockingPass.Create("first-mother-dob"', source)
+        for feature in ("BlockingFeatureNames.FirstName",
+                        "BlockingFeatureNames.MotherFullName",
+                        "BlockingFeatureNames.BirthDay",
+                        "BlockingFeatureNames.BirthMonth",
+                        "BlockingFeatureNames.BirthYear"):
+            self.assertIn(feature, source)
+        self.assertIn('"María"', source)
+        self.assertIn('"Beatriz"', source)
+        self.assertIn("BlockingRuleSetCandidatePlanner.Plan(", source)
+        self.assertIn("Does.Not.Contain(\"Beatriz Soares Teste\")", source)
+        self.assertIn("Does.Not.Contain(\"María Silva Teste\")", source)
+        self.assertIn(".Intersect(preciseBeatriz.Select(p => p.PessoaUuid))", source)
         self.assertNotIn("SemiblindIdentitySearch:Enabled=true", source)
 
     def test_semiblind_pr_sql_evidence_is_ephemeral_and_non_certifying(self):
