@@ -55,11 +55,25 @@ public static class V9ControlledDevSelection
             configuration["Linkage:V9SelectionFile"]!, cancellationToken);
         var boundary = new V9OperationalRunBoundary(runtime);
 
-        // Database name AND two database-resident properties must be bound to
-        // this exact disposable attempt; a DEV process flag is insufficient.
         // No SQL mutation or run creation is permitted by this preflight.
-        var databaseName = "JornadaV9Dev_" + attemptId.ToString("N");
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        await VerifyDisposableAttemptDatabaseAsync(connection, attemptId, cancellationToken);
+        return boundary;
+    }
+    /// <summary>
+    /// Physical, read-only guard for the exact disposable DEV attempt.
+    /// Also exposed to opt-in SQL-negative tests without requiring scientific
+    /// model selection, so a rejected connection cannot start a V9 run.
+    /// </summary>
+    public static async Task VerifyDisposableAttemptDatabaseAsync(
+        SqlConnection connection, Guid attemptId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (attemptId == Guid.Empty)
+            throw new InvalidOperationException("RUNNER_V9_DEV_ATTEMPT_MISSING");
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED");
+        var databaseName = "JornadaV9Dev_" + attemptId.ToString("N");
         await using var check = new SqlCommand(
             """
             SELECT CASE WHEN DB_NAME()=@database
@@ -79,6 +93,6 @@ public static class V9ControlledDevSelection
         if (Convert.ToInt32(await check.ExecuteScalarAsync(cancellationToken),
                 System.Globalization.CultureInfo.InvariantCulture) != 1)
             throw new InvalidOperationException("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED");
-        return boundary;
     }
+
 }
