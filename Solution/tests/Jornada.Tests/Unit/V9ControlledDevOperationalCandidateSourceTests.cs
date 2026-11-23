@@ -64,7 +64,15 @@ public sealed class V9ControlledDevOperationalCandidateSourceTests
             [Row(2), Row(1)],
             [Row(1), Row(1)],
             [Row(0)],
-            [Row(1, "12345678901")]
+            [Row(1, "12345678901")],
+            [Row(1) with
+            {
+                Observation = Row(1).Observation with
+                {
+                    ResolutionAttributes =
+                        [new IdentityResolutionAttributeValue("RG", "DOC_NAO_AUTENTICADO")]
+                }
+            }]
         })
             Assert.That(Assert.ThrowsAsync<InvalidDataException>(
                 (Func<Task>)(() => ExecuteAsync(bad)))!.Message,
