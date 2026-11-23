@@ -119,7 +119,7 @@ public sealed class SemiblindIdentityHttpTests
             {
                 using var parsed = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
                 var payload = parsed.RootElement;
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(payload.GetProperty("nenhumDestes").GetBoolean(), Is.True);
                     Assert.That(payload.GetProperty("candidatos").GetArrayLength(), Is.Zero);
@@ -131,7 +131,7 @@ public sealed class SemiblindIdentityHttpTests
                     Assert.That(payload.TryGetProperty("pessoaUuid", out _), Is.False);
                     Assert.That(payload.TryGetProperty("score", out _), Is.False);
                     Assert.That(payload.TryGetProperty("cpf", out _), Is.False);
-                });
+                }));
                 if (scenario != "complete_empty")
                 {
                     var expectedReason = scenario switch
