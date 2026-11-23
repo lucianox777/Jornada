@@ -276,6 +276,15 @@ public sealed class ProbabilisticLinkageBatchRunner(
         if (replayIdentity is not null && model.ModelId != replayIdentity.ModelId)
             throw new InvalidOperationException("DT-05: identidade do modelo histórico diverge do source run; replay recusado.");
 
+        if (controlledDev)
+        {
+            // Validate the model used by the real run/ledger against the
+            // file-pinned DEV winner before SQL run creation.
+            if (linkage is not IV9ControlledDevCohortScorer devScorer)
+                throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
+            V9ControlledDevSelection.VerifyRunModelPin(model, devScorer.WinnerSha256);
+        }
+
         if (request.Mode == LinkageRunType.REPLAY)
         {
             if (request.ReplaySourceRunId is not Guid sourceRunId)
