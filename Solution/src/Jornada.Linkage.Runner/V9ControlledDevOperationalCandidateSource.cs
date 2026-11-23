@@ -15,8 +15,11 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public static class V9ControlledDevOperationalCandidateSource
 {
-    public sealed record GoldCandidate(Guid PessoaUuid, string NomeCompleto,
-        DateOnly DataNascimento, string NomeMae);
+    // The current Gold schema admits PARCIAL references with nullable core
+    // attributes. Missing evidence must reach the frozen FS scorer as null,
+    // never be invented or silently eliminate a real REFERENCIA candidate.
+    public sealed record GoldCandidate(Guid PessoaUuid, string? NomeCompleto,
+        DateOnly? DataNascimento, string? NomeMae);
 
     // The caller cannot supply a manager lookup or truth label: managers and
     // source field integrity are read from the exact SQL run_item/Silver scope.
@@ -227,8 +230,7 @@ public static class V9ControlledDevOperationalCandidateSource
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                if (reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2)
-                    || reader.IsDBNull(3) || reader.IsDBNull(4))
+                if (reader.IsDBNull(0) || reader.IsDBNull(4))
                     throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_MISSING");
                 var id = reader.GetGuid(0);
                 if (id == Guid.Empty || !seen.Add(id))
@@ -237,12 +239,13 @@ public static class V9ControlledDevOperationalCandidateSource
                     throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_STALE");
                 if (candidates.Count >= maximumCandidatesPerObservation)
                     throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_GRAPH_TRUNCATED");
-                var name = reader.GetString(1);
-                var mother = reader.GetString(3);
-                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(mother))
-                    throw new InvalidDataException("RUNNER_V9_DEV_GOLD_REFERENCE_INVALID");
-                candidates.Add(new GoldCandidate(id, name,
-                    DateOnly.FromDateTime(reader.GetDateTime(2)), mother));
+                // Optional core attributes are nullable in the real Gold
+                // schema for completude_nucleo=PARCIAL; preserve null evidence.
+                var name = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var birth = reader.IsDBNull(2) ? (DateOnly?)null
+                    : DateOnly.FromDateTime(reader.GetDateTime(2));
+                var mother = reader.IsDBNull(3) ? null : reader.GetString(3);
+                candidates.Add(new GoldCandidate(id, name, birth, mother));
             }
             VerifyCanonicalCandidateMembership(authenticated.CandidateUuids, candidates);
             if (!result.TryAdd(row.PessoaObservacaoId,
