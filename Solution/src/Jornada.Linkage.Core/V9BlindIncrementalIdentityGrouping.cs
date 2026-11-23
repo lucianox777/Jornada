@@ -50,13 +50,26 @@ public static class V9BlindIncrementalIdentityGrouping
         => BuildForPurpose(test, scoredSqlEdges, minimumPairPosterior,
             maximumObservationsPerIdentity, "TEST");
 
+    /// <summary>
+    /// Controlled disposable DEV run: same immutable complete-link kernel,
+    /// independently partitioned from scientific VALIDATION and TEST.
+    /// Does not load candidates, persist SQL, publish Gold or certify V9.
+    /// </summary>
+    public static V9BlindIncrementalGroupingResult BuildDev(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
+        decimal minimumPairPosterior = .99m,
+        int maximumObservationsPerIdentity = 16)
+        => BuildForPurpose(observations, scoredSqlEdges, minimumPairPosterior,
+            maximumObservationsPerIdentity, "DEV");
+
     private static V9BlindIncrementalGroupingResult BuildForPurpose(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
         decimal minimumPairPosterior, int maximumObservationsPerIdentity,
         string purpose)
     {
-        if (purpose is not ("VALIDATION" or "TEST"))
+        if (purpose is not ("VALIDATION" or "TEST" or "DEV"))
             throw new InvalidDataException("Finalidade FS não reconhecida.");
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(scoredSqlEdges);
