@@ -23,12 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      docs_only: ${{ steps.docs.outputs.docs_only }}
       run_physical_30k: ${{ steps.classify.outputs.run_physical_30k }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
           fetch-depth: 0
+      - id: docs
+        run: python3 Solution/scripts/ci-impact-classifier.py --github-event
       - name: Regression tests for fail-closed path classification
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
@@ -38,6 +41,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_pin_source.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_masked_sql_probe.py
       - name: Classify cumulative changes since last authenticated physical 30k
+        if: steps.docs.outputs.docs_only != 'true'
         id: classify
         shell: bash
         env:
@@ -73,7 +77,7 @@ jobs:
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           fi
       - name: Archive impact decision for audit
-        if: always()
+        if: always() && steps.docs.outputs.docs_only != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: v9-physical-30k-impact-${{ github.run_id }}
@@ -214,7 +218,7 @@ jobs:
     needs: [impact, physical-30k]
     # Only an actually
     # successful same-run physical job passes this check; only master push applies.
-    if: ${{ always() }}
+    if: ${{ always() && (needs.impact.result != 'success' || needs.impact.outputs.docs_only != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

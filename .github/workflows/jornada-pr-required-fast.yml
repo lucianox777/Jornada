@@ -27,18 +27,11 @@ jobs:
           fetch-depth: 0
       - name: Enforce both historical TF LOCKED generator identities before classification
         run: python3 Solution/scripts/audit-v9-tf-locked-generator.py --repo . --require-pinned
+      # Closed allowlist: README.md and Solution/docs/[A-Za-z0-9_-]+\.(md|txt)
+      # (direct children only). Exclude lock, manifest, fixture, openapi, solutionschema.
+      # Require regular 100644 Git mode at each existing endpoint.
       - id: classify
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" > changed-files.txt
-          else
-            # For push/manual runs, retain full checks; master impact is independently classified in jornada-ci.
-            git ls-files > changed-files.txt
-          fi
-          python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
-          grep -E '^docs_only=' impact.env >> "$GITHUB_OUTPUT"
+        run: python3 Solution/scripts/ci-impact-classifier.py --github-event --summary impact.json
       - name: Check classification contract
         run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_ci_docs_only_fast_gate.py Solution/tests/scripts/test_audit_master_required_checks.py
       - name: Observe master required-check protection (read-only, nonblocking)
