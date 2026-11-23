@@ -22,6 +22,7 @@ public static class V9ControlledDevOperationalCandidateSource
         SqlConnection connection,
         V9OperationalPinnedCohortRuntime pinnedWinner,
         Guid attemptId,
+        Guid runId,
         IReadOnlyList<V9FrozenRunObservation> frozenRows,
         int maximumCandidatesPerObservation,
         CancellationToken cancellationToken)
@@ -31,11 +32,13 @@ public static class V9ControlledDevOperationalCandidateSource
         ArgumentNullException.ThrowIfNull(frozenRows);
         if (attemptId == Guid.Empty)
             throw new InvalidOperationException("RUNNER_V9_DEV_ATTEMPT_MISSING");
+        if (runId == Guid.Empty)
+            throw new InvalidOperationException("RUNNER_V9_DEV_RUN_MISSING");
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumCandidatesPerObservation, 1);
 
-        // Source IDs are the globally frozen run-item IDs, never page-local
-        // indexes. No response can be returned for duplicates or an incomplete
-        // and unordered caller-supplied universe.
+        // Source IDs are globally ordered immutable run_item IDs, never
+        // page-local indexes. The entire SQL run_item membership is checked
+        // below before any operational candidate/Gold query.
         if (frozenRows.Any(x => x is null || x.PessoaObservacaoId <= 0
                 || x.Observation is null || x.Observation.Cpf is not null)
             || !frozenRows.Select(x => x.PessoaObservacaoId)
@@ -47,6 +50,29 @@ public static class V9ControlledDevOperationalCandidateSource
         // before executing even the first candidate query.
         await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
             connection, attemptId, cancellationToken);
+
+        // Reconcile EXACT SQL membership, not a page-local or caller-truncated
+        // sample. A single missing/extra row is fatal before candidate scoring.
+        await using (var items = new SqlCommand("""
+            SELECT pessoa_observacao_id
+              FROM identidade.linkage_run_item
+             WHERE linkage_run_id=@run_id
+             ORDER BY pessoa_observacao_id;
+            """, connection))
+        {
+            items.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            var index = 0;
+            await using var ids = await items.ExecuteReaderAsync(cancellationToken);
+            while (await ids.ReadAsync(cancellationToken))
+            {
+                if (ids.IsDBNull(0) || index >= frozenRows.Count
+                    || ids.GetInt64(0) != frozenRows[index].PessoaObservacaoId)
+                    throw new InvalidDataException("RUNNER_V9_DEV_RUN_UNIVERSE_MISMATCH");
+                index++;
+            }
+            if (index != frozenRows.Count)
+                throw new InvalidDataException("RUNNER_V9_DEV_RUN_UNIVERSE_MISMATCH");
+        }
 
         var winner = pinnedWinner.FrozenWinner;
         if (pinnedWinner.ModelId !=
