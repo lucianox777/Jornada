@@ -14,7 +14,8 @@ class V9RealRunAsyncNonPublicationContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         text = SOURCE.read_text(encoding="utf-8")
-        cls.run_source = text.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1].split(
+        assert "RunCoreAsync(request, controlledDev: false, ct)" in text
+        cls.run_source = text.split("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", 1)[1].split(
             "    private async Task CaptureBronzeSourcesAsync(", 1)[0]
 
     def test_v9_rejected_before_lock_and_run_creation_if_publication_requested(self):
@@ -39,7 +40,7 @@ class V9RealRunAsyncNonPublicationContractTests(unittest.TestCase):
         run = self.run_source
         self.assertIn("v9Grouped.PrepareAsync(runId, model, frozen, workCt)", run)
         self.assertRegex(SOURCE.read_text(encoding="utf-8"),
-                         r"linkage is IV9NonPublishingFrozenCohortScorer (\w+)\s+"
+                         r"linkage is IV9RunScopedCohortScorer (\w+)\s+"
                          r"\? await \1\.ResolvePreparedAsync\(runId, row.PessoaObservacaoId, "
                          r"row.Observation, model.ModelId, token\)")
         self.assertLess(run.index("v9Grouped.PrepareAsync(runId, model, frozen, workCt)"),
