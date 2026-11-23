@@ -68,9 +68,9 @@ public static class V9ControlledDevGoldScorePreview
 
             V9ControlledDevOperationalCandidateSource.VerifyCanonicalCandidateMembership(
                 evidence.CandidateUuids, candidates);
-            if (candidates.Any(c => c is null || c.PessoaUuid == Guid.Empty
-                    || string.IsNullOrWhiteSpace(c.NomeCompleto)
-                    || string.IsNullOrWhiteSpace(c.NomeMae))
+            // Null Gold core fields remain missing evidence for the original
+            // frozen FS kernel; they are valid for Gold PARCIAL references.
+            if (candidates.Any(c => c is null || c.PessoaUuid == Guid.Empty)
                 || candidates.Select(c => c.PessoaUuid).Distinct().Count() != candidates.Count)
                 throw new InvalidDataException("RUNNER_V9_DEV_PREVIEW_GOLD_REFERENCE_INVALID");
 
