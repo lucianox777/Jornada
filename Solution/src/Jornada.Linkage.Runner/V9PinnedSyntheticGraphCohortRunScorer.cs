@@ -400,6 +400,137 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         });
     }
 
+    /// <summary>
+    /// TEST_ONLY SQL-ledger diagnostic scoped to one actually completed
+    /// nonpublishing run. The producer sees only SQL frozen observations,
+    /// never the external IBGE identity truth or any HTTP receipt.
+    /// This DOES NOT certify that a request reached the API.
+    /// </summary>
+    public async Task<string> BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+        Guid runId, string checkoutSha, CancellationToken ct)
+    {
+        if (checkoutSha is not { Length: 40 }
+            || checkoutSha.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+            throw new InvalidDataException("Checkout SHA inválido no ledger de execução.");
+
+        var sourceGrouping = await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct);
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        // The LEFT JOIN must not discard a run member just because Bronze
+        // metadata is absent; absence explicitly prevents a provenance claim.
+        await using var cmd = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,
+                   e.entrega_id,g.codigo,e.payload_sha256,e.bytes_recebidos,
+                   CAST(CASE WHEN e.status=N'PROCESSADA'
+                       AND e.bytes_recebidos>0
+                       AND b.payload_sha256=e.payload_sha256
+                       AND b.tamanho_bytes=e.bytes_recebidos
+                       AND EXISTS (
+                           SELECT 1 FROM ingestao.lote ll
+                           WHERE ll.entrega_id=e.entrega_id
+                           GROUP BY ll.entrega_id
+                           HAVING COUNT_BIG(*)=MAX(ll.lote_total)
+                              AND MIN(ll.lote_seq)=1
+                              AND MAX(ll.lote_seq)=MAX(ll.lote_total)
+                              AND SUM(CASE WHEN ll.status=N'PROCESSADO' THEN 1 ELSE 0 END)=COUNT_BIG(*)
+                       ) THEN 1 ELSE 0 END AS BIT) metadata_ok,
+                   CAST(CASE WHEN po.id_pessoa_entrega=po.codigo_pessoa_origem
+                       THEN 1 ELSE 0 END AS BIT) source_delivery_match
+            FROM identidade.linkage_run_item ri
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+            JOIN ingestao.lote l ON l.lote_id=po.lote_id
+            JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+              AND e.gestor_id=po.gestor_id
+            JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+            LEFT JOIN bronze.entrega_arquivo b ON b.entrega_id=e.entrega_id
+            WHERE ri.linkage_run_id=@run
+            ORDER BY ri.pessoa_observacao_id;
+            """, connection);
+        cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var byDelivery = new Dictionary<Guid, List<(string Source, string Manager,
+            string Payload, long Bytes, bool Metadata, bool DeliveryMatch)>>();
+        var seenSource = new HashSet<string>(StringComparer.Ordinal);
+        var seenObservation = new HashSet<long>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2)
+                    || reader.IsDBNull(3) || reader.IsDBNull(4) || reader.IsDBNull(5))
+                    throw new InvalidDataException("Ledger V9 SQL contém fonte ou entrega nula.");
+                var observation = reader.GetInt64(0);
+                var source = reader.GetString(1);
+                var deliveryId = reader.GetGuid(2);
+                var manager = reader.GetString(3);
+                var payload = reader.GetString(4).ToUpperInvariant();
+                var bytes = reader.GetInt64(5);
+                var metadata = reader.GetBoolean(6);
+                var match = reader.GetBoolean(7);
+                if (deliveryId == Guid.Empty || !sourceGrouping.ContainsKey(source)
+                    || !seenSource.Add(source) || !seenObservation.Add(observation)
+                    || string.IsNullOrWhiteSpace(manager) || payload.Length != 64
+                    || payload.Any(ch => !Uri.IsHexDigit(ch)) || bytes < 0)
+                    throw new InvalidDataException("Ledger V9 SQL possui entrega, fonte ou hash inválido.");
+                if (!byDelivery.TryGetValue(deliveryId, out var list))
+                {
+                    list = [];
+                    byDelivery.Add(deliveryId, list);
+                }
+                list.Add((source, manager, payload, bytes, metadata, match));
+            }
+        }
+        if (seenSource.Count != sourceGrouping.Count
+            || !seenSource.SetEquals(sourceGrouping.Keys)
+            || seenObservation.Count != sourceGrouping.Count || byDelivery.Count == 0)
+            throw new InvalidDataException("Run V9 SQL não possui cobertura integral de entregas.");
+
+        static string SourceDigest(IEnumerable<string> identifiers) =>
+            Convert.ToHexString(SHA256.HashData(Encoding.Unicode.GetBytes(
+                string.Concat(identifiers.OrderBy(id => id, StringComparer.Ordinal)
+                    .Select(id => id + "\n")))));
+        var deliveries = byDelivery.Select(entry =>
+        {
+            var first = entry.Value[0];
+            if (entry.Value.Any(row => row.Manager != first.Manager
+                    || row.Payload != first.Payload || row.Bytes != first.Bytes))
+                throw new InvalidDataException("Metadados SQL divergentes dentro da entrega.");
+            return new
+            {
+                gestor = first.Manager,
+                deliveryIdSha256 = Convert.ToHexString(
+                    SHA256.HashData(Encoding.ASCII.GetBytes(entry.Key.ToString("D")))),
+                packageSha256 = first.Payload,
+                zipBytes = first.Bytes,
+                silverPersons = entry.Value.Count,
+                silverSourceSetSha256Utf16le = SourceDigest(entry.Value.Select(x => x.Source)),
+                sqlPayloadMetadataVerified = entry.Value.All(x => x.Metadata),
+                sourceDeliveryIdMatches = entry.Value.All(x => x.DeliveryMatch)
+            };
+        }).OrderBy(x => x.gestor, StringComparer.Ordinal)
+          .ThenBy(x => x.deliveryIdSha256, StringComparer.Ordinal).ToArray();
+        _ = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        return JsonSerializer.Serialize(new
+        {
+            schema = "E2E_V9_RUN_DELIVERY_SQL_LEDGER_TEST_ONLY_V1",
+            status = "SQL_RUN_LEDGER_DIAGNOSTIC_NOT_CERTIFIED",
+            runId = runId.ToString("D"),
+            commitSha = checkoutSha,
+            modelWinnerSha256 = pinnedWinnerSha.ToUpperInvariant(),
+            observationCount = sourceGrouping.Count,
+            sourceSetDigestMethod = "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
+            sourceSetSha256Utf16le = SourceDigest(sourceGrouping.Keys),
+            deliveryCount = deliveries.Length,
+            deliveryProofs = deliveries,
+            sqlRunTerminalVerified = true,
+            httpDeliveryProven = false,
+            goldIdentityStatesAvailable = false,
+            certified = false,
+            E2E_NUCLEO_PASS = false,
+            E2E_INTEGRAL_PASS = false
+        });
+    }
+
     private static bool IsSyntheticDevSource(string code) =>
         (code.Length == 38 && code.StartsWith("SYNTH-", StringComparison.Ordinal)
             && code[6..].All(c =>

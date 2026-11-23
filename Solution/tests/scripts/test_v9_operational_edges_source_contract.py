@@ -158,6 +158,25 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", tests)
         self.assertIn("failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(", tests)
 
+    def test_run_scoped_sql_delivery_ledger_requires_frozen_membership(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(", scorer)
+        self.assertIn("await ReadCompletedSourceGroupingDiagnosticAsync(runId, ct)", scorer)
+        self.assertIn("FROM identidade.linkage_run_item ri", scorer)
+        self.assertIn("JOIN silver.pessoa_observacao po", scorer)
+        self.assertIn("JOIN ingestao.lote l ON l.lote_id=po.lote_id", scorer)
+        self.assertIn("JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id", scorer)
+        self.assertIn("LEFT JOIN bronze.entrega_arquivo b", scorer)
+        self.assertIn("e.gestor_id=po.gestor_id", scorer)
+        self.assertIn("sourceDeliveryIdMatches = entry.Value.All", scorer)
+        self.assertIn("sqlPayloadMetadataVerified = entry.Value.All", scorer)
+        self.assertIn("httpDeliveryProven = false", scorer)
+        self.assertIn("E2E_NUCLEO_PASS = false", scorer)
+        self.assertIn("BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(", tests)
+        self.assertIn("Synthetic fixture has no HTTP or Bronze data.", tests)
+
     def test_sql_staging_never_invents_gold_state(self):
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
         tests = (Path(__file__).resolve().parents[2]

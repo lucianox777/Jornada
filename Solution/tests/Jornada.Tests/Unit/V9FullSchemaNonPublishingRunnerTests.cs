@@ -345,6 +345,71 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 await sqlScorer.BuildCompletedSourceGroupingStagingJsonAsync(
                     Guid.NewGuid(), new string('c', 40), CancellationToken.None)));
 
+            // TEST_ONLY ledger derives delivery membership from the same
+            // frozen SQL run. This fixture inserts FAKE delivery metadata
+            // (zero bytes, no Bronze, no HTTP), which MUST remain unverified.
+            var ledgerJson = await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                positive.RunId, new string('c', 40), CancellationToken.None);
+            using (var ledger = JsonDocument.Parse(ledgerJson))
+            {
+                var evidence = ledger.RootElement;
+                Assert.That(evidence.GetProperty("schema").GetString(),
+                    Is.EqualTo("E2E_V9_RUN_DELIVERY_SQL_LEDGER_TEST_ONLY_V1"));
+                Assert.That(evidence.GetProperty("status").GetString(),
+                    Is.EqualTo("SQL_RUN_LEDGER_DIAGNOSTIC_NOT_CERTIFIED"));
+                Assert.That(evidence.GetProperty("runId").GetString(),
+                    Is.EqualTo(positive.RunId.ToString("D")));
+                Assert.That(evidence.GetProperty("modelWinnerSha256").GetString(),
+                    Is.EqualTo(winner.ContentSha256.ToUpperInvariant()));
+                Assert.That(evidence.GetProperty("observationCount").GetInt32(),
+                    Is.EqualTo(200));
+                Assert.That(evidence.GetProperty("deliveryCount").GetInt32(),
+                    Is.EqualTo(2));
+                using var staging = JsonDocument.Parse(stagingJson);
+                Assert.That(evidence.GetProperty("sourceSetSha256Utf16le").GetString(),
+                    Is.EqualTo(staging.RootElement.GetProperty(
+                        "sourceSetSha256Utf16le").GetString()));
+                Assert.That(evidence.GetProperty("sqlRunTerminalVerified").GetBoolean(),
+                    Is.True);
+                Assert.That(evidence.GetProperty("httpDeliveryProven").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("goldIdentityStatesAvailable").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("certified").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("E2E_NUCLEO_PASS").GetBoolean(),
+                    Is.False);
+                Assert.That(evidence.GetProperty("E2E_INTEGRAL_PASS").GetBoolean(),
+                    Is.False);
+                var deliveries = evidence.GetProperty("deliveryProofs");
+                Assert.That(deliveries.GetArrayLength(), Is.EqualTo(2));
+                Assert.That(deliveries[0].GetProperty("gestor").GetString(),
+                    Is.EqualTo("V9TEST"));
+                Assert.That(deliveries[1].GetProperty("gestor").GetString(),
+                    Is.EqualTo("V9TEST2"));
+                Assert.That(deliveries.EnumerateArray().Sum(
+                    d => d.GetProperty("silverPersons").GetInt32()), Is.EqualTo(200));
+                foreach (var delivery in deliveries.EnumerateArray())
+                {
+                    Assert.That(delivery.GetProperty("silverPersons").GetInt32(),
+                        Is.EqualTo(100));
+                    Assert.That(delivery.GetProperty("deliveryIdSha256").GetString(),
+                        Has.Length.EqualTo(64));
+                    Assert.That(delivery.GetProperty("sqlPayloadMetadataVerified").GetBoolean(),
+                        Is.False, "Synthetic fixture has no HTTP or Bronze data.");
+                    Assert.That(delivery.GetProperty("sourceDeliveryIdMatches").GetBoolean(),
+                        Is.False, "Synthetic SQL fixture has no delivery person IDs.");
+                }
+            }
+            Assert.That(ledgerJson, Does.Not.Contain("BasePersonId"));
+            Assert.That(ledgerJson, Does.Not.Contain("identityState"));
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                    Guid.NewGuid(), new string('c', 40), CancellationToken.None)));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await sqlScorer.BuildCompletedRunDeliveryLedgerDiagnosticJsonAsync(
+                    positive.RunId, "not-a-commit", CancellationToken.None)));
+
             // SQL candidate signatures, not caller-provided edges. Both links
             // must be recovered across the 100/101 page boundary. Two different
             // comparison levels are used: FULL (FirstName TF) and exact LAST
