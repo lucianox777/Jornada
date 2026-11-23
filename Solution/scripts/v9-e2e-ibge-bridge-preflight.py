@@ -91,13 +91,37 @@ def verify(root: Path) -> dict:
     require(truth_file.is_file() and not truth_file.is_symlink()
             and sha256(truth_file) == sidecar.get("sha256"),
             "Missing or modified sidecar truth")
-    require(len(truth_file.read_bytes().splitlines()) == source,
-            "Ground-truth row count mismatch")
+    sidecar_lines = truth_file.read_text(encoding="utf-8").splitlines()
+    require(len(sidecar_lines) == source, "Ground-truth row count mismatch")
+    truth_by_opaque = {}
+    base_ids = set()
+    observation_ids = set()
+    for raw_row in sidecar_lines:
+        row = json.loads(raw_row, object_pairs_hook=no_duplicate_keys)
+        require(isinstance(row, dict) and row.get("Status") == "MATERIALIZADA"
+                and row.get("ExclusionReason") is None
+                and row.get("Partition") in ("TRAIN", "VALIDATION", "TEST"),
+                "Invalid synthetic bridge truth semantics")
+        require(all(isinstance(row.get(key), str) and row[key].strip()
+                    for key in ("BasePersonId", "ObservationId", "OpaquePersonId",
+                                "GestorCodigo", "PackageFileName")),
+                "Incomplete bridge truth row")
+        opaque = row["OpaquePersonId"]
+        observation = row["ObservationId"]
+        require(opaque.startswith("SYNTH-") and opaque not in truth_by_opaque
+                and observation not in observation_ids,
+                "Duplicated source observation or opaque identity")
+        truth_by_opaque[opaque] = (row["GestorCodigo"], row["PackageFileName"])
+        observation_ids.add(observation)
+        base_ids.add(row["BasePersonId"])
+    require(len(base_ids) == PEOPLE,
+            "Synthetic generator lost or duplicated base identities")
 
     packages = bridge.get("packages")
     require(isinstance(packages, list) and len(packages) == 4,
             "Expected four manager-specific packages")
     expected_sha = {}
+    seen_opaque = set()
     total = 0
     for entry in packages:
         require(isinstance(entry, dict), "Invalid package entry")
@@ -128,12 +152,19 @@ def verify(root: Path) -> dict:
                 require(isinstance(obj, dict) and isinstance(obj.get("idPessoaEntrega"), str)
                         and obj["idPessoaEntrega"].startswith("SYNTH-"),
                         "Invalid opaque synthetic person")
+                opaque = obj["idPessoaEntrega"]
+                require(opaque not in seen_opaque
+                        and obj.get("codigoPessoaOrigem") == opaque
+                        and truth_by_opaque.get(opaque) == (gestor, filename),
+                        "Person ZIP does not match independent bridge truth sidecar")
+                seen_opaque.add(opaque)
                 require(not ({"basePersonId", "observationId", "partition", "truth"} & obj.keys()),
                         "Ground truth leaked into ingestion ZIP")
         total += count
         expected_sha[gestor] = digest.upper()
-    require(set(expected_sha) == set(EXPECTED_GESTORES) and total == materialized,
-            "Incomplete manager coverage or lost observations")
+    require(set(expected_sha) == set(EXPECTED_GESTORES) and total == materialized
+            and seen_opaque == set(truth_by_opaque),
+            "Incomplete manager coverage or non-bijective synthetic handoff")
     return {
         "schema": "V9_E2E_IBGE_BRIDGE_PREFLIGHT_V1",
         "status": "PASS",

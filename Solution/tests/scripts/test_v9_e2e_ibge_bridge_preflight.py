@@ -39,14 +39,26 @@ def fixture(directory):
         "seed": PREFLIGHT.SEED, "people": PREFLIGHT.PEOPLE,
         "observations": PREFLIGHT.PEOPLE, "input_fingerprint_sha256": reference})
     ground = ingestion / "bridge-truth.jsonl"
-    ground.write_bytes(b'{"basePersonId":"DEV_TRUTH_ONLY"}\n' * 1000)
+    truth_rows = []
     packages = []
     for gestor in PREFLIGHT.EXPECTED_GESTORES:
         name = f"SYNTH-{gestor}.zip"
         path = ingestion / name
         rows = b"".join(
-            (json.dumps({"idPessoaEntrega": f"SYNTH-{gestor}-{i}"}) + "\n").encode()
+            (json.dumps({"idPessoaEntrega": f"SYNTH-{gestor}-{i}",
+                         "codigoPessoaOrigem": f"SYNTH-{gestor}-{i}"}) + "\n").encode()
             for i in range(250))
+        for i in range(250):
+            truth_rows.append({
+                "Status": "MATERIALIZADA",
+                "ObservationId": f"OBS-{gestor}-{i}",
+                "BasePersonId": f"DEV_TRUTH_ONLY-{gestor}-{i}",
+                "Partition": "TRAIN" if i % 3 == 0 else ("VALIDATION" if i % 3 == 1 else "TEST"),
+                "GestorCodigo": gestor,
+                "OpaquePersonId": f"SYNTH-{gestor}-{i}",
+                "PackageFileName": name,
+                "ExclusionReason": None,
+            })
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("manifest.json", "{}")
             archive.writestr("pessoas.jsonl", rows)
@@ -54,6 +66,8 @@ def fixture(directory):
         packages.append({
             "GestorCodigo": gestor, "FileName": name,
             "PeopleCount": 250, "sha256": digest(path)})
+    ground.write_text("".join(json.dumps(row) + "\n" for row in truth_rows),
+                      encoding="utf-8")
     dump(ingestion / "bridge-manifest.json", {
         "generatorVersion": PREFLIGHT.GENERATOR,
         "bridgeVersion": "SYNTHETIC_INGESTION_BRIDGE_V1",
@@ -108,6 +122,59 @@ class IbgeGeneratorBridgePreflightTests(unittest.TestCase):
             manifest["packages"][0]["sha256"] = digest(zip_path)
             dump(manifest_path, manifest)
             with self.assertRaises(ValueError):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_modified_truth_mapping_fails_closed_even_if_receipt_hash_is_updated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            path = ingestion / "bridge-truth.jsonl"
+            lines = path.read_text().splitlines()
+            tampered = json.loads(lines[0])
+            tampered["PackageFileName"] = "ENTREGA_WRONG.zip"
+            lines[0] = json.dumps(tampered)
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            bridge_path = ingestion / "bridge-manifest.json"
+            manifest = json.loads(bridge_path.read_text())
+            manifest["truthSidecar"]["sha256"] = digest(path)
+            dump(bridge_path, manifest)
+            with self.assertRaisesRegex(ValueError, "ZIP does not match"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_duplicate_base_identity_fails_closed_even_with_valid_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            path = ingestion / "bridge-truth.jsonl"
+            lines = path.read_text().splitlines()
+            first, second = (json.loads(lines[0]), json.loads(lines[1]))
+            second["BasePersonId"] = first["BasePersonId"]
+            lines[1] = json.dumps(second)
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            bridge_path = ingestion / "bridge-manifest.json"
+            manifest = json.loads(bridge_path.read_text())
+            manifest["truthSidecar"]["sha256"] = digest(path)
+            dump(bridge_path, manifest)
+            with self.assertRaisesRegex(ValueError, "base identities"):
+                PREFLIGHT.verify(Path(directory))
+
+    def test_wrong_zip_source_identity_fails_closed_even_with_valid_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, ingestion = fixture(directory)
+            zip_path = ingestion / "SYNTH-SEHAB.zip"
+            with zipfile.ZipFile(zip_path) as archive:
+                contents = {name: archive.read(name) for name in archive.namelist()}
+            lines = contents["pessoas.jsonl"].splitlines()
+            row = json.loads(lines[0])
+            row["codigoPessoaOrigem"] = "SYNTH-WRONG-IDENTITY"
+            lines[0] = json.dumps(row).encode()
+            contents["pessoas.jsonl"] = b"\n".join(lines) + b"\n"
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                for name, value in contents.items():
+                    archive.writestr(name, value)
+            bridge_path = ingestion / "bridge-manifest.json"
+            manifest = json.loads(bridge_path.read_text())
+            manifest["packages"][0]["sha256"] = digest(zip_path)
+            dump(bridge_path, manifest)
+            with self.assertRaisesRegex(ValueError, "ZIP does not match"):
                 PREFLIGHT.verify(Path(directory))
 
     def test_invalid_or_missing_sidecar_fails_closed(self):
