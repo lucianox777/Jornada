@@ -64,7 +64,11 @@ def inspect_run(directory, sha):
     codes = {"semCredencial": 401, "nomeInvalido": 400, "outroGestor": 404,
              "consulta": 200, "releitura": 200}
     result_ok = (result.get("sha") == sha and result.get("http") == codes
-                 and result.get("registrosRetransmitidos") == 1 and result.get("entregasMesmoNome") == 2)
+                 and result.get("registrosRetransmitidos") == 1 and result.get("entregasMesmoNome") == 2
+                 and result.get("payloadSha256Verified") is True
+                 and type(result.get("lotesProcessados")) is int
+                 and result["lotesProcessados"] >= 1
+                 and result.get("resumoItensConsistente") is True)
     cases = semiblind.get("cases", [])
     denials = [(c.get("case"), c.get("httpStatus"), c.get("responseBytes"), c.get("auditEvents"))
                for c in cases]

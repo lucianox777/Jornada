@@ -370,7 +370,9 @@ if [[ "${JORNADA_E2E_RESULTADO_API:-false}" == "true" ]]; then
     sleep 1
   done
   [[ -n "$resultado_url" ]] || { echo 'ERRO: Resultado.Api não abriu porta local.' >&2; exit 31; }
-  python3 "$ROOT/scripts/e2e-resultado-entrega.py" "$resultado_url" "$filename" "$id2" "$OUT/resultado-api-evidence.json"
+  package_sha256="$(sha256sum "$package" | awk '{print $1}')"
+  [[ "$package_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo 'ERRO: SHA-256 do ZIP E2E inválido.' >&2; exit 31; }
+  python3 "$ROOT/scripts/e2e-resultado-entrega.py" "$resultado_url" "$filename" "$id2" "$OUT/resultado-api-evidence.json" "$package_sha256"
 fi
 # A Pessoa do fixture não possui codigoPessoaOrigem. idPessoaEntrega é local à remessa,
 # portanto a segunda Entrega recebe nova observação da Pessoa, ancorada ao mesmo CPF,

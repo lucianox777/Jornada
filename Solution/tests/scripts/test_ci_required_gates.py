@@ -506,6 +506,21 @@ class IntegralDevWorkflowTests(unittest.TestCase):
                         "Solution/tests/scripts/test_v9_e2e_ibge_bridge_preflight.py"],
                        cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
 
+    def test_resultado_api_e2e_receipt_reconciles_payload_and_lots(self):
+        import subprocess
+        import sys
+        local = (ROOT / "Solution/scripts/local-e2e.sh").read_text(encoding="utf-8")
+        script = (ROOT / "Solution/scripts/e2e-resultado-entrega.py").read_text(encoding="utf-8")
+        evidence = (ROOT / "Solution/scripts/e2e-integral-dev-evidence.py").read_text(encoding="utf-8")
+        self.assertIn('package_sha256="$(sha256sum "$package"', local)
+        self.assertIn('"$package_sha256"', local)
+        self.assertIn('"payloadSha256"', script)
+        self.assertIn('result.get("payloadSha256Verified") is True', evidence)
+        self.assertIn('result.get("resumoItensConsistente") is True', evidence)
+        subprocess.run([sys.executable, "-m", "unittest",
+                        "Solution/tests/scripts/test_e2e_resultado_entrega_contract.py"],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+
     def test_semiblind_http_contract_separates_complete_from_incomplete(self):
         # #612 is residual SQL selectivity, not a mandatory-name rule.
         # These scenarios guard only the in-memory HTTP serialization contract.
