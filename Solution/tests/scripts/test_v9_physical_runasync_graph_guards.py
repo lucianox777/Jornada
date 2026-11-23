@@ -120,6 +120,25 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertNotIn("OpenAsync(", typed)
         self.assertNotIn("PublishAsync(", typed)
 
+    def test_controlled_dev_selection_requires_pinned_file_and_owned_sql(self):
+        source = (ROOT / "V9ControlledDevSelection.cs").read_text(encoding="utf-8")
+        self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") != 9', source)
+        self.assertIn('configuration["Linkage:V9SelectionFile"]', source)
+        self.assertIn("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(", source)
+        self.assertIn("new V9OperationalRunBoundary(runtime)", source)
+        self.assertIn('if (attemptId == Guid.Empty)', source)
+        self.assertIn('"JornadaV9Dev_" + attemptId.ToString("N")', source)
+        self.assertIn("DB_NAME()=@database", source)
+        self.assertIn("Jornada.EnvironmentProfile", source)
+        self.assertIn("Jornada.V9.DevAttempt", source)
+        self.assertIn("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED", source)
+        self.assertNotIn("INSERT ", source)
+        self.assertNotIn("UPDATE ", source)
+        self.assertNotIn("PublishAsync", source)
+        self.assertNotIn("GetActiveModelAsync(", source)
+        self.assertLess(source.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync("),
+                        source.index("operationalSql.OpenAsync("))
+
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
         loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
