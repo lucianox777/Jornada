@@ -36,6 +36,15 @@ public interface IV9RunScopedCohortScorer : IProbabilisticIdentityLinkage
 /// Existing TEST_ONLY specialization. Its production isolation and 512-row
 /// limit remain unchanged until a separate DEV scorer is actually certified.
 /// </summary>
+/// <summary>
+/// Stage-3 DEV-only scorer must bind to the identical SHA-verified winner.
+/// It cannot be used by the ordinary RunAsync entrypoint.
+/// </summary>
+public interface IV9ControlledDevCohortScorer : IV9RunScopedCohortScorer
+{
+    string WinnerSha256 { get; }
+}
+
 public interface IV9NonPublishingFrozenCohortScorer : IV9RunScopedCohortScorer
 {
 }
