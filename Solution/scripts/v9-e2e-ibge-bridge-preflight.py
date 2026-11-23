@@ -260,6 +260,19 @@ def verify(root: Path) -> dict:
     require(set(expected_sha) == set(EXPECTED_GESTORES) and total == materialized
             and seen_opaque == set(truth_by_opaque),
             "Incomplete manager coverage or non-bijective synthetic handoff")
+    # Private sidecar to SQL parity: SQL Server HASHBYTES hashes NVARCHAR(MAX)
+    # as UTF-16LE without BOM; no names or opaque IDs leave the ephemeral job.
+    source_ids = {gestor: [] for gestor in EXPECTED_GESTORES}
+    for opaque, (gestor, _) in truth_by_opaque.items():
+        require(gestor in source_ids, "Unexpected synthetic manager in private sidecar")
+        source_ids[gestor].append(opaque)
+    identity_sha = {
+        gestor: hashlib.sha256(
+            "".join(opaque + "\n" for opaque in sorted(ids)).encode("utf-16le")
+        ).hexdigest().upper()
+        for gestor, ids in source_ids.items()
+    }
+    require(all(source_ids.values()), "Empty per-manager source identity set")
     return {
         "schema": "V9_E2E_IBGE_BRIDGE_PREFLIGHT_V1",
         "status": "PASS",
@@ -277,6 +290,8 @@ def verify(root: Path) -> dict:
         "bridgeManifestSha256": sha256(bridge_file),
         "truthSha256": sha256(truth_file),
         "packageSha256": expected_sha,
+        "sourceIdentitySetSha256Utf16le": identity_sha,
+        "sourceIdentitySetDigestMethod": "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1",
         "scientificValidation": False,
         "activated": False,
     }

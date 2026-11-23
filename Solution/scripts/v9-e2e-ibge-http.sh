@@ -35,6 +35,7 @@ python3 "$ROOT/scripts/v9-e2e-ibge-bridge-preflight.py" \
 ibge_deliveries=0
 ibge_silver=0
 ibge_bronze=0
+ibge_source_sets=0
 # The preflight has authenticated exactly these manager-specific ZIP files.
 # The shell only receives manager, basename, digest and counts; never truth data.
 while IFS=$'\t' read -r gestor zip_name zip_digest expected; do
@@ -72,6 +73,23 @@ PYKEY
   [[ "$bronze" == 1 && "$silver" == "$expected" ]] || {
     echo "ERRO: ponte IBGE $gestor Bronze=$bronze Silver=$silver esperado=$expected." >&2; exit 50;
   }
+  # A count can hide a substituted source. Compare the complete ordered
+  # multiset with the separately verified private source truth by SHA-256.
+  # Only 64 hex characters cross this boundary; raw IDs never enter artifacts.
+  expected_source_sha="$(python3 - "$preflight" "$gestor" <<'PYSOURCESHA'
+import json,sys
+pre=json.load(open(sys.argv[1],encoding="utf-8"))
+if pre.get("sourceIdentitySetDigestMethod") != "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1":
+    raise SystemExit("Invalid source-set digest contract")
+print(pre["sourceIdentitySetSha256Utf16le"][sys.argv[2]])
+PYSOURCESHA
+)"
+  [[ "$expected_source_sha" =~ ^[0-9A-F]{64}$ ]] || exit 52
+  actual_source_sha="$(scalar "SELECT UPPER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', STRING_AGG(CONVERT(NVARCHAR(MAX), po.codigo_pessoa_origem + NCHAR(10)), N'') WITHIN GROUP (ORDER BY po.codigo_pessoa_origem COLLATE Latin1_General_100_BIN2)), 2)) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$entrega';")"
+  [[ "$actual_source_sha" =~ ^[0-9A-F]{64}$ && "$actual_source_sha" == "$expected_source_sha" ]] || {
+    echo "ERRO: ponte IBGE $gestor Silver diverge do conjunto de origens esperado; nenhum identificador divulgado." >&2; exit 52;
+  }
+  ibge_source_sets=$((ibge_source_sets + 1))
   ibge_deliveries=$((ibge_deliveries + 1))
   ibge_silver=$((ibge_silver + silver))
   ibge_bronze=$((ibge_bronze + bronze))
@@ -83,11 +101,11 @@ for item in sorted(manifest["packages"],key=lambda x:x["GestorCodigo"]):
 PYPACKAGES
 )
 
-python3 - "$preflight" "$OUT/ibge-http-1k-summary.json" "$ibge_deliveries" "$ibge_bronze" "$ibge_silver" <<'PYSUMMARY'
+python3 - "$preflight" "$OUT/ibge-http-1k-summary.json" "$ibge_deliveries" "$ibge_bronze" "$ibge_silver" "$ibge_source_sets" <<'PYSUMMARY'
 import json,os,pathlib,sys
 pre=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-deliveries,bronze,silver=map(int,sys.argv[3:])
-if deliveries!=4 or bronze!=4 or pre["packages"]!=4:
+deliveries,bronze,silver,source_sets=map(int,sys.argv[3:])
+if deliveries!=4 or bronze!=4 or source_sets!=4 or pre["packages"]!=4:
     raise SystemExit("Missing per-manager HTTP/Bronze deliveries")
 if silver!=pre["materializedObservations"] or silver<1000:
     raise SystemExit("Synthetic observation materialization mismatch")
@@ -107,6 +125,8 @@ summary={
     "materializedObservations":silver,
     "excludedObservations":0,
     "deliveries":deliveries,"bronzeFiles":bronze,"silverPersons":silver,
+    "silverSourceIdentitySetsVerified":source_sets,
+    "silverSourceIdentityDigestMethod":pre["sourceIdentitySetDigestMethod"],
     "scientificValidation":False,"activated":False,"v9RunnerVerified":False,
 }
 out=pathlib.Path(sys.argv[2])

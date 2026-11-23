@@ -111,6 +111,13 @@ class IbgeGeneratorBridgePreflightTests(unittest.TestCase):
             self.assertEqual(summary["baseIdentities"], 1000)
             self.assertEqual(summary["materializedObservations"], 1000)
             self.assertEqual(summary["packages"], 4)
+            self.assertEqual(summary["sourceIdentitySetDigestMethod"],
+                             "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1")
+            expected = "".join(identity + "\n" for identity in sorted(
+                f"SYNTH-SEHAB-{i}" for i in range(250)
+            )).encode("utf-16le")
+            self.assertEqual(summary["sourceIdentitySetSha256Utf16le"]["SEHAB"],
+                             hashlib.sha256(expected).hexdigest().upper())
             self.assertFalse(summary["scientificValidation"])
             self.assertNotIn("basePersonId", json.dumps(summary))
             self.assertNotIn("DEV_TRUTH_ONLY", json.dumps(summary))

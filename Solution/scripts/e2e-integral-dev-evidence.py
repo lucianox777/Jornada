@@ -82,6 +82,10 @@ def inspect_run(directory, sha):
         and ibge["silverPersons"] == ibge.get("sourceObservations")
         and ibge.get("excludedObservations") == 0
         and ibge.get("deliveries") == ibge.get("bronzeFiles") == 4
+        and type(ibge.get("silverSourceIdentitySetsVerified")) is int
+        and ibge["silverSourceIdentitySetsVerified"] == 4
+        and ibge.get("silverSourceIdentityDigestMethod")
+            == "SHA256_UTF16LE_LF_SORTED_OPAQUE_SOURCE_V1"
         and ibge.get("scientificValidation") is False
         and ibge.get("activated") is False
         and ibge.get("v9RunnerVerified") is False
