@@ -535,6 +535,35 @@ class IntegralDevWorkflowTests(unittest.TestCase):
         self.assertIn("Assert.That(noMatches, Is.Empty)", source)
         self.assertNotIn("SemiblindIdentitySearch:Enabled=true", source)
 
+    def test_semiblind_pr_sql_evidence_is_ephemeral_and_non_certifying(self):
+        # #612: verify real SQL execution is scoped, no skipped tests or private artifacts.
+        flow = (ROOT / ".github/workflows/jornada-semiblind-sql-pr.yml").read_text(
+            encoding="utf-8")
+        for requirement in (
+            "pull_request:",
+            "branches: [master]",
+            "github.event.pull_request.head.repo.full_name == github.repository",
+            "2022-CU26-ubuntu-22.04@sha256:",
+            "JornadaSemiblind_Test_${{ github.run_id }}",
+            "dotnet restore Jornada.sln --locked-mode",
+            "CREATE DATABASE [JornadaSemiblind_Test_${GITHUB_RUN_ID}]",
+            "BlockingProjectionSqlServerTests.PersistValidated_publishes_blocking_projection_in_same_processor_path",
+            "--forbid-skipped --minimum-tests 1",
+            "test-evidence-gate.py",
+            '"prHeadSha": os.environ["EXPECTED_PR_HEAD"]',
+            '"testedMergeSha": os.environ["GITHUB_SHA"]',
+            '"scientificValidation": False',
+            '"institutionalAuthorizationValidated": False',
+            '"productiveActivation": False',
+            "path: Solution/.local/semiblind-sql/receipt.json",
+        ):
+            self.assertIn(requirement, flow)
+        self.assertNotIn("workflow_dispatch:", flow)
+        self.assertNotIn("pull_request_target:", flow)
+        self.assertNotIn("SemiblindIdentitySearch:Enabled=true", flow)
+        self.assertNotIn("Solution/.local/semiblind-sql/semiblind.trx\n          if-no-files-found", flow)
+        self.assertNotIn("test_v9_standard", flow)
+
     def test_missing_receipts_never_approve_the_milestones(self):
         import importlib.util
         import tempfile
