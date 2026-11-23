@@ -303,6 +303,59 @@ public sealed class V9PinnedSyntheticGraphCohortRunScorer : IV9NonPublishingFroz
         return groups;
     }
 
+    /// <summary>
+    /// Map SQL-only synthetic source IDs to completed TEST_ONLY V9 groups.
+    /// Source values originate exclusively from the run_item/Silver join, never
+    /// from the external bridge ground-truth sidecar. No Gold state is inferred.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, Guid>> ReadCompletedSourceGroupingDiagnosticAsync(
+        Guid runId, CancellationToken ct)
+    {
+        var groups = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        await using var connection = await sql.OpenAsync(ct);
+        await EnsureHarnessAndAnchorAsync(connection, ct);
+        await using var command = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,po.cpf
+            FROM identidade.linkage_run_item ri
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+            WHERE ri.linkage_run_id=@run
+            ORDER BY ri.pessoa_observacao_id;
+            """, connection);
+        command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        var sources = new Dictionary<string, Guid>(groups.Count, StringComparer.Ordinal);
+        var observedIds = new HashSet<long>();
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (reader.IsDBNull(0) || reader.IsDBNull(1) || !reader.IsDBNull(2))
+                    throw new InvalidDataException("Fonte SQL TEST V9 com CPF ou ID inválido.");
+                var id = reader.GetInt64(0);
+                var source = reader.GetString(1);
+                if (!IsSyntheticDevSource(source)
+                    || !groups.TryGetValue(id, out var group)
+                    || !observedIds.Add(id) || !sources.TryAdd(source, group))
+                    throw new InvalidDataException(
+                        "Fonte opaca SQL do universo V9 ausente, duplicada ou não sintética.");
+            }
+        }
+        if (sources.Count != groups.Count || observedIds.Count != groups.Count
+            || groups.Keys.Any(id => !observedIds.Contains(id)))
+            throw new InvalidDataException("Fonte opaca SQL não cobre a coorte congelada.");
+        // Recheck terminal run state after reading Silver. This is not a claim
+        // of atomic Silver/Gold provenance or operational E2E certification.
+        _ = await ReadCompletedGroupingDiagnosticAsync(runId, ct);
+        return new ReadOnlyDictionary<string, Guid>(sources);
+    }
+
+    private static bool IsSyntheticDevSource(string code) =>
+        (code.Length == 38 && code.StartsWith("SYNTH-", StringComparison.Ordinal)
+            && code[6..].All(c =>
+                (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')))
+        || (code.Length == 11 && code.StartsWith("V9TEST_", StringComparison.Ordinal)
+            && code[7..].All(c => c >= '0' && c <= '9'));
+
     public Task<ProbabilisticLinkageDecision> ResolvePreparedAsync(Guid runId,
         long pessoaObservacaoId, IdentityObservation observation, Guid modelId, CancellationToken ct)
     {

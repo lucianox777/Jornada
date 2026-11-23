@@ -143,6 +143,21 @@ class OperationalEdgesSourceContract(unittest.TestCase):
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED",
                       (ROOT / "V9OperationalRunBoundary.cs").read_text())
 
+    def test_nonpublishing_sql_source_to_group_map_is_fail_closed(self):
+        scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()
+        tests = (Path(__file__).resolve().parents[2]
+                 / "tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs").read_text()
+        self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", scorer)
+        self.assertIn("SELECT ri.pessoa_observacao_id,po.codigo_pessoa_origem,po.cpf", scorer)
+        self.assertIn("JOIN silver.pessoa_observacao po", scorer)
+        self.assertIn('code.StartsWith("SYNTH-", StringComparison.Ordinal)', scorer)
+        self.assertIn('code.StartsWith("V9TEST_", StringComparison.Ordinal)', scorer)
+        self.assertIn("!reader.IsDBNull(2)", scorer)
+        self.assertIn("sources.Count != groups.Count", scorer)
+        self.assertIn("new ReadOnlyDictionary<string, Guid>(sources)", scorer)
+        self.assertIn("ReadCompletedSourceGroupingDiagnosticAsync(", tests)
+        self.assertIn("failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(", tests)
+
     def test_operational_query_edges_are_scoring_input(self):
         parity = (ROOT / "V9OperationalBlockingChaveCohortParity.cs").read_text()
         scorer = (ROOT / "V9PinnedSyntheticGraphCohortRunScorer.cs").read_text()

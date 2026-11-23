@@ -233,6 +233,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                     await failedScorer.ReadCompletedGroupingDiagnosticAsync(
                         (Guid)id!, CancellationToken.None)));
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await failedScorer.ReadCompletedSourceGroupingDiagnosticAsync(
+                        (Guid)id!, CancellationToken.None)));
             }
             Assert.That(await ReadPublicationFingerprintAsync(connection), Is.EqualTo(before),
                 "Falha no segundo lote não pode expor run parcial em Gold/Serving/vínculo.");
@@ -277,6 +280,23 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
                 System.Collections.ObjectModel.ReadOnlyDictionary<long, Guid>>());
             Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await sqlScorer.ReadCompletedGroupingDiagnosticAsync(
+                    Guid.NewGuid(), CancellationToken.None)));
+            // Source names are read from SQL's actual frozen run_item/Silver
+            // universe, never from the external synthetic identity truth.
+            var sources = await sqlScorer.ReadCompletedSourceGroupingDiagnosticAsync(
+                positive.RunId, CancellationToken.None);
+            Assert.That(sources.Count, Is.EqualTo(200));
+            Assert.That(sources, Is.InstanceOf<
+                System.Collections.ObjectModel.ReadOnlyDictionary<string, Guid>>());
+            for (var i = 1; i <= 200; i++)
+            {
+                var opaque = "V9TEST_" + i.ToString("D4",
+                    System.Globalization.CultureInfo.InvariantCulture);
+                Assert.That(sources.TryGetValue(opaque, out var group), Is.True);
+                Assert.That(group, Is.EqualTo(grouping[(long)i]));
+            }
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                await sqlScorer.ReadCompletedSourceGroupingDiagnosticAsync(
                     Guid.NewGuid(), CancellationToken.None)));
 
             // SQL candidate signatures, not caller-provided edges. Both links
