@@ -48,4 +48,54 @@ public sealed class V9ControlledDevSqlAdmissionPhysicalNegativeTests
         await using var check = new SqlCommand("SELECT DB_NAME();", sql);
         Assert.That((string?)await check.ExecuteScalarAsync(), Is.EqualTo(database));
     }
+    [Test]
+    public async Task DEV_database_with_wrong_resident_properties_fails_before_run_write()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "JORNADA_V9_DEV_WRONG_PROPERTY_SQL");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Assert.Ignore("Somente banco DEV descartável explicitamente marcado para negativa de propriedades.");
+            return;
+        }
+
+        var database = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        const string prefix = "JornadaV9Dev_";
+        if (!database.StartsWith(prefix, StringComparison.Ordinal)
+            || database.Length != prefix.Length + 32
+            || !Guid.TryParseExact(database[prefix.Length..], "N", out var attempt)
+            || attempt == Guid.Empty)
+            throw new InvalidOperationException(
+                "Negativa de propriedades requer banco JornadaV9Dev_<GUID N> descartável.");
+
+        await using var sql = new SqlConnection(connectionString);
+        await sql.OpenAsync();
+        // Require the NEGATIVE fixture to be genuinely misconfigured; an
+        // accidentally healthy database must never satisfy this assertion.
+        await using var markers = new SqlCommand("""
+            SELECT CASE WHEN EXISTS(
+                SELECT 1 FROM sys.extended_properties
+                 WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+                   AND CONVERT(nvarchar(200), value)=N'Development')
+              AND EXISTS(
+                SELECT 1 FROM sys.extended_properties
+                 WHERE class=0 AND name=N'Jornada.V9.DevAttempt'
+                   AND CONVERT(nvarchar(200),value)=@attempt)
+            THEN 1 ELSE 0 END;
+            """, sql);
+        markers.Parameters.Add("@attempt", System.Data.SqlDbType.NVarChar, 36).Value =
+            attempt.ToString("D");
+        var hasCorrectMarkers = Convert.ToInt32(await markers.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture) == 1;
+        if (hasCorrectMarkers)
+            throw new InvalidOperationException(
+                "Fixture negativa inválida: propriedades residentes já são corretas.");
+
+        var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+            V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+                sql, attempt, CancellationToken.None)));
+        Assert.That(error!.Message,
+            Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+    }
+
 }
