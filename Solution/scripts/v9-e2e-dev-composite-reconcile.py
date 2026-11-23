@@ -95,6 +95,20 @@ def combine(root, http_path, sql_path, staging_path, expected_sha, expected_winn
             and all(type(pairs[x]) is int and pairs[x] >= 0
                     for x in ("truePositive", "falsePositive", "falseNegative")),
             "independent grouping pair metrics malformed")
+    tp, fp, fn = (pairs["truePositive"], pairs["falsePositive"],
+                  pairs["falseNegative"])
+    positive = tp + fn
+    predicted = tp + fp
+    require(positive > 0
+            and type(pairs["recallPercent"]) in (int, float)
+            and not isinstance(pairs["recallPercent"], bool)
+            and pairs["recallPercent"] == round(100 * tp / positive, 6)
+            and (pairs["observedFdrPercent"] is None if predicted == 0
+                 else type(pairs["observedFdrPercent"]) in (int, float)
+                 and not isinstance(pairs["observedFdrPercent"], bool)
+                 and pairs["observedFdrPercent"]
+                     == round(100 * fp / predicted, 6)),
+            "independent grouping rates diverge from pair counts")
     # Only aggregate metrics + digests; do not export source IDs, group UUID,
     # identities or untrusted claims of Gold, HTTP execution, NAS or science.
     return {
