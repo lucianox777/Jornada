@@ -163,6 +163,31 @@ class RunHttpReceiptComparisonTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.verify(stage=stage)
 
+    def test_cli_rejects_hardlinked_http_and_sql_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            pre = temp / "preflight.json"
+            http = temp / "http.json"
+            sql = temp / "sql-hardlink.json"
+            stage = temp / "staging.json"
+            pre.write_text(json.dumps(self.pre), encoding="utf-8")
+            http.write_text(json.dumps(self.http), encoding="utf-8")
+            stage.write_text(json.dumps(self.stage), encoding="utf-8")
+            try:
+                sql.hardlink_to(http)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"hardlinks unavailable in test filesystem: {exc}")
+            from unittest import mock
+            args = ["run-http", "--preflight", str(pre),
+                    "--http", str(http), "--sql-ledger", str(sql),
+                    "--staging", str(stage), "--expected-sha", COMMIT,
+                    "--expected-winner", WINNER,
+                    "--receipt", str(temp / "out.json")]
+            with mock.patch("sys.argv", args):
+                with self.assertRaisesRegex(ValueError, "cannot overwrite or alias"):
+                    COMPARE.main()
+            self.assertFalse((temp / "out.json").exists())
+
     def test_receipt_file_does_not_overwrite_any_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
