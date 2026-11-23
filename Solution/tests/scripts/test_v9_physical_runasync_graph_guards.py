@@ -82,7 +82,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
 
     def test_direct_runasync_v9_fails_before_sql_and_pipeline_lock(self):
         s = self.runner
-        start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(")
+        self.assertIn("RunCoreAsync(request, ct, controlledDev: false)", s)
+        start = s.index("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(")
         gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", start)
         self.assertLess(start, gate)
         self.assertLess(gate, s.index("AcquireExclusiveJobAsync(", start))
@@ -111,7 +112,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
     def test_typed_runv9_entry_is_fail_closed_before_legacy_pipeline(self):
         source = (ROOT / "ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
         start = source.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(")
-        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", start)
         typed = source[start:end]
         self.assertIn("V9OperationalRunBoundary boundary", typed)
         self.assertIn("boundary.EnsureProductiveCertified();", typed)
@@ -138,6 +139,25 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertNotIn("GetActiveModelAsync(", source)
         self.assertLess(source.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync("),
                         source.index("operationalSql.OpenAsync("))
+
+    def test_stage3_dev_entry_uses_existing_runner_without_normal_activation(self):
+        s = self.runner
+        start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(")
+        end = s.index("public Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        stage3 = s[start:end]
+        self.assertIn("linkage is not IV9ControlledDevCohortScorer devScorer", stage3)
+        self.assertIn("request.Mode is not (LinkageRunType.FULL or LinkageRunType.INCREMENTAL)", stage3)
+        self.assertIn("request.ModelVersion != 9 || !request.Publish", stage3)
+        self.assertIn("V9ControlledDevSelection.VerifyAsync(", stage3)
+        self.assertIn("boundary.Runtime.WinnerSha256, devScorer.WinnerSha256", stage3)
+        self.assertIn("RunCoreAsync(request, ct, controlledDev: true)", stage3)
+        self.assertNotIn("PublishAsync(", stage3)
+        self.assertNotIn("PersistBatchAsync(", stage3)
+        self.assertLess(stage3.index("V9ControlledDevSelection.VerifyAsync("),
+                        stage3.index("RunCoreAsync(request, ct, controlledDev: true)"))
+        scorer = self.scorer
+        self.assertIn("IV9ControlledDevCohortScorer : IV9RunScopedCohortScorer", scorer)
+        self.assertIn("string WinnerSha256 { get; }", scorer)
 
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
