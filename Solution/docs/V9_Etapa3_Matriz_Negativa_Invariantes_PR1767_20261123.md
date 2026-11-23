@@ -107,3 +107,8 @@ Cobertura consultiva dos itens #1767 **1/2/3/5/6 segue PARCIAL**. A função `Bu
 ## Falha de build do teste de ponte DEV — CS0121, correção tipada (23/11/2026)
 
 O HEAD `c3617243` da PR #1924 apresentou erro de compilação **CS0121** no método `Fully_resolved_graph_bridge_uses_only_preexisting_Gold_links_and_original_Silver`: lambda `Assert.Multiple(() => ...)` ambígua entre `Action` e `TestDelegate`. Evidência: logs da CI #45287791141, três jobs falhos no build, não na execução SQL. A chamada agora explicita `NUnit.Framework.TestDelegate` e preserva todas as assertivas/negativas. **Compilação e execução do HEAD corretivo aguardam CI**, sem antecipar PASS ou certificação física. Nenhuma alteração nas invariantes #1767 não aprovadas.
+
+
+## Seguimento real de CI — CS0618 após desambiguação CS0121 (23/11/2026)
+
+No HEAD `fedabe63`, logs do workflow [#45288114027](https://github.com/lucianox777/Jornada/actions/runs/45288114027) demonstraram `CS0618` no mesmo `Assert.Multiple`: `TestDelegate` é obsoleto e o build trata warnings como erro. A correção tipada `TestDelegate` do commit anterior é **substituída por `(Action)`**, preservando negativas/positivas de `Fully_resolved_graph_bridge_uses_only_preexisting_Gold_links_and_original_Silver`. A versão após esta segunda correção requer CI terminal; sem prova SQL positiva ou promoção da proposta #1767.

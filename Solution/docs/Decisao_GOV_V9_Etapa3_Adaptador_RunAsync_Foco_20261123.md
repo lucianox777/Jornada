@@ -349,3 +349,12 @@ O verificador operacional já existente `V9OperationalSilverSourceAuthentication
 **Correção mínima e regressão existente:** tipo `NUnit.Framework.TestDelegate` indicado explicitamente na chamada `Assert.Multiple` dentro de `Fully_resolved_graph_bridge_uses_only_preexisting_Gold_links_and_original_Silver`, sem alterar assertivas, comportamento do leitor, lógica científica ou schema. O próprio teste de regressão permanece sendo compilado e executado pela CI; **resultado pós-correção pendente do HEAD seguinte**. A confirmação de que a ambiguidade de overload deixa de existir depende do novo build, não de inferência.
 
 **Governança GOV-DOC-01 e precedência:** implementação necessária no escopo do adaptador V9 aprovado pelo PO; nenhum novo mandato/workflow/oráculo. A evidência do HEAD `c3617243` supera quaisquer relatos de CI verde antes da correção; manter registros separados por SHA, jobs e attempts. #1924 continua Draft e sem merge, publicador Gold não certificado.
+
+
+## Segunda falha real de CI no mesmo teste: NUnit `TestDelegate` obsoleto (23/11/2026)
+
+**Evidência pós-primeira-correção:** HEAD `fedabe63f084517a968335b7350095a1517d56cd`, run lossless SQL não publicador [#45288114027](https://github.com/lucianox777/Jornada/actions/runs/45288114027), jobs `independent-test-cli-fixture` #138089596460, `one-winner-sql-smoke` #138089596865 e `full-schema-runasync-nonpublish` #138089597165 falharam no **build**, com `CS0618`: tanto `TestDelegate` como `Assert.Multiple(TestDelegate)` são marcados `Obsolete` na versão de NUnit do repositório, e warnings-as-errors os impede de compilar. O primeiro ajuste resolveu `CS0121`, mas escolheu a sobrecarga **obsoleta**. Esta segunda falha é distinta e comprovada por logs do SHA intermediário, não por hipótese.
+
+**Correção na mesma PR, regressão preservada:** trocar exclusivamente o cast por `(Action)` na lambda `Assert.Multiple`, forçando a sobrecarga atual `Assert.Multiple(Action)`; manter todas as asserções e a negativa de ausência de vínculo Gold. Sem mudança no código do adaptador, modelos, SQL, dependências, workflow ou ativação. Não marcar PASS antes do resultado terminal do novo HEAD.
+
+**Precedência GOV-DOC-01:** esta correção **substitui** a indicação anterior de `NUnit.Framework.TestDelegate` (que se revelou inválida pelos logs reais), sem alterar o diagnóstico inicial `CS0121`; os SHAs/run IDs de cada transição permanecem registrados. Trabalho autorizado como correção real do próprio adaptador, com teste de regressão obrigatório já existente na PR. Sem merge da #1924.
