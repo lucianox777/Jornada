@@ -215,6 +215,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 sql, attempt, temp);
             await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
             await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
+            await AssertS2IndependentYAuthorityAsync(connection, winner);
 
             if (scenario is "stable" or "permuted")
             {
@@ -1136,6 +1137,31 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
              WHERE po.codigo_pessoa_origem IN(
                    N'V9TEST_0001',N'V9TEST_0005',N'V9TEST_0006');
             IF @@ROWCOUNT<>3 THROW 52904,'Protecao Gold DEV incompleta.',1;
+
+            -- Y's original protected 0005 record has different nominal
+            -- evidence from 0101. Add an older CPF-bearing observation to
+            -- that same governed origin, with the matching nominal fields.
+            -- It is outside the no-CPF FULL cohort, not a competing Silver
+            -- group member. Its authority is the current governed link on
+            -- 0005 v1, NOT the CPF value or a fabricated deterministic link.
+            -- This is synthetic SQL fixture setup, not Processor admission.
+            INSERT silver.pessoa_observacao(
+                pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
+                nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+            SELECT governed.pessoa_origem_id,governed.lote_id,governed.gestor_id,
+                   governed.codigo_pessoa_origem,2,
+                   LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',
+                       N'V9_B1_Y_GOVERNED_HISTORY'),2)),
+                   '52998224725',NULL,
+                   matching.nome_completo,matching.nome_cmp,matching.data_nascimento,
+                   matching.nome_mae,matching.nome_mae_cmp,
+                   DATEADD(day,-3,governed.source_as_of)
+              FROM silver.pessoa_observacao governed
+              CROSS JOIN silver.pessoa_observacao matching
+             WHERE governed.codigo_pessoa_origem=N'V9TEST_0005'
+               AND matching.codigo_pessoa_origem=N'V9TEST_0101';
+            IF @@ROWCOUNT<>1 THROW 52941,'Independent Y history missing.',1;
             DECLARE @origin bigint=(
                 SELECT pessoa_origem_id FROM silver.pessoa_observacao
                 WHERE codigo_pessoa_origem=N'V9TEST_0001');
@@ -1154,6 +1180,40 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         seed.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
         await seed.ExecuteNonQueryAsync();
         await tx.CommitAsync();
+    }
+
+    // Prove the opposing Y vote BEFORE the real FULL, using actual SQL
+    // candidate membership and secure origin records, not the Gold summary.
+    private static async Task AssertS2IndependentYAuthorityAsync(SqlConnection connection,
+        V9FittedSnapshot winner)
+    {
+        await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Snapshot);
+        var sourceRows = await ReadPr1RowsAsync(connection, """
+            SELECT nome_completo,data_nascimento,nome_mae
+              FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem=N'V9TEST_0101' AND versao_interna=1 AND cpf IS NULL;
+            """, tx: snapshot);
+        var source = sourceRows.Single();
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            (string?)source[0], DateOnly.FromDateTime((DateTime)source[1]!), (string?)source[2]);
+        var planner = V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(), winner.ContentSha256);
+        var candidates = await V9OperationalCandidateRead.ReadAsync(connection, snapshot,
+            planner, observation, CancellationToken.None);
+        Assert.That(candidates.CandidateUuids, Does.Contain(ExistingY));
+        var census = await V9ControlledDevSecureOriginReader.ReadAsync(connection, snapshot,
+            candidates.CandidateUuids, CancellationToken.None);
+        var y = census[ExistingY].Single();
+        Assert.That(y.HasGovernedCorrection, Is.True);
+        Assert.That(y.HasCpf, Is.False, "The independent authority is the governed link");
+        Assert.That(y.Observations.Count, Is.EqualTo(2));
+        Assert.That(V9ControlledDevSecureEvidenceScore.IsSecureOrigin(y), Is.True);
+        var result = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(winner,
+            V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256),
+            observation, candidates.CandidateUuids, census);
+        Assert.That(result.Decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+        Assert.That(result.Decision.PessoaUuidResolvido, Is.EqualTo(ExistingY));
+        await snapshot.CommitAsync();
+        TestContext.WriteLine("V9_B1_S2_INDEPENDENT_Y_AUTHORITY_PASS");
     }
 
     /// <summary>

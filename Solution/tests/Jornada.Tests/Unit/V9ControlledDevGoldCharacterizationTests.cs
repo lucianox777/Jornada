@@ -205,11 +205,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var source = await ReadPr1RowsAsync(db, """
             SELECT po.codigo_pessoa_origem,po.versao_interna,po.cpf,po.cpf_ausente_motivo,
                    po.nome_completo,po.data_nascimento,po.nome_mae,g.codigo,po.source_as_of
-              FROM silver.pessoa_observacao po JOIN ref.gestor g ON g.gestor_id=po.gestor_id
-             WHERE po.cpf IS NULL;
+              FROM silver.pessoa_observacao po JOIN ref.gestor g ON g.gestor_id=po.gestor_id;
             """, tx: tx);
         var candidates = new List<object?[]>();
-        foreach (var row in source)
+        // Hash all Silver evidence (including Y's CPF-bearing history),
+        // but authenticate blocking only for the actual no-CPF run cohort.
+        foreach (var row in source.Where(r => r[2] is null))
         {
             var observation = new IdentityObservation((string?)row[2], (string?)row[3],
                 (string?)row[4], row[5] is DateTime birth ? DateOnly.FromDateTime(birth) : null,
@@ -316,7 +317,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var progressive = ByOrigin(before.Single(x => x.Name == "progressive"));
         Assert.That(newReasons.Keys, Is.EquivalentTo(oldReasons.Keys));
         Assert.That(newDecisions.Keys, Is.EquivalentTo(oldDecisions.Keys));
-        Assert.That(oldDecisions.Keys, Is.EquivalentTo(oldReasons.Keys));
+        Assert.That(oldDecisions.Keys.All(oldReasons.ContainsKey), Is.True);
+        foreach (var outsideRun in oldReasons.Keys.Except(oldDecisions.Keys))
+            Assert.That(newReasons[outsideRun], Is.EqualTo(oldReasons[outsideRun]),
+                "T1 outside-cohort secure evidence link unchanged " + outsideRun);
         var created = 0;
         var confirmed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var key in oldDecisions.Keys)
