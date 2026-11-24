@@ -49,6 +49,7 @@ public static class V9ControlledDevOperationalCandidateSource
     {
         /// <summary>Physically authenticated Silver-to-Silver graph for this SNAPSHOT.</summary>
         public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
+        public IReadOnlySet<long>? NoEligibleBlockingPassObservationIds { get; init; }
     }
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
@@ -354,9 +355,12 @@ public static class V9ControlledDevOperationalCandidateSource
 
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
         var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>(frozenRows.Count);
+        var noEligiblePass = new HashSet<long>();
         foreach (var row in frozenRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (planner.Plan(row.Observation).Count == 0)
+                noEligiblePass.Add(row.PessoaObservacaoId);
             await using var command = connection.CreateCommand();
             command.CommandTimeout = 120;
             command.Transaction = snapshot;
@@ -419,6 +423,9 @@ public static class V9ControlledDevOperationalCandidateSource
             new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence),
             new ReadOnlyDictionary<long, IdentityObservation>(authenticatedSilver),
             new ReadOnlyDictionary<long, Guid>(existingResolvedGold))
-        { SilverGraph = silverGraph };
+        {
+            SilverGraph = silverGraph,
+            NoEligibleBlockingPassObservationIds = noEligiblePass
+        };
     }
 }

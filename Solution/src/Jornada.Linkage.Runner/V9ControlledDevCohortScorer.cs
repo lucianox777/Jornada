@@ -157,7 +157,9 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             groups, raw, verified.CandidatesByObservation,
             verified.ExistingResolvedGoldLinksByObservation
                 ?? throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINKS_NOT_READ"),
-            silverWithCandidates);
+            silverWithCandidates,
+            verified.NoEligibleBlockingPassObservationIds
+                ?? throw new InvalidDataException("RUNNER_V9_DEV_BLOCKING_PASS_CENSUS_MISSING"));
         var ready = new Dictionary<long,
             (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>();
         foreach (var row in frozenRows)
@@ -202,13 +204,17 @@ public static class V9ControlledDevGroupGoldR1
         IReadOnlyDictionary<long,
             IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>> candidates,
         IReadOnlyDictionary<long, Guid> alreadyEstablishedGold,
-        IReadOnlySet<long> silverWithCandidates)
+        IReadOnlySet<long> silverWithCandidates,
+        IReadOnlySet<long> noEligiblePass)
     {
         ArgumentNullException.ThrowIfNull(groupByObservation);
         ArgumentNullException.ThrowIfNull(individualFs);
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(alreadyEstablishedGold);
         ArgumentNullException.ThrowIfNull(silverWithCandidates);
+        ArgumentNullException.ThrowIfNull(noEligiblePass);
+        if (noEligiblePass.Except(groupByObservation.Keys).Any())
+            throw new InvalidDataException("RUNNER_V9_R1_BLOCKING_PASS_OUTSIDE_UNIVERSE");
         if (silverWithCandidates.Except(groupByObservation.Keys).Any())
             throw new InvalidDataException("RUNNER_V9_R1_SILVER_GRAPH_OUTSIDE_UNIVERSE");
         if (groupByObservation.Count != individualFs.Count
@@ -233,8 +239,12 @@ public static class V9ControlledDevGroupGoldR1
                     || gold is null || gold.Any(c => c is null || c.PessoaUuid == Guid.Empty)
                     || gold.Select(c => c.PessoaUuid).Distinct().Count() != gold.Count)
                     throw new InvalidDataException("RUNNER_V9_R1_GOLD_CANDIDATE_INVALID");
+                if (noEligiblePass.Contains(id) && gold.Count > 0)
+                    throw new InvalidDataException("RUNNER_V9_R1_CANDIDATE_WITHOUT_PASS");
                 if (decision.Status == ResolutionStatus.RESOLVIDO)
                 {
+                    if (noEligiblePass.Contains(id))
+                        throw new InvalidDataException("RUNNER_V9_R1_RESOLVED_WITHOUT_PASS");
                     if (decision.PessoaUuidResolvido is not Guid resolved
                         || resolved == Guid.Empty
                         || gold.All(x => x.PessoaUuid != resolved))
@@ -284,12 +294,15 @@ public static class V9ControlledDevGroupGoldR1
                 {
                     if (candidates[id].Count > 0)
                         throw new InvalidDataException("RUNNER_V9_R1_FALSE_NO_CANDIDATE");
-                    if (members.Length > 1 || silverWithCandidates.Contains(id))
+                    if (noEligiblePass.Contains(id)
+                        || members.Length > 1 || silverWithCandidates.Contains(id))
                         output.Add(id, decision with {
                             Status = ResolutionStatus.NAO_RESOLVIDO,
-                            Motivo = members.Length > 1
-                                ? "V9_R1_GRUPO_SEM_HERANCA"
-                                : "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"
+                            Motivo = noEligiblePass.Contains(id)
+                                ? "EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"
+                                : members.Length > 1
+                                    ? "V9_R1_GRUPO_SEM_HERANCA"
+                                    : "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"
                         });
                     else
                         output.Add(id, decision);

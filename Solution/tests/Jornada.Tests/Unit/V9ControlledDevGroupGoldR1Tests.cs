@@ -25,13 +25,15 @@ public sealed class V9ControlledDevGroupGoldR1Tests
         IReadOnlyDictionary<long, ProbabilisticLinkageDecision> decisions,
         IReadOnlyDictionary<long, Guid[]> gold,
         IReadOnlyDictionary<long, Guid>? established = null,
-        IReadOnlySet<long>? silverNeighbors = null) =>
+        IReadOnlySet<long>? silverNeighbors = null,
+        IReadOnlySet<long>? noEligiblePass = null) =>
         V9ControlledDevGroupGoldR1.Translate(groups, decisions,
             gold.ToDictionary(x => x.Key, x =>
                 (IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>)
                     x.Value.Select(Candidate).ToArray()),
             established ?? new Dictionary<long, Guid>(),
-            silverNeighbors ?? new HashSet<long>());
+            silverNeighbors ?? new HashSet<long>(),
+            noEligiblePass ?? new HashSet<long>());
 
     [Test]
     public void Singleton_with_independent_frozen_FS_approval_keeps_real_Gold_destination()
@@ -136,6 +138,29 @@ public sealed class V9ControlledDevGroupGoldR1Tests
             silverNeighbors: new HashSet<long> { 1, 2 });
         Assert.That(output.Values.All(x => x.Status == ResolutionStatus.NAO_RESOLVIDO
             && x.Motivo == "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"), Is.True);
+    }
+
+    [Test]
+    public void No_eligible_blocking_pass_cannot_be_treated_as_complete_empty_search()
+    {
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing() },
+            new Dictionary<long, Guid[]> { [1] = [] },
+            noEligiblePass: new HashSet<long> { 1 });
+        Assert.That(output[1].Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That(output[1].PessoaUuidResolvido, Is.Null);
+        Assert.That(output[1].Motivo, Is.EqualTo("EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"));
+    }
+
+    [Test]
+    public void No_eligible_blocking_pass_rejects_falsely_resolved_Gold()
+    {
+        Assert.Throws<InvalidDataException>((Action)(() => Run(
+            new Dictionary<long, Guid> { [1] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Resolved(X) },
+            new Dictionary<long, Guid[]> { [1] = [X] },
+            noEligiblePass: new HashSet<long> { 1 })));
     }
 
     [Test]
