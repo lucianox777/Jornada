@@ -99,6 +99,8 @@ def check(root: Path) -> list[str]:
                 if not command:
                     continue
                 first = command.split(None, 1)[0]
+                if re.match(r"^[A-Za-z_]\w*=", first):
+                    continue  # pure shell assignment, not a command
                 match = LOCAL.search(first)
                 if match is None:
                     continue
