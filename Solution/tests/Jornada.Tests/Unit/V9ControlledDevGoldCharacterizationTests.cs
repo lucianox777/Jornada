@@ -287,6 +287,82 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         return path;
     }
 
+    // PO 2026-11-24 15h: class (a) only for the two physically confirmed
+    // publication transitions. No changed score, raw decision, destination,
+    // link method/status, origin state, Silver or Gold is accepted.
+    private static void AssertPr1KnownPublicationTransitions(
+        List<Pr1Component> before, List<Pr1Component> between,
+        List<Pr1Component> warm, List<Pr1Component> first)
+    {
+        foreach (var component in before.Where(x => x.Name != "link_reasons"))
+            Assert.That(Pr1ComponentDigest(between.Single(x => x.Name == component.Name)),
+                Is.EqualTo(Pr1ComponentDigest(component)), "T1 invariant " + component.Name);
+
+        static Dictionary<string, object?[]> ByOrigin(Pr1Component component) =>
+            component.Rows.ToDictionary(row => JsonSerializer.Serialize(row.Take(2)),
+                row => row, StringComparer.Ordinal);
+        var oldReasons = ByOrigin(before.Single(x => x.Name == "link_reasons"));
+        var newReasons = ByOrigin(between.Single(x => x.Name == "link_reasons"));
+        var oldDecisions = ByOrigin(warm.Single(x => x.Name == "decisions"));
+        var newDecisions = ByOrigin(first.Single(x => x.Name == "decisions"));
+        var links = ByOrigin(before.Single(x => x.Name == "links"));
+        var progressive = ByOrigin(before.Single(x => x.Name == "progressive"));
+        Assert.That(newReasons.Keys, Is.EquivalentTo(oldReasons.Keys));
+        Assert.That(newDecisions.Keys, Is.EquivalentTo(oldDecisions.Keys));
+        Assert.That(oldDecisions.Keys, Is.EquivalentTo(oldReasons.Keys));
+        var created = 0;
+        var confirmed = 0;
+        foreach (var key in oldDecisions.Keys)
+        {
+            var a = oldDecisions[key];
+            var b = newDecisions[key];
+            var oldReason = oldReasons[key][2];
+            var newReason = newReasons[key][2];
+            if (Equals(oldReason, newReason))
+            {
+                Assert.That(b, Is.EqualTo(a), "T1 unexpected decision change " + key);
+                continue;
+            }
+            // The only permitted changes are to publication result/reason.
+            Assert.That(b.Where((_, i) => i is not (10 or 12)),
+                Is.EqualTo(a.Where((_, i) => i is not (10 or 12))),
+                "T1 unexpected raw, score, destination or progressive change " + key);
+            Assert.That(a[12], Is.EqualTo(oldReason));
+            Assert.That(b[12], Is.EqualTo(newReason));
+            Assert.That(a[11], Is.EqualTo("RESOLVIDO"));
+            Assert.That(a[14], Is.EqualTo("REFERENCIA"));
+            Assert.That(a[13], Is.EqualTo(a[15]));
+            Assert.That(links[key][2], Is.EqualTo(a[13]));
+            Assert.That(links[key][3], Is.EqualTo("LINKAGE_PROBABILISTICO"));
+            Assert.That(links[key][4], Is.EqualTo("RESOLVIDO"));
+            Assert.That(progressive[key][3], Is.EqualTo(a[13]));
+            Assert.That(b[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+            if (Equals(oldReason, "NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA"))
+            {
+                Assert.That(newReason, Is.EqualTo("REFERENCIA_PROGRESSIVA_PRESERVADA"));
+                Assert.That(a[10], Is.EqualTo("NOVA_IDENTIDADE"));
+                Assert.That(a[13], Is.EqualTo(progressive[key][4]), "Founder keeps own initial UUID");
+                Assert.That(a[2], Is.EqualTo("NAO_RESOLVIDO"));
+                Assert.That((string?)a[3], Does.StartWith("SEM_CANDIDATO_"));
+                created++;
+            }
+            else
+            {
+                Assert.That(a[0], Is.EqualTo("V9TEST_0003"));
+                Assert.That(oldReason, Is.EqualTo("ASSOCIACAO_EXISTENTE_LINKAGE"));
+                Assert.That(newReason, Is.EqualTo("REFERENCIA_PROGRESSIVA_CONFIRMADA"));
+                Assert.That(a[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+                Assert.That(a[2], Is.EqualTo("RESOLVIDO"));
+                Assert.That(a[4], Is.EqualTo(a[13]));
+                Assert.That(a[13], Is.EqualTo("Z"));
+                confirmed++;
+            }
+        }
+        Assert.That(created, Is.EqualTo(95), "T1 original fixture legitimate founder transitions");
+        Assert.That(confirmed, Is.EqualTo(1), "T1 original fixture existing link confirmation");
+        TestContext.WriteLine($"V9_GOLD_PR1_T1_CLASS_A founder={created} confirmed={confirmed}");
+    }
+
     private static async Task AssertStrictFullAndPermutationAsync(
         SqlConnection db, IConfiguration config, IOperationalSqlAdapter sql,
         Guid attempt, string temp, V9FittedSnapshot winner, string scenario)
@@ -329,7 +405,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(between.Candidates, Is.EqualTo(before.Candidates), "T1 candidate universe changed");
-            Assert.That(between.State, Is.EqualTo(before.State), "T1 comparison evidence changed");
+            // Composite state may differ only by the documented first-repeat
+            // publication reasons, checked individually (all other fields strict).
+            AssertPr1KnownPublicationTransitions(beforeDiagnostics, betweenDiagnostics,
+                warmDiagnostics, firstDiagnostics);
             Assert.That(after, Is.EqualTo(between), "T1 evidence changed after repeat");
             Assert.That(secondOutput, Is.EqualTo(firstOutput), "T1 decisions, motives, links or partition changed");
             Assert.That(firstGold.SetEquals(secondGold), Is.True, "T1 exact Gold UUID set changed");
