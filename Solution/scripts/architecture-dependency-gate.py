@@ -45,6 +45,32 @@ def selftest():
         pol=r/'p.json'; pol.write_text(json.dumps({'projects':{'A':[],'B':[]}}),encoding='utf-8')
         _,errs=check(r,pol)
         if not errs: fail('self-test não detectou dependência proibida')
+        # Isolate the next permitted-reference case from the deliberately invalid A -> B fixture.
+        (r/'A/A.csproj').write_text('<Project />', encoding='utf-8')
+        # #1920: Jornada.Tests exercises the real Resultado API host, not
+        # a production dependency. The exception is narrow and exact.
+        (r/'Jornada.Tests').mkdir()
+        (r/'Jornada.Resultado.Api').mkdir()
+        (r/'Jornada.Api').mkdir()
+        testcsproj=r/'Jornada.Tests/Jornada.Tests.csproj'
+        testcsproj.write_text('<Project><ItemGroup><ProjectReference Include="../Jornada.Resultado.Api/Jornada.Resultado.Api.csproj" /></ItemGroup></Project>',encoding='utf-8')
+        (r/'Jornada.Resultado.Api/Jornada.Resultado.Api.csproj').write_text('<Project />',encoding='utf-8')
+        (r/'Jornada.Api/Jornada.Api.csproj').write_text('<Project />',encoding='utf-8')
+        permitted={'projects':{'A':[],'B':[], 'Jornada.Tests':['Jornada.Resultado.Api'],
+                    'Jornada.Resultado.Api':[],'Jornada.Api':[]}}
+        pol.write_text(json.dumps(permitted),encoding='utf-8')
+        _,errs=check(r,pol)
+        if errs: fail('self-test rejeitou referencia de teste autorizada: '+repr(errs))
+        testcsproj.write_text('<Project><ItemGroup><ProjectReference Include="../Jornada.Resultado.Api/Jornada.Resultado.Api.csproj" /><ProjectReference Include="../Jornada.Api/Jornada.Api.csproj" /></ItemGroup></Project>',encoding='utf-8')
+        _,errs=check(r,pol)
+        if not any("Jornada.Tests: dependências não permitidas ['Jornada.Api']" in err for err in errs):
+            fail('self-test deixou de rejeitar segunda dependencia não autorizada')
+        # A project in the runtime layer cannot use this TEST-only grant.
+        testcsproj.write_text('<Project />',encoding='utf-8')
+        (r/'Jornada.Api/Jornada.Api.csproj').write_text('<Project><ItemGroup><ProjectReference Include="../Jornada.Resultado.Api/Jornada.Resultado.Api.csproj" /></ItemGroup></Project>',encoding='utf-8')
+        _,errs=check(r,pol)
+        if not any("Jornada.Api: dependências não permitidas ['Jornada.Resultado.Api']" in err for err in errs):
+            fail('self-test ampliou excecao de teste para runtime')
     print('ARCHITECTURE DEPENDENCY GATE SELF-TEST: OK')
 
 def main():
