@@ -24,12 +24,14 @@ public sealed class V9ControlledDevGroupGoldR1Tests
         IReadOnlyDictionary<long, Guid> groups,
         IReadOnlyDictionary<long, ProbabilisticLinkageDecision> decisions,
         IReadOnlyDictionary<long, Guid[]> gold,
-        IReadOnlyDictionary<long, Guid>? established = null) =>
+        IReadOnlyDictionary<long, Guid>? established = null,
+        IReadOnlySet<long>? silverNeighbors = null) =>
         V9ControlledDevGroupGoldR1.Translate(groups, decisions,
             gold.ToDictionary(x => x.Key, x =>
                 (IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>)
                     x.Value.Select(Candidate).ToArray()),
-            established ?? new Dictionary<long, Guid>());
+            established ?? new Dictionary<long, Guid>(),
+            silverNeighbors ?? new HashSet<long>());
 
     [Test]
     public void Singleton_with_independent_frozen_FS_approval_keeps_real_Gold_destination()
@@ -121,6 +123,19 @@ public sealed class V9ControlledDevGroupGoldR1Tests
         Assert.That(output.Values.All(x => x.Status == ResolutionStatus.NAO_RESOLVIDO
             && x.PessoaUuidResolvido is null
             && x.Motivo == "V9_R1_GRUPO_SEM_HERANCA"), Is.True);
+    }
+
+    [Test]
+    public void Singleton_with_physical_weak_Silver_edge_is_not_a_no_candidate_new_identity()
+    {
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group2 },
+            new Dictionary<long, ProbabilisticLinkageDecision>
+                { [1] = Missing(), [2] = Missing() },
+            new Dictionary<long, Guid[]> { [1] = [], [2] = [] },
+            silverNeighbors: new HashSet<long> { 1, 2 });
+        Assert.That(output.Values.All(x => x.Status == ResolutionStatus.NAO_RESOLVIDO
+            && x.Motivo == "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"), Is.True);
     }
 
     [Test]

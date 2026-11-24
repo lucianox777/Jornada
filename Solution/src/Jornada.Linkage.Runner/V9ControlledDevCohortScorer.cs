@@ -142,10 +142,22 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             : V9ControlledDevGoldScorePreview.Score(
                 winner, frozenRows, verified).Decisions
                 .ToDictionary(x => x.Key, x => x.Value);
+        // A singleton in the FINAL complete-link partition can still have a
+        // weak/incompatible SILVER blocking candidate. It is never an empty
+        // candidate search for NEW identity publication.
+        var silverWithCandidates = new HashSet<long>();
+        foreach (var (a, b) in physical.Edges)
+        {
+            if (a < 1 || a >= b || b > frozenRows.Count)
+                throw new InvalidDataException("RUNNER_V9_DEV_GRAPH_EDGE_INVALID");
+            silverWithCandidates.Add(frozenRows[a - 1].PessoaObservacaoId);
+            silverWithCandidates.Add(frozenRows[b - 1].PessoaObservacaoId);
+        }
         var translation = V9ControlledDevGroupGoldR1.Translate(
             groups, raw, verified.CandidatesByObservation,
             verified.ExistingResolvedGoldLinksByObservation
-                ?? throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINKS_NOT_READ"));
+                ?? throw new InvalidDataException("RUNNER_V9_DEV_GOLD_LINKS_NOT_READ"),
+            silverWithCandidates);
         var ready = new Dictionary<long,
             (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>();
         foreach (var row in frozenRows)
@@ -189,12 +201,16 @@ public static class V9ControlledDevGroupGoldR1
         IReadOnlyDictionary<long, ProbabilisticLinkageDecision> individualFs,
         IReadOnlyDictionary<long,
             IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>> candidates,
-        IReadOnlyDictionary<long, Guid> alreadyEstablishedGold)
+        IReadOnlyDictionary<long, Guid> alreadyEstablishedGold,
+        IReadOnlySet<long> silverWithCandidates)
     {
         ArgumentNullException.ThrowIfNull(groupByObservation);
         ArgumentNullException.ThrowIfNull(individualFs);
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(alreadyEstablishedGold);
+        ArgumentNullException.ThrowIfNull(silverWithCandidates);
+        if (silverWithCandidates.Except(groupByObservation.Keys).Any())
+            throw new InvalidDataException("RUNNER_V9_R1_SILVER_GRAPH_OUTSIDE_UNIVERSE");
         if (groupByObservation.Count != individualFs.Count
             || groupByObservation.Count != candidates.Count
             || groupByObservation.Keys.Except(individualFs.Keys).Any()
@@ -264,15 +280,20 @@ public static class V9ControlledDevGroupGoldR1
                 // No group inheritance: a member that individually abstains
                 // must NOT become its own new reference simply because its
                 // neighbor (or previous round's reference) has no candidate.
-                if (members.Length > 1 &&
-                    decision.Motivo?.StartsWith("SEM_CANDIDATO_", StringComparison.Ordinal) == true)
-                    output.Add(id, decision with {
-                        Status = ResolutionStatus.NAO_RESOLVIDO,
-                        Motivo = "V9_R1_GRUPO_SEM_HERANCA"
-                    });
-                else if (candidates[id].Count > 0 &&
-                    decision.Motivo?.StartsWith("SEM_CANDIDATO_", StringComparison.Ordinal) == true)
-                    throw new InvalidDataException("RUNNER_V9_R1_FALSE_NO_CANDIDATE");
+                if (decision.Motivo?.StartsWith("SEM_CANDIDATO_", StringComparison.Ordinal) == true)
+                {
+                    if (candidates[id].Count > 0)
+                        throw new InvalidDataException("RUNNER_V9_R1_FALSE_NO_CANDIDATE");
+                    if (members.Length > 1 || silverWithCandidates.Contains(id))
+                        output.Add(id, decision with {
+                            Status = ResolutionStatus.NAO_RESOLVIDO,
+                            Motivo = members.Length > 1
+                                ? "V9_R1_GRUPO_SEM_HERANCA"
+                                : "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"
+                        });
+                    else
+                        output.Add(id, decision);
+                }
                 else
                     output.Add(id, decision);
             }
