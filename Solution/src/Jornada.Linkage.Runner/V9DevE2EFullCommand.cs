@@ -155,6 +155,17 @@ public static class V9DevE2EFullCommand
             if (await anchor.ExecuteNonQueryAsync() != 1)
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_NOT_INSERTED");
 
+            // Build the complete V9 index over already-published Gold
+            // REFERENCES in THIS exact DEV attempt, using frozen schema and
+            // deterministic SQL physical cardinality. Never change Gold,
+            // Serving, legacy keys or scientific model parameters.
+            var goldProjection = await V9DevE2EGoldProjection.MaterializeOnceAsync(
+                connection, loaded.Snapshot, attempt, CancellationToken.None);
+            if (goldProjection.ProjectionFingerprintSha256 !=
+                    loaded.Snapshot.Payload.ProjectionFingerprintSha256)
+                throw new InvalidDataException(
+                    "RUNNER_V9_DEV_E2E_GOLD_PROJECTION_NOT_PINNED");
+
             // No silent fallback from existing Gold indexes of a different
             // projection. Stage 7 cannot equate "zero candidates" with an
             // unmaterialized or stale Gold V9 reference.
