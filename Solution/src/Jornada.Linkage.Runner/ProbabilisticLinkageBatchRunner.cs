@@ -171,10 +171,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
     /// scoring, SQL ledger, run counters and atomic Gold publication path.
     /// It does not change Program.cs or authorize productive V9 dispatch.
     /// </summary>
-    public Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
+    public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
         ProbabilisticLinkageRunRequest request,
         Guid disposableAttemptId, CancellationToken ct) =>
-        RunV9ControlledScopedDevAsync(request, disposableAttemptId, false, ct);
+        await RunV9ControlledScopedDevAsync(request, disposableAttemptId, false, ct);
 
     /// <summary>
     /// Isolated HTTP 1k source-cohort variant. It is not wired into the
