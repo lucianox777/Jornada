@@ -27,6 +27,15 @@ DT10_EXACT = {
     "Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs",
 }
 
+# Complete unit suite also validates changes to its own gate (pilot/self-change).
+UNIT_FULL_PREFIXES = ("Solution/src/", "Solution/tests/")
+UNIT_FULL_EXACT = {
+    ".github/workflows/jornada-pr-required-fast.yml",
+    ".github/workflows/ci.yml",
+    "Solution/scripts/ci-impact-classifier.py",
+    "Solution/scripts/test-evidence-gate.py",
+}
+
 # Closed documentation paths used by every automatic workflow.
 DOC_PATH = re.compile(r"Solution/docs/[A-Za-z0-9_-]+\.(?:md|txt)")
 PROTECTED_NAMES = ("lock", "manifest", "fixture", "openapi", "solutionschema")
@@ -47,6 +56,8 @@ def classify(paths: list[str]) -> dict:
         "classification": "docs-only" if docs_only else "substantive",
         "docs_only": docs_only,
         "run_full": not docs_only,
+        "run_unit_full": any(p in UNIT_FULL_EXACT or p.startswith(UNIT_FULL_PREFIXES)
+                             for p in paths) or not paths,
         "run_dt10": any(p in DT10_EXACT or p.startswith(DT10_PREFIXES) for p in paths),
         "paths": paths,
         "docs": docs,
@@ -104,7 +115,8 @@ def event_impact(event: dict, event_name: str, checkout_sha: str) -> dict:
         reason = "verified git diff"
     except (KeyError, TypeError, ValueError, IndexError, OSError, subprocess.CalledProcessError) as err:
         result = classify(paths)
-        result.update(docs_only=False, run_full=True, run_dt10=True, classification="substantive")
+        result.update(docs_only=False, run_full=True, run_dt10=True,
+                      run_unit_full=True, classification="substantive")
         reason = str(err)
     result.update(base=base, head=head, reason=reason)
     return result
@@ -128,14 +140,14 @@ def main():
             # Escape untrusted changed filenames in the job summary.
             summary.write("### Impact classification\n<pre>" + html.escape(payload) + "</pre>\n")
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="ascii") as output:
-            for key in ("docs_only", "run_full", "run_dt10"):
+            for key in ("docs_only", "run_full", "run_dt10", "run_unit_full"):
                 print(f"{key}={str(result[key]).lower()}", file=output)
     else:
         result = classify(Path(args.files_from).read_text().splitlines())
     if args.summary:
         Path(args.summary).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(result["classification"])
-    for key in ("docs_only", "run_full", "run_dt10"):
+    for key in ("docs_only", "run_full", "run_dt10", "run_unit_full"):
         print(f"{key}={str(result[key]).lower()}")
 
 

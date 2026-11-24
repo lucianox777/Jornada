@@ -33,6 +33,24 @@ class CiImpactClassifierTests(unittest.TestCase):
         r=m.classify(["Solution/docs/evidence/E2E_B_Baseline_20261001.yml"])
         self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"]); self.assertFalse(r["run_dt10"])
 
+    def test_full_unit_scope_includes_all_source_and_test_paths_and_gate_changes(self):
+        for path in ("Solution/src/Jornada.Api/Program.cs",
+                     "Solution/tests/Jornada.Tests/Test.cs",
+                     "Solution/tests/scripts/check.py",
+                     "Solution/tests/readme.txt",
+                     ".github/workflows/jornada-pr-required-fast.yml",
+                     ".github/workflows/ci.yml",
+                     "Solution/scripts/ci-impact-classifier.py",
+                     "Solution/scripts/test-evidence-gate.py"):
+            with self.subTest(path=path):
+                self.assertTrue(m.classify(["README.md", path])["run_unit_full"])
+        for path in ("README.md", "Solution/docs/decision.md",
+                     "Solution/database/migrations/x.sql",
+                     "Solution/src-other/file.cs", "Solution/tests-other/file.cs"):
+            with self.subTest(path=path):
+                self.assertFalse(m.classify([path])["run_unit_full"])
+        self.assertTrue(m.classify([])["run_unit_full"])
+
     def test_any_code_requires_full_ci(self):
         r=m.classify(["Solution/src/Jornada.Api/Program.cs"])
         self.assertFalse(r["docs_only"]); self.assertTrue(r["run_full"])
@@ -156,6 +174,22 @@ class EventDiffTests(unittest.TestCase):
         head = self.commit("Solution/docs/moved.md")
         self.assertTrue(self.push(old,head)["run_full"])
         self.assertIn("Solution/docs/readme.md\nsource.cs",self.push(old,head)["paths"])
+
+    def test_full_unit_diff_deletion_rename_and_unverified_event(self):
+        old = self.commit("Solution/src/file.cs")
+        Path("Solution/docs").mkdir(parents=True, exist_ok=True)
+        Path("Solution/src/file.cs").rename("Solution/docs/moved.md")
+        renamed = self.commit("Solution/docs/moved.md")
+        self.assertTrue(self.push(old, renamed)["run_unit_full"])
+        self.assertIn("Solution/src/file.cs", self.push(old, renamed)["paths"])
+        test_head = self.commit("Solution/tests/test.cs")
+        Path("Solution/tests/test.cs").unlink()
+        self.git("add", "-A")
+        self.git("commit", "-qm", "delete test")
+        self.assertTrue(self.push(test_head, self.git("rev-parse", "HEAD"))["run_unit_full"])
+        for base in ("0"*40, "1"*40, "bad"):
+            self.assertTrue(self.push(base, renamed)["run_unit_full"])
+        self.assertTrue(m.event_impact({}, "workflow_dispatch", renamed)["run_unit_full"])
 
     def test_executable_or_symlink_requires_full(self):
         import os
