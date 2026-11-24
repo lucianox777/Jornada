@@ -1,5 +1,16 @@
 # GOV-V9-ETAPA3-ADAPTADOR-RUNASYNC-FOCO-20261123 — Ordem final aprovada pelo PO
 
+## Aceite e integração da PR #1924 — 24/11/2026 (GOV-DOC-01)
+
+**Autoridade e decisão do PO:** revisão concluída, aceita; merge autorizado somente com todos os checks aplicáveis verdes no HEAD exato. Após integrar, conferir CI da master e atualizar a #1928 sobre a nova master. Esta decisão supera os estados históricos de Draft, revisão/aceite e merge pendentes abaixo, sem revogar restrições científicas ou produtivas.
+
+**Evidência:** HEAD revisado `61c63726aab5393c243b34d8201c4ef838554044`, seis workflows PR concluídos SUCCESS: 45327570595 (shared-policy), 45327570620 (required-fast), 45327570605 (lossless SQL), 45327570642 (Gold holdout), 45327570710 (full-schema), 45327570581 (cluster). Check-runs: 12 SUCCESS, 2 SKIPPED condicionais do Gold holdout; não constituem prova física do holdout. Squash [#1924](https://github.com/lucianox777/Jornada/pull/1924) concluído em `02061c2bd789927d6cbd8857f71160c5cd87bdc1`, confirmado como master; tree Git idêntica à do HEAD revisado (`07a1f6ca74286879454590d7accb66eb57610d14`). Sem alteração de conteúdo na integração.
+
+**CI pós-merge:** consulta ao push da master no SHA integrado: 12 workflows, 1 SUCCESS (shared-policy 45382279073), 10 IN_PROGRESS e 1 QUEUED; `jornada-ci` [45382279562](https://github.com/lucianox777/Jornada/actions/runs/45382279562) e seed42 [45382279429](https://github.com/lucianox777/Jornada/actions/runs/45382279429) em andamento. Não se declara PASS pós-merge. Runs automáticos existentes, não despacho científico manual.
+
+**Continuidade e impactos:** atualizar a [#1928](https://github.com/lucianox777/Jornada/pull/1928) sobre a master integrada, preservando seu diff de etapas 7/8, Draft e aceite separado. O E2E HTTP DEV 1k com vencedor oficial #38 e APIs continua pendente. Não autoriza merge de #1928, TRAIN/TEST científicos, 10k/100k, HML/PROD, ativação, INCREMENTAL produtivo ou certificação. Mantidos `RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED`, `E2E_NUCLEO_PASS=false`, `E2E_INTEGRAL_PASS=false`. Registro temático e índice atualizados na #1928, sujeitos à sua integração; decisão também rastreada na mensagem do squash.
+
+
 **Autoridade:** Product Owner, 23/11/2026. **Estado:** DECIDIDO / EXECUÇÃO INICIADA / ADAPTADOR AINDA NÃO IMPLEMENTADO NESTE COMMIT. **Referências:** GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122, #1584, #1488, #1851, PR #1920, GOV-DOC-01.
 
 ## Contexto, justificativa e precedência

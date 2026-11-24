@@ -1,5 +1,7 @@
 # GOV-V9-ETAPA3-GRUPO-GOLD-R1-20261123 — Tradução V9 → Gold (r1)
 
+> **Atualização de vigência (24/11/2026):** PO aceitou o diff da #1924; squash integrado em `02061c2bd789927d6cbd8857f71160c5cd87bdc1` após seis workflows SUCCESS no HEAD `61c63726aab5393c243b34d8201c4ef838554044`. CI pós-merge ainda não terminal. A prova física DEV r1 documentada abaixo continua limitada à fixture e não certifica produção, TEST científico ou HTTP 1k. [Aceite, precedência e evidências](Decisao_GOV_V9_Etapa3_Adaptador_RunAsync_Foco_20261123.md).
+
 **DECIDIDO pelo PO:** 23/11/2026, com os ajustes técnicos aprovados nesta conversa. **Estado:** decisão documentada na PR #1924; **matriz física r1 S1–S8 e transversais SQL DEV comprovados** (SHA `5c3fa5c2`, run #45327199875); ainda sujeito a revisão/aceite expresso do diff e merge. **Sem certificação científica nem ativação**. Complementa [plano E2E #1849](https://github.com/lucianox777/Jornada/pull/1849) e [mandato etapa 3](Decisao_GOV_V9_Etapa3_Adaptador_RunAsync_Foco_20261123.md). Não altera DC-ID-02, CPF, origem persistente, publicação DT-10, schema, modelo/agrupador congelado da campanha #38, parâmetros, limiares ou hashes.
 
 ## Decisão e justificativa
