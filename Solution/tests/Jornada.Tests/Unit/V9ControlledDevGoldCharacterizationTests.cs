@@ -36,12 +36,13 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
     }
 
     private static async Task<List<object?[]>> ReadPr1RowsAsync(
-        SqlConnection db, string query, Guid? run = null, SqlTransaction? tx = null)
+        SqlConnection db, string query, Guid? run = null, SqlTransaction? tx = null,
+        Guid? referencePerson = null)
     {
         await using var cmd = new SqlCommand(query, db, tx) { CommandTimeout = 120 };
         if (run.HasValue)
             cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = run.Value;
-        cmd.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+        cmd.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = referencePerson ?? ExistingZ;
         var rows = new List<object?[]>();
         await using var rd = await cmd.ExecuteReaderAsync();
         while (await rd.ReadAsync())
@@ -65,7 +66,14 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
               FROM identidade.pessoa_origem_progressiva p
               JOIN silver.pessoa_origem o ON o.pessoa_origem_id=p.pessoa_origem_id;
             """, tx: tx))
-            Assert.That(ids.TryAdd((Guid)row[0]!, (string)row[1]!), Is.True);
+        {
+            // Z is now a real founder's own initial UUID, not a synthetic
+            // external reference. Retain a stable symbolic identity in hashes.
+            if ((Guid)row[0]! == ExistingZ)
+                Assert.That(row[1], Is.EqualTo("V9TEST_0004"));
+            else
+                Assert.That(ids.TryAdd((Guid)row[0]!, (string)row[1]!), Is.True);
+        }
         return ids;
     }
 
@@ -198,11 +206,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var source = await ReadPr1RowsAsync(db, """
             SELECT po.codigo_pessoa_origem,po.versao_interna,po.cpf,po.cpf_ausente_motivo,
                    po.nome_completo,po.data_nascimento,po.nome_mae,g.codigo,po.source_as_of
-              FROM silver.pessoa_observacao po JOIN ref.gestor g ON g.gestor_id=po.gestor_id
-             WHERE po.cpf IS NULL;
+              FROM silver.pessoa_observacao po JOIN ref.gestor g ON g.gestor_id=po.gestor_id;
             """, tx: tx);
         var candidates = new List<object?[]>();
-        foreach (var row in source)
+        // Hash all Silver evidence (including Y's CPF-bearing history),
+        // but authenticate blocking only for the actual no-CPF run cohort.
+        foreach (var row in source.Where(r => r[2] is null))
         {
             var observation = new IdentityObservation((string?)row[2], (string?)row[3],
                 (string?)row[4], row[5] is DateTime birth ? DateOnly.FromDateTime(birth) : null,
@@ -309,9 +318,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var progressive = ByOrigin(before.Single(x => x.Name == "progressive"));
         Assert.That(newReasons.Keys, Is.EquivalentTo(oldReasons.Keys));
         Assert.That(newDecisions.Keys, Is.EquivalentTo(oldDecisions.Keys));
-        Assert.That(oldDecisions.Keys, Is.EquivalentTo(oldReasons.Keys));
+        Assert.That(oldDecisions.Keys.All(oldReasons.ContainsKey), Is.True);
+        foreach (var outsideRun in oldReasons.Keys.Except(oldDecisions.Keys))
+            Assert.That(newReasons[outsideRun], Is.EqualTo(oldReasons[outsideRun]),
+                "T1 outside-cohort secure evidence link unchanged " + outsideRun);
         var created = 0;
-        var confirmed = 0;
+        var confirmed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var key in oldDecisions.Keys)
         {
             var a = oldDecisions[key];
@@ -348,19 +360,25 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             }
             else
             {
-                Assert.That(a[0], Is.EqualTo("V9TEST_0003"));
+                Assert.That(a[0], Is.AnyOf("V9TEST_0003", "V9TEST_0106"));
                 Assert.That(oldReason, Is.EqualTo("ASSOCIACAO_EXISTENTE_LINKAGE"));
                 Assert.That(newReason, Is.EqualTo("REFERENCIA_PROGRESSIVA_CONFIRMADA"));
                 Assert.That(a[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
                 Assert.That(a[2], Is.EqualTo("RESOLVIDO"));
                 Assert.That(a[4], Is.EqualTo(a[13]));
                 Assert.That(a[13], Is.EqualTo("Z"));
-                confirmed++;
+                Assert.That(confirmed.Add((string)a[0]!), Is.True);
             }
         }
-        Assert.That(created, Is.EqualTo(95), "T1 original fixture legitimate founder transitions");
-        Assert.That(confirmed, Is.EqualTo(1), "T1 original fixture existing link confirmation");
-        TestContext.WriteLine($"V9_GOLD_PR1_T1_CLASS_A founder={created} confirmed={confirmed}");
+        // The b1 fixture pre-founds Z and approves S9 already on the warm
+        // FULL. Require every actual warm founder to undergo precisely the
+        // legitimate transition above, not a historical fixture count.
+        Assert.That(created, Is.GreaterThan(0));
+        Assert.That(created, Is.EqualTo(oldDecisions.Values.Count(r =>
+            Equals(r[10], "NOVA_IDENTIDADE"))), "T1 all warm founders accounted for");
+        Assert.That(confirmed, Is.EquivalentTo(new[] { "V9TEST_0003", "V9TEST_0106" }),
+            "T1 individually approved S1/S9 confirmations");
+        TestContext.WriteLine($"V9_GOLD_PR1_T1_CLASS_A founder={created} confirmed={confirmed.Count}");
     }
 
     private static async Task AssertStrictFullAndPermutationAsync(
@@ -377,13 +395,22 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var betweenDiagnostics = new List<Pr1Component>();
         var afterDiagnostics = new List<Pr1Component>();
         var warmOutput = await Pr1OutputAsync(db, warm, 200, warmDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, warm);
+        await AssertB1FixtureCpfCompositionAsync(db);
+        await AssertRecomposedZAsync(db);
         var before = await Pr1InputAsync(db, winner, beforeDiagnostics);
         var first = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
         var firstOutput = await Pr1OutputAsync(db, first, 200, firstDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, first);
+        await AssertB1FixtureCpfCompositionAsync(db);
+        await AssertRecomposedZAsync(db);
         var firstGold = await ReadGoldUuidSetAsync(db);
         var between = await Pr1InputAsync(db, winner, betweenDiagnostics);
         var second = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
         var secondOutput = await Pr1OutputAsync(db, second, 200, secondDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, second);
+        await AssertB1FixtureCpfCompositionAsync(db);
+        await AssertRecomposedZAsync(db);
         var after = await Pr1InputAsync(db, winner, afterDiagnostics);
         // Save granular evidence before the existing assertions can stop the test.
         var diagnostic = new { scenario, winner = winner.ContentSha256,
@@ -424,7 +451,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine("V9_GOLD_PR1_T1_PASS " + scenario);
     }
 
-    private static Task<List<object?[]>> Pr1ZProvenanceAsync(SqlConnection db) =>
+    private static Task<List<object?[]>> Pr1ZProvenanceAsync(SqlConnection db, SqlTransaction? snapshot = null,
+        Guid? referencePerson = null) =>
         ReadPr1RowsAsync(db, """
             WITH obs_ids AS (
                 SELECT vc.pessoa_observacao_id FROM identidade.v_vinculo_corrente vc
@@ -458,7 +486,63 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             )
             SELECT campo,codigo_pessoa_origem,versao_interna,metodo_resolucao,status,source_as_of,matches_gold
               FROM ranked WHERE rn=1 ORDER BY campo;
-            """);
+            """, tx: snapshot, referencePerson: referencePerson);
+
+    // Same-origin new version is not a reason to alter pre-existing raw
+    // scores/decisions in this controlled fixture. Check every common row,
+    // allowing only the known NOVA_IDENTIDADE -> preservation or existing
+    // association -> confirmation publication reason transitions.
+    private static void AssertB1StableIdentityDecisions(
+        IReadOnlyList<object?[]> before, IReadOnlyList<object?[]> after)
+    {
+        var oldRows = before.ToDictionary(r => (r[0], r[1]));
+        var newRows = after.ToDictionary(r => (r[0], r[1]));
+        Assert.That(oldRows.Keys.All(newRows.ContainsKey), Is.True);
+        Assert.That(newRows.Keys.Except(oldRows.Keys).ToArray(),
+            Is.EqualTo(new[] { ((object?)"V9TEST_0003", (object?)2L) })
+                .Or.EqualTo(new[] { ((object?)"V9TEST_0003", (object?)2) }));
+        foreach (var key in oldRows.Keys)
+        {
+            var a = oldRows[key];
+            var b = newRows[key];
+            Assert.That(b.Where((_, i) => i is not (10 or 12)),
+                Is.EqualTo(a.Where((_, i) => i is not (10 or 12))),
+                "b1 repeated raw decision/score/published UUID/progressive state " + key);
+            if (Equals(a[10], b[10]) && Equals(a[12], b[12]))
+                continue;
+            Assert.That(b[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+            if (Equals(a[10], "NOVA_IDENTIDADE"))
+            {
+                Assert.That(a[12], Is.EqualTo("NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA"));
+                Assert.That(b[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_PRESERVADA"));
+            }
+            else
+            {
+                Assert.That(a[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+                Assert.That(a[12], Is.EqualTo("ASSOCIACAO_EXISTENTE_LINKAGE"));
+                // DT-10 elects the highest internal version in the run.
+                // 0003 v1 is now a follower of the appended v2.
+                Assert.That(b[12], Is.EqualTo(Equals(a[0], "V9TEST_0003")
+                    ? "REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM"
+                    : "REFERENCIA_PROGRESSIVA_CONFIRMADA"), "DT-10 leader/follower " + key);
+                Assert.That(a[0], Is.AnyOf("V9TEST_0003", "V9TEST_0106"));
+            }
+        }
+        var appended = after.Single(r => Equals(r[0], "V9TEST_0003") && Convert.ToInt64(r[1], System.Globalization.CultureInfo.InvariantCulture) == 2);
+        Assert.That(appended[2], Is.EqualTo("RESOLVIDO"));
+        Assert.That(appended[4], Is.EqualTo(ExistingZ));
+        Assert.That(appended[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+        Assert.That(appended[11], Is.EqualTo("RESOLVIDO"));
+        Assert.That(appended[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_CONFIRMADA"),
+            "0003 v2 is the DT-10 leader");
+        Assert.That(appended[13], Is.EqualTo(ExistingZ));
+        Assert.That(appended[15], Is.EqualTo(ExistingZ));
+        var follower = after.Single(r => Equals(r[0], "V9TEST_0003")
+            && Convert.ToInt64(r[1], System.Globalization.CultureInfo.InvariantCulture) == 1);
+        Assert.That(follower[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM"));
+        Assert.That(follower[13], Is.EqualTo(appended[13]));
+        Assert.That(follower[4], Is.EqualTo(ExistingZ), "Publication propagation is not raw FS inheritance");
+    }
 
     private static async Task CharacterizeHistoricalGoldAsync(
         SqlConnection db, IConfiguration config, IOperationalSqlAdapter sql,
@@ -498,25 +582,27 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine("V9_GOLD_PR1_T2_SYNTHETIC " + json);
         Assert.That(beforeDecisions.Count, Is.EqualTo(200));
         Assert.That(afterDecisions.Count, Is.EqualTo(201));
-        Assert.That(beforeGold.Count, Is.EqualTo(201), "T2 initial count not reproduced");
-        Assert.That(afterGold.Count, Is.EqualTo(200), "T2 final count not reproduced");
-        Assert.That(removed.Length, Is.EqualTo(1), "T2 must account for every removed Gold UUID");
-        Assert.That(added, Is.Empty, "T2 unexpected added Gold UUID");
-        Assert.That(removed[0][1], Is.AnyOf("PROVISORIA","INDEFINIDA"),
-            "T2 established reference removed: stop for PO");
-        var origin = beforeLinks.Single(x => Equals(x[8], removed[0][0]));
-        Assert.That(origin[6], Is.AnyOf("PROVISORIA","INDEFINIDA"));
-        var result = afterDecisions.Single(x => Equals(x[0], origin[0]) && Equals(x[1], origin[1]));
-        Assert.That(result[2], Is.EqualTo("RESOLVIDO"), "T2 removal lacks own FS approval");
-        Assert.That(result[4], Is.EqualTo(ExistingZ), "T2 unexpected raw destination");
-        Assert.That(result[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
-        Assert.That(result[13], Is.EqualTo(ExistingZ));
-        Assert.That(result[14], Is.EqualTo("REFERENCIA"));
-        Assert.That(result[15], Is.EqualTo(ExistingZ));
+        // b1 approves 0106 from protected 0006 already in the first FULL:
+        // the historical 201->200 removal must not recur in round two.
+        Assert.That(removed, Is.Empty, "T2 unexpected loss of a Gold UUID");
+        Assert.That(added, Is.Empty, "T2 unexpected new Gold UUID");
+        Assert.That(afterGold.Count, Is.EqualTo(beforeGold.Count));
+        AssertB1StableIdentityDecisions(beforeDecisions, afterDecisions);
+        foreach (var rows in new[] { beforeDecisions, afterDecisions })
+        {
+            var s9 = rows.Single(x => Equals(x[0], "V9TEST_0106"));
+            Assert.That(s9[2], Is.EqualTo("RESOLVIDO"));
+            Assert.That(s9[4], Is.EqualTo(ExistingZ));
+            Assert.That(s9[13], Is.EqualTo(ExistingZ));
+            Assert.That(s9[15], Is.EqualTo(ExistingZ));
+        }
         Assert.That(beforeProvenance.Count, Is.EqualTo(3));
         Assert.That(beforeProvenance.All(x => Equals(x[6], 1)), Is.True);
         Assert.That(afterProvenance.Count, Is.EqualTo(3));
         Assert.That(afterProvenance.All(x => Equals(x[6], 1)), Is.True);
-        TestContext.WriteLine("V9_GOLD_PR1_T2_CHARACTERIZED_NOT_POLICY_APPROVAL");
+        await AssertRecomposedZAsync(db);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, secondRun);
+        await AssertB1FixtureCpfCompositionAsync(db);
+        TestContext.WriteLine("V9_B1_T2_STABLE_IDENTITY_RECOMPOSITION_PASS");
     }
 }
