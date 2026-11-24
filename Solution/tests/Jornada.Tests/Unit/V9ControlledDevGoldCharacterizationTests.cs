@@ -65,7 +65,14 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
               FROM identidade.pessoa_origem_progressiva p
               JOIN silver.pessoa_origem o ON o.pessoa_origem_id=p.pessoa_origem_id;
             """, tx: tx))
-            Assert.That(ids.TryAdd((Guid)row[0]!, (string)row[1]!), Is.True);
+        {
+            // Z is now a real founder's own initial UUID, not a synthetic
+            // external reference. Retain a stable symbolic identity in hashes.
+            if ((Guid)row[0]! == ExistingZ)
+                Assert.That(row[1], Is.EqualTo("V9TEST_0004"));
+            else
+                Assert.That(ids.TryAdd((Guid)row[0]!, (string)row[1]!), Is.True);
+        }
         return ids;
     }
 

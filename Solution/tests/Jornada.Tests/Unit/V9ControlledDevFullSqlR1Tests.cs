@@ -25,7 +25,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 {
     private static readonly Guid ProtectedX = Guid.Parse("10101010-a001-4000-8000-000000000001");
     private static readonly Guid ExistingY = Guid.Parse("20202020-b002-4000-8000-000000000002");
-    private static readonly Guid ExistingZ = Guid.Parse("30303030-c003-4000-8000-000000000003");
+    // Z is the actual initial_uuid of the pre-founded synthetic 0004 origin.
+    // Each physical scenario runs in its own disposable attempt.
+    private static Guid ExistingZ;
 
     [Test]
     public Task FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance() =>
@@ -189,9 +191,6 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             await indication.ExecuteNonQueryAsync();
         }
 
-        await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
-        await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
-
         var temp = Path.Combine(Path.GetTempPath(),
             "jornada-v9-dev-full-r1-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
@@ -208,6 +207,15 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     ["Linkage:V9SelectionFile"] = selected,
                     ["LinkageReplay:CaptureBronzeSources"] = "false"
                 }).Build();
+            // S1 must have an independently founded origin for Z, not a Gold
+            // summary manually labelled as evidence. Reuse fixture origin 0004
+            // to keep the 200/201 no-CPF run census, then publish its own
+            // initial UUID by a real one-row scoped FULL before X/Y exist.
+            await FoundZFromIndependentOriginAsync(connection, configuration,
+                sql, attempt, temp);
+            await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
+            await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
+
             if (scenario is "stable" or "permuted")
             {
                 await AssertStrictFullAndPermutationAsync(connection, configuration,
@@ -443,8 +451,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var expected = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["V9TEST_0007"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
-            ["V9TEST_0107"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
-            ["V9TEST_0106"] = "V9_R1_INDEFINIDO_COM_INDICIO"
+            ["V9TEST_0107"] = "V9_R1_INDEFINIDO_SEM_INDICIO"
         };
         var seen = new HashSet<string>(StringComparer.Ordinal);
         await using var query = new SqlCommand("""
@@ -468,6 +475,24 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         {
             var code = rows.GetString(0);
             Assert.That(seen.Add(code), Is.True, code);
+            if (code == "V9TEST_0106")
+            {
+                // S9: the protected 0006 origin is exact Silver evidence.
+                // The approval must be individual and publish to Z, not a
+                // group indication or a new identity.
+                Assert.Multiple((Action)(() =>
+                {
+                    Assert.That(rows.GetString(1), Is.EqualTo("RESOLVIDO"), code);
+                    Assert.That(rows.GetGuid(3), Is.EqualTo(ExistingZ), code);
+                    Assert.That(rows.GetString(4), Is.EqualTo("ASSOCIACAO_EXISTENTE"), code);
+                    Assert.That(rows.GetString(5), Is.EqualTo("RESOLVIDO"), code);
+                    Assert.That(rows.GetGuid(7), Is.EqualTo(ExistingZ), code);
+                    Assert.That(rows.GetString(8), Is.EqualTo("REFERENCIA"), code);
+                    Assert.That(rows.GetGuid(9), Is.EqualTo(ExistingZ), code);
+                    Assert.That(rows.IsDBNull(10), Is.False, code);
+                }));
+                continue;
+            }
             Assert.Multiple((Action)(() =>
             {
                 Assert.That(rows.GetString(1), Is.EqualTo("NAO_RESOLVIDO"), code);
@@ -482,8 +507,28 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 Assert.That(rows.IsDBNull(10), Is.False, code);
             }));
         }
-        Assert.That(seen, Is.EquivalentTo(expected.Keys));
-        TestContext.WriteLine("V9_DEV_R1_SQL_INDICATION_PASS: 2 SEM_INDICIO and 1 COM_INDICIO; raw and published reasons, no resolved/published UUID");
+        Assert.That(seen, Is.EquivalentTo(expected.Keys.Append("V9TEST_0106")));
+        await rows.DisposeAsync();
+        // Verify the actual protected independent evidence, not just a changed
+        // status. A raw approval without this origin would not prove S9.
+        await using var evidence = new SqlCommand("""
+            SELECT COUNT_BIG(*)
+              FROM silver.pessoa_observacao target
+              JOIN silver.pessoa_observacao secure
+                ON secure.nome_completo=target.nome_completo
+               AND secure.nome_mae=target.nome_mae
+               AND secure.data_nascimento=target.data_nascimento
+              JOIN identidade.v_vinculo_corrente v
+                ON v.pessoa_observacao_id=secure.pessoa_observacao_id
+             WHERE target.codigo_pessoa_origem=N'V9TEST_0106'
+               AND secure.codigo_pessoa_origem=N'V9TEST_0006'
+               AND target.pessoa_origem_id<>secure.pessoa_origem_id
+               AND v.status=N'RESOLVIDO' AND v.metodo_resolucao=N'CORRECAO_GOVERNADA'
+               AND v.pessoa_uuid=@z;
+            """, connection);
+        evidence.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+        Assert.That(await evidence.ExecuteScalarAsync(), Is.EqualTo(1L));
+        TestContext.WriteLine("V9_DEV_B1_SQL_S5_S9_PASS: 2 SEM_INDICIO; 0106 individually approved to Z by protected 0006 evidence");
     }
 
     private static async Task AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(
@@ -995,13 +1040,74 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
     /// Z exactly matches Silver 0003 and must be associated independently (S1).
     /// No FK stubs/group GUIDs are substituted for actual Gold references.
     /// </summary>
+    private static async Task FoundZFromIndependentOriginAsync(SqlConnection connection,
+        IConfiguration configuration, IOperationalSqlAdapter sql, Guid attempt, string temp)
+    {
+        long observationId;
+        Guid initialUuid;
+        await using (var seed = new SqlCommand("""
+            UPDATE founder
+               SET nome_completo=source.nome_completo,nome_cmp=source.nome_cmp,
+                   nome_mae=source.nome_mae,nome_mae_cmp=source.nome_mae_cmp,
+                   data_nascimento=source.data_nascimento,
+                   source_as_of=DATEADD(day,-2,source.source_as_of),
+                   conteudo_hash=LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',
+                       N'V9_B1_INDEPENDENT_FOUNDER_0004'),2))
+              FROM silver.pessoa_observacao founder
+              CROSS JOIN silver.pessoa_observacao source
+             WHERE founder.codigo_pessoa_origem=N'V9TEST_0004'
+               AND source.codigo_pessoa_origem=N'V9TEST_0003';
+            IF @@ROWCOUNT<>1 THROW 52940,'Independent Z founder missing.',1;
+            SELECT po.pessoa_observacao_id,p.initial_uuid
+              FROM silver.pessoa_observacao po
+              JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=po.pessoa_origem_id
+             WHERE po.codigo_pessoa_origem=N'V9TEST_0004' AND p.estado=N'PROVISORIA';
+            """, connection))
+        {
+            await using var rows = await seed.ExecuteReaderAsync();
+            Assert.That(await rows.ReadAsync(), Is.True);
+            observationId = rows.GetInt64(0);
+            initialUuid = rows.GetGuid(1);
+            Assert.That(await rows.ReadAsync(), Is.False);
+        }
+        Assert.That(await CountSqlAsync(connection, "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.Zero);
+        var runner = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+        var run = await runner.RunV9ControlledDevAsync(
+            new ProbabilisticLinkageRunRequest(LinkageRunType.FULL, 9, observationId,
+                null, null, 100, 1, null, "V9_DEV_B1_Z_FOUNDER", "S1_INDEPENDENT_FOUNDER",
+                Guid.NewGuid(), true), attempt, CancellationToken.None);
+        Assert.That(run.Status, Is.EqualTo(LinkageRunStatus.PUBLICADO));
+        Assert.That(run.Elegiveis, Is.EqualTo(1));
+        Assert.That(run.Avaliados, Is.EqualTo(1));
+        await using (var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Snapshot))
+        {
+            var census = await V9ControlledDevSecureOriginReader.ReadAsync(
+                connection, snapshot, new[] { initialUuid }, CancellationToken.None);
+            var founder = census[initialUuid].Single();
+            Assert.That(founder.HasPublishedFounderProof, Is.True);
+            Assert.That(founder.InitialUuid, Is.EqualTo(initialUuid));
+            Assert.That(V9ControlledDevSecureEvidenceScore.IsSecureOrigin(founder), Is.True);
+            Assert.That(founder.Observations.Single().ObservationId, Is.EqualTo(observationId));
+            await snapshot.CommitAsync();
+        }
+        ExistingZ = initialUuid;
+        // Same explicit diagnostic projection fixture used in T3; not a claim
+        // of automatic blocking maintenance (#1936 remains a separate phase).
+        await using var removeLegacy = new SqlCommand("""
+            DELETE FROM identidade.blocking_chave WHERE pessoa_uuid=@z;
+            """, connection);
+        removeLegacy.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+        Assert.That(await removeLegacy.ExecuteNonQueryAsync(), Is.GreaterThan(0));
+        TestContext.WriteLine("V9_B1_S1_INDEPENDENT_Z_FOUNDER " + run.RunId);
+    }
+
     private static async Task SeedExistingGoldReferencesAndProtectedOriginAsync(
         SqlConnection connection)
     {
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
         await using var seed = new SqlCommand("""
             INSERT identidade.pessoa(pessoa_uuid,status)
-            VALUES(@x,N'ATIVO'),(@y,N'ATIVO'),(@z,N'ATIVO');
+            VALUES(@x,N'ATIVO'),(@y,N'ATIVO');
             INSERT gold.pessoa(
                 pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
                 fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
@@ -1009,8 +1115,6 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
               (@x,NULL,N'SEM_CPF',N'FELICIA PEREIRA','1970-01-02',N'BEATRIZ FONSECA',
                  1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME()),
               (@y,NULL,N'SEM_CPF',N'MARIA SILVA','1980-05-06',N'ANA COSTA',
-                 1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME()),
-              (@z,NULL,N'SEM_CPF',N'ALFA0003 SILVA','1980-05-06',N'CARLA0003 COSTA',
                  1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME());
             INSERT identidade.vinculo_fonte(
                 pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,
