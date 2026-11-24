@@ -2,6 +2,19 @@
 
 **DECIDIDO pelo PO:** 23/11/2026, com os ajustes técnicos aprovados nesta conversa. **Estado:** decisão documentada na PR #1924; **matriz física r1 S1–S8 e transversais SQL DEV comprovados** (SHA `5c3fa5c2`, run #45327199875); ainda sujeito a revisão/aceite expresso do diff e merge. **Sem certificação científica nem ativação**. Complementa [plano E2E #1849](https://github.com/lucianox777/Jornada/pull/1849) e [mandato etapa 3](Decisao_GOV_V9_Etapa3_Adaptador_RunAsync_Foco_20261123.md). Não altera DC-ID-02, CPF, origem persistente, publicação DT-10, schema, modelo/agrupador congelado da campanha #38, parâmetros, limiares ou hashes.
 
+## Aditivo r1 — dois motivos de INDEFINIDO (PO, 24/11/2026, 09h)
+
+**ID GOV-V9-R1-INDEFINIDO-INDICIO-20261124 — DECIDIDO pelo PO; implementação nesta PR, validação e integração pendentes.** A decisão complementa a matriz r1, sem alterar status, schema, FS, limiares, candidatos, publicação DT-10, precedências protegidas ou APIs. O objetivo é distinguir indício de grupo de evidência individual, não criar herança nem associação.
+
+| Caso | Motivo bruto |
+| --- | --- |
+| Grupo de 2+ membros, nenhum destino Gold (nem associação individual nem vínculo estabelecido) e nenhum candidato Gold no grupo, membro pendente com busca completa sem candidato | `V9_R1_INDEFINIDO_SEM_INDICIO` |
+| Grupo de 2+ membros com exatamente um destino Gold X autenticado por outro membro, associação individual ou vínculo estabelecido; membro pendente sem aprovação FS própria, sem conflito ou insuficiência de blocking | `V9_R1_INDEFINIDO_COM_INDICIO` |
+
+Os dois são `NAO_RESOLVIDO` brutos e `INDEFINIDA` na publicação quando nenhuma precedência protegida preexistente se aplica; UUID resolvido nulo, candidatos, scores e margem exclusivamente do próprio FS. Nenhuma API ou relatório pode promovê-los a vínculo. Grupo X/Y mantém conflito; aprovação individual mantém decisão; blocking insuficiente mantém motivo; singleton com busca realmente completa mantém possibilidade de NOVA_IDENTIDADE; vínculo previamente estabelecido permanece protegido. Grupo sem destino confirmado mas com candidato fraco não recebe novo tipo sem indício: mantém motivos anteriores (inclusive `V9_R1_GRUPO_SEM_HERANCA` onde aplicável). Não inventar candidato X, nem persistir UUID provável: para futura medição, preferir contagens agregadas por motivo no recibo, sem identificadores; nenhuma coleta adicional nesta PR. Testes unitários positivos/negativos e atualização da asserção física S5, sem nova campanha; não alegar prova física do tipo com indício antes de evidência específica. Rastreabilidade: #1851, #1924, #1930 (master recuperada `ce63955a3679c4d29fe8c1443528d9ad0b0e37b9`, CI push #45389181484 SUCCESS).
+
+**Requisito de escala decidido pelo PO, mesma ordem de 24/11:** [#1931](https://github.com/lucianox777/Jornada/issues/1931), relacionado à #1926, #1849 e #1584. Medir tempo total e por fase, memória do processo, crescimento do version store de tempdb, duração da transação SNAPSHOT, com recortes 10k e 100k quando autorizados. Submeter números de 10k ao PO antes de decidir mitigação e autorizar 100k; nova decisão antes de uso produtivo. Nenhum ensaio agora, nenhuma mudança de isolamento/algoritmo. Mantidos bloqueios científicos/produtivos. GOV-DOC-01.
+
 ## Decisão e justificativa
 
 **Arquitetura B, política r1, FULL primeiro.** A V9 agrupa observações Silver globalmente; o grupo atua como **trava de consistência**, jamais como UUID Gold ou fonte de herança. **Cada nova associação** de uma observação a Gold X exige que o resolvedor **FS completo, congelado e individual** retorne `RESOLVIDO→X`, após limiar, margem, segundo candidato, guardas, TF e abstenções, e que X seja Gold `REFERENCIA` autenticada. Outro membro associado a X (antes ou no mesmo run) **não** autoriza herança.

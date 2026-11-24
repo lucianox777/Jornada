@@ -301,11 +301,11 @@ public sealed class V9ControlledDevFullSqlR1Tests
             // S5: a pair of pending Silver rows (one from each manager)
             // is not a new group-level identity, regardless of SQL edge.
             Assert.That(groupFirst.Best, Is.Null);
-            Assert.That(groupFirst.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(groupFirst.RawReason, Is.EqualTo("V9_R1_INDEFINIDO_SEM_INDICIO"));
             Assert.That(groupFirst.Publication, Is.EqualTo("INDEFINIDA"));
             Assert.That(groupFirst.Published, Is.Null);
             Assert.That(other.Best, Is.Null);
-            Assert.That(other.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(other.RawReason, Is.EqualTo("V9_R1_INDEFINIDO_SEM_INDICIO"));
             Assert.That(other.Publication, Is.EqualTo("INDEFINIDA"));
             Assert.That(other.Published, Is.Null);
             // S4: complete singleton search with eligible passes and no
