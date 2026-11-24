@@ -177,6 +177,7 @@ class EventDiffTests(unittest.TestCase):
 
     def test_full_unit_diff_deletion_rename_and_unverified_event(self):
         old = self.commit("Solution/src/file.cs")
+        Path("Solution/docs").mkdir(parents=True, exist_ok=True)
         Path("Solution/src/file.cs").rename("Solution/docs/moved.md")
         renamed = self.commit("Solution/docs/moved.md")
         self.assertTrue(self.push(old, renamed)["run_unit_full"])
