@@ -554,12 +554,13 @@ public sealed class V9ControlledDevFullSqlR1Tests
             "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold));
         TestContext.WriteLine("V9_DEV_R1_SQL_CONCURRENCY_GATE_PASS: exclusive lock denied without run/Gold changes");
 
-        // Empty scoped FULL is real (no guessed success). An out-of-universe
-        // id must produce zero run items/results and zero new Gold.
+        // Empty scoped FULL is real (no guessed success). A nonexistent
+        // Gestor code is a valid empty SQL scope. Do NOT use an unknown
+        // PessoaObservacaoId: the run header itself has a real Silver FK.
         var empty = await NewDevRunnerAsync(configuration, sql, attempt, temp);
         var zero = await empty.RunV9ControlledDevAsync(
             new ProbabilisticLinkageRunRequest(
-                LinkageRunType.FULL, 9, long.MaxValue, null, null, 100, 1, null,
+                LinkageRunType.FULL, 9, null, "V9_NONEXISTENT_GESTOR", null, 100, 1, null,
                 "V9_DEV_R1_EMPTY", "ZERO_SELECTED_ROWS",
                 Guid.NewGuid(), true),
             attempt, CancellationToken.None);
