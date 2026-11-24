@@ -87,7 +87,8 @@ class Stage7And8OracleTests(unittest.TestCase):
         self.assertIn('JORNADA_E2E_HTTP_VOLUME_COUNT:-}',stage)
         self.assertIn('--v9-dev-e2e-1k-full',stage)
         self.assertIn('RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED',program)
-        self.assertIn('boundary.EnsureProductiveCertified()',program)
+        runner=(ROOT/"src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
+        self.assertIn('boundary.EnsureProductiveCertified()',runner)
 
 
 if __name__=="__main__":
