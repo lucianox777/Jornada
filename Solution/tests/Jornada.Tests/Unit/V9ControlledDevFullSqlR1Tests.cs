@@ -321,10 +321,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     sql, attempt, temp, winner, result.RunId);
                 return;
             }
-            await AssertStableIndicationGoldAsync(connection);
+            await AssertRecomposedZAsync(connection);
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
-                connection, configuration, sql, attempt, temp);
+                connection, configuration, sql, attempt, temp, result.RunId);
             await AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(
                 connection, configuration, sql, attempt, temp);
             TestContext.WriteLine(
@@ -413,26 +413,29 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             "Silver-only group indefinite; complete singleton new identity; group spans pages");
     }
 
-    // The canonical Gold source-selection policy prefers the most recent
-    // source_as_of for unverified fields. In this fixture the historical
-    // linked member must not change Z's FS evidence between the FULL runs.
-    private static async Task AssertStableIndicationGoldAsync(SqlConnection connection)
+    // Display is independently checked against the canonical recomposition
+    // precedence, not a particular Silver record or the scoring evidence.
+    private static async Task AssertRecomposedZAsync(SqlConnection connection)
     {
-        await using var query = new SqlCommand("""
-            SELECT g.nome_completo,g.nome_mae,g.data_nascimento,g.estado_identidade
-              FROM gold.pessoa g WHERE g.pessoa_uuid=@z;
-            """, connection);
-        query.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
-        await using var rows = await query.ExecuteReaderAsync();
-        Assert.That(await rows.ReadAsync(), Is.True);
-        Assert.Multiple((Action)(() =>
+        await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Snapshot);
+        var provenance = await Pr1ZProvenanceAsync(connection, snapshot);
+        Assert.That(provenance.Select(r => r[0]), Is.EquivalentTo(
+            new[] { "NOME_COMPLETO", "DATA_NASCIMENTO", "NOME_MAE" }));
+        Assert.That(provenance.All(r => Equals(r[6], 1)), Is.True,
+            "Each displayed field must equal the current canonical source selected by verification/recency/ID precedence.");
+        await using (var state = new SqlCommand("""
+            SELECT estado_identidade,completude_nucleo FROM gold.pessoa WHERE pessoa_uuid=@z;
+            """, connection, snapshot))
         {
-            Assert.That(rows.GetString(0), Is.EqualTo("ALFA0003 SILVA"));
-            Assert.That(rows.GetString(1), Is.EqualTo("CARLA0003 COSTA"));
-            Assert.That(rows.GetDateTime(2), Is.EqualTo(new DateTime(1980, 5, 6)));
-            Assert.That(rows.GetString(3), Is.EqualTo("REFERENCIA"));
-        }));
-        Assert.That(await rows.ReadAsync(), Is.False);
+            state.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            await using var rows = await state.ExecuteReaderAsync();
+            Assert.That(await rows.ReadAsync(), Is.True);
+            Assert.That(rows.GetString(0), Is.EqualTo("REFERENCIA"));
+            Assert.That(rows.GetString(1), Is.EqualTo("COMPLETO"));
+            Assert.That(await rows.ReadAsync(), Is.False);
+        }
+        await snapshot.CommitAsync();
+        TestContext.WriteLine("V9_B1_Z_DISPLAY_RECOMPOSITION_PASS");
     }
 
     private static async Task<HashSet<Guid>> ReadGoldUuidSetAsync(SqlConnection connection)
@@ -641,8 +644,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 
     private static async Task AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
         SqlConnection connection, IConfiguration configuration,
-        IOperationalSqlAdapter sql, Guid attempt, string temp)
+        IOperationalSqlAdapter sql, Guid attempt, string temp, Guid baselineRun)
     {
+        var baselineDecisions = await ReadPr1RowsAsync(connection, Pr1Decisions, baselineRun);
         var baselineGold = await CountSqlAsync(
             connection, "SELECT COUNT_BIG(*) FROM gold.pessoa;");
         var baselineGoldUuids = await ReadGoldUuidSetAsync(connection);
@@ -734,8 +738,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Assert.That(await CountSqlAsync(connection,
             "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold),
             "Repeated FULL must be idempotent at Gold identity level.");
-        await AssertStableIndicationGoldAsync(connection);
+        await AssertRecomposedZAsync(connection);
         await AssertPhysicalIndicationReasonsAsync(connection, full.RunId);
+        var repeatedDecisions = await ReadPr1RowsAsync(connection, Pr1Decisions, full.RunId);
+        AssertB1StableIdentityDecisions(baselineDecisions, repeatedDecisions);
 
         // Concurrency fail-closed: while another owner holds BOTH real SQL
         // coordination locks, a second V9 request is refused before creating
