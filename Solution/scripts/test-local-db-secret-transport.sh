@@ -11,16 +11,32 @@ MOCK_EXPECTED_PASSWORD='Synthetic_Db_Mock_2026!Only'
 export MOCK_EXPECTED_PASSWORD
 printf 'JORNADA_SQL_SA_PASSWORD=%s\nJORNADA_SQL_DATABASE=JornadaSyntheticDev\n' "$MOCK_EXPECTED_PASSWORD" > "$FIXTURE/.env"
 MOCK_DB_LOG="$FIXTURE/command-counts.log"
-export MOCK_DB_LOG
+MOCK_PS_LOG="$FIXTURE/compose-ps.log"
+export MOCK_DB_LOG MOCK_PS_LOG
+# Git mode is part of the CI contract: #1920 accidentally changed 100755 to 100644.
+tracked_mode="$(git -C "$ROOT" ls-files --stage -- scripts/local-db.sh | awk 'NR==1 {print $1}')"
+[[ "$tracked_mode" == "100755" ]] || {
+  echo "local-db.sh deve permanecer 100755 no índice Git (atual: $tracked_mode)." >&2
+  exit 1
+}
 cat > "$FIXTURE/bin/docker" <<'MOCK_DOCKER'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == inspect ]]; then
   [[ "$SQLCMDPASSWORD" == 'PARENT_SCOPE_SENTINEL' ]] || exit 51
+  [[ "$#" -eq 4 && "$2" == -f && "$4" == 'V9_MOCK_SQLSERVER_0' ]] || exit 56
   printf 'healthy\n'
   exit 0
 fi
 [[ "$1" == compose ]] || exit 52
+# Current production wait_healthy() uses docker compose ps -q sqlserver:
+# return the exact ephemeral container ID, not the old hard-coded name.
+if [[ " $* " == *" ps -q sqlserver "* ]]; then
+  [[ "$SQLCMDPASSWORD" == 'PARENT_SCOPE_SENTINEL' ]] || exit 57
+  printf 'ps\n' >> "$MOCK_PS_LOG"
+  printf 'V9_MOCK_SQLSERVER_0\n'
+  exit 0
+fi
 while [[ "$#" -gt 0 && "$1" != exec ]]; do shift; done
 if [[ "$#" -eq 0 ]]; then exit 0; fi
 shift
@@ -46,6 +62,7 @@ bash "$FIXTURE/scripts/local-db.sh" up --no-synthetic-corpus > "$FIXTURE/success
   echo 'Synthetic safe bootstrap failed.' >&2
   exit 1
 }
+[[ -s "$MOCK_PS_LOG" ]] || { echo 'wait_healthy não consultou compose ps -q sqlserver.' >&2; exit 1; }
 count="$(wc -l < "$MOCK_DB_LOG")"
 [[ "$count" -ge 8 ]] || { echo "Expected repeated real sqlcmd calls, got $count." >&2; exit 1; }
 [[ "$SQLCMDPASSWORD" == PARENT_SCOPE_SENTINEL ]] || exit 1
