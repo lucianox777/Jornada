@@ -53,6 +53,34 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$result"
+  premerge-integrity:
+    needs: classify-impact
+    if: needs.classify-impact.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Fail closed when directly invoked shell scripts lack Git executable mode
+        run: |
+          python3 scripts/ci-pr-direct-executable-gate.py --self-test
+          python3 scripts/ci-pr-direct-executable-gate.py --repo ..
+      - name: Validate NuGet lock graph and candidate SHA provenance before merge
+        run: ./scripts/nuget-lock-bootstrap.sh
+      - name: Enforce exact architecture dependency allowlist before merge
+        run: |
+          python3 scripts/architecture-dependency-gate.py --summary .local/pr-architecture-dependencies.json
+          python3 scripts/architecture-dependency-gate.py --self-test
+
   unit-runtime:
     needs: classify-impact
     runs-on: ubuntu-latest
