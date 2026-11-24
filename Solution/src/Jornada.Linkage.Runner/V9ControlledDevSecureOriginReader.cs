@@ -21,8 +21,8 @@ internal static class V9ControlledDevSecureOriginReader
 
     // Read ALL versions, not only blocking hits, latest observations or
     // observations with a protected link. The authority is per origin.
-    // Retain separate provenance flags until the b1 eligibility policy has
-    // been checked against physical revocation and UUID feedback scenarios.
+    // Retain separate provenance flags for the b1 eligibility policy and
+    // physical revocation/feedback regressions.
     internal static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<OriginFacts>>> ReadAsync(
         SqlConnection connection, SqlTransaction snapshot,
         IReadOnlyCollection<Guid> candidatePeople, CancellationToken ct)
@@ -90,6 +90,20 @@ internal static class V9ControlledDevSecureOriginReader
                             WHERE e.pessoa_origem_id=p.pessoa_origem_id
                               AND e.resultado=N'ASSOCIACAO_EXISTENTE'
                               AND e.canonical_uuid=t.pessoa_uuid AND lr.status=N'PUBLICADO'
+                       ) OR EXISTS (
+                           SELECT 1
+                             FROM silver.pessoa_observacao historic
+                             JOIN identidade.linkage_resultado r
+                               ON r.pessoa_observacao_id=historic.pessoa_observacao_id
+                             JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id
+                            WHERE historic.pessoa_origem_id=p.pessoa_origem_id
+                              AND lr.status=N'PUBLICADO' AND lr.publicado_em IS NOT NULL
+                              AND r.publicado_em IS NOT NULL
+                              AND r.resultado_publicacao=N'ASSOCIACAO_EXISTENTE'
+                              AND r.status_publicacao=N'RESOLVIDO'
+                              AND r.pessoa_uuid_publicado=t.pessoa_uuid
+                              AND r.status=N'RESOLVIDO'
+                              AND r.pessoa_uuid_resolvido=t.pessoa_uuid
                        ) THEN 1 ELSE 0 END AS prior_association,
                        CASE WHEN p.estado=N'REFERENCIA' AND p.canonical_uuid=t.pessoa_uuid
                                  AND p.initial_uuid=t.pessoa_uuid AND EXISTS (

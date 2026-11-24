@@ -203,8 +203,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(gold[4], Is.Not.EqualTo(T3S.NomeMae));
             await AssertT3CandidateAsync(db,winner,T3B,x);
             // Read the actual b1 origin provenance on the same disposable SQL
-            // database before the baseline second FULL. This test does not
-            // switch the existing scorer or overwrite the historical T3 proof.
+            // database before the second FULL. The baseline is immutable
+            // at the historical SHA/run; this run tests the b1 fix.
             await using (var snapshot = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Snapshot))
             {
                 var census = await V9ControlledDevSecureOriginReader.ReadAsync(
@@ -243,17 +243,19 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 firstLinks = linksBefore, secondLinks = linksAfter,
                 recomposedFrom = "V9T3_A", safeOriginal = "V9TEST_0001",
                 originalPairStillRejected = Pair(T3B,T3S).Status == ResolutionStatus.NAO_RESOLVIDO };
-            await File.WriteAllTextAsync(Path.Combine(Pr1Directory(),"t3-current.json"),
+            await File.WriteAllTextAsync(Path.Combine(Pr1Directory(),"t3-b1-publication.json"),
                 JsonSerializer.Serialize(proof));
-            TestContext.WriteLine("V9_B1_T3_CURRENT " + JsonSerializer.Serialize(proof));
-            // Characterize current behavior before b1: indirect inheritance
-            // by the recomposed summary, not group propagation.
-            Assert.That(b2[2], Is.EqualTo("RESOLVIDO"));
-            Assert.That(b2[4], Is.EqualTo(x));
-            Assert.That(b2[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
-            Assert.That(b2[13], Is.EqualTo(x));
+            TestContext.WriteLine("V9_B1_T3_PUBLICATION " + JsonSerializer.Serialize(proof));
+            // Real second FULL: B must not inherit the identity from A's
+            // recomposed summary. No alternative new identity may be born.
+            Assert.That(b2[2], Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(b2[4], Is.Null);
+            Assert.That(b2[10], Is.EqualTo("INDEFINIDA"));
+            Assert.That(b2[13], Is.Null);
+            Assert.That(b2[14], Is.EqualTo("INDEFINIDA"));
+            Assert.That(b2[15], Is.Null);
             Assert.That(Pair(T3B,T3S).Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
-            TestContext.WriteLine("V9_B1_T3_CURRENT_INHERITANCE_CHARACTERIZED");
+            TestContext.WriteLine("V9_B1_T3_INDIRECT_INHERITANCE_BLOCKED");
         }
         finally
         {

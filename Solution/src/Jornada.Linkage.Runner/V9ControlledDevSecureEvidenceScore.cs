@@ -76,10 +76,10 @@ internal static class V9ControlledDevSecureEvidenceScore
         if (origin.HasPublishedFounderProof && origin.State == "REFERENCIA"
             && origin.InitialUuid == origin.PersonUuid)
             return true;
-        // Conservative admission: a feedback-only link must not ratify its
-        // own earlier probabilistic assignment. CPF/correction or a proven
-        // founder above is independent authority. Physical feedback and
-        // revocation scenarios are still required before the runtime switch.
+        // PO decision: a returned UUID does not distinguish automated echo
+        // from human confirmation and cannot ratify a prior probabilistic
+        // assignment. A future distinct governed attendant-choice method
+        // is not implemented or inferred here.
         return origin.HasUuidFeedback && !origin.HasPriorProbabilisticAssociation;
     }
 

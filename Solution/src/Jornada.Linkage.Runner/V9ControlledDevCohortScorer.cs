@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
@@ -135,13 +136,54 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 throw new InvalidDataException("RUNNER_V9_DEV_GROUP_INVALID");
         }
 
-        // Independent FS against physically authenticated, established Gold
-        // UUID candidates; never use synthetic group GUIDs as Gold candidates.
-        var raw = frozenRows.Count == 0
-            ? new Dictionary<long, ProbabilisticLinkageDecision>()
-            : V9ControlledDevGoldScorePreview.Score(
-                winner, frozenRows, verified).Decisions
-                .ToDictionary(x => x.Key, x => x.Value);
+        // b1: the Gold UUID universe is unchanged. The score is based only
+        // on the physically authenticated persistent-origin records, never
+        // the recomposed Gold summary or a synthetic group UUID.
+        var originFacts = verified.SecureOriginFactsByPerson
+            ?? throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_MISSING");
+        var expectedPeople = verified.CandidatesByObservation.Values
+            .SelectMany(x => x).Select(x => x.PessoaUuid).ToHashSet();
+        if (!expectedPeople.SetEquals(originFacts.Keys))
+            throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_INVALID");
+        var raw = new Dictionary<long, ProbabilisticLinkageDecision>(frozenRows.Count);
+        var receipts = new Dictionary<long, V9ControlledDevSecureEvidenceScore.Receipt>(frozenRows.Count);
+        foreach (var row in frozenRows)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!verified.AuthenticatedSilverByObservation.TryGetValue(row.PessoaObservacaoId, out var source)
+                || !Equals(source, row.Observation)
+                || !verified.EvidenceByObservation.TryGetValue(row.PessoaObservacaoId, out var candidateReceipt)
+                || !verified.CandidatesByObservation.TryGetValue(row.PessoaObservacaoId, out var candidates)
+                || candidateReceipt.CandidateCount != candidates.Count)
+                throw new InvalidDataException("RUNNER_V9_DEV_B1_INPUT_INVALID");
+            V9ControlledDevOperationalCandidateSource.VerifyCanonicalCandidateMembership(
+                candidateReceipt.CandidateUuids, candidates);
+            var scored = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(
+                winner.FrozenWinner, winner.ModelId, source, candidateReceipt.CandidateUuids, originFacts);
+            if (!raw.TryAdd(row.PessoaObservacaoId, scored.Decision)
+                || !receipts.TryAdd(row.PessoaObservacaoId, scored.EvidenceReceipt))
+                throw new InvalidDataException("RUNNER_V9_DEV_B1_DUPLICATE_SOURCE");
+        }
+        // Distinct b1 receipts, never a replacement for scientific hashes.
+        // Aggregate counts and a deterministic digest of per-observation
+        // evidence membership; do not emit person attributes in logs.
+        using (var digest = System.Security.Cryptography.IncrementalHash.CreateHash(
+            System.Security.Cryptography.HashAlgorithmName.SHA256))
+        {
+            foreach (var item in receipts.OrderBy(x => x.Key))
+                digest.AppendData(System.Text.Encoding.UTF8.GetBytes(FormattableString.Invariant(
+                    $"{item.Key}:{item.Value.EvidenceMembershipSha256}\n")));
+            Console.WriteLine("V9_DEV_B1_EVIDENCE " + JsonSerializer.Serialize(new {
+                runId, policy = V9ControlledDevSecureEvidenceScore.PolicyVersion,
+                observations = receipts.Count,
+                candidatePeople = receipts.Values.Sum(r => (long)r.CandidatePeople),
+                secureRecords = receipts.Values.Sum(r => r.SecureRecords),
+                comparedRecords = receipts.Values.Sum(r => r.ComparedRecords),
+                scoreableRecords = receipts.Values.Sum(r => r.ScoreableRecords),
+                peopleWithoutScoreableEvidence = receipts.Values.Sum(r => (long)r.PeopleWithoutScoreableEvidence),
+                evidenceMembershipSha256 = Convert.ToHexString(digest.GetHashAndReset()).ToLowerInvariant()
+            }));
+        }
         // A singleton in the FINAL complete-link partition can still have a
         // weak/incompatible SILVER blocking candidate. It is never an empty
         // candidate search for NEW identity publication.

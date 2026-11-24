@@ -457,8 +457,8 @@ public static class V9ControlledDevOperationalCandidateSource
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
         }
         // Read the provenance of all persistent origins for the exact Gold
-        // UUID union before committing this same snapshot. This first stage
-        // carries facts only; the b1 scorer switch follows the authority tests.
+        // UUID union before committing this same snapshot. The b1 scorer
+        // consumes these facts, with no fallback to the Gold summary.
         var secureOriginFacts = await V9ControlledDevSecureOriginReader.ReadAsync(
             connection, snapshot, result.Values.SelectMany(v => v)
                 .Select(v => v.PessoaUuid).Distinct().ToArray(), cancellationToken);
