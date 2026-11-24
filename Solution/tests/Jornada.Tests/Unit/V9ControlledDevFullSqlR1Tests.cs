@@ -106,6 +106,26 @@ public sealed class V9ControlledDevFullSqlR1Tests
             """, connection))
             await missingEvidence.ExecuteNonQueryAsync();
 
+        // S5: authentic cross-manager Silver pair with no individually
+        // approved Gold. Both share the exact physical name/mother projection;
+        // Z's weaker ALFA/CARLA prefix hit must NOT be promoted by grouping.
+        await using (var withoutGold = new SqlCommand("""
+            UPDATE partner
+               SET nome_completo=source.nome_completo,
+                   nome_cmp=source.nome_cmp,
+                   nome_mae=source.nome_mae,
+                   nome_mae_cmp=source.nome_mae_cmp,
+                   conteudo_hash=LOWER(CONVERT(varchar(64),
+                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
+                                 N'V9_R1_S5_SILVER_ONLY_PAIR_0107')),2))
+              FROM silver.pessoa_observacao partner
+              CROSS JOIN silver.pessoa_observacao source
+             WHERE partner.codigo_pessoa_origem=N'V9TEST_0107'
+               AND source.codigo_pessoa_origem=N'V9TEST_0007';
+            IF @@ROWCOUNT<>1 THROW 52913,'Physical S5 Silver pair missing.',1;
+            """, connection))
+            await withoutGold.ExecuteNonQueryAsync();
+
         await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
         await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
 
@@ -215,6 +235,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 }));
                 Assert.That(await denied.ReadAsync(), Is.False);
             }
+            await AssertPhysicalS3S4S5AndCrossBatchAsync(connection, result.RunId);
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
                 connection, configuration, sql, attempt, temp);
@@ -227,6 +248,76 @@ public sealed class V9ControlledDevFullSqlR1Tests
         {
             Directory.Delete(temp, recursive: true);
         }
+    }
+
+    private static async Task AssertPhysicalS3S4S5AndCrossBatchAsync(
+        SqlConnection connection, Guid runId)
+    {
+        var outcomes = new Dictionary<string, (
+            long SourceId, string RawStatus, string? RawReason,
+            Guid? Best, string Publication, Guid? Published)>();
+        await using (var query = new SqlCommand("""
+            SELECT po.codigo_pessoa_origem,po.pessoa_observacao_id,
+                   r.status,r.motivo,r.melhor_candidato_uuid,
+                   r.resultado_publicacao,r.pessoa_uuid_publicado
+              FROM identidade.linkage_resultado r
+              JOIN silver.pessoa_observacao po
+                ON po.pessoa_observacao_id=r.pessoa_observacao_id
+             WHERE r.linkage_run_id=@run
+               AND po.codigo_pessoa_origem IN(
+                   N'V9TEST_0001',N'V9TEST_0101',
+                   N'V9TEST_0007',N'V9TEST_0107',
+                   N'V9TEST_0108')
+             ORDER BY po.codigo_pessoa_origem;
+            """, connection))
+        {
+            query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+            await using var rows = await query.ExecuteReaderAsync();
+            while (await rows.ReadAsync())
+            {
+                Assert.That(outcomes.TryAdd(rows.GetString(0),
+                    (rows.GetInt64(1), rows.GetString(2),
+                     rows.IsDBNull(3) ? null : rows.GetString(3),
+                     rows.IsDBNull(4) ? null : rows.GetGuid(4),
+                     rows.GetString(5),
+                     rows.IsDBNull(6) ? null : rows.GetGuid(6))), Is.True);
+            }
+        }
+        Assert.That(outcomes.Count, Is.EqualTo(5));
+        var weak = outcomes["V9TEST_0007"];
+        var other = outcomes["V9TEST_0107"];
+        var singleton = outcomes["V9TEST_0108"];
+        var x = outcomes["V9TEST_0001"];
+        var y = outcomes["V9TEST_0101"];
+        Assert.Multiple((Action)(() =>
+        {
+            // S3: even a physically authenticated weaker Gold Z is a
+            // candidate, not permission to invent a new Gold identity.
+            Assert.That(weak.Best, Is.EqualTo(ExistingZ));
+            Assert.That(weak.RawStatus, Is.EqualTo("NAO_RESOLVIDO"));
+            Assert.That(weak.Publication, Is.EqualTo("INDEFINIDA"));
+            Assert.That(weak.Published, Is.Null);
+            // S5: a pair of pending Silver rows (one from each manager)
+            // is not a new group-level identity, regardless of SQL edge.
+            Assert.That(weak.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(other.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(other.Publication, Is.EqualTo("INDEFINIDA"));
+            Assert.That(other.Published, Is.Null);
+            // S4: complete singleton search with eligible passes and no
+            // Gold/Silver neighbor produces only its own progressive initial.
+            Assert.That(singleton.RawReason,
+                Does.StartWith("SEM_CANDIDATO_"));
+            Assert.That(singleton.Publication, Is.EqualTo("NOVA_IDENTIDADE"));
+            Assert.That(singleton.Published, Is.Not.Null);
+            // S2 physical X/Y group spans 100+100 persist batches; it was
+            // prepared globally before either batch was written.
+            Assert.That(x.SourceId, Is.LessThan(y.SourceId));
+            Assert.That(x.SourceId, Is.LessThanOrEqualTo(100L));
+            Assert.That(y.SourceId, Is.GreaterThan(100L));
+        }));
+        TestContext.WriteLine(
+            "V9_DEV_R1_PHYSICAL_S3_S4_S5_CROSS_BATCH_PASS: weak Gold abstains; " +
+            "Silver-only group indefinite; complete singleton new identity; group spans pages");
     }
 
     private static async Task<long> CountSqlAsync(
@@ -510,16 +601,20 @@ public sealed class V9ControlledDevFullSqlR1Tests
         {
             if (slot.Unit != NominalFrequencyUnitV9.FirstName)
                 return slot;
-            var term = slot.Side == CompositeNominalTfSideV9.Person
-                ? "ALFA0003" : "CARLA0003";
+            var terms = slot.Side == CompositeNominalTfSideV9.Person
+                ? new[] { "ALFA0003", "ALFA0007" }
+                : new[] { "CARLA0003", "CARLA0007" };
             var active = slot.Calibration
                 ?? throw new InvalidDataException("V9_DEV_R1_SYNTHETIC_TF_MISSING");
             var frequencies = active.Frequencies.ToDictionary(
                 x => x.Key, x => x.Value, StringComparer.Ordinal);
             var trainU = active.TrainUnitUByValue.ToDictionary(
                 x => x.Key, x => x.Value, StringComparer.Ordinal);
-            frequencies.Add(term, .25m);
-            trainU.Add(term, .1m);
+            foreach (var term in terms)
+            {
+                frequencies.Add(term, .25m);
+                trainU.Add(term, .1m);
+            }
             return slot with
             {
                 Calibration = active with
