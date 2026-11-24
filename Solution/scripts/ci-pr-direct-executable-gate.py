@@ -94,9 +94,14 @@ def check(root: Path) -> list[str]:
                     "", before)
                 if INTERPRETER.search(command_before):
                     continue
-                # Paths mentioned in assignment strings or doc comments do
-                # not alter execution mode. Conservative if mixed with shell.
-                if re.search(r"(?:^|[\s;])(?:export\s+)?[A-Za-z_]\w*=$", before):
+                # A variable assignment, echoed illustrative command, file
+                # copy or PowerShell Get-Content only MENTIONS the script.
+                # Keep actual direct calls after ;/&&/|| distinct.
+                segment = re.split(r"(?:&&|\\|\\||;)", command_before)[-1]
+                if (re.search(r"(?:^|[\\s;])(?:export\\s+)?"
+                              r"[A-Za-z_]\\w*=[\\\"']?$", segment)
+                    or re.search(r"^\\s*echo\\b", segment)
+                    or re.search(r"\\bGet-Content\\b", segment)):
                     continue
                 candidate = "Solution/scripts/" + name
                 if candidate not in modes:
@@ -124,7 +129,10 @@ def self_test():
             "  on:\n    pull_request:\n      paths:\n"
             "        - \"Solution/scripts/interpreted.sh\"\n")
         (scripts / "direct.sh").write_text(
-            "#!/bin/bash\n\"$script_dir/sibling.sh\"\n")
+            "#!/bin/bash\n\"$script_dir/sibling.sh\"\n"
+            "DRAFT=\"$ROOT/scripts/interpreted.sh\"\n"
+            "echo \"# ./scripts/interpreted.sh\"\n"
+            "bash \"$ROOT/scripts/interpreted.sh\"\n")
         (scripts / "sibling.sh").write_text("#!/bin/bash\nexit 0\n")
         (scripts / "interpreted.sh").write_text("#!/bin/bash\nexit 0\n")
         subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
