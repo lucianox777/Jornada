@@ -74,6 +74,11 @@ def check(root: Path) -> list[str]:
     targets += list(scripts.glob("*.sh"))
     if not targets:
         raise ValueError("no executable command surfaces found")
+    # Include every tracked shell program in the repo, including install/,
+    # database/ and container-test/, not only Solution/scripts/.
+    other_shells = sorted(
+        path for path in modes
+        if path.endswith(".sh") and not path.startswith("Solution/scripts/"))
     direct = {}
     for file in targets:
         if not file.is_file() or file.is_symlink():
@@ -102,9 +107,21 @@ def check(root: Path) -> list[str]:
                 if re.match(r"^[A-Za-z_]\w*=", first):
                     continue  # pure shell assignment, not a command
                 match = LOCAL.search(first)
-                if match is None:
+                candidate = ("Solution/scripts/" + match.group(1)) if match else None
+                if candidate is None:
+                    # Exact other tracked paths, including variable-prefixed
+                    # paths like "$ROOT/install/container-test/entrypoint.sh".
+                    # Never classify a basename alone from a different tree.
+                    token = first.strip("\\\"'")
+                    for other in other_shells:
+                        relative = other.removeprefix("Solution/")
+                        if (token == relative or token == other
+                            or token.endswith("/" + relative)
+                            or token.endswith("/" + other)):
+                            candidate = other
+                            break
+                if candidate is None:
                     continue
-                candidate = "Solution/scripts/" + match.group(1)
                 if candidate not in modes:
                     raise ValueError(
                         f"untracked directly invoked script {candidate} at "
@@ -126,10 +143,14 @@ def self_test():
         (root / ".github/workflows/check.yml").write_text(
             "jobs:\n  validate:\n    steps:\n"
             "      - run: ./Solution/scripts/direct.sh\n"
+            "      - run: ./Solution/install/install-direct.sh\n"
             "      - run: bash ./Solution/scripts/interpreted.sh\n"
             "      - run: source \"$ROOT/scripts/interpreted.sh\"\n"
             "  on:\n    pull_request:\n      paths:\n"
             "        - \"Solution/scripts/interpreted.sh\"\n")
+        installer = root / "Solution" / "install"
+        installer.mkdir()
+        (installer / "install-direct.sh").write_text("#!/bin/bash\\nexit 0\\n")
         (scripts / "direct.sh").write_text(
             "#!/bin/bash\n\"$script_dir/sibling.sh\"\n"
             "DRAFT=\"$ROOT/scripts/interpreted.sh\"\n"
@@ -140,10 +161,12 @@ def self_test():
         subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
         subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
         failures = check(root)
-        assert len(failures) == 2 and "direct.sh" in str(failures) \
-            and "sibling.sh" in str(failures), failures
+        assert len(failures) == 3 and "direct.sh" in str(failures) \
+            and "sibling.sh" in str(failures) \
+            and "install-direct.sh" in str(failures), failures
         os.chmod(scripts / "direct.sh", 0o755)
         os.chmod(scripts / "sibling.sh", 0o755)
+        os.chmod(installer / "install-direct.sh", 0o755)
         subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
         assert check(root) == [], "direct executable scripts must pass"
         assert tracked_modes(root)["Solution/scripts/interpreted.sh"] == "100644"
