@@ -40,6 +40,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         return RunFixtureAsync(scenario);
     }
 
+    [Test]
+    public Task FULL_T3_indirect_probabilistic_inheritance() => RunFixtureAsync("t3");
+
     private static async Task RunFixtureAsync(string scenario)
     {
         var source = Environment.GetEnvironmentVariable("JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL");
@@ -77,7 +80,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         // a change to operational thresholds, scientific parameters or artifacts.
         // A strong exact/exact joint cell makes real positive Gold paths
         // observable while retaining the original V9 scoring and guards.
-        var winner = DistinctivePhysicalFixtureWinner();
+        var winner = scenario == "t3" ? T3DiagnosticWinner() : DistinctivePhysicalFixtureWinner();
         var stored = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner);
         if (stored.ModelId != V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256))
             throw new InvalidDataException("RUNNER_V9_DEV_MODEL_SHA_MISMATCH");
@@ -97,6 +100,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 IdentityComparison.NormalizationVersion;
             anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = winner.ContentSha256;
             Assert.That(await anchor.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        if (scenario == "t3")
+        {
+            await CharacterizeT3Async(connection, sql, attempt, winner);
+            return;
         }
 
         // Reuses the established 200-observation SQL FKs/Processor-style origin
@@ -1046,7 +1055,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
     /// This is isolated diagnostic fixture setup, not production publication.
     /// </summary>
     private static async Task MaterializeFrozenGoldBlockingKeysAsync(
-        SqlConnection connection, V9FittedSnapshot winner)
+        SqlConnection connection, V9FittedSnapshot winner, Guid? only = null)
     {
         var runtime = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), winner.ContentSha256);
@@ -1058,12 +1067,14 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         await using (var read = new SqlCommand("""
             SELECT pessoa_uuid,nome_completo,nome_mae,data_nascimento,atualizado_em
               FROM gold.pessoa
-             WHERE pessoa_uuid IN (@x,@y,@z)
+             WHERE ((@only IS NULL AND pessoa_uuid IN (@x,@y,@z))
+                    OR pessoa_uuid=@only)
                AND estado_identidade=N'REFERENCIA'
                AND completude_nucleo=N'COMPLETO'
              ORDER BY pessoa_uuid;
             """, connection, tx))
         {
+            read.Parameters.Add("@only", SqlDbType.UniqueIdentifier).Value = (object?)only ?? DBNull.Value;
             read.Parameters.Add("@x", SqlDbType.UniqueIdentifier).Value = ProtectedX;
             read.Parameters.Add("@y", SqlDbType.UniqueIdentifier).Value = ExistingY;
             read.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
@@ -1078,7 +1089,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     rows.GetDateTimeOffset(4)));
             }
         }
-        if (sources.Count != 3 || sources.Select(x => x.Id).Distinct().Count() != 3)
+        var expected = only.HasValue ? 1 : 3;
+        if (sources.Count != expected || sources.Select(x => x.Id).Distinct().Count() != expected)
             throw new InvalidDataException("V9_DEV_R1_EXISTING_GOLD_SET_INCOMPLETE");
         var written = 0;
         foreach (var gold in sources)
