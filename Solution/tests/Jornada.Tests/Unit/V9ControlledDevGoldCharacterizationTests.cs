@@ -395,15 +395,21 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         var betweenDiagnostics = new List<Pr1Component>();
         var afterDiagnostics = new List<Pr1Component>();
         var warmOutput = await Pr1OutputAsync(db, warm, 200, warmDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, warm);
+        await AssertB1FixtureCpfCompositionAsync(db);
         await AssertRecomposedZAsync(db);
         var before = await Pr1InputAsync(db, winner, beforeDiagnostics);
         var first = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
         var firstOutput = await Pr1OutputAsync(db, first, 200, firstDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, first);
+        await AssertB1FixtureCpfCompositionAsync(db);
         await AssertRecomposedZAsync(db);
         var firstGold = await ReadGoldUuidSetAsync(db);
         var between = await Pr1InputAsync(db, winner, betweenDiagnostics);
         var second = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
         var secondOutput = await Pr1OutputAsync(db, second, 200, secondDiagnostics);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, second);
+        await AssertB1FixtureCpfCompositionAsync(db);
         await AssertRecomposedZAsync(db);
         var after = await Pr1InputAsync(db, winner, afterDiagnostics);
         // Save granular evidence before the existing assertions can stop the test.
@@ -595,6 +601,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Assert.That(afterProvenance.Count, Is.EqualTo(3));
         Assert.That(afterProvenance.All(x => Equals(x[6], 1)), Is.True);
         await AssertRecomposedZAsync(db);
+        await AssertB1GovernedNoCpfReevaluatedAsync(db, secondRun);
+        await AssertB1FixtureCpfCompositionAsync(db);
         TestContext.WriteLine("V9_B1_T2_STABLE_IDENTITY_RECOMPOSITION_PASS");
     }
 }

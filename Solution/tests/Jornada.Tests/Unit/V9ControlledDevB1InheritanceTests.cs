@@ -333,6 +333,14 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(b2[13], Is.Null);
             Assert.That(b2[14], Is.EqualTo("INDEFINIDA"));
             Assert.That(b2[15], Is.Null);
+            // The physical receipt already showed identical raw scores.
+            // Enforce that equality for all three origins on future runs.
+            foreach (var old in before)
+            {
+                var current = after.Single(r => Equals(r[0], old[0]) && Equals(r[1], old[1]));
+                Assert.That(current.Take(10), Is.EqualTo(old.Take(10)),
+                    "T3 raw decision, candidate and score stability " + old[0]);
+            }
             await AssertRecomposedReferenceAsync(db, x);
             Assert.That(Pair(T3B,T3S).Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             TestContext.WriteLine("V9_B1_T3_INDIRECT_INHERITANCE_BLOCKED");
