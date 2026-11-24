@@ -49,6 +49,9 @@ class Stage7And8OracleTests(unittest.TestCase):
         self.assertEqual(x["sourceObservations"],3)
         self.assertEqual(x["abstentions"],1)
         self.assertIs(x["scientificCertified"],False)
+        self.assertEqual(x["sourcePairMetrics"]["truePositive"],1)
+        self.assertEqual(x["sourcePairMetrics"]["falsePositive"],0)
+        self.assertEqual(x["sourcePairMetrics"]["falseNegative"],0)
 
     def test_byte_seal_cannot_be_fixed_label(self):
         m,t,s,r=fixture()
@@ -69,6 +72,8 @@ class Stage7And8OracleTests(unittest.TestCase):
         x=oracle.compare(m,t,wrong,r,required_identities=2)
         self.assertEqual(x["status"],"FAIL")
         self.assertEqual(x["falseFusedGoldIdentityCount"],1)
+        self.assertEqual(x["sourcePairMetrics"]["falsePositive"],2)
+        self.assertEqual(x["sourcePairMetrics"]["observedFdrPercent"],66.666667)
         self.assertNotIn("SYNTH-",str(x))
         self.assertNotIn("BASE_",str(x))
 

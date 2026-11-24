@@ -9,6 +9,8 @@ import hashlib
 import json
 import re
 import uuid
+from collections import Counter
+from math import comb
 from pathlib import Path
 
 MAX_SIZE = 8 * 1024 * 1024
@@ -120,6 +122,26 @@ def compare(bridge, truth_bytes, sql_text, runner, required_identities=1000):
             continue
         gold_bases.setdefault(dest, set()).add(base)
         person_golds.setdefault(base, set()).add(dest)
+    # Independent truth vs physically published source-pairs. Abstentions
+    # are lost true positive pairs, not false predicted pairs. No raw IDs
+    # in output or O(n²) pair allocation.
+    true_per_base = Counter(expected.values())
+    observed_per_gold = Counter(x for x in observed.values() if x is not None)
+    intersection = Counter((expected[src], gid) for src, gid in observed.items()
+                           if gid is not None)
+    expected_pairs = sum(comb(n, 2) for n in true_per_base.values())
+    predicted_pairs = sum(comb(n, 2) for n in observed_per_gold.values())
+    tp = sum(comb(n, 2) for n in intersection.values())
+    fp, fn = predicted_pairs - tp, expected_pairs - tp
+    if min(tp, fp, fn) < 0:
+        raise ValueError("negative pair metrics from SQL and generator truth")
+    pair_metrics = {
+        "truePositive": tp, "falsePositive": fp, "falseNegative": fn,
+        "recallPercent": (round(100 * tp / expected_pairs, 6)
+                          if expected_pairs else None),
+        "observedFdrPercent": (round(100 * fp / predicted_pairs, 6)
+                               if predicted_pairs else None),
+    }
     false_fused = sum(1 for originals in gold_bases.values() if len(originals) > 1)
     false_split = sum(1 for resolved in person_golds.values() if len(resolved) > 1)
     # A complete, physical 1k identity census with no erroneous merge is an
@@ -135,6 +157,8 @@ def compare(bridge, truth_bytes, sql_text, runner, required_identities=1000):
         "abstentions": abstentions,
         "falseFusedGoldIdentityCount": false_fused,
         "splitBaseIdentityCount": false_split,
+        "sourcePairMetrics": pair_metrics,
+        "pairMetricScope": "SYNTHETIC_SOURCE_PAIRS_NOT_SCIENTIFIC_FS_CERTIFICATION",
         "truthSha256": hashlib.sha256(truth_bytes).hexdigest(),
         "scientificCertified": False,
         "e2eSystemCertified": False
