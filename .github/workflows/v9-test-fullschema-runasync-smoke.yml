@@ -70,6 +70,26 @@ jobs:
             echo "::error::Full SQL preflight rejected disposable schema"; exit 1;
           }
           grep -q 'SCHEMA_PREFLIGHT_PASS_NOT_RUNTIME_PARITY' "$RUNNER_TEMP/v9-fullschema-preflight.log"
+          # Same SQL container, but a distinct, never-reused DEV attempt with
+          # resident authorization and SNAPSHOT. No scientific TEST data.
+          dev_attempt="$(python3 -c 'import uuid;print(uuid.uuid4())')"
+          dev_db="JornadaV9Dev_${dev_attempt//-/}"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+            sh "CREATE DATABASE [$dev_db];"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+            sh "ALTER DATABASE [$dev_db] SET ALLOW_SNAPSHOT_ISOLATION ON;"
+          run_sql "$dev_db" database/Jornada_Fase1_v3.70.sql >"$RUNNER_TEMP/v9-dev-full-schema.log" 2>&1 || {
+            echo "::error::DEV SQL complete schema failed"; tail -n 40 "$RUNNER_TEMP/v9-dev-full-schema.log"; exit 1;
+          }
+          run_sql "$dev_db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >"$RUNNER_TEMP/v9-dev-model.log" 2>&1 || {
+            echo "::error::DEV SQL model migration failed"; tail -n 25 "$RUNNER_TEMP/v9-dev-model.log"; exit 1;
+          }
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' \
+            sh "$dev_db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$dev_attempt';"
+          echo "JORNADA_V9_DEV_ATTEMPT_DB=$dev_db" >>"$GITHUB_ENV"
       - name: Execute actual RunAsync in 200 synthetic observations and induced second-batch failure
         working-directory: Solution
         run: |
@@ -93,6 +113,18 @@ jobs:
             "scientific_test_100k=BLOCKED" \
             "production_equivalence_certified=false" \
             >"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
+      - name: Execute controlled DEV FULL r1 physically against isolated SQL Gold (no scientific TEST)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          test -n "$ConnectionStrings__Jornada"
+          test -n "$JORNADA_V9_DEV_ATTEMPT_DB"
+          JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL="$ConnectionStrings__Jornada" \
+            dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+              --filter 'FullyQualifiedName~V9ControlledDevFullSqlR1Tests.FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance' \
+              --logger 'console;verbosity=normal'
+          printf '%s\n' "dev_full_r1_physical_sql=PASS" "dev_full_r1_gold_publication=PASS" \
+            "dev_attempt_db=$JORNADA_V9_DEV_ATTEMPT_DB" >>"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
       - name: Archive sanitized noncertifying receipt
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
