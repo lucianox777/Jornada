@@ -216,6 +216,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 Assert.That(await denied.ReadAsync(), Is.False);
             }
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
+            await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
+                connection, configuration, sql, attempt, temp);
             TestContext.WriteLine(
                 "V9_DEV_FULL_R1_PHYSICAL_SQL_GOLD_PASS: S1/S2/S6 verified; real FULL run, " +
                 "200 Silver origins, frozen graph/FS, raw results, DT-10, Gold; " +
@@ -225,6 +227,166 @@ public sealed class V9ControlledDevFullSqlR1Tests
         {
             Directory.Delete(temp, recursive: true);
         }
+    }
+
+    private static async Task<long> CountSqlAsync(
+        SqlConnection connection, string sql)
+    {
+        await using var read = new SqlCommand(sql, connection);
+        return Convert.ToInt64(await read.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async Task AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
+        SqlConnection connection, IConfiguration configuration,
+        IOperationalSqlAdapter sql, Guid attempt, string temp)
+    {
+        var baselineGold = await CountSqlAsync(
+            connection, "SELECT COUNT_BIG(*) FROM gold.pessoa;");
+        var baselineRuns = await CountSqlAsync(
+            connection, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
+        await using (var append = new SqlCommand("""
+            INSERT silver.pessoa_observacao(
+                pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                versao_interna,conteudo_hash,cpf_ausente_motivo,nome_completo,
+                nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+            SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,2,
+                   LOWER(CONVERT(varchar(64),
+                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
+                                 N'V9TEST_0003_VERSION_2_R1')),2)),
+                   cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,
+                   nome_mae,nome_mae_cmp,DATEADD(second,1,source_as_of)
+              FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem=N'V9TEST_0003'
+               AND versao_interna=1;
+            IF @@ROWCOUNT<>1
+                THROW 52909,'DEV source version was not inserted exactly once.',1;
+            """, connection))
+            await append.ExecuteNonQueryAsync();
+
+        // Full population becomes 201: 133 then 68, not the previous
+        // 100+100. Both versions of the SAME persistent origin must resolve
+        // to Z without any forbidden V9 group inheritance.
+        var repeated = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+        var full = await repeated.RunV9ControlledDevAsync(
+            new ProbabilisticLinkageRunRequest(
+                LinkageRunType.FULL, 9, null, null, null, 133, 1, null,
+                "V9_DEV_R1_REPEAT_133", "FULL_VERSIONED_ORIGIN",
+                Guid.NewGuid(), true),
+            attempt, CancellationToken.None);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(full.Status, Is.EqualTo(LinkageRunStatus.PUBLICADO));
+            Assert.That(full.Elegiveis, Is.EqualTo(201));
+            Assert.That(full.Avaliados, Is.EqualTo(201));
+        }));
+        await using (var check = new SqlCommand("""
+            SELECT
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+               WHERE linkage_run_id=@run),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+               JOIN silver.pessoa_observacao po
+                 ON po.pessoa_observacao_id=r.pessoa_observacao_id
+               WHERE r.linkage_run_id=@run
+                 AND po.codigo_pessoa_origem=N'V9TEST_0003'
+                 AND r.status_publicacao=N'RESOLVIDO'
+                 AND r.pessoa_uuid_publicado=@z),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+               WHERE linkage_run_id=@run AND batch_size=133),
+              (SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva p
+               JOIN silver.pessoa_observacao po
+                 ON po.pessoa_origem_id=p.pessoa_origem_id
+               WHERE po.codigo_pessoa_origem=N'V9TEST_0003'
+                 AND p.estado=N'REFERENCIA' AND p.canonical_uuid=@z);
+            """, connection))
+        {
+            check.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = full.RunId;
+            check.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            await using var rd = await check.ExecuteReaderAsync();
+            Assert.That(await rd.ReadAsync(), Is.True);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(rd.GetInt64(0), Is.EqualTo(201));
+                Assert.That(rd.GetInt64(1), Is.EqualTo(2),
+                    "Both physical versions must publish to existing Z.");
+                Assert.That(rd.GetInt64(2), Is.EqualTo(1),
+                    "The recorded SQL run must have the unequal page size 133.");
+                Assert.That(rd.GetInt64(3), Is.EqualTo(2),
+                    "A single persistent origin must carry both versions.");
+            }));
+            Assert.That(await rd.ReadAsync(), Is.False);
+        }
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold),
+            "Repeated FULL must be idempotent at Gold identity level.");
+
+        // Empty scoped FULL is real (no guessed success). An out-of-universe
+        // id must produce zero run items/results and zero new Gold.
+        var empty = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+        var zero = await empty.RunV9ControlledDevAsync(
+            new ProbabilisticLinkageRunRequest(
+                LinkageRunType.FULL, 9, long.MaxValue, null, null, 100, 1, null,
+                "V9_DEV_R1_EMPTY", "ZERO_SELECTED_ROWS",
+                Guid.NewGuid(), true),
+            attempt, CancellationToken.None);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(zero.Elegiveis, Is.Zero);
+            Assert.That(zero.Avaliados, Is.Zero);
+            Assert.That(zero.Status, Is.EqualTo(LinkageRunStatus.PUBLICADO));
+        }));
+        await using (var verifyEmpty = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+             WHERE linkage_run_id=@run;
+            """, connection))
+        {
+            verifyEmpty.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = zero.RunId;
+            Assert.That(await verifyEmpty.ExecuteScalarAsync(), Is.EqualTo(0L));
+        }
+
+        // Single-item scoped FULL uses the very same real FS/Gold/DT-10 path;
+        // it does not require fabricating a second source or inferred group.
+        long secondVersionId;
+        await using (var version = new SqlCommand("""
+            SELECT pessoa_observacao_id FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem=N'V9TEST_0003' AND versao_interna=2;
+            """, connection))
+            secondVersionId = Convert.ToInt64(await version.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+        var singleton = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+        var one = await singleton.RunV9ControlledDevAsync(
+            new ProbabilisticLinkageRunRequest(
+                LinkageRunType.FULL, 9, secondVersionId, null, null, 200, 1, null,
+                "V9_DEV_R1_SINGLE", "ONE_SELECTED_ROW",
+                Guid.NewGuid(), true),
+            attempt, CancellationToken.None);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(one.Elegiveis, Is.EqualTo(1));
+            Assert.That(one.Avaliados, Is.EqualTo(1));
+            Assert.That(one.Status, Is.EqualTo(LinkageRunStatus.PUBLICADO));
+        }));
+        await using (var verifyOne = new SqlCommand("""
+            SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+             WHERE linkage_run_id=@run AND pessoa_observacao_id=@source
+               AND resultado_publicacao=N'ASSOCIACAO_EXISTENTE'
+               AND pessoa_uuid_publicado=@z;
+            """, connection))
+        {
+            verifyOne.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = one.RunId;
+            verifyOne.Parameters.Add("@source", SqlDbType.BigInt).Value = secondVersionId;
+            verifyOne.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            Assert.That(await verifyOne.ExecuteScalarAsync(), Is.EqualTo(1L));
+        }
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold),
+            "Zero/one scope and repeated FULL must not create second Gold UUID.");
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run;"),
+            Is.EqualTo(baselineRuns + 3L));
+        TestContext.WriteLine(
+            "V9_DEV_R1_0_1_VERSIONS_BATCH_133_PHYSICAL_SQL_PASS: " +
+            "0 and 1 selected, 201 FULL at 133+68, same-origin version2, Gold idempotence");
     }
 
     private static async Task<ProbabilisticLinkageBatchRunner> NewDevRunnerAsync(
