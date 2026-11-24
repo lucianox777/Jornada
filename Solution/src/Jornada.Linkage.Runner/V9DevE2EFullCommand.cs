@@ -57,6 +57,13 @@ public static class V9DevE2EFullCommand
             || !File.Exists(preflightPath)
             || new FileInfo(preflightPath).LinkTarget is not null)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_1K_PREFLIGHT_MISSING");
+        var lineagePath = Environment.GetEnvironmentVariable("JORNADA_V9_DEV_1K_LINEAGE");
+        if (string.IsNullOrWhiteSpace(lineagePath)
+            || !File.Exists(lineagePath)
+            || new FileInfo(lineagePath).LinkTarget is not null)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_HTTP_SQL_LINEAGE_MISSING");
+        int expectedSources;
+        string privateTruthDigest;
         using (var json = System.Text.Json.JsonDocument.Parse(
             await File.ReadAllBytesAsync(preflightPath)))
         {
@@ -68,6 +75,37 @@ public static class V9DevE2EFullCommand
                 || root.GetProperty("seed").GetInt32() != 355
                 || root.GetProperty("status").GetString() != "PASS")
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_1K_PREFLIGHT_INVALID");
+            expectedSources = sourceObservations.GetInt32();
+            privateTruthDigest = root.GetProperty("truthSha256").GetString()
+                ?? throw new InvalidDataException("RUNNER_V9_DEV_E2E_SOURCE_DIGEST_MISSING");
+        }
+        // An independently verified real HTTP→Bronze→Silver lineage receipt
+        // must agree with the generation provenance BEFORE SQL model creation.
+        // Only aggregate digests and source counts enter the Runner: no
+        // bridge-truth.jsonl content or gabarito is ever read by the scorer.
+        using (var json = System.Text.Json.JsonDocument.Parse(
+            await File.ReadAllBytesAsync(lineagePath)))
+        {
+            var receipt = json.RootElement;
+            if (receipt.GetProperty("schema").GetString()
+                    != "V9_E2E_IBGE_HTTP_1K_V2"
+                || receipt.GetProperty("status").GetString() != "PASS"
+                || receipt.GetProperty("baseIdentities").GetInt32() != 1000
+                || receipt.GetProperty("seed").GetInt32() != 355
+                || receipt.GetProperty("materializedObservations").GetInt32()
+                    != expectedSources
+                || receipt.GetProperty("silverPersons").GetInt32()
+                    != expectedSources
+                || !string.Equals(receipt.GetProperty("groundTruthSidecarSha256").GetString(),
+                    privateTruthDigest, StringComparison.OrdinalIgnoreCase)
+                || receipt.GetProperty("silverSourceIdentitySetsVerified").GetInt32() != 4
+                || receipt.GetProperty("activated").GetBoolean()
+                || receipt.GetProperty("scientificValidation").GetBoolean())
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_LINEAGE_RECEIPT_INVALID");
+            var commit = Environment.GetEnvironmentVariable("GITHUB_SHA");
+            if (!string.IsNullOrWhiteSpace(commit)
+                && receipt.GetProperty("commitSha").GetString() != commit)
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_SOURCE_COMMIT_MISMATCH");
         }
 
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
@@ -83,11 +121,15 @@ public static class V9DevE2EFullCommand
                     AND NOT EXISTS(SELECT 1 FROM identidade.linkage_run)
                     AND EXISTS(SELECT 1 FROM silver.pessoa_observacao
                                WHERE cpf IS NULL AND pessoa_origem_id IS NOT NULL)
+                    AND (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao
+                         WHERE codigo_pessoa_origem LIKE N'SYNTH-%')=@source_count
                     AND NOT EXISTS(SELECT 1 FROM ingestao.lote
                                    WHERE status NOT IN(N'PROCESSADO',N'CONCLUIDO'))
                   THEN 1 ELSE 0 END;
                 """, connection))
             {
+                admission.Parameters.Add("@source_count", SqlDbType.BigInt).Value =
+                    (long)expectedSources;
                 if (Convert.ToInt32(await admission.ExecuteScalarAsync(),
                     CultureInfo.InvariantCulture) != 1)
                     throw new InvalidDataException("RUNNER_V9_DEV_E2E_PROCESSOR_OR_UNIVERSE_INCOMPLETE");

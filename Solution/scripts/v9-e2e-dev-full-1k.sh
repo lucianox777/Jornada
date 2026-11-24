@@ -31,6 +31,10 @@ if (receipt.get("schema") != "V9_E2E_IBGE_BRIDGE_PREFLIGHT_V1"
 print("V9_DEV_E2E_PRIVATE_TRUTH_REAL_SHA: VERIFIED")
 PY
 export JORNADA_V9_DEV_1K_PREFLIGHT="$preflight"
+export JORNADA_V9_DEV_1K_LINEAGE="$OUT/ibge-http-1k-summary.json"
+[[ -f "$JORNADA_V9_DEV_1K_LINEAGE" && ! -L "$JORNADA_V9_DEV_1K_LINEAGE" ]] || {
+  echo "RUNNER_V9_DEV_E2E_HTTP_SQL_LINEAGE_MISSING" >&2; exit 62;
+}
 export Linkage__SelectedModelVersion=9
 runner_log="$OUT/ibge-1k/v9-dev-runner-private.log"
 (cd "$ROOT" && dotnet run --no-build --configuration Release \
