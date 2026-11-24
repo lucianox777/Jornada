@@ -69,6 +69,12 @@ if [[ "$v9_e2e_full" == true ]]; then
   (
     cd "$ROOT"
     export SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD"
+    # Real SQL SNAPSHOT on the exact disposable database is mandatory for
+    # authentic Gold/Silver group provenance; the generic DEV bootstrap
+    # deliberately does not enable it globally.
+    docker compose --env-file "$ENV_FILE" exec -T -w /workspace -e SQLCMDPASSWORD sqlserver \
+      /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d master \
+        -Q "ALTER DATABASE [$DB] SET ALLOW_SNAPSHOT_ISOLATION ON;" >/dev/null
     docker compose --env-file "$ENV_FILE" exec -T -w /workspace -e SQLCMDPASSWORD sqlserver \
       /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d "$DB" \
         -i database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >/dev/null
