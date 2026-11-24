@@ -97,11 +97,10 @@ def check(root: Path) -> list[str]:
                 # A variable assignment, echoed illustrative command, file
                 # copy or PowerShell Get-Content only MENTIONS the script.
                 # Keep actual direct calls after ;/&&/|| distinct.
-                segment = re.split(r"(?:&&|\\|\\||;)", command_before)[-1]
-                if (re.search(r"(?:^|[\\s;])(?:export\\s+)?"
-                              r"[A-Za-z_]\\w*=[\\\"']?$", segment)
-                    or re.search(r"^\\s*echo\\b", segment)
-                    or re.search(r"\\bGet-Content\\b", segment)):
+                segment = re.split(r"[;&|]+", command_before)[-1]
+                if (re.search(r"""(?:^|[\s;])(?:export\s+)?[A-Za-z_]\w*=["']?$""", segment)
+                    or re.search(r"^\s*echo\b", segment)
+                    or re.search(r"\bGet-Content\b", segment)):
                     continue
                 candidate = "Solution/scripts/" + name
                 if candidate not in modes:
