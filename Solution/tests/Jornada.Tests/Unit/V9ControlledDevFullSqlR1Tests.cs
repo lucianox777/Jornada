@@ -79,7 +79,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
 
         // Reuses the established 200-observation SQL FKs/Processor-style origin
         // fixture; no Gold reference or synthetic TEST truth is populated.
-        await V9FullSchemaNonPublishingRunnerTests.InsertSyntheticUniverseAsync(connection, 200);
+        await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(connection, 200);
 
         var temp = Path.Combine(Path.GetTempPath(),
             "jornada-v9-dev-full-r1-" + Guid.NewGuid().ToString("N"));
