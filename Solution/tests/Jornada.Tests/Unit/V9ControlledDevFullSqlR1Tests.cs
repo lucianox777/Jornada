@@ -124,6 +124,22 @@ public sealed class V9ControlledDevFullSqlR1Tests
             """, connection))
             await withoutGold.ExecuteNonQueryAsync();
 
+        // S9: 0006 already has a governed link to Z in the seed below.
+        // 0106 is a separate origin/manager with exact Silver evidence to
+        // 0006 but not exact/exact to Gold Z. No candidate or raw decision
+        // is injected: the real frozen graph and FS must establish the case.
+        await using (var indication = new SqlCommand("""
+            UPDATE silver.pessoa_observacao
+               SET nome_completo=N'ALFA0006 SILVA',nome_cmp=N'ALFA0006 SILVA',
+                   nome_mae=N'CARLA0006 COSTA',nome_mae_cmp=N'CARLA0006 COSTA',
+                   conteudo_hash=LOWER(CONVERT(varchar(64),
+                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
+                           N'V9_R1_S9_INDICATION_0106')),2))
+             WHERE codigo_pessoa_origem=N'V9TEST_0106';
+            IF @@ROWCOUNT<>1 THROW 52914,'Physical S9 Silver partner missing.',1;
+            """, connection))
+            await indication.ExecuteNonQueryAsync();
+
         await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
         await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
 
@@ -234,6 +250,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 Assert.That(await denied.ReadAsync(), Is.False);
             }
             await AssertPhysicalS3S4S5AndCrossBatchAsync(connection, result.RunId);
+            await AssertPhysicalIndicationReasonsAsync(connection, result.RunId);
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
                 connection, configuration, sql, attempt, temp);
@@ -323,6 +340,55 @@ public sealed class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine(
             "V9_DEV_R1_PHYSICAL_S3_S4_S5_CROSS_BATCH_PASS: weak Gold abstains; " +
             "Silver-only group indefinite; complete singleton new identity; group spans pages");
+    }
+
+    private static async Task AssertPhysicalIndicationReasonsAsync(
+        SqlConnection connection, Guid runId)
+    {
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["V9TEST_0007"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
+            ["V9TEST_0107"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
+            ["V9TEST_0106"] = "V9_R1_INDEFINIDO_COM_INDICIO"
+        };
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        await using var query = new SqlCommand("""
+            SELECT po.codigo_pessoa_origem,r.status,r.motivo,
+                   r.pessoa_uuid_resolvido,r.resultado_publicacao,
+                   r.status_publicacao,r.motivo_publicacao,
+                   r.pessoa_uuid_publicado,p.estado,p.canonical_uuid,
+                   r.publicado_em
+              FROM identidade.linkage_resultado r
+              JOIN silver.pessoa_observacao po
+                ON po.pessoa_observacao_id=r.pessoa_observacao_id
+              JOIN identidade.pessoa_origem_progressiva p
+                ON p.pessoa_origem_id=po.pessoa_origem_id
+             WHERE r.linkage_run_id=@run
+               AND po.codigo_pessoa_origem IN(
+                   N'V9TEST_0007',N'V9TEST_0107',N'V9TEST_0106');
+            """, connection);
+        query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using var rows = await query.ExecuteReaderAsync();
+        while (await rows.ReadAsync())
+        {
+            var code = rows.GetString(0);
+            Assert.That(seen.Add(code), Is.True, code);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(rows.GetString(1), Is.EqualTo("NAO_RESOLVIDO"), code);
+                Assert.That(rows.GetString(2), Is.EqualTo(expected[code]), code);
+                Assert.That(rows.IsDBNull(3), Is.True, code);
+                Assert.That(rows.GetString(4), Is.EqualTo("INDEFINIDA"), code);
+                Assert.That(rows.GetString(5), Is.EqualTo("NAO_RESOLVIDO"), code);
+                Assert.That(rows.GetString(6), Is.EqualTo(expected[code]), code);
+                Assert.That(rows.IsDBNull(7), Is.True, code);
+                Assert.That(rows.GetString(8), Is.EqualTo("INDEFINIDA"), code);
+                Assert.That(rows.IsDBNull(9), Is.True, code);
+                Assert.That(rows.IsDBNull(10), Is.False, code);
+            }));
+        }
+        Assert.That(seen, Is.EquivalentTo(expected.Keys));
+        TestContext.WriteLine("V9_DEV_R1_SQL_INDICATION_PASS: 2 SEM_INDICIO and 1 COM_INDICIO; raw and published reasons, no resolved/published UUID");
     }
 
     private static async Task AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(

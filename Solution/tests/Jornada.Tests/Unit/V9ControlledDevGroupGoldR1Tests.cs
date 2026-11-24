@@ -197,7 +197,7 @@ public sealed class V9ControlledDevGroupGoldR1Tests
     }
 
     [Test]
-    public void Group_with_weak_candidates_but_no_approved_target_does_not_claim_either_new_type()
+    public void Group_with_weak_candidates_but_no_approved_target_uses_weak_group_reason_without_changing_FS()
     {
         var weak = new ProbabilisticLinkageDecision(
             ResolutionStatus.NAO_RESOLVIDO, null, Y, .43m, null, null, null,
@@ -207,7 +207,7 @@ public sealed class V9ControlledDevGroupGoldR1Tests
             new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing(), [2] = weak },
             new Dictionary<long, Guid[]> { [1] = [], [2] = [Y] });
         Assert.That(output[1], Is.EqualTo(Missing() with {
-            Motivo = "V9_R1_GRUPO_SEM_HERANCA"
+            Motivo = "V9_R1_INDEFINIDO_CANDIDATO_FRACO"
         }));
         Assert.That(output[2], Is.EqualTo(weak));
     }

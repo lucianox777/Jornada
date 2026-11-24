@@ -323,7 +323,7 @@ public static class V9ControlledDevGroupGoldR1
                                 : members.Length > 1
                                     ? groupWithoutGoldCandidates
                                         ? "V9_R1_INDEFINIDO_SEM_INDICIO"
-                                        : "V9_R1_GRUPO_SEM_HERANCA"
+                                        : "V9_R1_INDEFINIDO_CANDIDATO_FRACO"
                                     : "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"
                         });
                     else
