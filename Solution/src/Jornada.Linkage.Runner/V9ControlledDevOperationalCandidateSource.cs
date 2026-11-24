@@ -45,7 +45,11 @@ public static class V9ControlledDevOperationalCandidateSource
         // An authenticated SQL subset of pre-existing active RESOLVIDO links.
         // null means NOT physically read; empty means no such links were found.
         // NEVER populate missing rows from blocking hits or inferred groups.
-        IReadOnlyDictionary<long, Guid>? ExistingResolvedGoldLinksByObservation = null);
+        IReadOnlyDictionary<long, Guid>? ExistingResolvedGoldLinksByObservation = null)
+    {
+        /// <summary>Physically authenticated Silver-to-Silver graph for this SNAPSHOT.</summary>
+        public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
+    }
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
     public static string VerifyFrozenSilverObservation(
@@ -399,12 +403,17 @@ public static class V9ControlledDevOperationalCandidateSource
                     Array.AsReadOnly(candidates.ToArray())))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
         }
+        // Physical Silver graph uses the same verified source values and
+        // SNAPSHOT as the Gold candidate census: no inter-snapshot repair.
+        var silverGraph = await V9ControlledDevSilverGraph.ReadAsync(
+            connection, snapshot, winner, frozenRows, managers, cancellationToken);
         await snapshot.CommitAsync(cancellationToken);
         return new VerifiedRunCandidates(
             new ReadOnlyDictionary<long, string>(managers),
             new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result),
             new ReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt>(evidence),
             new ReadOnlyDictionary<long, IdentityObservation>(authenticatedSilver),
-            new ReadOnlyDictionary<long, Guid>(existingResolvedGold));
+            new ReadOnlyDictionary<long, Guid>(existingResolvedGold))
+        { SilverGraph = silverGraph };
     }
 }
