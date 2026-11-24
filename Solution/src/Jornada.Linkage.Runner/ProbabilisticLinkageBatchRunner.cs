@@ -171,10 +171,23 @@ public sealed class ProbabilisticLinkageBatchRunner(
     /// scoring, SQL ledger, run counters and atomic Gold publication path.
     /// It does not change Program.cs or authorize productive V9 dispatch.
     /// </summary>
-    public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
+    public Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
         ProbabilisticLinkageRunRequest request,
-        Guid disposableAttemptId,
-        CancellationToken ct)
+        Guid disposableAttemptId, CancellationToken ct) =>
+        RunV9ControlledScopedDevAsync(request, disposableAttemptId, false, ct);
+
+    /// <summary>
+    /// Isolated HTTP 1k source-cohort variant. It is not wired into the
+    /// productive RunAsync/Program path, and retains FULL-only r1 guards.
+    /// </summary>
+    public Task<ProbabilisticLinkageRunSummary> RunV9HttpE2e1kAsync(
+        ProbabilisticLinkageRunRequest request,
+        Guid disposableAttemptId, CancellationToken ct) =>
+        RunV9ControlledScopedDevAsync(request, disposableAttemptId, true, ct);
+
+    private async Task<ProbabilisticLinkageRunSummary> RunV9ControlledScopedDevAsync(
+        ProbabilisticLinkageRunRequest request, Guid disposableAttemptId,
+        bool httpE2e1k, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
@@ -188,8 +201,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
         if (request.Mode != LinkageRunType.FULL)
             throw new InvalidOperationException("RUNNER_V9_DEV_INCREMENTAL_R1_PENDING");
 
-        var boundary = await V9ControlledDevSelection.VerifyAsync(
-            configuration, operationalSql, disposableAttemptId, ct);
+        var boundary = httpE2e1k
+            ? await V9ControlledDevSelection.VerifyHttpE2e1kAsync(
+                configuration, operationalSql, disposableAttemptId, ct)
+            : await V9ControlledDevSelection.VerifyAsync(
+                configuration, operationalSql, disposableAttemptId, ct);
         if (!string.Equals(boundary.Runtime.WinnerSha256, devScorer.WinnerSha256,
                 StringComparison.Ordinal))
             throw new InvalidOperationException("RUNNER_V9_DEV_SCORER_WINNER_MISMATCH");

@@ -188,7 +188,8 @@ public static class V9ControlledDevOperationalCandidateSource
         Guid runId,
         IReadOnlyList<V9FrozenRunObservation> frozenRows,
         int maximumCandidatesPerObservation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool httpE2e1k = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(pinnedWinner);
@@ -215,8 +216,12 @@ public static class V9ControlledDevOperationalCandidateSource
 
         // This is the same physical, read-only gate as controlled DEV RunAsync,
         // before executing even the first candidate query.
-        await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
-            connection, attemptId, cancellationToken);
+        if (httpE2e1k)
+            await V9ControlledDevSelection.VerifyHttpE2e1kDatabaseAsync(
+                connection, attemptId, cancellationToken);
+        else
+            await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+                connection, attemptId, cancellationToken);
 
         // SQL Server error 3964: session-local temp-table DDL must precede
         // SNAPSHOT. No operational table DDL/DML is performed here.

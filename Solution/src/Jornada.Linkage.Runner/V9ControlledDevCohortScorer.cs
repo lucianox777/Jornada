@@ -20,6 +20,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
     private readonly V9OperationalPinnedCohortRuntime winner;
     private readonly Guid attemptId;
     private readonly int maximumGoldCandidates;
+    private readonly bool httpE2e1k;
     private readonly ConcurrentDictionary<long, byte> consumed = new();
     private IReadOnlyDictionary<long, (IdentityObservation Observation,
         ProbabilisticLinkageDecision Decision)>? prepared;
@@ -29,7 +30,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
 
     public V9ControlledDevCohortScorer(IOperationalSqlAdapter sql,
         V9OperationalPinnedCohortRuntime verifiedWinner,
-        Guid disposableAttemptId, int maximumGoldCandidates = 100_000)
+        Guid disposableAttemptId, int maximumGoldCandidates = 100_000,
+        bool httpE2e1k = false)
     {
         this.sql = sql ?? throw new ArgumentNullException(nameof(sql));
         winner = verifiedWinner ?? throw new ArgumentNullException(nameof(verifiedWinner));
@@ -40,6 +42,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             throw new InvalidDataException("RUNNER_V9_DEV_SCORER_PIN_INVALID");
         attemptId = disposableAttemptId;
         this.maximumGoldCandidates = maximumGoldCandidates;
+        this.httpE2e1k = httpE2e1k;
     }
 
     /// <summary>
@@ -53,6 +56,15 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         var verified = await V9ControlledDevSelection.VerifyAsync(
             configuration, sql, disposableAttemptId, ct);
         return new(sql, verified.Runtime, disposableAttemptId);
+    }
+
+    public static async Task<V9ControlledDevCohortScorer> CreateHttpE2e1kAsync(
+        IConfiguration configuration, IOperationalSqlAdapter sql,
+        Guid attemptId, CancellationToken ct)
+    {
+        var verified = await V9ControlledDevSelection.VerifyHttpE2e1kAsync(
+            configuration, sql, attemptId, ct);
+        return new(sql, verified.Runtime, attemptId, httpE2e1k: true);
     }
 
     public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
@@ -106,7 +118,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         await using var connection = await sql.OpenAsync(ct);
         var verified = await V9ControlledDevOperationalCandidateSource.ReadAsync(
             connection, winner, attemptId, runId, frozenRows,
-            maximumGoldCandidates, ct);
+            maximumGoldCandidates, ct, httpE2e1k: httpE2e1k);
         var physical = verified.SilverGraph
             ?? throw new InvalidDataException("RUNNER_V9_DEV_SILVER_GRAPH_MISSING");
         if (physical.CanonicalEdgesSha256.Length != 64)

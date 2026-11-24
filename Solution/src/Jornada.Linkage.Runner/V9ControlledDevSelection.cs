@@ -38,7 +38,8 @@ public static class V9ControlledDevSelection
         IConfiguration configuration,
         IOperationalSqlAdapter operationalSql,
         Guid attemptId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool httpE2e1k = false)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(operationalSql);
@@ -57,9 +58,48 @@ public static class V9ControlledDevSelection
 
         // No SQL mutation or run creation is permitted by this preflight.
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
-        await VerifyDisposableAttemptDatabaseAsync(connection, attemptId, cancellationToken);
+        if (httpE2e1k)
+            await VerifyHttpE2e1kDatabaseAsync(connection, attemptId, cancellationToken);
+        else
+            await VerifyDisposableAttemptDatabaseAsync(connection, attemptId, cancellationToken);
         return boundary;
     }
+    /// <summary>
+    /// Dedicated HTTP E2E 1k admission. It cannot be called by the ordinary
+    /// Program.cs productive dispatch or substituted for a named ephemeral
+    /// JornadaV9Dev_<attempt> database.
+    /// </summary>
+    public static Task<V9OperationalRunBoundary> VerifyHttpE2e1kAsync(
+        IConfiguration configuration, IOperationalSqlAdapter operationalSql,
+        Guid attemptId, CancellationToken ct) =>
+        VerifyAsync(configuration, operationalSql, attemptId, ct, httpE2e1k: true);
+
+    public static async Task VerifyHttpE2e1kDatabaseAsync(
+        SqlConnection connection, Guid attemptId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (attemptId == Guid.Empty || connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("RUNNER_V9_HTTP_E2E_1K_SQL_NOT_VERIFIED");
+        await using var cmd = new SqlCommand("""
+            SELECT CASE WHEN DB_NAME()=N'JornadaE2E'
+                AND EXISTS (SELECT 1 FROM sys.extended_properties
+                    WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+                    AND CONVERT(nvarchar(200),value)=N'Development')
+                AND EXISTS (SELECT 1 FROM sys.extended_properties
+                    WHERE class=0 AND name=N'Jornada.V9.DevAttempt'
+                    AND CONVERT(nvarchar(200),value)=@attempt)
+                AND EXISTS (SELECT 1 FROM sys.extended_properties
+                    WHERE class=0 AND name=N'Jornada.V9.HttpE2eScope'
+                    AND CONVERT(nvarchar(200),value)=N'IBGE_1K_AFTER_PROCESSOR')
+                THEN 1 ELSE 0 END;
+            """, connection);
+        cmd.Parameters.Add("@attempt", SqlDbType.NVarChar, 36).Value =
+            attemptId.ToString("D");
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct),
+                System.Globalization.CultureInfo.InvariantCulture) != 1)
+            throw new InvalidOperationException("RUNNER_V9_HTTP_E2E_1K_SQL_NOT_VERIFIED");
+    }
+
     /// <summary>
     /// Physical, read-only guard for the exact disposable DEV attempt.
     /// Also exposed to opt-in SQL-negative tests without requiring scientific

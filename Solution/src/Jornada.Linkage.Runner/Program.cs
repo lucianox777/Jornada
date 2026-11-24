@@ -5,6 +5,13 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+// Standalone explicitly gated HTTP DEV 1k FULL. Never product activation.
+if (args.FirstOrDefault() == V9HttpE2e1kFullCommand.Flag)
+{
+    await V9HttpE2e1kFullCommand.RunAsync(args);
+    return;
+}
+
 // Read-only proof that the real derived V3 is executable by the actual V9
 // multipass SQL query builder and frozen TF+joint scorer; NO DB or publication.
 if (args.FirstOrDefault() == V9FrozenGoldRuntimeProbeCli.Flag)
