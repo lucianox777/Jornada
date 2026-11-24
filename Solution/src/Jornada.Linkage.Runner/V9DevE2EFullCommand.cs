@@ -166,7 +166,6 @@ public static class V9DevE2EFullCommand
         // No PII, per-person truth, model contents, connection string or
         // SQL credentials in public process logs.
         Console.WriteLine(FormattableString.Invariant(
-            $"V9_DEV_E2E_FULL_1K_PASS run_id={summary.RunId:D} " +
-            $"evaluated={summary.Avaliados} winner_sha256={loaded.WinnerSha256}"));
+            $"V9_DEV_E2E_FULL_1K_PASS run_id={summary.RunId:D} evaluated={summary.Avaliados} winner_sha256={loaded.WinnerSha256}"));
     }
 }
