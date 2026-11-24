@@ -29,7 +29,14 @@ fi
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
 rm -f -- "$OUT/resultado-api-evidence.json"
-JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
+# The historical local reset seeds 5k Gold + 1k pending SCALE records.
+# They would contaminate the HTTP IBGE 1k V9 FULL universe and external truth.
+# Only the opt-in V9 path uses the supported --no-synthetic-corpus flag.
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" == true ]]; then
+  JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset --no-synthetic-corpus >/dev/null
+else
+  JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
+fi
 
 # Canonical opt-in V9 SQL metadata/SNAPSHOT for the disposable 1k profile.
 # Before Processor/API start, no model generation or scientific activation.
