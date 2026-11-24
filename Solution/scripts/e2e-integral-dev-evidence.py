@@ -69,6 +69,51 @@ def verify_ibge_http_lineage(directory, ibge, sha):
     return module.verify(read(directory / "ibge-1k-preflight.json"), ibge, sha)
 
 
+def verify_v9_dev_full_r1(directory):
+    """Independent, opt-in 1k-only milestone. Never asserts E2E core/integral."""
+    import re
+    import uuid
+    receipt = read(directory / "v9-dev-full-1k-summary.json")
+    try:
+        canonical = str(uuid.UUID(receipt.get("runId", "")))
+    except (TypeError, ValueError, AttributeError):
+        return {}
+    values = (
+        receipt.get("schema") == "V9_DEV_E2E_R1_INDEPENDENT_ORACLE_V1"
+        and receipt.get("scope") == "DEV_IBGE_1K_R1_POSTPROCESSOR_NOT_SCIENTIFIC_TEST"
+        and receipt.get("status") == "PASS"
+        and receipt.get("runId") == canonical
+        and receipt.get("baseIdentities") == 1000
+        and type(receipt.get("sourceObservations")) is int
+        and 1000 <= receipt["sourceObservations"] <= 4000
+        and receipt.get("physicallyObservedSources") == receipt.get("sourceObservations")
+        and type(receipt.get("undefinedSources")) is int
+        and 0 <= receipt["undefinedSources"] <= receipt["sourceObservations"]
+        and type(receipt.get("resolvedSources")) is int
+        and receipt["resolvedSources"] + receipt["undefinedSources"] == receipt["sourceObservations"]
+        and receipt.get("falseFusionIdentities") == 0
+        and type(receipt.get("splitBaseIdentities")) is int
+        and 0 <= receipt["splitBaseIdentities"] <= 1000
+        and receipt.get("scientificValidation") is False
+        and receipt.get("modelActivated") is False
+        and isinstance(receipt.get("truthSha256"), str)
+        and re.fullmatch(r"[A-F0-9]{64}", receipt["truthSha256"]) is not None
+    )
+    if not values:
+        return {}
+    return {
+        "baseIdentities": 1000,
+        "sourceObservations": receipt["sourceObservations"],
+        "resolvedSources": receipt["resolvedSources"],
+        "undefinedSources": receipt["undefinedSources"],
+        "falseFusionIdentities": 0,
+        "splitBaseIdentities": receipt["splitBaseIdentities"],
+        "truthSha256": receipt["truthSha256"],
+        "runId": canonical,
+        "scope": "DEV_1K_NOT_SCIENTIFIC_TEST"
+    }
+
+
 def inspect_run(directory, sha):
     counts = validate_volume(read(directory / "http-volume-1k-summary.json"), sha)
     result = read(directory / "resultado-api-evidence.json")
@@ -114,8 +159,11 @@ def inspect_run(directory, sha):
                 for key in ("generatorFingerprintSha256",
                             "bridgeManifestSha256", "groundTruthSidecarSha256"))
     )
+    stage7 = (verify_v9_dev_full_r1(directory)
+              if os.environ.get("JORNADA_E2E_V9_DEV_FULL") == "true" else {})
     return {"counts": counts, "resultadoHttp": codes if result_ok else {},
             "semiblindHttpDenials": [401, 403, 503] if denied else [],
+            "v9DevFull1k": stage7,
             "ibgeSyntheticHttp": {
                 "baseIdentities": 1000, "silverPersons": ibge["silverPersons"],
                 "deliveries": 4, "bridgeManifestSha256": ibge["bridgeManifestSha256"]}
@@ -157,6 +205,11 @@ def main():
          ("CONTRACTS", "RUNTIME"), None),
         ("ZIP sintético determinístico do Apoio sem envio", ("APOIO",), None),
     ]
+    if os.environ.get("JORNADA_E2E_V9_DEV_FULL") == "true":
+        verified.append((
+            "Runner V9 r1 FULL em SQL DEV 1k apos Processor, gabarito SHA real, "
+            "oraculo independente de falso-merge (sem certificacao cientifica)",
+            ("HTTP",), "v9DevFull1k"))
     coverage = []
     for requirement, gates, measurement in verified:
         passed = all(steps[gate] == "success" for gate in gates)

@@ -38,6 +38,8 @@ fi
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
 rm -f -- "$OUT/resultado-api-evidence.json"
+# A stale stage-7 verdict may never be reused as evidence of a fresh 1k run.
+rm -f -- "$OUT/v9-dev-full-1k-summary.json"
 if [[ "$v9_e2e_full" == true ]]; then
   JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset --no-synthetic-corpus >/dev/null
   (
