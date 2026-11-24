@@ -82,10 +82,27 @@ def execute(job, allow_reset=False, dry_run=False):
         raise ValueError("Exige --allow-reset; nenhum banco foi alterado.")
     env = dict(os.environ)
     db = job["database"]
+    # The new V9 FULL experiment owns a FRESH JornadaV9Dev_<GUID> database,
+    # rather than the ordinary JornadaE2E namespace. Preserve the DT-11
+    # profile/reset contract for ALL other invocations and fail closed if the
+    # opt-in is crossed with a different operation or platform.
+    dev_full = env.get("JORNADA_E2E_V9_DEV_FULL") == "true"
+    if dev_full and not (
+        job["profile"] == "e2e" and job["operation"] == "e2e"
+        and job["shell"] == "bash" and allow_reset
+        and env.get("JORNADA_RUNTIME_MODE") == "DEV"
+        and env.get("JORNADA_E2E_HTTP_VOLUME_COUNT") == "1000"
+        and env.get("JORNADA_E2E_IBGE_1K") == "true"
+        and not env.get("JORNADA_SQL_DATABASE_OVERRIDE")
+    ):
+        raise ValueError("V9 DEV FULL 1k somente no E2E Bash isolado e com reset explícito.")
     if job["shell"] == "bash":
         binary = shutil.which("bash")
         argv = [binary, str(SCRIPTS / (job["script"] + ".sh")), *job["bash_args"]]
-        env["JORNADA_SQL_DATABASE_OVERRIDE"] = db
+        if not dev_full:
+            env["JORNADA_SQL_DATABASE_OVERRIDE"] = db
+        else:
+            env.pop("JORNADA_SQL_DATABASE_OVERRIDE", None)
     else:
         binary = shutil.which("pwsh") or shutil.which("powershell")
         argv = [binary, "-NoLogo", "-NoProfile", "-NonInteractive", "-File",
@@ -103,7 +120,8 @@ def execute(job, allow_reset=False, dry_run=False):
     target_script = Path(argv[1] if job["shell"] == "bash" else argv[5])
     if not target_script.is_file():
         raise ValueError("Script especializado ausente: " + target_script.name)
-    print(f"DT11: {job['profile']} -> {db}; {job['operation']}; sem reset de outros perfis.", flush=True)
+    target_label = "JornadaV9Dev_<fresh-GUID>" if dev_full else db
+    print(f"DT11: {job['profile']} -> {target_label}; {job['operation']}; sem reset de outros perfis.", flush=True)
     return subprocess.run(argv, cwd=ROOT, env=env, check=False).returncode
 
 

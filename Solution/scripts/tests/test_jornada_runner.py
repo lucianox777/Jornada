@@ -67,6 +67,44 @@ class TestSafeRunner(unittest.TestCase):
                 with patch.object(runner.subprocess, "run", side_effect=fake_run):
                     self.assertEqual(runner.execute(job), 0)
 
+    def test_v9_dev_1k_bash_e2e_is_single_allowed_exception_to_fixed_sql_override(self):
+        job = runner.plan("e2e", "e2e")
+        allowed = {
+            "JORNADA_E2E_V9_DEV_FULL": "true",
+            "JORNADA_RUNTIME_MODE": "DEV",
+            "JORNADA_E2E_HTTP_VOLUME_COUNT": "1000",
+            "JORNADA_E2E_IBGE_1K": "true",
+        }
+        with patch.dict(os.environ, allowed, clear=True):
+            with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
+                def verify(argv, cwd, env, check):
+                    self.assertEqual(argv[1], str(runner.SCRIPTS / "local-e2e.sh"))
+                    self.assertNotIn("JORNADA_SQL_DATABASE_OVERRIDE", env)
+                    self.assertEqual(env["JORNADA_E2E_V9_DEV_FULL"], "true")
+                    return type("R", (), {"returncode": 0})()
+                with patch.object(runner.subprocess, "run", side_effect=verify):
+                    self.assertEqual(runner.execute(job, allow_reset=True), 0)
+        for mutation in (
+            {"JORNADA_E2E_HTTP_VOLUME_COUNT": "10000"},
+            {"JORNADA_E2E_IBGE_1K": "false"},
+            {"JORNADA_RUNTIME_MODE": "PROD"},
+            {"JORNADA_SQL_DATABASE_OVERRIDE": "JornadaLocal"},
+        ):
+            with self.subTest(mutation=mutation):
+                with patch.dict(os.environ, dict(allowed, **mutation), clear=True):
+                    with patch.object(runner.subprocess, "run") as mocked:
+                        with self.assertRaises(ValueError):
+                            runner.execute(job, allow_reset=True)
+                        mocked.assert_not_called()
+        with patch.dict(os.environ, allowed, clear=True):
+            with patch.object(runner.subprocess, "run") as mocked:
+                with self.assertRaises(ValueError):
+                    runner.execute(runner.plan("local", "db", "status"))
+                mocked.assert_not_called()
+                with self.assertRaises(ValueError):
+                    runner.execute(runner.plan("e2e", "e2e"), allow_reset=False)
+                mocked.assert_not_called()
+
     def test_powershell_synthetic_requires_separate_configuration(self):
         with tempfile.TemporaryDirectory() as d:
             previous = runner.ROOT
