@@ -107,6 +107,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
             await missingEvidence.ExecuteNonQueryAsync();
 
         await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
+        await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
 
         var temp = Path.Combine(Path.GetTempPath(),
             "jornada-v9-dev-full-r1-" + Guid.NewGuid().ToString("N"));
@@ -305,6 +306,94 @@ public sealed class V9ControlledDevFullSqlR1Tests
         seed.Parameters.Add("@y", SqlDbType.UniqueIdentifier).Value = ExistingY;
         seed.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
         await seed.ExecuteNonQueryAsync();
+        await tx.CommitAsync();
+    }
+
+    /// <summary>
+    /// The physical candidate reader requires persisted blocking_chave: a Gold
+    /// row alone is NOT a blocking candidate. Read existing Gold in this
+    /// disposable SQL database, project it through the already versioned V9
+    /// contract and materialize real SQL keys with the EXACT winner fingerprint.
+    /// Do not manually invent candidate UUID lists or force Resolve decisions.
+    /// This is isolated diagnostic fixture setup, not production publication.
+    /// </summary>
+    private static async Task MaterializeFrozenGoldBlockingKeysAsync(
+        SqlConnection connection, V9FittedSnapshot winner)
+    {
+        var runtime = V9FittedSnapshotExecutionRuntime.Load(
+            winner.SerializeUtf8(), winner.ContentSha256);
+        var maximum = runtime.MaximumPrefixLength
+            ?? throw new InvalidDataException("V9_DEV_R1_PROJECTION_LENGTH_MISSING");
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync();
+        var sources = new List<(Guid Id, string Name, string Mother,
+            DateOnly Birth, DateTimeOffset AsOf)>();
+        await using (var read = new SqlCommand("""
+            SELECT pessoa_uuid,nome_completo,nome_mae,data_nascimento,atualizado_em
+              FROM gold.pessoa
+             WHERE pessoa_uuid IN (@x,@y,@z)
+               AND estado_identidade=N'REFERENCIA'
+               AND completude_nucleo=N'COMPLETO'
+             ORDER BY pessoa_uuid;
+            """, connection, tx))
+        {
+            read.Parameters.Add("@x", SqlDbType.UniqueIdentifier).Value = ProtectedX;
+            read.Parameters.Add("@y", SqlDbType.UniqueIdentifier).Value = ExistingY;
+            read.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            await using var rows = await read.ExecuteReaderAsync();
+            while (await rows.ReadAsync())
+            {
+                if (rows.IsDBNull(0) || rows.IsDBNull(1) || rows.IsDBNull(2)
+                    || rows.IsDBNull(3) || rows.IsDBNull(4))
+                    throw new InvalidDataException("V9_DEV_R1_EXISTING_GOLD_INCOMPLETE");
+                sources.Add((rows.GetGuid(0), rows.GetString(1), rows.GetString(2),
+                    DateOnly.FromDateTime(rows.GetDateTime(3)),
+                    rows.GetDateTimeOffset(4)));
+            }
+        }
+        if (sources.Count != 3 || sources.Select(x => x.Id).Distinct().Count() != 3)
+            throw new InvalidDataException("V9_DEV_R1_EXISTING_GOLD_SET_INCOMPLETE");
+        var written = 0;
+        foreach (var gold in sources)
+        {
+            var keys = V9CalibrationBlockingProjection.Project(
+                gold.Name, gold.Mother, gold.Birth, maximum).Distinct().ToArray();
+            if (keys.Length == 0)
+                throw new InvalidDataException("V9_DEV_R1_GOLD_PROJECTION_EMPTY");
+            foreach (var key in keys)
+            {
+                var isAlias = key.Feature.StartsWith(
+                    "name_prefix_", StringComparison.Ordinal)
+                    || key.Feature.StartsWith(
+                        "mother_name_prefix_", StringComparison.Ordinal)
+                    || BlockingFeatureTemporalCatalog.Get(key.Feature)
+                        == BlockingFeatureTemporalSemantics.VersionedAlias;
+                await using var insert = new SqlCommand("""
+                    INSERT identidade.blocking_chave(
+                        pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,
+                        semantica_temporal,vigencia_inicio,vigencia_fim,
+                        projection_schema_version,projection_fingerprint_sha256)
+                    VALUES (@id,@normalization,@feature,@value,@temporal,
+                            @from,NULL,@schema,@fingerprint);
+                    """, connection, tx);
+                insert.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = gold.Id;
+                insert.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value =
+                    IdentityComparison.NormalizationVersion;
+                insert.Parameters.Add("@feature", SqlDbType.NVarChar, 80).Value = key.Feature;
+                insert.Parameters.Add("@value", SqlDbType.NVarChar, 500).Value = key.Value;
+                insert.Parameters.Add("@temporal", SqlDbType.NVarChar, 30).Value =
+                    isAlias ? "VERSIONED_ALIAS" : "STABLE_IDENTITY_DATUM";
+                insert.Parameters.Add("@from", SqlDbType.DateTimeOffset).Value = gold.AsOf;
+                insert.Parameters.Add("@schema", SqlDbType.NVarChar, 120).Value =
+                    runtime.ProjectionSchemaVersion;
+                insert.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value =
+                    runtime.ProjectionFingerprintSha256;
+                if (await insert.ExecuteNonQueryAsync() != 1)
+                    throw new InvalidDataException("V9_DEV_R1_GOLD_PROJECTION_WRITE_MISMATCH");
+                written++;
+            }
+        }
+        if (written < 3)
+            throw new InvalidDataException("V9_DEV_R1_GOLD_PROJECTION_NOT_PHYSICAL");
         await tx.CommitAsync();
     }
 
