@@ -30,6 +30,59 @@ internal static class V9ControlledDevSecureEvidenceScore
         string EvidenceMembershipSha256);
     internal sealed record Result(ProbabilisticLinkageDecision Decision, Receipt EvidenceReceipt);
 
+    // Explicit bridge from the SQL provenance census to the frozen record
+    // scorer. A current protected link or a proven founder is origin-level
+    // authority; merely seeing a person in blocking, or a prior probabilistic
+    // association, is not. Do not read or fall back to the Gold summary.
+    internal static Result ScoreFromOrigins(V9FittedSnapshot winner, Guid modelId,
+        IdentityObservation source, IReadOnlyList<Guid> candidatePeople,
+        IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>> originFacts,
+        long? maximumComparisons = null)
+    {
+        ArgumentNullException.ThrowIfNull(candidatePeople);
+        ArgumentNullException.ThrowIfNull(originFacts);
+        var selected = new List<Evidence>();
+        foreach (var person in candidatePeople)
+        {
+            if (!originFacts.TryGetValue(person, out var origins) || origins is null)
+                throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_MISSING");
+            var seenOrigins = new HashSet<long>();
+            foreach (var origin in origins)
+            {
+                if (origin is null || origin.PersonUuid != person || origin.OriginId <= 0
+                    || origin.InitialUuid == Guid.Empty || !seenOrigins.Add(origin.OriginId)
+                    || origin.Observations is null || origin.Observations.Count == 0
+                    || origin.Observations.Any(e => e is null || e.OriginId != origin.OriginId
+                        || e.Candidate is null || e.Candidate.PersonUuid != person))
+                    throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_INVALID");
+                if (IsSecureOrigin(origin))
+                    selected.AddRange(origin.Observations);
+            }
+        }
+        return Score(winner, modelId, source, candidatePeople, selected, maximumComparisons);
+    }
+
+    internal static bool IsSecureOrigin(V9ControlledDevSecureOriginReader.OriginFacts origin)
+    {
+        // INDEFINIDA or a changed canonical destination revokes this
+        // origin's authority for the candidate, regardless of older proof.
+        if (origin.HasConflictingProtectedLink
+            || origin.State is not ("REFERENCIA" or "PROVISORIA")
+            || (origin.State == "REFERENCIA" && origin.CanonicalUuid != origin.PersonUuid)
+            || (origin.State == "PROVISORIA" && origin.CanonicalUuid is not null))
+            return false;
+        if (origin.HasCpf || origin.HasGovernedCorrection)
+            return true;
+        if (origin.HasPublishedFounderProof && origin.State == "REFERENCIA"
+            && origin.InitialUuid == origin.PersonUuid)
+            return true;
+        // Conservative admission: a feedback-only link must not ratify its
+        // own earlier probabilistic assignment. CPF/correction or a proven
+        // founder above is independent authority. Physical feedback and
+        // revocation scenarios are still required before the runtime switch.
+        return origin.HasUuidFeedback && !origin.HasPriorProbabilisticAssociation;
+    }
+
     internal static Result Score(V9FittedSnapshot winner, Guid modelId,
         IdentityObservation source, IReadOnlyList<Guid> candidatePeople,
         IReadOnlyList<Evidence> secureEvidence, long? maximumComparisons = null)

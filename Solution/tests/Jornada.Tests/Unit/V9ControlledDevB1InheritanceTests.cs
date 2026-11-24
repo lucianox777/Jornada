@@ -219,7 +219,20 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 Assert.That(probabilistic.HasPriorProbabilisticAssociation, Is.True);
                 Assert.That(probabilistic.HasCpf || probabilistic.HasGovernedCorrection
                     || probabilistic.HasUuidFeedback, Is.False);
+                var b1A = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(
+                    winner, model, T3A, new[] { x }, census);
+                var b1B = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(
+                    winner, model, T3B, new[] { x }, census);
+                Assert.That(b1A.Decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+                Assert.That(b1A.Decision.PessoaUuidResolvido, Is.EqualTo(x));
+                Assert.That(b1B.Decision.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+                Assert.That(b1B.Decision.PessoaUuidResolvido, Is.Null);
+                Assert.That(b1B.EvidenceReceipt.SecureRecords, Is.EqualTo(1));
+                Assert.That(b1B.EvidenceReceipt.ComparedRecords, Is.EqualTo(1));
                 await snapshot.CommitAsync();
+                await File.WriteAllTextAsync(Path.Combine(Pr1Directory(), "t3-b1-origin-preview.json"),
+                    JsonSerializer.Serialize(new { a = b1A.Decision, b = b1B.Decision,
+                        evidence = b1B.EvidenceReceipt, nonpublishing = true }));
             }
             var second = await Pr1FullAsync(config,sql,attempt,temp,3,100);
             var after = await ReadPr1RowsAsync(db,Pr1Decisions,second);
