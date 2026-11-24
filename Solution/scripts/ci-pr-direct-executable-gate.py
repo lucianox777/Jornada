@@ -74,7 +74,7 @@ def check(root: Path) -> list[str]:
     targets += list(scripts.glob("*.sh"))
     if not targets:
         raise ValueError("no executable command surfaces found")
-    direct = set()
+    direct = {}
     for file in targets:
         if not file.is_file() or file.is_symlink():
             raise ValueError(f"invalid command surface: {file}")
@@ -82,35 +82,36 @@ def check(root: Path) -> list[str]:
             raw = line.lstrip()
             if not raw or raw.startswith("#"):
                 continue
-            for match in LOCAL.finditer(line):
-                name = match.group(1)
-                before = line[:match.start()]
-                # A path passed to an explicit interpreter or a file operation
-                # is data, not direct shell execution.
-                # "$ROOT/scripts/foo.sh" is often passed to bash/source.
-                # The path prefix is not the command; strip it for detection.
-                command_before = re.sub(
-                    r"""["']?\$(?:\{[A-Za-z_][A-Za-z_0-9]*\}|[A-Za-z_][A-Za-z_0-9]*)/$""",
-                    "", before)
-                if INTERPRETER.search(command_before):
+            # Only the EXECUTABLE TOKEN of each shell command is direct.
+            # Paths passed to bash/source, cp, echo, sed, python, PowerShell
+            # Get-Content, or assigned as strings are NOT direct calls.
+            for segment in re.split(r"[;&|]+", line):
+                command = segment.strip()
+                for _ in range(6):
+                    prefix = re.match(
+                        r"^(?:if|then|do|else|!|exec|env|time|sudo)\s+",
+                        command)
+                    if prefix is None:
+                        break
+                    command = command[prefix.end():]
+                command = re.sub(
+                    r"^(?:[A-Za-z_]\w*=\S+\s+)+", "", command)
+                if not command:
                     continue
-                # A variable assignment, echoed illustrative command, file
-                # copy or PowerShell Get-Content only MENTIONS the script.
-                # Keep actual direct calls after ;/&&/|| distinct.
-                segment = re.split(r"[;&|]+", command_before)[-1]
-                if (re.search(r"""(?:^|[\s;])(?:export\s+)?[A-Za-z_]\w*=["']?$""", segment)
-                    or re.search(r"^\s*echo\b", segment)
-                    or re.search(r"\bGet-Content\b", segment)):
+                first = command.split(None, 1)[0]
+                match = LOCAL.search(first)
+                if match is None:
                     continue
-                candidate = "Solution/scripts/" + name
+                candidate = "Solution/scripts/" + match.group(1)
                 if candidate not in modes:
                     raise ValueError(
-                        f"untracked direct script {candidate} at "
+                        f"untracked directly invoked script {candidate} at "
                         f"{file.relative_to(root)}:{number}")
-                direct.add(candidate)
+                direct.setdefault(candidate, f"{file.relative_to(root)}:{number}")
     if not direct:
         raise ValueError("no directly invoked shell script discovered")
-    return sorted(f"{path}: Git mode {modes[path]} (required 100755)"
+    return sorted(f"{path}: Git mode {modes[path]} (required 100755); "
+                  f"direct call {direct[path]}"
                   for path in direct if modes[path] != "100755")
 
 
