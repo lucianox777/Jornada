@@ -125,6 +125,12 @@ public sealed class V9ControlledDevFullSqlR1Tests
                     ["Linkage:V9SelectionFile"] = selected,
                     ["LinkageReplay:CaptureBronzeSources"] = "false"
                 }).Build();
+            // First force an actual physical SQL failure on the second
+            // persisted batch. A failed run may retain *raw* first-page
+            // evidence but must never publish partial Gold/Serving.
+            await AssertSecondBatchFailureRollsBackPublicationAsync(
+                connection, configuration, sql, attempt, temp);
+
             var scorer = await V9ControlledDevCohortScorer.CreateAsync(
                 configuration, sql, attempt, CancellationToken.None);
             var runner = new ProbabilisticLinkageBatchRunner(
@@ -219,6 +225,109 @@ public sealed class V9ControlledDevFullSqlR1Tests
         {
             Directory.Delete(temp, recursive: true);
         }
+    }
+
+    private static async Task<ProbabilisticLinkageBatchRunner> NewDevRunnerAsync(
+        IConfiguration configuration, IOperationalSqlAdapter sql,
+        Guid attempt, string temp)
+    {
+        var scorer = await V9ControlledDevCohortScorer.CreateAsync(
+            configuration, sql, attempt, CancellationToken.None);
+        return new ProbabilisticLinkageBatchRunner(
+            configuration, sql, scorer,
+            new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
+            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(temp), temp),
+            new Dt05CandidateStateSnapshotPublisher(sql, temp),
+            new Dt05BlockingProjectionSnapshotPublisher(sql, temp),
+            new Dt05HistoricalCandidateStateVerifier(temp),
+            new Dt05HistoricalBlockingProjectionVerifier(temp),
+            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
+    }
+
+    private static async Task AssertSecondBatchFailureRollsBackPublicationAsync(
+        SqlConnection connection, IConfiguration configuration,
+        IOperationalSqlAdapter sql, Guid attempt, string temp)
+    {
+        // Prevent the 101st raw result from passing CheckConstraints on the
+        // *real* SqlBulkCopy. Do not replace a scorer with a fake failure.
+        await using var breakpoint = new SqlCommand("""
+            SELECT pessoa_observacao_id FROM silver.pessoa_observacao
+            ORDER BY pessoa_observacao_id
+            OFFSET 100 ROWS FETCH NEXT 1 ROWS ONLY;
+            """, connection);
+        var failAt = Convert.ToInt64(await breakpoint.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture);
+        Assert.That(failAt, Is.GreaterThan(0L));
+        var constraint = "ck_v9_r1_disposable_fail_batch_2";
+        await using (var setup = new SqlCommand(
+            $"ALTER TABLE identidade.linkage_resultado WITH CHECK " +
+            $"ADD CONSTRAINT {constraint} CHECK (pessoa_observacao_id < {failAt});",
+            connection))
+            await setup.ExecuteNonQueryAsync();
+        Exception? injectedFailure = null;
+        try
+        {
+            var failing = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+            try
+            {
+                await failing.RunV9ControlledDevAsync(
+                    new ProbabilisticLinkageRunRequest(
+                        LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
+                        "V9_DEV_FAILCLOSED_BATCH2", "DISPOSABLE_SQL_NEGATIVE",
+                        Guid.NewGuid(), true),
+                    attempt, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                injectedFailure = ex;
+            }
+        }
+        finally
+        {
+            await using var drop = new SqlCommand(
+                $"ALTER TABLE identidade.linkage_resultado DROP CONSTRAINT {constraint};",
+                connection);
+            await drop.ExecuteNonQueryAsync();
+        }
+        Assert.That(injectedFailure, Is.Not.Null,
+            "Physical CheckConstraints must fail specifically in batch 2.");
+        Assert.That(injectedFailure!.ToString(), Does.Contain(constraint),
+            "Reject unrelated exceptions as proof of batch-2 rollback.");
+        await using (var verify = new SqlCommand("""
+            DECLARE @failed UNIQUEIDENTIFIER=(
+              SELECT TOP(1) linkage_run_id FROM identidade.linkage_run
+               WHERE escopo_json LIKE N'%V9_DEV_FAILCLOSED_BATCH2%'
+               ORDER BY iniciado_em DESC);
+            SELECT
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+               WHERE linkage_run_id=@failed),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
+               WHERE linkage_run_id=@failed AND publicado_em IS NOT NULL),
+              (SELECT COUNT_BIG(*) FROM gold.pessoa),
+              (SELECT COUNT_BIG(*) FROM identidade.vinculo_fonte),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+               WHERE linkage_run_id=@failed AND status=N'FALHOU');
+            """, connection))
+        {
+            await using var rd = await verify.ExecuteReaderAsync();
+            Assert.That(await rd.ReadAsync(), Is.True);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(rd.GetInt64(0), Is.EqualTo(100),
+                    "Only batch 1 raw evidence may remain after batch 2 fails.");
+                Assert.That(rd.GetInt64(1), Is.Zero,
+                    "No partial DT-10/Gold publication is permitted.");
+                Assert.That(rd.GetInt64(2), Is.EqualTo(3),
+                    "Only original X/Y/Z Gold may exist before recovery.");
+                Assert.That(rd.GetInt64(3), Is.EqualTo(3),
+                    "Only the three pre-established links may exist.");
+                Assert.That(rd.GetInt64(4), Is.EqualTo(1),
+                    "Failed runner must be explicitly marked FALHOU.");
+            }));
+            Assert.That(await rd.ReadAsync(), Is.False);
+        }
+        TestContext.WriteLine(
+            "V9_DEV_R1_ROLLBACK_BATCH2_PHYSICAL_SQL_PASS: 100 raw/0 published/3 baseline Gold");
     }
 
     /// <summary>
