@@ -297,8 +297,13 @@ public sealed class V9FittedSnapshot
     }
 
     internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
-        IReadOnlyList<V9SnapshotCandidate> candidates)
+        IReadOnlyList<V9SnapshotCandidate> candidates, int? distinctCandidatePersonCount = null)
     {
+        // Controlled DEV b1 ranks each secure observation without making
+        // record multiplicity the prior's candidate-person population.
+        // Existing scientific and summary callers omit this argument.
+        if (distinctCandidatePersonCount.HasValue && Payload.UnitTfCalibrations is null)
+            throw new InvalidDataException("RUNNER_V9_DEV_B1_REQUIRES_TF4_CONTRACT");
         var converted = candidates.Select(c =>
             new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray();
         // Select one calibrated TF unit per nominal event and side, without
@@ -354,7 +359,8 @@ public sealed class V9FittedSnapshot
                 motherRequiredForPair: (o, c) =>
                     Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active,
                 sharedSurnameMode: Payload.SharedSurnameMode,
-                candidateIsScoreable: IsScoreable);
+                candidateIsScoreable: IsScoreable,
+                distinctCandidatePersonCount: distinctCandidatePersonCount);
         }
         // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
