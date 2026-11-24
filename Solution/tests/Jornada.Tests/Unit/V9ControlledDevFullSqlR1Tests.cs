@@ -694,7 +694,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
         await using (var verify = new SqlCommand("""
             DECLARE @failed UNIQUEIDENTIFIER=(
               SELECT TOP(1) linkage_run_id FROM identidade.linkage_run
-               WHERE solicitado_por=N'V9_DEV_FAILCLOSED_BATCH2'
+               WHERE status=N'FALHOU'
                ORDER BY iniciado_em DESC);
             SELECT
               (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
@@ -704,7 +704,9 @@ public sealed class V9ControlledDevFullSqlR1Tests
               (SELECT COUNT_BIG(*) FROM gold.pessoa),
               (SELECT COUNT_BIG(*) FROM identidade.vinculo_fonte),
               (SELECT COUNT_BIG(*) FROM identidade.linkage_run
-               WHERE linkage_run_id=@failed AND status=N'FALHOU');
+               WHERE linkage_run_id=@failed AND status=N'FALHOU'),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+               WHERE solicitado_por=N'V9_DEV_FAILCLOSED_BATCH2');
             """, connection))
         {
             await using var rd = await verify.ExecuteReaderAsync();
@@ -721,6 +723,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
                     "Only the three pre-established links may exist.");
                 Assert.That(rd.GetInt64(4), Is.EqualTo(1),
                     "Failed runner must be explicitly marked FALHOU.");
+                Assert.That(rd.GetInt64(5), Is.EqualTo(1),
+                    "Exactly one run must originate from the injected failure.");
             }));
             Assert.That(await rd.ReadAsync(), Is.False);
         }
