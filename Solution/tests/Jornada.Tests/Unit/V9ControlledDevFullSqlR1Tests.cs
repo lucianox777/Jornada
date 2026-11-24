@@ -80,6 +80,20 @@ public sealed class V9ControlledDevFullSqlR1Tests
         // Reuses the established 200-observation SQL FKs/Processor-style origin
         // fixture; no Gold reference or synthetic TEST truth is populated.
         await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(connection, 200);
+        // Physically exercise an INELIGIBLE blocking search within the same
+        // published FULL run: zero Gold hits must not mean complete search.
+        await using (var missingEvidence = new SqlCommand("""
+            UPDATE silver.pessoa_observacao
+               SET nome_completo=NULL,nome_cmp=NULL,data_nascimento=NULL,
+                   nome_mae=NULL,nome_mae_cmp=NULL,
+                   conteudo_hash=LOWER(CONVERT(varchar(64),
+                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
+                         N'V9_DEV_SYNTHETIC_NO_BLOCKING_EVIDENCE')),2))
+             WHERE codigo_pessoa_origem=N'V9TEST_0200';
+            IF @@ROWCOUNT<>1
+                THROW 52903,'Fixture sem blocking deve conter uma origem.',1;
+            """, connection))
+            await missingEvidence.ExecuteNonQueryAsync();
 
         var temp = Path.Combine(Path.GetTempPath(),
             "jornada-v9-dev-full-r1-" + Guid.NewGuid().ToString("N"));
@@ -151,6 +165,36 @@ public sealed class V9ControlledDevFullSqlR1Tests
                     "Gold must reflect physically published reference identities.");
             }));
             Assert.That(await rows.ReadAsync(), Is.False);
+            await rows.DisposeAsync();
+            // The SQL publisher must leave the no-pass observation INDEFINIDA:
+            // an empty candidate list without eligible passes is NOT absence
+            // proven by complete blocking.
+            await using var noPass = new SqlCommand("""
+                SELECT r.status,r.motivo,r.resultado_publicacao,
+                       r.status_publicacao,r.pessoa_uuid_publicado,p.estado
+                  FROM identidade.linkage_resultado r
+                  JOIN silver.pessoa_observacao po
+                    ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                  JOIN identidade.pessoa_origem_progressiva p
+                    ON p.pessoa_origem_id=po.pessoa_origem_id
+                 WHERE r.linkage_run_id=@run
+                   AND po.codigo_pessoa_origem=N'V9TEST_0200';
+                """, connection);
+            noPass.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = result.RunId;
+            await using (var denied = await noPass.ExecuteReaderAsync())
+            {
+                Assert.That(await denied.ReadAsync(), Is.True);
+                Assert.Multiple((Action)(() =>
+                {
+                    Assert.That(denied.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
+                    Assert.That(denied.GetString(1), Is.EqualTo("EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"));
+                    Assert.That(denied.GetString(2), Is.EqualTo("INDEFINIDA"));
+                    Assert.That(denied.GetString(3), Is.EqualTo("NAO_RESOLVIDO"));
+                    Assert.That(denied.IsDBNull(4), Is.True);
+                    Assert.That(denied.GetString(5), Is.EqualTo("INDEFINIDA"));
+                }));
+                Assert.That(await denied.ReadAsync(), Is.False);
+            }
             TestContext.WriteLine(
                 "V9_DEV_FULL_R1_PHYSICAL_SQL_GOLD_PASS: real FULL run, " +
                 "200 Silver origins, frozen graph/FS, raw results, DT-10, Gold; " +
