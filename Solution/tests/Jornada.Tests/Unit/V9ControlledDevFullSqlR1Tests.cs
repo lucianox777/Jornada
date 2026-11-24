@@ -296,7 +296,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
         await using (var verify = new SqlCommand("""
             DECLARE @failed UNIQUEIDENTIFIER=(
               SELECT TOP(1) linkage_run_id FROM identidade.linkage_run
-               WHERE escopo_json LIKE N'%V9_DEV_FAILCLOSED_BATCH2%'
+               WHERE solicitado_por=N'V9_DEV_FAILCLOSED_BATCH2'
                ORDER BY iniciado_em DESC);
             SELECT
               (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
