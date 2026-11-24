@@ -106,23 +106,21 @@ public sealed class V9ControlledDevFullSqlR1Tests
             """, connection))
             await missingEvidence.ExecuteNonQueryAsync();
 
-        // S5: authentic cross-manager Silver pair with no individually
-        // approved Gold. Both share the exact physical name/mother projection;
-        // Z's weaker ALFA/CARLA prefix hit must NOT be promoted by grouping.
+        // S5: two distinct managers share a true exact/exact Silver
+        // identity but have NO physically eligible Gold blocking hit.
+        // S3 remains a separate weak-Gold candidate on ALFA0008/CARLA0008.
         await using (var withoutGold = new SqlCommand("""
-            UPDATE partner
-               SET nome_completo=source.nome_completo,
-                   nome_cmp=source.nome_cmp,
-                   nome_mae=source.nome_mae,
-                   nome_mae_cmp=source.nome_mae_cmp,
+            UPDATE po
+               SET nome_completo=N'OMEGA0007 SILVA',
+                   nome_cmp=N'OMEGA0007 SILVA',
+                   nome_mae=N'VERONICA0007 COSTA',
+                   nome_mae_cmp=N'VERONICA0007 COSTA',
                    conteudo_hash=LOWER(CONVERT(varchar(64),
                        HASHBYTES('SHA2_256',CONVERT(varbinary(max),
-                                 N'V9_R1_S5_SILVER_ONLY_PAIR_0107')),2))
-              FROM silver.pessoa_observacao partner
-              CROSS JOIN silver.pessoa_observacao source
-             WHERE partner.codigo_pessoa_origem=N'V9TEST_0107'
-               AND source.codigo_pessoa_origem=N'V9TEST_0007';
-            IF @@ROWCOUNT<>1 THROW 52913,'Physical S5 Silver pair missing.',1;
+                            N'V9_R1_S5_NO_GOLD_'+po.codigo_pessoa_origem)),2))
+              FROM silver.pessoa_observacao po
+             WHERE po.codigo_pessoa_origem IN(N'V9TEST_0007',N'V9TEST_0107');
+            IF @@ROWCOUNT<>2 THROW 52913,'Physical S5 Silver-only pair missing.',1;
             """, connection))
             await withoutGold.ExecuteNonQueryAsync();
 
@@ -269,7 +267,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
                AND po.codigo_pessoa_origem IN(
                    N'V9TEST_0001',N'V9TEST_0101',
                    N'V9TEST_0007',N'V9TEST_0107',
-                   N'V9TEST_0108')
+                   N'V9TEST_0008',N'V9TEST_0108')
              ORDER BY po.codigo_pessoa_origem;
             """, connection))
         {
@@ -285,8 +283,9 @@ public sealed class V9ControlledDevFullSqlR1Tests
                      rows.IsDBNull(6) ? null : rows.GetGuid(6))), Is.True);
             }
         }
-        Assert.That(outcomes.Count, Is.EqualTo(5));
-        var weak = outcomes["V9TEST_0007"];
+        Assert.That(outcomes.Count, Is.EqualTo(6));
+        var weak = outcomes["V9TEST_0008"];
+        var groupFirst = outcomes["V9TEST_0007"];
         var other = outcomes["V9TEST_0107"];
         var singleton = outcomes["V9TEST_0108"];
         var x = outcomes["V9TEST_0001"];
@@ -301,7 +300,11 @@ public sealed class V9ControlledDevFullSqlR1Tests
             Assert.That(weak.Published, Is.Null);
             // S5: a pair of pending Silver rows (one from each manager)
             // is not a new group-level identity, regardless of SQL edge.
-            Assert.That(weak.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(groupFirst.Best, Is.Null);
+            Assert.That(groupFirst.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(groupFirst.Publication, Is.EqualTo("INDEFINIDA"));
+            Assert.That(groupFirst.Published, Is.Null);
+            Assert.That(other.Best, Is.Null);
             Assert.That(other.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
             Assert.That(other.Publication, Is.EqualTo("INDEFINIDA"));
             Assert.That(other.Published, Is.Null);
@@ -744,8 +747,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
             if (slot.Unit != NominalFrequencyUnitV9.FirstName)
                 return slot;
             var terms = slot.Side == CompositeNominalTfSideV9.Person
-                ? new[] { "ALFA0003", "ALFA0007" }
-                : new[] { "CARLA0003", "CARLA0007" };
+                ? new[] { "ALFA0003", "OMEGA0007" }
+                : new[] { "CARLA0003", "VERONICA0007" };
             var active = slot.Calibration
                 ?? throw new InvalidDataException("V9_DEV_R1_SYNTHETIC_TF_MISSING");
             var frequencies = active.Frequencies.ToDictionary(
