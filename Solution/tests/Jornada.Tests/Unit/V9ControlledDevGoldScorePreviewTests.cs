@@ -105,8 +105,12 @@ public sealed class V9ControlledDevGoldScorePreviewTests
             "RUNNER_V9_DEV_PREVIEW_CANDIDATE_RECEIPT_MISMATCH");
         Reject(Source([Candidate()], receiptIds: [Guid.NewGuid()]),
             "RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
+        // The shared canonical membership guard rejects duplicate/empty UUIDs
+        // before the preview-specific reference guard; preserve that precedence.
         Reject(Source([Candidate(), Candidate()]),
-            "RUNNER_V9_DEV_PREVIEW_GOLD_REFERENCE_INVALID");
+            "RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
+        Reject(Source([Candidate() with { PessoaUuid = Guid.Empty }]),
+            "RUNNER_V9_DEV_CANDIDATE_SET_MISMATCH");
         Reject(Source([Candidate()], manager: " "),
             "RUNNER_V9_DEV_PREVIEW_UNIVERSE_MISMATCH");
         Reject(Source([Candidate()], includeEvidence: false),
