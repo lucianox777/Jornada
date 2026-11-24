@@ -750,9 +750,26 @@ public sealed class V9ControlledDevFullSqlR1Tests
         {
             if (slot.Unit != NominalFrequencyUnitV9.FirstName)
                 return slot;
+            // Re-running FULL after DT-10 creates real new Gold from
+            // previously unmatched Silver. Each of those Gold references
+            // must be scoreable under this SYNTHETIC-only TF fixture; otherwise
+            // the intended idempotence test is blocked by a missing fake IBGE
+            // vocabulary, not by a linkage violation. Never alter official #38.
             var terms = slot.Side == CompositeNominalTfSideV9.Person
-                ? new[] { "ALFA0003", "OMEGA0007" }
-                : new[] { "CARLA0003", "VERONICA0007" };
+                ? Enumerable.Range(1, 100)
+                    .Select(i => "ALFA" + i.ToString("D4",
+                        System.Globalization.CultureInfo.InvariantCulture))
+                    .Concat(Enumerable.Range(101, 100).Select(i =>
+                        "BETA" + i.ToString("D4",
+                            System.Globalization.CultureInfo.InvariantCulture)))
+                    .Concat(new[] { "OMEGA0007", "SILVANA", "SILVIA" })
+                : Enumerable.Range(1, 100)
+                    .Select(i => "CARLA" + i.ToString("D4",
+                        System.Globalization.CultureInfo.InvariantCulture))
+                    .Concat(Enumerable.Range(101, 100).Select(i =>
+                        "DORA" + i.ToString("D4",
+                            System.Globalization.CultureInfo.InvariantCulture)))
+                    .Concat(new[] { "VERONICA0007", "COSTELA", "COSTUMO" });
             var active = slot.Calibration
                 ?? throw new InvalidDataException("V9_DEV_R1_SYNTHETIC_TF_MISSING");
             var frequencies = active.Frequencies.ToDictionary(
@@ -761,8 +778,10 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 x => x.Key, x => x.Value, StringComparer.Ordinal);
             foreach (var term in terms)
             {
-                frequencies.Add(term, .25m);
-                trainU.Add(term, .1m);
+                if (!frequencies.ContainsKey(term))
+                    frequencies.Add(term, .25m);
+                if (!trainU.ContainsKey(term))
+                    trainU.Add(term, .001m);
             }
             return slot with
             {
