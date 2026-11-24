@@ -2,6 +2,8 @@
 
 **Data:** 22/11/2026. **Autoridade:** Product Owner. **Estado:** DECIDIDO / PLANO APROVADO COM AJUSTES; implementação, validação, certificação e ativação NÃO presumidas. **Política:** GOV-DOC-01.
 
+> **Aditivo superveniente do PO — 24/11/2026 (fase 3 do plano v4):** [RF #1936](https://github.com/lucianox777/Jornada/issues/1936), GOV-V9-RF-BLOCKING-POS-PUBLICACAO-20261124. A atualização automática do índice de blocking V9 após publicação é pré-requisito de FULL repetido, INCREMENTAL e produção. O E2E DEV 1k da fase 3 deve demonstrar como o fluxo real produz as chaves V9, sem materialização manual; se não demonstrar, declarar a lacuna expressamente no aceite, sem certificar capacidade multirrodada nem liberar produção. A fixture T3 da #1935 é diagnóstica, não evidência dessa capacidade. Decisão canônica e precedência: [aditivo RF de blocking pós-publicação](Decisao_GOV_V9_Etapa3_Traducao_Grupo_Gold_R1_20261123.md). RF aberto, implementação/prova pendentes; não altera autorizações científicas ou de ativação.
+
 ## Decisão e origem
 
 O PO aprovou expressamente **o plano original “Plano de ação — caminho crítico do E2E do sistema inteiro” (22/11/2026), acrescido de TODOS os ajustes identificados na avaliação técnica subsequente**. Os ajustes abaixo **complementam**, não substituem, o escopo, as dez etapas (0–9), as seis frentes paralelas, as ações imediatas e os riscos do plano original. A base observada pelo plano foi a `master` em `cb9cdfc`, a campanha Standard Linear #38 (run `44970012048`) e o harness `Solution/scripts/local-e2e.sh`; essa base é **histórica**, não uma afirmação de estado atual.
