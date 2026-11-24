@@ -45,8 +45,8 @@ dotnet run --no-build --configuration Release --no-launch-profile \
 private_rows="$OUT/ibge-1k/sql-publication-private.tsv"
 [[ ! -e "$private_rows" && ! -L "$private_rows" ]] || exit 57
 umask 077
-compose_sql "SELECT po.codigo_pessoa_origem,
- COALESCE(CONVERT(varchar(36),r.pessoa_uuid_publicado),N''),
+compose_sql "SELECT po.codigo_pessoa_origem + NCHAR(9) +
+ COALESCE(CONVERT(nvarchar(36),r.pessoa_uuid_publicado),N'') + NCHAR(9) +
  r.resultado_publicacao
  FROM identidade.linkage_resultado r
  JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id
