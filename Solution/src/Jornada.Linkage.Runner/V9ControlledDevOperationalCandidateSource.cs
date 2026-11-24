@@ -42,7 +42,8 @@ public static class V9ControlledDevOperationalCandidateSource
         IReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>> CandidatesByObservation,
         IReadOnlyDictionary<long, V9OperationalCandidateRead.Receipt> EvidenceByObservation,
         IReadOnlyDictionary<long, IdentityObservation> AuthenticatedSilverByObservation,
-        // An authenticated SQL subset of pre-existing active RESOLVIDO links.
+        // Authenticated pre-existing active RESOLVIDO links and REFERENCIA
+        // progressive canonicals, both sourced inside the same SQL SNAPSHOT.
         // null means NOT physically read; empty means no such links were found.
         // NEVER populate missing rows from blocking hits or inferred groups.
         IReadOnlyDictionary<long, Guid>? ExistingResolvedGoldLinksByObservation = null)
@@ -343,6 +344,48 @@ public static class V9ControlledDevOperationalCandidateSource
                     expectedFrozenIds, linkRows.GetInt64(0), linkRows.GetString(1),
                     linkRows.IsDBNull(2) ? null : linkRows.GetGuid(2),
                     linkRows.IsDBNull(3) ? null : linkRows.GetString(3));
+            }
+        }
+
+        // A persisted progressiva REFERENCIA can be the current canonical
+        // identity even without a RESOLVIDO active vinculo_fonte on this
+        // observation. The unchanged SQL publisher gives that state
+        // precedence: make it a consistency vote in the same SQL SNAPSHOT,
+        // so r1 cannot create a conflicting association in its group.
+        await using (var progressiva = new SqlCommand("""
+            SELECT ri.pessoa_observacao_id,p.canonical_uuid,g.estado_identidade
+              FROM identidade.linkage_run_item ri
+              JOIN silver.pessoa_observacao po
+                ON po.pessoa_observacao_id=ri.pessoa_observacao_id
+              JOIN identidade.pessoa_origem_progressiva p
+                ON p.pessoa_origem_id=po.pessoa_origem_id
+              LEFT JOIN gold.pessoa g
+                ON g.pessoa_uuid=p.canonical_uuid
+             WHERE ri.linkage_run_id=@run_id
+               AND p.estado=N'REFERENCIA'
+             ORDER BY ri.pessoa_observacao_id;
+            """, connection, snapshot))
+        {
+            progressiva.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            await using var references = await progressiva.ExecuteReaderAsync(cancellationToken);
+            while (await references.ReadAsync(cancellationToken))
+            {
+                var id = references.GetInt64(0);
+                if (!expectedFrozenIds.Contains(id)
+                    || references.IsDBNull(1)
+                    || references.IsDBNull(2)
+                    || references.GetString(2) != "REFERENCIA")
+                    throw new InvalidDataException("RUNNER_V9_DEV_PROGRESSIVA_REFERENCE_INVALID");
+                var canonical = references.GetGuid(1);
+                if (canonical == Guid.Empty)
+                    throw new InvalidDataException("RUNNER_V9_DEV_PROGRESSIVA_REFERENCE_INVALID");
+                if (existingResolvedGold.TryGetValue(id, out var existing))
+                {
+                    if (existing != canonical)
+                        throw new InvalidDataException("RUNNER_V9_DEV_PROGRESSIVA_GOLD_CONFLICT");
+                }
+                else if (!existingResolvedGold.TryAdd(id, canonical))
+                    throw new InvalidDataException("RUNNER_V9_DEV_PROGRESSIVA_REFERENCE_DUPLICATE");
             }
         }
 
