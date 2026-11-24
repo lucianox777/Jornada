@@ -165,6 +165,31 @@ public sealed class V9ControlledDevGroupGoldR1Tests
         }));
     }
 
+    [TestCase("V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA")]
+    [TestCase("V9_R1_INDEFINIDO_LIMITE_EVIDENCIAS")]
+    public void B1_insufficiency_precedes_group_indication_but_not_group_conflict(string reason)
+    {
+        var insufficient = new ProbabilisticLinkageDecision(
+            ResolutionStatus.NAO_RESOLVIDO, null, Y, .43m, null, null, null,
+            Model, reason);
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision>
+                { [1] = Resolved(X), [2] = insufficient },
+            new Dictionary<long, Guid[]> { [1] = [X], [2] = [Y] });
+        Assert.That(output[1], Is.EqualTo(Resolved(X)));
+        Assert.That(output[2], Is.EqualTo(insufficient));
+
+        var conflict = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group, [3] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision>
+                { [1] = Resolved(X), [2] = insufficient, [3] = Resolved(Y) },
+            new Dictionary<long, Guid[]> { [1] = [X], [2] = [Y], [3] = [Y] });
+        Assert.That(conflict[2], Is.EqualTo(insufficient with {
+            Status = ResolutionStatus.CONFLITO, Motivo = "V9_R1_GRUPO_GOLD_CONFLITANTE"
+        }));
+    }
+
     [Test]
     public void Two_targets_veto_even_an_individually_unresolved_third_member()
     {

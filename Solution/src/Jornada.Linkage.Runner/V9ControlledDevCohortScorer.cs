@@ -304,6 +304,8 @@ public static class V9ControlledDevGroupGoldR1
                 if (members.Length > 1 && targets.Count == 1
                     && decision.Status == ResolutionStatus.NAO_RESOLVIDO
                     && !noEligiblePass.Contains(id)
+                    && decision.Motivo is not (V9ControlledDevSecureEvidenceScore.NoSecureEvidence
+                        or V9ControlledDevSecureEvidenceScore.EvidenceLimit)
                     && !alreadyEstablishedGold.ContainsKey(id))
                 {
                     output.Add(id, decision with {
