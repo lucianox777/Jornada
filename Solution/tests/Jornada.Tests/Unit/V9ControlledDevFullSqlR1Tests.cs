@@ -239,6 +239,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
                 connection, configuration, sql, attempt, temp);
+            await AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(
+                connection, configuration, sql, attempt, temp);
             TestContext.WriteLine(
                 "V9_DEV_FULL_R1_PHYSICAL_SQL_GOLD_PASS: S1/S2/S6 verified; real FULL run, " +
                 "200 Silver origins, frozen graph/FS, raw results, DT-10, Gold; " +
@@ -318,6 +320,106 @@ public sealed class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine(
             "V9_DEV_R1_PHYSICAL_S3_S4_S5_CROSS_BATCH_PASS: weak Gold abstains; " +
             "Silver-only group indefinite; complete singleton new identity; group spans pages");
+    }
+
+    private static async Task AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(
+        SqlConnection connection, IConfiguration configuration,
+        IOperationalSqlAdapter sql, Guid attempt, string temp)
+    {
+        var phantom = Guid.Parse("e4e4e4e4-e004-4000-8000-000000000004");
+        var beforeGold = await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM gold.pessoa;");
+        var beforeRuns = await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
+        // A real SQL blocking hit without a corresponding Gold reference
+        // must never be silently discarded, scored or published as a no-hit.
+        // This is a disposable integrity attack against the candidate JOIN.
+        await using (var seed = new SqlCommand("""
+            INSERT identidade.pessoa(pessoa_uuid,status)
+                VALUES(@phantom,N'ATIVO');
+            INSERT identidade.blocking_chave(
+                pessoa_uuid,normalizacao_versao,atributo,valor_normalizado,
+                semantica_temporal,vigencia_inicio,vigencia_fim,
+                projection_schema_version,projection_fingerprint_sha256)
+            SELECT @phantom,normalizacao_versao,atributo,valor_normalizado,
+                   semantica_temporal,vigencia_inicio,vigencia_fim,
+                   projection_schema_version,projection_fingerprint_sha256
+              FROM identidade.blocking_chave
+             WHERE pessoa_uuid=@z;
+            IF @@ROWCOUNT<1 THROW 52916,'S8 requires physical V9 blocking keys.',1;
+            """, connection))
+        {
+            seed.Parameters.Add("@phantom", SqlDbType.UniqueIdentifier).Value = phantom;
+            seed.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            await seed.ExecuteNonQueryAsync();
+        }
+        Exception? rejection = null;
+        try
+        {
+            var target = await CountSqlAsync(connection, """
+                SELECT TOP(1) pessoa_observacao_id
+                  FROM silver.pessoa_observacao
+                 WHERE codigo_pessoa_origem=N'V9TEST_0003'
+                   AND versao_interna=2;
+                """);
+            var runner = await NewDevRunnerAsync(configuration, sql, attempt, temp);
+            try
+            {
+                await runner.RunV9ControlledDevAsync(
+                    new ProbabilisticLinkageRunRequest(
+                        LinkageRunType.FULL, 9, target, null, null,
+                        100, 1, null, "V9_DEV_R1_S8_UNAUTHENTICATED_GOLD",
+                        "FAILCLOSED_SQL_GOLD_JOIN",
+                        Guid.NewGuid(), true),
+                    attempt, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                rejection = ex;
+            }
+        }
+        finally
+        {
+            await using var cleanup = new SqlCommand("""
+                DELETE FROM identidade.blocking_chave WHERE pessoa_uuid=@phantom;
+                DELETE FROM identidade.pessoa WHERE pessoa_uuid=@phantom;
+                """, connection);
+            cleanup.Parameters.Add("@phantom", SqlDbType.UniqueIdentifier).Value = phantom;
+            await cleanup.ExecuteNonQueryAsync();
+        }
+        Assert.That(rejection, Is.Not.Null,
+            "S8 must abort an unauthenticated SQL blocking UUID.");
+        Assert.That(rejection!.ToString(), Does.Contain("GOLD").IgnoreCase,
+            "An unrelated failure is not proof of the Gold integrity gate.");
+        await using (var check = new SqlCommand("""
+            SELECT
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+               WHERE solicitado_por=N'V9_DEV_R1_S8_UNAUTHENTICATED_GOLD'
+                 AND status=N'FALHOU'),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado r
+               JOIN identidade.linkage_run lr
+                 ON lr.linkage_run_id=r.linkage_run_id
+              WHERE lr.solicitado_por=N'V9_DEV_R1_S8_UNAUTHENTICATED_GOLD'
+                AND r.publicado_em IS NOT NULL),
+              (SELECT COUNT_BIG(*) FROM identidade.linkage_run
+               WHERE solicitado_por=N'V9_DEV_R1_S8_UNAUTHENTICATED_GOLD');
+            """, connection))
+        {
+            await using var rows = await check.ExecuteReaderAsync();
+            Assert.That(await rows.ReadAsync(), Is.True);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(rows.GetInt64(0), Is.EqualTo(1));
+                Assert.That(rows.GetInt64(1), Is.Zero);
+                Assert.That(rows.GetInt64(2), Is.EqualTo(1));
+            }));
+        }
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(beforeGold));
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM identidade.linkage_run;"), Is.EqualTo(beforeRuns + 1L));
+        TestContext.WriteLine(
+            "V9_DEV_R1_S8_INTEGRITY_SQL_PASS: orphan blocking candidate rejected before publication");
     }
 
     private static async Task<long> CountSqlAsync(
