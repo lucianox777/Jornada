@@ -45,6 +45,8 @@ def selftest():
         pol=r/'p.json'; pol.write_text(json.dumps({'projects':{'A':[],'B':[]}}),encoding='utf-8')
         _,errs=check(r,pol)
         if not errs: fail('self-test não detectou dependência proibida')
+        # Isolate the next permitted-reference case from the deliberately invalid A -> B fixture.
+        (r/'A/A.csproj').write_text('<Project />', encoding='utf-8')
         # #1920: Jornada.Tests exercises the real Resultado API host, not
         # a production dependency. The exception is narrow and exact.
         (r/'Jornada.Tests').mkdir()
