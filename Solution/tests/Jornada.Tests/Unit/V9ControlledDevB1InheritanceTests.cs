@@ -274,10 +274,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(b1[10], Is.EqualTo("INDEFINIDA"));
             Assert.That(b1[13], Is.Null);
             // A is newer than S and the only other resolved origin in X.
-            var gold = (await ReadPr1RowsAsync(db,Pr1Gold)).Single(row => Equals(row[0],x));
-            Assert.That(gold[2], Is.EqualTo(T3A.NomeCompleto));
-            Assert.That(gold[4], Is.EqualTo(T3A.NomeMae));
-            Assert.That(gold[4], Is.Not.EqualTo(T3S.NomeMae));
+            // Preserve the adversarial premise through actual canonical
+            // field provenance rather than hardcoded nominal display values.
+            await AssertRecomposedReferenceAsync(db, x);
+            var displayProvenance = await Pr1ZProvenanceAsync(db, referencePerson: x);
+            Assert.That(displayProvenance.All(r => Equals(r[1], "V9T3_A")), Is.True,
+                "A must actually win canonical display selection in T3");
             await AssertT3CandidateAsync(db,winner,T3B,x);
             // Read the actual b1 origin provenance on the same disposable SQL
             // database before the second FULL. The baseline is immutable
@@ -331,6 +333,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(b2[13], Is.Null);
             Assert.That(b2[14], Is.EqualTo("INDEFINIDA"));
             Assert.That(b2[15], Is.Null);
+            await AssertRecomposedReferenceAsync(db, x);
             Assert.That(Pair(T3B,T3S).Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             TestContext.WriteLine("V9_B1_T3_INDIRECT_INHERITANCE_BLOCKED");
             await AssertT3FeedbackAuthorityAsync(db, winner, model, x);

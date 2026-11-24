@@ -214,6 +214,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             await FoundZFromIndependentOriginAsync(connection, configuration,
                 sql, attempt, temp);
             await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
+            await AssertRecomposedReferenceAsync(connection, ProtectedX);
+            await AssertRecomposedReferenceAsync(connection, ExistingY);
             await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
             await AssertS2IndependentYAuthorityAsync(connection, winner);
 
@@ -416,10 +418,13 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 
     // Display is independently checked against the canonical recomposition
     // precedence, not a particular Silver record or the scoring evidence.
-    private static async Task AssertRecomposedZAsync(SqlConnection connection)
+    private static Task AssertRecomposedZAsync(SqlConnection connection) =>
+        AssertRecomposedReferenceAsync(connection, ExistingZ);
+
+    private static async Task AssertRecomposedReferenceAsync(SqlConnection connection, Guid referencePerson)
     {
         await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Snapshot);
-        var provenance = await Pr1ZProvenanceAsync(connection, snapshot);
+        var provenance = await Pr1ZProvenanceAsync(connection, snapshot, referencePerson);
         Assert.That(provenance.Select(r => r[0]), Is.EquivalentTo(
             new[] { "NOME_COMPLETO", "DATA_NASCIMENTO", "NOME_MAE" }));
         Assert.That(provenance.All(r => Equals(r[6], 1)), Is.True,
@@ -428,7 +433,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             SELECT estado_identidade,completude_nucleo FROM gold.pessoa WHERE pessoa_uuid=@z;
             """, connection, snapshot))
         {
-            state.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            state.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = referencePerson;
             await using var rows = await state.ExecuteReaderAsync();
             Assert.That(await rows.ReadAsync(), Is.True);
             Assert.That(rows.GetString(0), Is.EqualTo("REFERENCIA"));
@@ -436,7 +441,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(await rows.ReadAsync(), Is.False);
         }
         await snapshot.CommitAsync();
-        TestContext.WriteLine("V9_B1_Z_DISPLAY_RECOMPOSITION_PASS");
+        TestContext.WriteLine("V9_B1_DISPLAY_RECOMPOSITION_PASS");
     }
 
     private static async Task<HashSet<Guid>> ReadGoldUuidSetAsync(SqlConnection connection)
@@ -833,6 +838,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             SELECT COUNT_BIG(*) FROM identidade.linkage_resultado
              WHERE linkage_run_id=@run AND pessoa_observacao_id=@source
                AND resultado_publicacao=N'ASSOCIACAO_EXISTENTE'
+               AND status=N'RESOLVIDO' AND pessoa_uuid_resolvido=@z
+               AND status_publicacao=N'RESOLVIDO'
+               AND motivo_publicacao=N'REFERENCIA_PROGRESSIVA_CONFIRMADA'
                AND pessoa_uuid_publicado=@z;
             """, connection))
         {
@@ -948,8 +956,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     "No partial DT-10/Gold publication is permitted.");
                 Assert.That(rd.GetInt64(2), Is.EqualTo(3),
                     "Only original X/Y/Z Gold may exist before recovery.");
-                Assert.That(rd.GetInt64(3), Is.EqualTo(3),
-                    "Only the three pre-established links may exist.");
+                Assert.That(rd.GetInt64(3), Is.EqualTo(5),
+                    "Only the five pre-established governed links may exist.");
                 Assert.That(rd.GetInt64(4), Is.EqualTo(1),
                     "Failed runner must be explicitly marked FALHOU.");
                 Assert.That(rd.GetInt64(5), Is.EqualTo(1),
@@ -1115,14 +1123,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         await using var seed = new SqlCommand("""
             INSERT identidade.pessoa(pessoa_uuid,status)
             VALUES(@x,N'ATIVO'),(@y,N'ATIVO');
-            INSERT gold.pessoa(
-                pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,
-                fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo,atualizado_em)
-            VALUES
-              (@x,NULL,N'SEM_CPF',N'FELICIA PEREIRA','1970-01-02',N'BEATRIZ FONSECA',
-                 1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME()),
-              (@y,NULL,N'SEM_CPF',N'MARIA SILVA','1980-05-06',N'ANA COSTA',
-                 1,N'BASELINE_FONTE_UNICA',N'REFERENCIA',N'COMPLETO',SYSUTCDATETIME());
+            -- The two reference summaries are recomposed from Silver below.
             INSERT identidade.vinculo_fonte(
                 pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,
                 modelo_id,ativo,resolvido_em,motivo)
@@ -1139,11 +1140,11 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             IF @@ROWCOUNT<>3 THROW 52904,'Protecao Gold DEV incompleta.',1;
 
             -- Y's original protected 0005 record has different nominal
-            -- evidence from 0101. Add an older CPF-bearing observation to
+            -- evidence from 0101. Add a second CPF-bearing observation to
             -- that same governed origin, with the matching nominal fields.
             -- It is outside the no-CPF FULL cohort, not a competing Silver
             -- group member. Its authority is the current governed link on
-            -- 0005 v1, NOT the CPF value or a fabricated deterministic link.
+            -- 0005, NOT the CPF value or a fabricated deterministic link.
             -- This is synthetic SQL fixture setup, not Processor admission.
             INSERT silver.pessoa_observacao(
                 pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
@@ -1156,12 +1157,40 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                    '52998224725',NULL,
                    matching.nome_completo,matching.nome_cmp,matching.data_nascimento,
                    matching.nome_mae,matching.nome_mae_cmp,
-                   DATEADD(day,-3,governed.source_as_of)
+                   DATEADD(second,1,governed.source_as_of)
               FROM silver.pessoa_observacao governed
               CROSS JOIN silver.pessoa_observacao matching
              WHERE governed.codigo_pessoa_origem=N'V9TEST_0005'
                AND matching.codigo_pessoa_origem=N'V9TEST_0101';
             IF @@ROWCOUNT<>1 THROW 52941,'Independent Y history missing.',1;
+
+            -- Real governed history supplies X's distinct display projection.
+            -- The synthetic CPF only excludes this history from no-CPF FULL,
+            -- never supplies CPF_DETERMINISTICO authority.
+            INSERT silver.pessoa_observacao(
+                pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
+                nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+            SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,2,
+                   LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',
+                       N'V9_B1_X_GOVERNED_HISTORY'),2)),
+                   '11144477735',NULL,N'FELICIA PEREIRA',N'FELICIA PEREIRA',
+                   '1970-01-02',N'BEATRIZ FONSECA',N'BEATRIZ FONSECA',
+                   DATEADD(second,1,source_as_of)
+              FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem=N'V9TEST_0001' AND versao_interna=1;
+            IF @@ROWCOUNT<>1 THROW 52942,'Independent X history missing.',1;
+            INSERT identidade.vinculo_fonte(
+                pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,
+                modelo_id,ativo,resolvido_em,motivo)
+            SELECT pessoa_observacao_id,
+                   CASE WHEN codigo_pessoa_origem=N'V9TEST_0001' THEN @x ELSE @y END,
+                   N'CORRECAO_GOVERNADA',NULL,N'RESOLVIDO',NULL,1,
+                   SYSDATETIMEOFFSET(),N'REFERENCIA_SINTETICA_DEV_EFEMERA'
+              FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem IN(N'V9TEST_0001',N'V9TEST_0005')
+               AND versao_interna=2;
+            IF @@ROWCOUNT<>2 THROW 52943,'Governed X/Y history links missing.',1;
             DECLARE @origin bigint=(
                 SELECT pessoa_origem_id FROM silver.pessoa_observacao
                 WHERE codigo_pessoa_origem=N'V9TEST_0001');
@@ -1174,6 +1203,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                  @versao_resultado=@v OUTPUT;
             IF @v IS NULL OR @v<1
                 THROW 52905,'Protecao progressiva Gold DEV nao publicada.',1;
+            EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@x;
+            EXEC identidade.sp_recompor_gold_pessoa @pessoa_uuid=@y;
             """, connection, tx);
         seed.Parameters.Add("@x", SqlDbType.UniqueIdentifier).Value = ProtectedX;
         seed.Parameters.Add("@y", SqlDbType.UniqueIdentifier).Value = ExistingY;

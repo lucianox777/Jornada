@@ -36,12 +36,13 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
     }
 
     private static async Task<List<object?[]>> ReadPr1RowsAsync(
-        SqlConnection db, string query, Guid? run = null, SqlTransaction? tx = null)
+        SqlConnection db, string query, Guid? run = null, SqlTransaction? tx = null,
+        Guid? referencePerson = null)
     {
         await using var cmd = new SqlCommand(query, db, tx) { CommandTimeout = 120 };
         if (run.HasValue)
             cmd.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = run.Value;
-        cmd.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+        cmd.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = referencePerson ?? ExistingZ;
         var rows = new List<object?[]>();
         await using var rd = await cmd.ExecuteReaderAsync();
         while (await rd.ReadAsync())
@@ -444,7 +445,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine("V9_GOLD_PR1_T1_PASS " + scenario);
     }
 
-    private static Task<List<object?[]>> Pr1ZProvenanceAsync(SqlConnection db, SqlTransaction? snapshot = null) =>
+    private static Task<List<object?[]>> Pr1ZProvenanceAsync(SqlConnection db, SqlTransaction? snapshot = null,
+        Guid? referencePerson = null) =>
         ReadPr1RowsAsync(db, """
             WITH obs_ids AS (
                 SELECT vc.pessoa_observacao_id FROM identidade.v_vinculo_corrente vc
@@ -478,7 +480,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             )
             SELECT campo,codigo_pessoa_origem,versao_interna,metodo_resolucao,status,source_as_of,matches_gold
               FROM ranked WHERE rn=1 ORDER BY campo;
-            """, tx: snapshot);
+            """, tx: snapshot, referencePerson: referencePerson);
 
     // Same-origin new version is not a reason to alter pre-existing raw
     // scores/decisions in this controlled fixture. Check every common row,
@@ -512,7 +514,11 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             {
                 Assert.That(a[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
                 Assert.That(a[12], Is.EqualTo("ASSOCIACAO_EXISTENTE_LINKAGE"));
-                Assert.That(b[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_CONFIRMADA"));
+                // DT-10 elects the highest internal version in the run.
+                // 0003 v1 is now a follower of the appended v2.
+                Assert.That(b[12], Is.EqualTo(Equals(a[0], "V9TEST_0003")
+                    ? "REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM"
+                    : "REFERENCIA_PROGRESSIVA_CONFIRMADA"), "DT-10 leader/follower " + key);
                 Assert.That(a[0], Is.AnyOf("V9TEST_0003", "V9TEST_0106"));
             }
         }
@@ -520,8 +526,16 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Assert.That(appended[2], Is.EqualTo("RESOLVIDO"));
         Assert.That(appended[4], Is.EqualTo(ExistingZ));
         Assert.That(appended[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
+        Assert.That(appended[11], Is.EqualTo("RESOLVIDO"));
+        Assert.That(appended[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_CONFIRMADA"),
+            "0003 v2 is the DT-10 leader");
         Assert.That(appended[13], Is.EqualTo(ExistingZ));
         Assert.That(appended[15], Is.EqualTo(ExistingZ));
+        var follower = after.Single(r => Equals(r[0], "V9TEST_0003")
+            && Convert.ToInt64(r[1], System.Globalization.CultureInfo.InvariantCulture) == 1);
+        Assert.That(follower[12], Is.EqualTo("REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM"));
+        Assert.That(follower[13], Is.EqualTo(appended[13]));
+        Assert.That(follower[4], Is.EqualTo(ExistingZ), "Publication propagation is not raw FS inheritance");
     }
 
     private static async Task CharacterizeHistoricalGoldAsync(
