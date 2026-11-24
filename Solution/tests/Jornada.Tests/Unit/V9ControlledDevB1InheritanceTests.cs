@@ -153,8 +153,30 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(bS.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(bA.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
 
-            // The controlled DEV seam does not certify automatic index refresh.
-            // Materialize the frozen keys from the real founder's persisted Gold.
+            // DT-10 currently refreshes the LEGACY index for NOVA_IDENTIDADE.
+            // This T3-only disposable fixture explicitly replaces that founder's
+            // legacy keys by the pinned diagnostic V9 projection of its actual
+            // persisted Gold. Never do this in the runtime, or for other people.
+            // Neither the logical UNIQUE key nor the frozen passes are changed.
+            await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
+                db, attempt, CancellationToken.None);
+            await using (var legacy = new SqlCommand("""
+                SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE pessoa_uuid=@x;
+                """, db))
+            {
+                legacy.Parameters.Add("@x", SqlDbType.UniqueIdentifier).Value = x;
+                Assert.That((long)(await legacy.ExecuteScalarAsync())!, Is.GreaterThan(0L),
+                    "T3 founding FULL produced its legacy projection");
+            }
+            await using (var remove = new SqlCommand("""
+                DELETE FROM identidade.blocking_chave WHERE pessoa_uuid=@x;
+                """, db))
+            {
+                remove.Parameters.Add("@x", SqlDbType.UniqueIdentifier).Value = x;
+                var removed = await remove.ExecuteNonQueryAsync();
+                Assert.That(removed, Is.GreaterThan(0));
+                TestContext.WriteLine($"V9_B1_T3_FIXTURE_LEGACY_KEYS_REPLACED={removed}");
+            }
             await MaterializeFrozenGoldBlockingKeysAsync(db, winner, x);
             await InsertT3OriginAsync(db,"V9T3_A","V9TEST",T3A,1);
             await InsertT3OriginAsync(db,"V9T3_B","V9TEST2",T3B,2);
