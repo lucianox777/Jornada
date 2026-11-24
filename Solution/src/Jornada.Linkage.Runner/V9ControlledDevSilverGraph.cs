@@ -35,7 +35,6 @@ public static class V9ControlledDevSilverGraph
             || snapshot.IsolationLevel != IsolationLevel.Snapshot)
             throw new InvalidOperationException("RUNNER_V9_DEV_GRAPH_SNAPSHOT_REQUIRED");
         if (managers.Count != frozen.Count
-            || frozen.Count > int.MaxValue
             || frozen.Any(x => x is null || x.PessoaObservacaoId <= 0
                 || x.Observation is null || x.Observation.Cpf is not null
                 || !managers.TryGetValue(x.PessoaObservacaoId, out var manager)

@@ -139,9 +139,9 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         // UUID candidates; never use synthetic group GUIDs as Gold candidates.
         var raw = frozenRows.Count == 0
             ? new Dictionary<long, ProbabilisticLinkageDecision>()
-            : new Dictionary<long, ProbabilisticLinkageDecision>(
-                V9ControlledDevGoldScorePreview.Score(
-                    winner, frozenRows, verified).Decisions);
+            : V9ControlledDevGoldScorePreview.Score(
+                winner, frozenRows, verified).Decisions
+                .ToDictionary(x => x.Key, x => x.Value);
         var translation = V9ControlledDevGroupGoldR1.Translate(
             groups, raw, verified.CandidatesByObservation,
             verified.ExistingResolvedGoldLinksByObservation
