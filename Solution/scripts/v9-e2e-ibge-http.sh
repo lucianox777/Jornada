@@ -153,5 +153,8 @@ python3 "$ROOT/scripts/v9-e2e-ibge-http-lineage.py" \
   --expected-sha "${GITHUB_SHA:-}" \
   --receipt "$OUT/ibge-http-1k-summary.json"
 
-# Truth, synthetic identifiers, names, ZIPs and private HMAC provenance never enter Actions artifacts.
-rm -rf -- "$bridge_root"
+# Keep the private truth only until opt-in stage 8 compares it with
+# physical SQL. Outer local-e2e.sh EXIT trap deletes it on every outcome.
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" != true ]]; then
+  rm -rf -- "$bridge_root"
+fi
