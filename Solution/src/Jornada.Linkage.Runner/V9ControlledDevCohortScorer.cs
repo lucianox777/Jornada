@@ -98,7 +98,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 || x.Observation.ResolutionAttributes is { Count: > 0 })
             || !frozenRows.Select(x => x.PessoaObservacaoId)
                 .SequenceEqual(frozenRows.Select(x => x.PessoaObservacaoId).OrderBy(x => x))
-            || frozenRows.Select(x => x.PessoaObservacaoId).Distinct().Count != frozenRows.Count)
+            || frozenRows.Select(x => x.PessoaObservacaoId).Distinct().Count() != frozenRows.Count)
             throw new InvalidDataException("RUNNER_V9_DEV_COHORT_INVALID");
 
         // A failed preparation is never retried under the same mutable run.
