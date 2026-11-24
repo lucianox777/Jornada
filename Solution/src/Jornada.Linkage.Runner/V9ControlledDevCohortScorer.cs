@@ -267,6 +267,8 @@ public static class V9ControlledDevGroupGoldR1
             }
 
             var conflicting = targets.Count > 1;
+            var groupWithoutGoldCandidates = targets.Count == 0
+                && members.All(id => candidates[id].Count == 0);
             foreach (var id in members)
             {
                 var decision = individualFs[id];
@@ -290,10 +292,28 @@ public static class V9ControlledDevGroupGoldR1
                 // No group inheritance: a member that individually abstains
                 // must NOT become its own new reference simply because its
                 // neighbor (or previous round's reference) has no candidate.
-                if (decision.Motivo?.StartsWith("SEM_CANDIDATO_", StringComparison.Ordinal) == true)
+                var noCandidate = decision.Motivo?.StartsWith(
+                    "SEM_CANDIDATO_", StringComparison.Ordinal) == true;
+                if (noCandidate && candidates[id].Count > 0)
+                    throw new InvalidDataException("RUNNER_V9_R1_FALSE_NO_CANDIDATE");
+
+                // A unique established/individually approved target is only
+                // a group indication. Never copy its UUID or change the FS
+                // ranking/scores. Existing protected links, FS conflicts and
+                // insufficient blocking evidence retain their precedence.
+                if (members.Length > 1 && targets.Count == 1
+                    && decision.Status == ResolutionStatus.NAO_RESOLVIDO
+                    && !noEligiblePass.Contains(id)
+                    && !alreadyEstablishedGold.ContainsKey(id))
                 {
-                    if (candidates[id].Count > 0)
-                        throw new InvalidDataException("RUNNER_V9_R1_FALSE_NO_CANDIDATE");
+                    output.Add(id, decision with {
+                        Motivo = "V9_R1_INDEFINIDO_COM_INDICIO"
+                    });
+                    continue;
+                }
+
+                if (noCandidate)
+                {
                     if (noEligiblePass.Contains(id)
                         || members.Length > 1 || silverWithCandidates.Contains(id))
                         output.Add(id, decision with {
@@ -301,7 +321,9 @@ public static class V9ControlledDevGroupGoldR1
                             Motivo = noEligiblePass.Contains(id)
                                 ? "EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"
                                 : members.Length > 1
-                                    ? "V9_R1_GRUPO_SEM_HERANCA"
+                                    ? groupWithoutGoldCandidates
+                                        ? "V9_R1_INDEFINIDO_SEM_INDICIO"
+                                        : "V9_R1_INDEFINIDO_CANDIDATO_FRACO"
                                     : "V9_R1_SILVER_CANDIDATO_NAO_RESOLVIDO"
                         });
                     else

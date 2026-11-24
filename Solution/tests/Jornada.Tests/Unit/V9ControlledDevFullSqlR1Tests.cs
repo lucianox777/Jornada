@@ -124,6 +124,33 @@ public sealed class V9ControlledDevFullSqlR1Tests
             """, connection))
             await withoutGold.ExecuteNonQueryAsync();
 
+        // S9: 0006 already has a governed link to Z in the seed below.
+        // 0106 is a separate origin/manager with exact Silver evidence to
+        // 0006 but not exact/exact to Gold Z. No candidate or raw decision
+        // is injected: the real frozen graph and FS must establish the case.
+        await using (var indication = new SqlCommand("""
+            UPDATE silver.pessoa_observacao
+               SET nome_completo=N'ALFA0006 SILVA',nome_cmp=N'ALFA0006 SILVA',
+                   nome_mae=N'CARLA0006 COSTA',nome_mae_cmp=N'CARLA0006 COSTA',
+                   conteudo_hash=LOWER(CONVERT(varchar(64),
+                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
+                           N'V9_R1_S9_INDICATION_0106')),2))
+             WHERE codigo_pessoa_origem=N'V9TEST_0106';
+            IF @@ROWCOUNT<>1 THROW 52914,'Physical S9 Silver partner missing.',1;
+            -- 0006 is HISTORICAL evidence of the governed Z link. Keep the
+            -- newer 0003 attributes canonical when Gold is recomposed. If
+            -- 0006 wins by source_as_of, the second FULL is a changed-Gold
+            -- experiment, not an idempotence test on stable evidence.
+            UPDATE historical
+               SET source_as_of=DATEADD(day,-1,canonical.source_as_of)
+              FROM silver.pessoa_observacao historical
+              CROSS JOIN silver.pessoa_observacao canonical
+             WHERE historical.codigo_pessoa_origem=N'V9TEST_0006'
+               AND canonical.codigo_pessoa_origem=N'V9TEST_0003';
+            IF @@ROWCOUNT<>1 THROW 52915,'Physical S9 historical chronology missing.',1;
+            """, connection))
+            await indication.ExecuteNonQueryAsync();
+
         await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
         await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
 
@@ -234,6 +261,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 Assert.That(await denied.ReadAsync(), Is.False);
             }
             await AssertPhysicalS3S4S5AndCrossBatchAsync(connection, result.RunId);
+            await AssertPhysicalIndicationReasonsAsync(connection, result.RunId);
+            await AssertStableIndicationGoldAsync(connection);
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
                 connection, configuration, sql, attempt, temp);
@@ -301,11 +330,11 @@ public sealed class V9ControlledDevFullSqlR1Tests
             // S5: a pair of pending Silver rows (one from each manager)
             // is not a new group-level identity, regardless of SQL edge.
             Assert.That(groupFirst.Best, Is.Null);
-            Assert.That(groupFirst.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(groupFirst.RawReason, Is.EqualTo("V9_R1_INDEFINIDO_SEM_INDICIO"));
             Assert.That(groupFirst.Publication, Is.EqualTo("INDEFINIDA"));
             Assert.That(groupFirst.Published, Is.Null);
             Assert.That(other.Best, Is.Null);
-            Assert.That(other.RawReason, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
+            Assert.That(other.RawReason, Is.EqualTo("V9_R1_INDEFINIDO_SEM_INDICIO"));
             Assert.That(other.Publication, Is.EqualTo("INDEFINIDA"));
             Assert.That(other.Published, Is.Null);
             // S4: complete singleton search with eligible passes and no
@@ -323,6 +352,87 @@ public sealed class V9ControlledDevFullSqlR1Tests
         TestContext.WriteLine(
             "V9_DEV_R1_PHYSICAL_S3_S4_S5_CROSS_BATCH_PASS: weak Gold abstains; " +
             "Silver-only group indefinite; complete singleton new identity; group spans pages");
+    }
+
+    // The canonical Gold source-selection policy prefers the most recent
+    // source_as_of for unverified fields. In this fixture the historical
+    // linked member must not change Z's FS evidence between the FULL runs.
+    private static async Task AssertStableIndicationGoldAsync(SqlConnection connection)
+    {
+        await using var query = new SqlCommand("""
+            SELECT g.nome_completo,g.nome_mae,g.data_nascimento,g.estado_identidade
+              FROM gold.pessoa g WHERE g.pessoa_uuid=@z;
+            """, connection);
+        query.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+        await using var rows = await query.ExecuteReaderAsync();
+        Assert.That(await rows.ReadAsync(), Is.True);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rows.GetString(0), Is.EqualTo("ALFA0003 SILVA"));
+            Assert.That(rows.GetString(1), Is.EqualTo("CARLA0003 COSTA"));
+            Assert.That(rows.GetDateTime(2), Is.EqualTo(new DateTime(1980, 5, 6)));
+            Assert.That(rows.GetString(3), Is.EqualTo("REFERENCIA"));
+        }));
+        Assert.That(await rows.ReadAsync(), Is.False);
+    }
+
+    private static async Task<HashSet<Guid>> ReadGoldUuidSetAsync(SqlConnection connection)
+    {
+        var ids = new HashSet<Guid>();
+        await using var query = new SqlCommand("SELECT pessoa_uuid FROM gold.pessoa;", connection);
+        await using var rows = await query.ExecuteReaderAsync();
+        while (await rows.ReadAsync())
+            Assert.That(ids.Add(rows.GetGuid(0)), Is.True);
+        return ids;
+    }
+
+    private static async Task AssertPhysicalIndicationReasonsAsync(
+        SqlConnection connection, Guid runId)
+    {
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["V9TEST_0007"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
+            ["V9TEST_0107"] = "V9_R1_INDEFINIDO_SEM_INDICIO",
+            ["V9TEST_0106"] = "V9_R1_INDEFINIDO_COM_INDICIO"
+        };
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        await using var query = new SqlCommand("""
+            SELECT po.codigo_pessoa_origem,r.status,r.motivo,
+                   r.pessoa_uuid_resolvido,r.resultado_publicacao,
+                   r.status_publicacao,r.motivo_publicacao,
+                   r.pessoa_uuid_publicado,p.estado,p.canonical_uuid,
+                   r.publicado_em
+              FROM identidade.linkage_resultado r
+              JOIN silver.pessoa_observacao po
+                ON po.pessoa_observacao_id=r.pessoa_observacao_id
+              JOIN identidade.pessoa_origem_progressiva p
+                ON p.pessoa_origem_id=po.pessoa_origem_id
+             WHERE r.linkage_run_id=@run
+               AND po.codigo_pessoa_origem IN(
+                   N'V9TEST_0007',N'V9TEST_0107',N'V9TEST_0106');
+            """, connection);
+        query.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = runId;
+        await using var rows = await query.ExecuteReaderAsync();
+        while (await rows.ReadAsync())
+        {
+            var code = rows.GetString(0);
+            Assert.That(seen.Add(code), Is.True, code);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(rows.GetString(1), Is.EqualTo("NAO_RESOLVIDO"), code);
+                Assert.That(rows.GetString(2), Is.EqualTo(expected[code]), code);
+                Assert.That(rows.IsDBNull(3), Is.True, code);
+                Assert.That(rows.GetString(4), Is.EqualTo("INDEFINIDA"), code);
+                Assert.That(rows.GetString(5), Is.EqualTo("NAO_RESOLVIDO"), code);
+                Assert.That(rows.GetString(6), Is.EqualTo(expected[code]), code);
+                Assert.That(rows.IsDBNull(7), Is.True, code);
+                Assert.That(rows.GetString(8), Is.EqualTo("INDEFINIDA"), code);
+                Assert.That(rows.IsDBNull(9), Is.True, code);
+                Assert.That(rows.IsDBNull(10), Is.False, code);
+            }));
+        }
+        Assert.That(seen, Is.EquivalentTo(expected.Keys));
+        TestContext.WriteLine("V9_DEV_R1_SQL_INDICATION_PASS: 2 SEM_INDICIO and 1 COM_INDICIO; raw and published reasons, no resolved/published UUID");
     }
 
     private static async Task AssertS8UnauthenticatedGoldRollsBackBeforeScoringAsync(
@@ -439,6 +549,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
     {
         var baselineGold = await CountSqlAsync(
             connection, "SELECT COUNT_BIG(*) FROM gold.pessoa;");
+        var baselineGoldUuids = await ReadGoldUuidSetAsync(connection);
         var baselineRuns = await CountSqlAsync(
             connection, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
         await using (var append = new SqlCommand("""
@@ -512,9 +623,40 @@ public sealed class V9ControlledDevFullSqlR1Tests
             }));
             Assert.That(await rd.ReadAsync(), Is.False);
         }
+        // Check the exact set, not just the count. Keep diagnostics scoped
+        // to synthetic source codes; do not dump UUIDs or person attributes.
+        var repeatedGoldUuids = await ReadGoldUuidSetAsync(connection);
+        if (!baselineGoldUuids.SetEquals(repeatedGoldUuids))
+        {
+            await using var diagnostic = new SqlCommand("""
+                SELECT po.codigo_pessoa_origem,r.motivo,r.resultado_publicacao,
+                       CASE WHEN r.pessoa_uuid_publicado=@z THEN 1 ELSE 0 END,
+                       CASE WHEN g.pessoa_uuid IS NULL THEN 0 ELSE 1 END
+                  FROM identidade.linkage_resultado r
+                  JOIN silver.pessoa_observacao po
+                    ON po.pessoa_observacao_id=r.pessoa_observacao_id
+                  JOIN identidade.pessoa_origem_progressiva p
+                    ON p.pessoa_origem_id=po.pessoa_origem_id
+                  LEFT JOIN gold.pessoa g ON g.pessoa_uuid=p.initial_uuid
+                 WHERE r.linkage_run_id=@run
+                   AND po.codigo_pessoa_origem IN(N'V9TEST_0006',N'V9TEST_0106');
+                """, connection);
+            diagnostic.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = full.RunId;
+            diagnostic.Parameters.Add("@z", SqlDbType.UniqueIdentifier).Value = ExistingZ;
+            await using var rows = await diagnostic.ExecuteReaderAsync();
+            while (await rows.ReadAsync())
+                TestContext.WriteLine(
+                    $"V9_DEV_R1_REPEAT_DIAGNOSTIC {rows.GetString(0)} " +
+                    $"reason={(rows.IsDBNull(1) ? "<null>" : rows.GetString(1))} " +
+                    $"publication={rows.GetString(2)} toZ={rows.GetInt32(3)} initialGoldExists={rows.GetInt32(4)}");
+        }
+        Assert.That(repeatedGoldUuids.SetEquals(baselineGoldUuids), Is.True,
+            "Repeated FULL must preserve the exact Gold UUID set.");
         Assert.That(await CountSqlAsync(connection,
             "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold),
             "Repeated FULL must be idempotent at Gold identity level.");
+        await AssertStableIndicationGoldAsync(connection);
+        await AssertPhysicalIndicationReasonsAsync(connection, full.RunId);
 
         // Concurrency fail-closed: while another owner holds BOTH real SQL
         // coordination locks, a second V9 request is refused before creating

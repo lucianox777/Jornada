@@ -59,8 +59,9 @@ public sealed class V9ControlledDevGroupGoldR1Tests
             Assert.That(output[1].PessoaUuidResolvido, Is.EqualTo(X));
             Assert.That(output[2].Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(output[2].PessoaUuidResolvido, Is.Null);
-            Assert.That(output[2].Motivo, Is.EqualTo("V9_R1_GRUPO_SEM_HERANCA"));
-            Assert.That(output[2].MelhorScore, Is.Zero);
+            Assert.That(output[2], Is.EqualTo(Missing() with {
+                Motivo = "V9_R1_INDEFINIDO_COM_INDICIO"
+            }));
         }));
     }
 
@@ -124,7 +125,103 @@ public sealed class V9ControlledDevGroupGoldR1Tests
             new Dictionary<long, Guid[]> { [1] = [], [2] = [] });
         Assert.That(output.Values.All(x => x.Status == ResolutionStatus.NAO_RESOLVIDO
             && x.PessoaUuidResolvido is null
-            && x.Motivo == "V9_R1_GRUPO_SEM_HERANCA"), Is.True);
+            && x.Motivo == "V9_R1_INDEFINIDO_SEM_INDICIO"), Is.True);
+        Assert.That(output[1], Is.EqualTo(Missing() with {
+            Motivo = "V9_R1_INDEFINIDO_SEM_INDICIO"
+        }));
+        Assert.That(output[2], Is.EqualTo(output[1]));
+    }
+
+    [Test]
+    public void Unique_established_Gold_is_only_an_indication_and_own_FS_fields_are_preserved()
+    {
+        var weak = new ProbabilisticLinkageDecision(
+            ResolutionStatus.NAO_RESOLVIDO, null, Y, .43m, X, .31m, .12m,
+            Model, "FS_ABSTENTION");
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing(), [2] = weak },
+            new Dictionary<long, Guid[]> { [1] = [], [2] = [Y, X] },
+            new Dictionary<long, Guid> { [1] = X });
+        Assert.That(output[2], Is.EqualTo(weak with {
+            Motivo = "V9_R1_INDEFINIDO_COM_INDICIO"
+        }));
+        Assert.That(output[1].Motivo, Is.Not.EqualTo("V9_R1_INDEFINIDO_COM_INDICIO"));
+    }
+
+    [Test]
+    public void Unique_target_never_inserts_X_into_another_members_candidate_fields()
+    {
+        var weak = new ProbabilisticLinkageDecision(
+            ResolutionStatus.NAO_RESOLVIDO, null, Y, .43m, null, null, null,
+            Model, "FS_ABSTENTION");
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Resolved(X), [2] = weak },
+            new Dictionary<long, Guid[]> { [1] = [X], [2] = [Y] });
+        Assert.That(output[1], Is.EqualTo(Resolved(X)));
+        Assert.That(output[2], Is.EqualTo(weak with {
+            Motivo = "V9_R1_INDEFINIDO_COM_INDICIO"
+        }));
+    }
+
+    [Test]
+    public void Two_targets_veto_even_an_individually_unresolved_third_member()
+    {
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group, [3] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision>
+                { [1] = Resolved(X), [2] = Resolved(Y), [3] = Missing() },
+            new Dictionary<long, Guid[]> { [1] = [X], [2] = [Y], [3] = [] });
+        Assert.That(output[3], Is.EqualTo(Missing() with {
+            Status = ResolutionStatus.CONFLITO, Motivo = "V9_R1_GRUPO_GOLD_CONFLITANTE"
+        }));
+    }
+
+    [Test]
+    public void Unique_target_does_not_override_insufficient_blocking_or_individual_conflict()
+    {
+        var fsConflict = new ProbabilisticLinkageDecision(
+            ResolutionStatus.CONFLITO, null, X, .8m, Y, .79m, .01m,
+            Model, "FS_CONFLICT");
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group, [3] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision>
+                { [1] = Resolved(X), [2] = Missing(), [3] = fsConflict },
+            new Dictionary<long, Guid[]> { [1] = [X], [2] = [], [3] = [X, Y] },
+            noEligiblePass: new HashSet<long> { 2 });
+        Assert.That(output[2], Is.EqualTo(Missing() with {
+            Motivo = "EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"
+        }));
+        Assert.That(output[3], Is.EqualTo(fsConflict));
+    }
+
+    [Test]
+    public void Group_with_weak_candidates_but_no_approved_target_uses_weak_group_reason_without_changing_FS()
+    {
+        var weak = new ProbabilisticLinkageDecision(
+            ResolutionStatus.NAO_RESOLVIDO, null, Y, .43m, null, null, null,
+            Model, "FS_ABSTENTION");
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing(), [2] = weak },
+            new Dictionary<long, Guid[]> { [1] = [], [2] = [Y] });
+        Assert.That(output[1], Is.EqualTo(Missing() with {
+            Motivo = "V9_R1_INDEFINIDO_CANDIDATO_FRACO"
+        }));
+        Assert.That(output[2], Is.EqualTo(weak));
+    }
+
+    [Test]
+    public void Silver_only_group_with_insufficient_blocking_does_not_claim_sem_indicio_for_that_member()
+    {
+        var output = Run(
+            new Dictionary<long, Guid> { [1] = Group, [2] = Group },
+            new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing(), [2] = Missing() },
+            new Dictionary<long, Guid[]> { [1] = [], [2] = [] },
+            noEligiblePass: new HashSet<long> { 2 });
+        Assert.That(output[1].Motivo, Is.EqualTo("V9_R1_INDEFINIDO_SEM_INDICIO"));
+        Assert.That(output[2].Motivo, Is.EqualTo("EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"));
     }
 
     [Test]

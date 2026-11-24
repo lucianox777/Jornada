@@ -229,6 +229,13 @@ jobs:
           # Pure in-memory/static C# tests; no SQL, TEST or calibration.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9ControlledDevGoldScorePreviewTests|FullyQualifiedName~V9ExistingIdentityPublicationBoundaryTests'
+          # PO r1 indication classification: run its complete focused unit fixture.
+          mkdir -p .local/test-evidence/v9-r1-indication
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9ControlledDevGroupGoldR1Tests' \
+            --logger "trx;LogFileName=$PWD/.local/test-evidence/v9-r1-indication/unit.trx"
+          python3 scripts/test-evidence-gate.py .local/test-evidence/v9-r1-indication/unit.trx \
+            --forbid-skipped --minimum-tests 18 --summary .local/test-evidence/v9-r1-indication/summary.json
       - if: needs.classify-impact.outputs.docs_only != 'true'
         name: Verify C# startup console and closed JSONL (no calibration)
         working-directory: Solution
