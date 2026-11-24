@@ -97,6 +97,83 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         await tx.CommitAsync();
     }
 
+    // Physical provenance regression, after the real T3 publishing rounds:
+    // add a second Silver version and an explicit returned UUID to A. These
+    // are synthetic SQL fixture links, NOT a simulated human confirmation API.
+    private static async Task AssertT3FeedbackAuthorityAsync(SqlConnection db,
+        V9FittedSnapshot winner, Guid model, Guid person)
+    {
+        long aVersion;
+        await using (var insert = new SqlCommand("""
+            INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                versao_interna,conteudo_hash,cpf_ausente_motivo,nome_completo,nome_cmp,
+                data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+            OUTPUT INSERTED.pessoa_observacao_id
+            SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                   2,LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',N'V9_T3_A_UUID_ECHO'),2)),
+                   cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,
+                   nome_mae,nome_mae_cmp,DATEADD(second,1,source_as_of)
+              FROM silver.pessoa_observacao
+             WHERE codigo_pessoa_origem=N'V9T3_A' AND versao_interna=1;
+            """, db))
+            aVersion = Convert.ToInt64(await insert.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture);
+        Assert.That(aVersion, Is.GreaterThan(0L));
+
+        async Task SetLinkAsync(string method)
+        {
+            await using var tx = (SqlTransaction)await db.BeginTransactionAsync();
+            await using var command = new SqlCommand("""
+                UPDATE identidade.vinculo_fonte SET ativo=0
+                 WHERE pessoa_observacao_id=@obs AND ativo=1;
+                INSERT identidade.vinculo_fonte(pessoa_observacao_id,pessoa_uuid,
+                    metodo_resolucao,score,status,modelo_id,ativo,resolvido_em,motivo)
+                VALUES(@obs,@person,@method,NULL,N'RESOLVIDO',NULL,1,
+                       SYSDATETIMEOFFSET(),N'V9_B1_SQL_PROVENANCE_FIXTURE');
+                """, db, tx);
+            command.Parameters.Add("@obs", SqlDbType.BigInt).Value = aVersion;
+            command.Parameters.Add("@person", SqlDbType.UniqueIdentifier).Value = person;
+            command.Parameters.Add("@method", SqlDbType.NVarChar, 40).Value = method;
+            await command.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
+        }
+
+        async Task VerifyAsync(bool correction, bool feedback, bool secure, int records)
+        {
+            await using var snapshot = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Snapshot);
+            var census = await V9ControlledDevSecureOriginReader.ReadAsync(
+                db, snapshot, new[] { person }, CancellationToken.None);
+            var a = census[person].Single(o => o.InitialUuid != person);
+            Assert.That(a.HasPriorProbabilisticAssociation, Is.True);
+            Assert.That(a.HasUuidFeedback, Is.EqualTo(feedback));
+            Assert.That(a.HasGovernedCorrection, Is.EqualTo(correction));
+            Assert.That(a.Observations.Count, Is.EqualTo(2));
+            Assert.That(V9ControlledDevSecureEvidenceScore.IsSecureOrigin(a), Is.EqualTo(secure));
+            var score = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(
+                winner, model, T3B, new[] { person }, census);
+            Assert.That(score.EvidenceReceipt.SecureRecords, Is.EqualTo(records));
+            Assert.That(score.Decision.Status, Is.EqualTo(secure
+                ? ResolutionStatus.RESOLVIDO : ResolutionStatus.NAO_RESOLVIDO));
+            Assert.That(score.Decision.PessoaUuidResolvido, Is.EqualTo(secure ? person : (Guid?)null));
+            await snapshot.CommitAsync();
+        }
+
+        await SetLinkAsync("UUID_JORNADA_RETROALIMENTACAO");
+        await VerifyAsync(correction: false, feedback: true, secure: false, records: 1);
+        await SetLinkAsync("CORRECAO_GOVERNADA");
+        await VerifyAsync(correction: true, feedback: false, secure: true, records: 3);
+        await using (var revoke = new SqlCommand("""
+            UPDATE identidade.vinculo_fonte SET ativo=0
+             WHERE pessoa_observacao_id=@obs AND ativo=1;
+            """, db))
+        {
+            revoke.Parameters.Add("@obs", SqlDbType.BigInt).Value = aVersion;
+            Assert.That(await revoke.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+        await VerifyAsync(correction: false, feedback: false, secure: false, records: 1);
+        TestContext.WriteLine("V9_B1_SQL_UUID_ECHO_CORRECTION_REVOCATION_PASS");
+    }
+
     private static async Task CharacterizeT3Async(SqlConnection db, IOperationalSqlAdapter sql,
         Guid attempt, V9FittedSnapshot winner)
     {
@@ -256,6 +333,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(b2[15], Is.Null);
             Assert.That(Pair(T3B,T3S).Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             TestContext.WriteLine("V9_B1_T3_INDIRECT_INHERITANCE_BLOCKED");
+            await AssertT3FeedbackAuthorityAsync(db, winner, model, x);
         }
         finally
         {
