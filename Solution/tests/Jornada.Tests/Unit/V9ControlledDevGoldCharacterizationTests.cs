@@ -107,7 +107,88 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 
     private sealed record Pr1Input(string Candidates, string State, string IndicationCandidates);
 
-    private static async Task<Pr1Input> Pr1InputAsync(SqlConnection db, V9FittedSnapshot winner)
+    // Diagnostic-only components of the original composite digest. The
+    // original input/output comparisons below are intentionally unchanged.
+    private sealed record Pr1Component(string Name, int KeyLength, string[] Fields,
+        List<object?[]> Rows);
+
+    private static void Pr1AddComponent(List<Pr1Component>? target,
+        string name, int keyLength, string[] fields, IEnumerable<object?[]> rows,
+        IReadOnlyDictionary<Guid, string> ids)
+    {
+        if (target is null) return;
+        var normalized = rows.Select(row => row.Select(value =>
+            value is Guid id ? ids[id] : value).ToArray()).ToList();
+        Assert.That(normalized.All(row => row.Length == fields.Length), Is.True,
+            "PR1 diagnostic column contract");
+        target.Add(new(name, keyLength, fields, normalized));
+    }
+
+    private static string Pr1ComponentDigest(Pr1Component component) =>
+        Pr1Hash(Pr1Canonical(component.Rows, new Dictionary<Guid, string>()));
+
+    private static object? Pr1Sanitize(string field, object? value)
+    {
+        // Only synthetic logical IDs and operational enums/reasons/scores
+        // are emitted. All actual source attributes are represented by hashes.
+        if (value is null) return null;
+        return field is "pessoa_uuid" or "metodo_resolucao" or "status" or "motivo"
+            or "estado" or "canonical_uuid" or "initial_uuid" or "estado_identidade"
+            or "fontes_distintas" or "estado_concordancia" or "completude_nucleo"
+            or "identity_status" or "raw_uuid" or "best_uuid" or "second_uuid"
+            or "score_melhor" or "score_segundo" or "margem" or "resultado_publicacao"
+            or "status_publicacao" or "motivo_publicacao" or "published_uuid"
+            or "passes" or "candidate_count" or "candidate_uuids"
+            ? value : "sha256:" + Pr1Hash(JsonSerializer.Serialize(value));
+    }
+
+    private static object Pr1CompareComponents(string phase,
+        List<Pr1Component> before, List<Pr1Component> after)
+    {
+        Assert.That(before.Select(x => x.Name), Is.EqualTo(after.Select(x => x.Name)));
+        var components = new List<object>();
+        foreach (var a in before)
+        {
+            var b = after.Single(x => x.Name == a.Name);
+            Assert.That(b.Fields, Is.EqualTo(a.Fields));
+            Assert.That(b.KeyLength, Is.EqualTo(a.KeyLength));
+            var left = a.Rows.GroupBy(row => JsonSerializer.Serialize(row.Take(a.KeyLength)))
+                .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+            var right = b.Rows.GroupBy(row => JsonSerializer.Serialize(row.Take(b.KeyLength)))
+                .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+            var changes = new List<object>();
+            foreach (var key in left.Keys.Union(right.Keys).OrderBy(x => x, StringComparer.Ordinal))
+            {
+                var l = left.GetValueOrDefault(key) ?? Array.Empty<object?[]>();
+                var r = right.GetValueOrDefault(key) ?? Array.Empty<object?[]>();
+                var lh = Pr1Hash(Pr1Canonical(l, new Dictionary<Guid, string>()));
+                var rh = Pr1Hash(Pr1Canonical(r, new Dictionary<Guid, string>()));
+                if (lh == rh) continue;
+                if (l.Length != 1 || r.Length != 1)
+                {
+                    changes.Add(new { key, beforeCount = l.Length, afterCount = r.Length,
+                        beforeHash = lh, afterHash = rh });
+                    continue;
+                }
+                var fields = Enumerable.Range(a.KeyLength, a.Fields.Length - a.KeyLength)
+                    .Where(i => !Equals(l[0][i], r[0][i]))
+                    .Select(i => new { field = a.Fields[i],
+                        before = Pr1Sanitize(a.Fields[i], l[0][i]),
+                        after = Pr1Sanitize(a.Fields[i], r[0][i]) }).ToArray();
+                changes.Add(new { key, fields });
+            }
+            var ah = Pr1ComponentDigest(a);
+            var bh = Pr1ComponentDigest(b);
+            components.Add(new { component = a.Name, beforeHash = ah, afterHash = bh,
+                beforeCount = a.Rows.Count, afterCount = b.Rows.Count,
+                changedKeys = changes.Count, changes });
+            TestContext.WriteLine($"V9_GOLD_PR1_DIAG {phase} {a.Name} {ah}/{bh} changedKeys={changes.Count}");
+        }
+        return new { phase, components };
+    }
+
+    private static async Task<Pr1Input> Pr1InputAsync(SqlConnection db, V9FittedSnapshot winner,
+        List<Pr1Component>? diagnostic = null)
     {
         // Complete candidate UUIDs from the production reader, read-only
         // SNAPSHOT. No competing writer in this unique disposable database.
@@ -134,6 +215,24 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         }
         var gold = await ReadPr1RowsAsync(db, Pr1Gold, tx: tx);
         var links = await ReadPr1RowsAsync(db, Pr1Links, tx: tx);
+        Pr1AddComponent(diagnostic, "candidates", 2,
+            new[] { "origin", "version", "passes", "candidate_count", "candidate_uuids" }, candidates, ids);
+        Pr1AddComponent(diagnostic, "silver", 2,
+            new[] { "origin", "version", "cpf", "cpf_ausente_motivo", "nome_completo",
+                "data_nascimento", "nome_mae", "gestor", "source_as_of" }, source, ids);
+        Pr1AddComponent(diagnostic, "gold", 1,
+            new[] { "pessoa_uuid", "estado_identidade", "nome_completo", "data_nascimento",
+                "nome_mae", "fontes_distintas", "estado_concordancia", "completude_nucleo",
+                "identity_status" }, gold, ids);
+        Pr1AddComponent(diagnostic, "links", 2,
+            new[] { "origin", "version", "pessoa_uuid", "metodo_resolucao", "status" },
+            links.Select(row => row.Take(5).ToArray()), ids);
+        Pr1AddComponent(diagnostic, "link_reasons", 2,
+            new[] { "origin", "version", "motivo" },
+            links.Select(row => new[] { row[0], row[1], row[5] }), ids);
+        Pr1AddComponent(diagnostic, "progressive", 2,
+            new[] { "origin", "version", "estado", "canonical_uuid", "initial_uuid" },
+            links.Select(row => row.Take(2).Concat(row.Skip(6)).ToArray()), ids);
         await tx.CommitAsync();
         return new(Pr1Hash(Pr1Canonical(candidates, ids)),
             Pr1Hash(Pr1Canonical(source, ids) + "\n" + Pr1Canonical(gold, ids)
@@ -141,7 +240,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Pr1Canonical(candidates.Where(x => Equals(x[0], "V9TEST_0106")), ids));
     }
 
-    private static async Task<string> Pr1OutputAsync(SqlConnection db, Guid run, int expected)
+    private static async Task<string> Pr1OutputAsync(SqlConnection db, Guid run, int expected,
+        List<Pr1Component>? diagnostic = null)
     {
         var ids = await Pr1LogicalIdsAsync(db);
         var decisions = await ReadPr1RowsAsync(db, Pr1Decisions, run);
@@ -155,6 +255,11 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Assert.That(items.Count, Is.EqualTo(expected));
         Assert.That(Pr1Hash(Pr1Canonical(decisions.Select(x => x.Take(2).ToArray()), ids)),
             Is.EqualTo(Pr1Hash(Pr1Canonical(items, ids))), "Exact frozen source membership");
+        Pr1AddComponent(diagnostic, "decisions", 2,
+            new[] { "origin", "version", "status", "motivo", "raw_uuid", "best_uuid",
+                "score_melhor", "second_uuid", "score_segundo", "margem",
+                "resultado_publicacao", "status_publicacao", "motivo_publicacao",
+                "published_uuid", "estado", "canonical_uuid" }, decisions, ids);
         return Pr1Hash(Pr1Canonical(decisions, ids) + "\n"
             + Pr1Canonical(await ReadPr1RowsAsync(db, Pr1Links), ids) + "\n"
             + Pr1Canonical(await ReadPr1RowsAsync(db, Pr1Gold), ids));
@@ -189,15 +294,31 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         // Warm-up establishes references, not counted as a repeated FULL.
         var initial = await Pr1InputAsync(db, winner);
         var warm = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
-        var warmOutput = await Pr1OutputAsync(db, warm, 200);
-        var before = await Pr1InputAsync(db, winner);
+        var warmDiagnostics = new List<Pr1Component>();
+        var firstDiagnostics = new List<Pr1Component>();
+        var secondDiagnostics = new List<Pr1Component>();
+        var beforeDiagnostics = new List<Pr1Component>();
+        var betweenDiagnostics = new List<Pr1Component>();
+        var afterDiagnostics = new List<Pr1Component>();
+        var warmOutput = await Pr1OutputAsync(db, warm, 200, warmDiagnostics);
+        var before = await Pr1InputAsync(db, winner, beforeDiagnostics);
         var first = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
-        var firstOutput = await Pr1OutputAsync(db, first, 200);
+        var firstOutput = await Pr1OutputAsync(db, first, 200, firstDiagnostics);
         var firstGold = await ReadGoldUuidSetAsync(db);
-        var between = await Pr1InputAsync(db, winner);
+        var between = await Pr1InputAsync(db, winner, betweenDiagnostics);
         var second = await Pr1FullAsync(config, sql, attempt, temp, 200, 100);
-        var secondOutput = await Pr1OutputAsync(db, second, 200);
-        var after = await Pr1InputAsync(db, winner);
+        var secondOutput = await Pr1OutputAsync(db, second, 200, secondDiagnostics);
+        var after = await Pr1InputAsync(db, winner, afterDiagnostics);
+        // Save granular evidence before the existing assertions can stop the test.
+        var diagnostic = new { scenario, winner = winner.ContentSha256,
+            transitions = new[] {
+                Pr1CompareComponents("before_to_between", beforeDiagnostics, betweenDiagnostics),
+                Pr1CompareComponents("between_to_after", betweenDiagnostics, afterDiagnostics),
+                Pr1CompareComponents("warm_to_first_output", warmDiagnostics, firstDiagnostics),
+                Pr1CompareComponents("first_to_second_output", firstDiagnostics, secondDiagnostics)
+            } };
+        await File.WriteAllTextAsync(Path.Combine(Pr1Directory(), scenario + "-diagnostic.json"),
+            JsonSerializer.Serialize(diagnostic));
         var secondGold = await ReadGoldUuidSetAsync(db);
         var evidence = new { scenario, winner = winner.ContentSha256, initial, warmOutput,
             before, between, after, firstOutput, secondOutput,
