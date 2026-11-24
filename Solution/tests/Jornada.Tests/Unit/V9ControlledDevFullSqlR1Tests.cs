@@ -507,9 +507,6 @@ public sealed class V9ControlledDevFullSqlR1Tests
         if (string.IsNullOrWhiteSpace(evidenceDirectory))
             throw new InvalidOperationException("V9_DEV_R1_ORACLE_PATH_NOT_PROVISIONED");
         Directory.CreateDirectory(evidenceDirectory);
-        var sealedDigest = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes("V9_DEV_R1_S1_S2_S6_DISPOSABLE_FIXTURE_V1")))
-            .ToLowerInvariant();
         var truth = new[]
         {
             new { observationId = "S1", decision = "MATCH",
@@ -532,7 +529,22 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 identityId = s6.ProgressiveStatus == "REFERENCIA"
                     ? s6.Canonical?.ToString("D") : null }
         };
-        await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, "truth.json"),
+        // The immutable gabarito is a SEPARATE file and the seal is its
+        // actual byte-for-byte SHA-256, not a fixed label or a circular
+        // self-hash embedded in truth.json. Existing offline oracle expects
+        // a zipSha256 field: for this ZIP-free DEV recorte it carries the
+        // gabarito content digest, never a claim that a ZIP was processed.
+        var truthPath = Path.Combine(evidenceDirectory, "truth.json");
+        var truthBytes = JsonSerializer.SerializeToUtf8Bytes(
+            new { expectedDecisions = truth });
+        await File.WriteAllBytesAsync(truthPath, truthBytes);
+        var sealedDigest = Convert.ToHexString(SHA256.HashData(truthBytes))
+            .ToLowerInvariant();
+        await File.WriteAllTextAsync(
+            Path.Combine(evidenceDirectory, "truth.sha256"),
+            sealedDigest + "  truth.json\n");
+        await File.WriteAllTextAsync(
+            Path.Combine(evidenceDirectory, "truth-oracle.json"),
             JsonSerializer.Serialize(new { zipSha256 = sealedDigest, expectedDecisions = truth }));
         await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, "observed.json"),
             JsonSerializer.Serialize(new { zipSha256 = sealedDigest, observedDecisions = observed }));
