@@ -5,6 +5,13 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+// Explicit one-shot DEV E2E command: deliberately outside productive DI / RunAsync.
+if (args.FirstOrDefault() == V9DevE2EFullCommand.Flag)
+{
+    await V9DevE2EFullCommand.RunAsync(args);
+    return;
+}
+
 // Read-only proof that the real derived V3 is executable by the actual V9
 // multipass SQL query builder and frozen TF+joint scorer; NO DB or publication.
 if (args.FirstOrDefault() == V9FrozenGoldRuntimeProbeCli.Flag)
