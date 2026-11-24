@@ -64,7 +64,7 @@ def check(root: Path) -> list[str]:
                 before = line[:match.start()]
                 # A path passed to an explicit interpreter or a file operation
                 # is data, not direct shell execution.
-                if INTERPRETER.search(before.rstrip()):
+                if INTERPRETER.search(before):
                     continue
                 # Paths mentioned in assignment strings or doc comments do
                 # not alter execution mode. Conservative if mixed with shell.
