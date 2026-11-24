@@ -41,6 +41,29 @@ def tracked_modes(root: Path) -> dict[str, str]:
     return result
 
 
+def command_lines(file: Path):
+    """Scan only actual YAML run commands (not 'paths:' filters or labels)."""
+    lines = file.read_text(encoding="utf-8").splitlines()
+    if file.suffix not in (".yml", ".yaml"):
+        yield from enumerate(lines, 1)
+        return
+    active_indent = None
+    run_step = re.compile(r"^(\s*)(?:-\s+)?run:\s*(.*)$")
+    for number, line in enumerate(lines, 1):
+        m = run_step.match(line)
+        if m:
+            active_indent = len(m.group(1)) if m.group(2) in ("|", ">", "|-", ">-") else None
+            if active_indent is None:
+                yield number, m.group(2)
+            continue
+        if active_indent is not None and line.strip():
+            indent = len(line) - len(line.lstrip())
+            if indent > active_indent:
+                yield number, line
+            else:
+                active_indent = None
+
+
 def check(root: Path) -> list[str]:
     modes = tracked_modes(root)
     scripts = root / "Solution" / "scripts"
@@ -55,7 +78,7 @@ def check(root: Path) -> list[str]:
     for file in targets:
         if not file.is_file() or file.is_symlink():
             raise ValueError(f"invalid command surface: {file}")
-        for number, line in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
+        for number, line in command_lines(file):
             raw = line.lstrip()
             if not raw or raw.startswith("#"):
                 continue
@@ -64,7 +87,12 @@ def check(root: Path) -> list[str]:
                 before = line[:match.start()]
                 # A path passed to an explicit interpreter or a file operation
                 # is data, not direct shell execution.
-                if INTERPRETER.search(before):
+                # "$ROOT/scripts/foo.sh" is often passed to bash/source.
+                # The path prefix is not the command; strip it for detection.
+                command_before = re.sub(
+                    r"""["']?\$(?:\{[A-Za-z_][A-Za-z_0-9]*\}|[A-Za-z_][A-Za-z_0-9]*)/$""",
+                    "", before)
+                if INTERPRETER.search(command_before):
                     continue
                 # Paths mentioned in assignment strings or doc comments do
                 # not alter execution mode. Conservative if mixed with shell.
@@ -91,7 +119,10 @@ def self_test():
         (root / ".github/workflows/check.yml").write_text(
             "jobs:\n  validate:\n    steps:\n"
             "      - run: ./Solution/scripts/direct.sh\n"
-            "      - run: bash ./Solution/scripts/interpreted.sh\n")
+            "      - run: bash ./Solution/scripts/interpreted.sh\n"
+            "      - run: source \"$ROOT/scripts/interpreted.sh\"\n"
+            "  on:\n    pull_request:\n      paths:\n"
+            "        - \"Solution/scripts/interpreted.sh\"\n")
         (scripts / "direct.sh").write_text(
             "#!/bin/bash\n\"$script_dir/sibling.sh\"\n")
         (scripts / "sibling.sh").write_text("#!/bin/bash\nexit 0\n")
