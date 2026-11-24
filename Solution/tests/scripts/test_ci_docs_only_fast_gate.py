@@ -24,6 +24,23 @@ class DocsOnlyFastGateTests(unittest.TestCase):
             self.assertFalse(result["docs_only"])
             self.assertTrue(result["run_full"])
 
+    def test_full_unit_gate_matches_master_and_reuses_build(self):
+        s = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text()
+        master = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn("run_unit_full: ${{ steps.classify.outputs.run_unit_full }}", s)
+        gate = s.split("name: Full C# unit suite before merge", 1)[1].split(
+            "name: Upload full PR unit evidence", 1)[0]
+        selection = '--filter "TestCategory!=Integration&TestCategory!=SQLSmoke"'
+        self.assertIn(selection, master)
+        self.assertIn(selection, gate)
+        self.assertIn("--configuration Release --no-build", gate)
+        self.assertIn("--forbid-skipped --minimum-tests 1", gate)
+        self.assertIn("PR_FULL_UNIT_ELAPSED_SECONDS", gate)
+        self.assertNotIn("continue-on-error", gate)
+        self.assertIn("needs.classify-impact.outputs.run_unit_full != 'false'", s)
+        self.assertIn("pr-full-unit-evidence", s)
+        self.assertIn("if-no-files-found: error", s)
+
     def test_classification_and_safe_skip(self):
         s = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text()
         self.assertIn("  classify-impact:", s)
