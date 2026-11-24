@@ -1,0 +1,15 @@
+# GOV-V9-DEV-E2E-ETAPAS7-8-FULL1K-20261124 — ponte Runner depois do Processor
+
+**Decisão aprovada pelo PO em 24/11/2026. Estado:** engenharia em branch/PR empilhada sobre #1924; sem prova física HTTP→V9 integral, aprovação de merge ou ativação. GOV-DOC-01.
+
+## Contexto e justificativa
+O plano E2E aprovado exige uma cadeia única HTTP→Bronze→Processor→Silver→Runner V9 FULL→linkage_resultado→DT-10/Gold→APIs. A prova SQL de #1924 testa a tradução r1, mas não integra o HTTP/Processor. Por determinação do PO, a #1924 foi marcada pronta para revisão sem merge e abriu-se branch independente para etapas 7/8; revisão e aceitação do PO seguem em paralelo.
+
+## Contrato, precedência e impactos
+A entrada `JORNADA_E2E_V9_DEV_FULL=true` permanece **desligada por padrão** em `Solution/scripts/local-e2e.sh`. Quando habilitada, exige HTTP 1k e gerador IBGE C# já processados, `Development`, arquivo externo de seleção do vencedor imutável e `JornadaE2E` local descartável com perfil SQL `DevAttempt`, `EnvironmentProfile` e `HttpE2eScope=IBGE_1K_AFTER_PROCESSOR`. A nova entrada isolada `--v9-dev-e2e-1k-full` reutiliza o `RunCoreAsync` real, com agrupamento Silver global, FS individual e publicação DT-10 existente; **não libera** o caminho produtivo `Program.cs` nem INCREMENTAL. Nenhum refit, novo limiar, inferência por grupo ou bypass de CPF/Gold é autorizado.
+
+## Etapa 8 e lacunas
+O gabarito `bridge-truth.jsonl` continua **fora do ZIP, inacessível ao scorer e ligado por SHA-256 de seus bytes** ao manifesto independente. O oráculo recebe as linhas físicas SQL de publicação após o Runner, exige censo exato de 1.000 pessoas-base e suas 1–4 mil observações sem faltar fontes, classifica `INDEFINIDA` como abstenção sem UUID e rejeita UUID Gold compartilhado entre pessoas-base distintas. Mede indefinidos e desdobramentos; grava somente contadores e digest. Isso é **oráculo parcial de identidades**, não comprovação independente de arestas/FS/TF/scores, recall, certificação do vencedor #38 nem comparação científica. Faltam executar o E2E físico no SHA integrado, verificar as APIs do núcleo e os demais negativos antes de declarar `E2E_NUCLEO_PASS`.
+
+## Proibições e governança
+Esta frente depende da decisão r1 `Decisao_GOV_V9_Etapa3_Traducao_Grupo_Gold_R1_20261123.md`, da PR #1924 ainda não mesclada, e do plano `Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md`. **Nenhum 10k/100k, TRAIN, TEST, HML, PROD, ativação ou habilitação produtiva é permitido sem autorização.** INCREMENTAL é posterior, porém pré-requisito antes da produção. A CI no HEAD e o pacote do vencedor previamente preservado são pré-condições, não evidência presumida. Rastreio: [#1851](https://github.com/lucianox777/Jornada/issues/1851), [#1584](https://github.com/lucianox777/Jornada/issues/1584) e [PR #1924](https://github.com/lucianox777/Jornada/pull/1924).
