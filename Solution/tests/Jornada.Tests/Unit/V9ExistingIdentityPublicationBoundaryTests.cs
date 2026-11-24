@@ -18,14 +18,18 @@ public sealed class V9ExistingIdentityPublicationBoundaryTests
     {
         var runner = ReadRepositoryFile("src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs");
         var start = runner.IndexOf("public Task<ProbabilisticLinkageRunSummary> RunV9Async(", StringComparison.Ordinal);
-        var end = runner.IndexOf("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", start, StringComparison.Ordinal);
         Assert.That(start, Is.GreaterThanOrEqualTo(0));
+        // The explicitly controlled DEV entry now follows the productive one.
+        // Do not include its authorized publication path in the productive guard.
+        var end = runner.IndexOf("public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", start, StringComparison.Ordinal);
         Assert.That(end, Is.GreaterThan(start));
         var body = runner[start..end];
         Assert.Multiple((Action)(() =>
         {
             Assert.That(body, Does.Contain("boundary.EnsureProductiveCertified()"));
             Assert.That(body, Does.Contain("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED"));
+            Assert.That(body, Does.Not.Contain("RunCoreAsync("));
+            Assert.That(body, Does.Not.Contain("RunV9ControlledDevAsync("));
             Assert.That(body, Does.Not.Contain("LinkagePublicationBatchSql"));
             Assert.That(body, Does.Not.Contain("sp_publicar_resolucao_progressiva_linkage_lote"));
         }));

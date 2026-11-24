@@ -225,6 +225,10 @@ jobs:
             --filter 'FullyQualifiedName~V9IndependentScalarReplayTests'
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FittedSnapshotTests'
+          # Reproduce the two post-#1924 master unit regressions before squash.
+          # Pure in-memory/static C# tests; no SQL, TEST or calibration.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9ControlledDevGoldScorePreviewTests|FullyQualifiedName~V9ExistingIdentityPublicationBoundaryTests'
       - if: needs.classify-impact.outputs.docs_only != 'true'
         name: Verify C# startup console and closed JSONL (no calibration)
         working-directory: Solution
