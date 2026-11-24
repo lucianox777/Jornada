@@ -62,8 +62,8 @@ public static class V9DevE2EFullCommand
             var root = json.RootElement;
             if (!root.TryGetProperty("baseIdentities", out var baseIdentities)
                 || baseIdentities.GetInt32() != 1000
-                || !root.TryGetProperty("silverPersons", out var silverPersons)
-                || silverPersons.GetInt32() <= 0
+                || !root.TryGetProperty("materializedObservations", out var sourceObservations)
+                || sourceObservations.GetInt32() <= 0
                 || root.GetProperty("seed").GetInt32() != 355
                 || root.GetProperty("status").GetString() != "PASS")
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_1K_PREFLIGHT_INVALID");
