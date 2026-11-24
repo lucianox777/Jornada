@@ -15,6 +15,10 @@ on:
       - 'Solution/src/Jornada.Linkage.Core/**'
       - 'Solution/tests/Jornada.Tests/**'
       - 'Solution/tests/scripts/test_v9_*'
+      - 'Solution/scripts/v9-e2e-dev-*.sh'
+      - 'Solution/scripts/v9-e2e-dev-*.py'
+      - 'Solution/scripts/local-e2e.sh'
+      - 'Solution/scripts/v9-e2e-ibge-http.sh'
       - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
 
 permissions:
@@ -41,6 +45,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py Solution/tests/scripts/test_v9_physical_runasync_graph_guards.py Solution/tests/scripts/test_v9_configured_artifact_loader.py -v
+          python3 Solution/scripts/v9-e2e-dev-r1-independent-oracle.py --self-test
+          bash -n Solution/scripts/v9-e2e-dev-full-1k.sh
+          bash -n Solution/scripts/local-e2e.sh
+          bash -n Solution/scripts/v9-e2e-ibge-http.sh
           git diff --check
       - name: Build real Runner and SQL fixture
         working-directory: Solution
