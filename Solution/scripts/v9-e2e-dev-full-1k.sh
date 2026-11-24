@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Source only after all HTTP 1k IBGE deliveries were processed, DEV only.
-[[ "\${JORNADA_E2E_V9_DEV_FULL:-}" == true &&
-   "\${JORNADA_E2E_HTTP_VOLUME_COUNT:-}" == 1000 &&
-   "\${JORNADA_E2E_IBGE_1K:-}" == true &&
-   "\${DOTNET_ENVIRONMENT:-}" == Development &&
-   "\${DB:-}" == JornadaE2E ]] || {
+[[ "${JORNADA_E2E_V9_DEV_FULL:-}" == true &&
+   "${JORNADA_E2E_HTTP_VOLUME_COUNT:-}" == 1000 &&
+   "${JORNADA_E2E_IBGE_1K:-}" == true &&
+   "${DOTNET_ENVIRONMENT:-}" == Development &&
+   "${DB:-}" == JornadaE2E ]] || {
   echo 'ERRO: V9 DEV E2E exige HTTP IBGE 1k, FULL e Development.' >&2; exit 55;
 }
-[[ -n "\${JORNADA_E2E_V9_SELECTION_FILE:-}" &&
+[[ -n "${JORNADA_E2E_V9_SELECTION_FILE:-}" &&
    -f "$JORNADA_E2E_V9_SELECTION_FILE" &&
    ! -L "$JORNADA_E2E_V9_SELECTION_FILE" ]] || {
   echo 'ERRO: falta seleção pinada do vencedor para V9 DEV.' >&2; exit 55;

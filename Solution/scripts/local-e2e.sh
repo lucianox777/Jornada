@@ -651,7 +651,7 @@ case "${JORNADA_E2E_IBGE_1K:-false}" in
 esac
 
 # Stage 7/8 opt-in after verified HTTP/Processor 1k IBGE. 10k/100k blocked.
-case "\${JORNADA_E2E_V9_DEV_FULL:-false}" in
+case "${JORNADA_E2E_V9_DEV_FULL:-false}" in
   true) source "$ROOT/scripts/v9-e2e-dev-full-1k.sh" ;;
   false) : ;;
   *) echo 'ERRO: JORNADA_E2E_V9_DEV_FULL exige true/false.' >&2; exit 54 ;;

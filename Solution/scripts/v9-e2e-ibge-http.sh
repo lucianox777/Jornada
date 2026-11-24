@@ -154,6 +154,6 @@ python3 "$ROOT/scripts/v9-e2e-ibge-http-lineage.py" \
   --receipt "$OUT/ibge-http-1k-summary.json"
 
 # Truth, synthetic identifiers, names, ZIPs and private HMAC provenance never enter Actions artifacts.
-if [[ "\${JORNADA_E2E_V9_DEV_FULL:-false}" != true ]]; then
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" != true ]]; then
   rm -rf -- "$bridge_root"
 fi
