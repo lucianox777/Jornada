@@ -186,6 +186,62 @@ jobs:
             "dev_full_r1_s6_protected_reference=PASS" \
             "dev_full_r1_existing_decision_oracle=PASS" \
             "dev_attempt_db=$JORNADA_V9_DEV_ATTEMPT_DB" >>"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
+      - name: Gold PR1 characterization in three fresh SQL attempts (T1 and T2)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          out="$RUNNER_TEMP/v9-gold-pr1"
+          mkdir -p "$out"
+          run_sql() {
+            docker exec "$sql_name" sh -c \
+              'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' \
+              sh "$1" "$2"
+          }
+          for scenario in stable permuted historical; do
+            dev_attempt="$(python3 -c 'import uuid;print(uuid.uuid4())')"
+            dev_db="JornadaV9Dev_${dev_attempt//-/}"
+            docker exec "$sql_name" sh -c \
+              'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+              sh "CREATE DATABASE [$dev_db];"
+            docker exec "$sql_name" sh -c \
+              'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+              sh "ALTER DATABASE [$dev_db] SET ALLOW_SNAPSHOT_ISOLATION ON;"
+            run_sql "$dev_db" database/Jornada_Fase1_v3.70.sql >"$RUNNER_TEMP/v9-gold-pr1-schema-$scenario.log" 2>&1
+            run_sql "$dev_db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >"$RUNNER_TEMP/v9-gold-pr1-model-$scenario.log" 2>&1
+            docker exec "$sql_name" sh -c \
+              'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' \
+              sh "$dev_db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$dev_attempt';"
+            JORNADA_V9_DEV_ATTEMPT_DB="$dev_db" \
+            JORNADA_V9_GOLD_CHARACTERIZATION="$scenario" \
+            JORNADA_V9_GOLD_PR1_OUTPUT="$out" \
+            JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL="$ConnectionStrings__Jornada" \
+              dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+                --filter 'FullyQualifiedName~V9ControlledDevFullSqlR1Tests.FULL_Gold_characterization_PR1' \
+                --logger 'console;verbosity=normal' --logger "trx;LogFileName=$scenario.trx" \
+                --results-directory "$out"
+            python3 - "$out/$scenario.trx" <<'PY'
+          import sys
+          from xml.etree import ElementTree as ET
+          counters = [x.attrib for x in ET.parse(sys.argv[1]).getroot().iter()
+                      if x.tag.rsplit('}', 1)[-1] == 'Counters']
+          if len(counters) != 1:
+              raise SystemExit("V9_GOLD_PR1_COUNTERS_MISSING")
+          c = counters[0]
+          if (int(c["total"]) != 1 or int(c["passed"]) != 1
+              or int(c["failed"]) != 0 or int(c["notExecuted"]) != 0
+              or int(c.get("skipped", 0)) != 0):
+              raise SystemExit("V9_GOLD_PR1_NOT_1_PASS_0_SKIP")
+          PY
+          done
+      - name: Archive Gold PR1 synthetic characterization receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-gold-pr1-characterization
+          path: ${{ runner.temp }}/v9-gold-pr1/*.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Archive sanitized noncertifying receipt
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned

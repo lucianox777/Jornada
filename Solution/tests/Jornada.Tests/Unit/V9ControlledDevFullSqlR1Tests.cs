@@ -21,14 +21,26 @@ namespace Jornada.Tests.Unit;
 /// Never skip: only invoked by the existing disposable SQL CI job after setup.
 /// </summary>
 [TestFixture, Category("SQLSmoke")]
-public sealed class V9ControlledDevFullSqlR1Tests
+public sealed partial class V9ControlledDevFullSqlR1Tests
 {
     private static readonly Guid ProtectedX = Guid.Parse("10101010-a001-4000-8000-000000000001");
     private static readonly Guid ExistingY = Guid.Parse("20202020-b002-4000-8000-000000000002");
     private static readonly Guid ExistingZ = Guid.Parse("30303030-c003-4000-8000-000000000003");
 
     [Test]
-    public async Task FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance()
+    public Task FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance() =>
+        RunFixtureAsync("existing");
+
+    [Test]
+    public Task FULL_Gold_characterization_PR1()
+    {
+        var scenario = Environment.GetEnvironmentVariable("JORNADA_V9_GOLD_CHARACTERIZATION");
+        if (scenario is not ("stable" or "permuted" or "historical"))
+            throw new InvalidOperationException("V9_GOLD_PR1_SCENARIO_REQUIRED");
+        return RunFixtureAsync(scenario);
+    }
+
+    private static async Task RunFixtureAsync(string scenario)
     {
         var source = Environment.GetEnvironmentVariable("JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL");
         var dbName = Environment.GetEnvironmentVariable("JORNADA_V9_DEV_ATTEMPT_DB");
@@ -90,7 +102,18 @@ public sealed class V9ControlledDevFullSqlR1Tests
         // Reuses the established 200-observation SQL FKs/Processor-style origin
         // fixture; before the run, seed three REAL, already-established Gold
         // references inside this disposable DEV database, not a TEST corpus.
-        await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(connection, 200);
+        await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(
+            connection, 200, permute: scenario == "permuted");
+        if (scenario is "stable" or "permuted")
+        {
+            await using var fixedDates = new SqlCommand("""
+                UPDATE silver.pessoa_observacao
+                   SET source_as_of=DATEADD(second,
+                       CONVERT(int,RIGHT(codigo_pessoa_origem,4)),
+                       CONVERT(datetimeoffset,'2026-01-01T00:00:00+00:00'));
+                """, connection);
+            await fixedDates.ExecuteNonQueryAsync();
+        }
         // Physically exercise an INELIGIBLE blocking search within the same
         // published FULL run: zero Gold hits must not mean complete search.
         await using (var missingEvidence = new SqlCommand("""
@@ -142,14 +165,20 @@ public sealed class V9ControlledDevFullSqlR1Tests
             -- 0006 wins by source_as_of, the second FULL is a changed-Gold
             -- experiment, not an idempotence test on stable evidence.
             UPDATE historical
-               SET source_as_of=DATEADD(day,-1,canonical.source_as_of)
+               SET source_as_of=CASE WHEN @historical=1 THEN
+                   CASE WHEN historical.source_as_of>canonical.source_as_of THEN historical.source_as_of
+                        ELSE DATEADD(second,1,canonical.source_as_of) END
+                   ELSE DATEADD(day,-1,canonical.source_as_of) END
               FROM silver.pessoa_observacao historical
               CROSS JOIN silver.pessoa_observacao canonical
              WHERE historical.codigo_pessoa_origem=N'V9TEST_0006'
                AND canonical.codigo_pessoa_origem=N'V9TEST_0003';
             IF @@ROWCOUNT<>1 THROW 52915,'Physical S9 historical chronology missing.',1;
             """, connection))
+        {
+            indication.Parameters.Add("@historical", SqlDbType.Bit).Value = scenario == "historical";
             await indication.ExecuteNonQueryAsync();
+        }
 
         await SeedExistingGoldReferencesAndProtectedOriginAsync(connection);
         await MaterializeFrozenGoldBlockingKeysAsync(connection, winner);
@@ -170,6 +199,13 @@ public sealed class V9ControlledDevFullSqlR1Tests
                     ["Linkage:V9SelectionFile"] = selected,
                     ["LinkageReplay:CaptureBronzeSources"] = "false"
                 }).Build();
+            if (scenario is "stable" or "permuted")
+            {
+                await AssertStrictFullAndPermutationAsync(connection, configuration,
+                    sql, attempt, temp, winner, scenario);
+                return;
+            }
+
             // First force an actual physical SQL failure on the second
             // persisted batch. A failed run may retain *raw* first-page
             // evidence but must never publish partial Gold/Serving.
@@ -262,6 +298,12 @@ public sealed class V9ControlledDevFullSqlR1Tests
             }
             await AssertPhysicalS3S4S5AndCrossBatchAsync(connection, result.RunId);
             await AssertPhysicalIndicationReasonsAsync(connection, result.RunId);
+            if (scenario == "historical")
+            {
+                await CharacterizeHistoricalGoldAsync(connection, configuration,
+                    sql, attempt, temp, winner, result.RunId);
+                return;
+            }
             await AssertStableIndicationGoldAsync(connection);
             await AssertGoldR1S1S2S6AndWriteOracleEvidenceAsync(connection, result.RunId);
             await AssertZeroOneOriginVersionsAndVariableBatchWidthsAsync(
@@ -552,24 +594,7 @@ public sealed class V9ControlledDevFullSqlR1Tests
         var baselineGoldUuids = await ReadGoldUuidSetAsync(connection);
         var baselineRuns = await CountSqlAsync(
             connection, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
-        await using (var append = new SqlCommand("""
-            INSERT silver.pessoa_observacao(
-                pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
-                versao_interna,conteudo_hash,cpf_ausente_motivo,nome_completo,
-                nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
-            SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,2,
-                   LOWER(CONVERT(varchar(64),
-                       HASHBYTES('SHA2_256',CONVERT(varbinary(max),
-                                 N'V9TEST_0003_VERSION_2_R1')),2)),
-                   cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,
-                   nome_mae,nome_mae_cmp,DATEADD(second,1,source_as_of)
-              FROM silver.pessoa_observacao
-             WHERE codigo_pessoa_origem=N'V9TEST_0003'
-               AND versao_interna=1;
-            IF @@ROWCOUNT<>1
-                THROW 52909,'DEV source version was not inserted exactly once.',1;
-            """, connection))
-            await append.ExecuteNonQueryAsync();
+        await AppendOriginVersionAsync(connection);
 
         // Full population becomes 201: 133 then 68, not the previous
         // 100+100. Both versions of the SAME persistent origin must resolve

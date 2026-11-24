@@ -983,10 +983,11 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Is.EqualTo(200), "Prepared V9 TEST source must be restored exactly.");
     }
 
-    internal static Task SeedControlledDevFullFixtureAsync(SqlConnection connection, int count) =>
-        InsertSyntheticUniverseAsync(connection, count);
+    internal static Task SeedControlledDevFullFixtureAsync(SqlConnection connection, int count,
+        bool permute = false) => InsertSyntheticUniverseAsync(connection, count, permute);
 
-    private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)
+    private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count,
+        bool permute = false)
     {
         // Canonical data contracts are inserted, not fake copies of linkage tables.
         // This fixture deliberately has NO candidate in Gold. It tests the
@@ -1055,7 +1056,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             BaseId2 = reader.GetInt64(5);
         }
 
-        for (var i = 1; i <= count; i++)
+        var order = Enumerable.Range(1, count);
+        if (permute) order = order.OrderBy(i => (i * 73) % count);
+        foreach (var i in order)
         {
             var code = "V9TEST_" + i.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
             var person = SyntheticPersonName(i);
