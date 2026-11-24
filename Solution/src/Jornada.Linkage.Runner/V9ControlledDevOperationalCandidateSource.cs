@@ -51,6 +51,7 @@ public static class V9ControlledDevOperationalCandidateSource
         /// <summary>Physically authenticated Silver-to-Silver graph for this SNAPSHOT.</summary>
         public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
         public IReadOnlySet<long>? NoEligibleBlockingPassObservationIds { get; init; }
+        internal IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>>? SecureOriginFactsByPerson { get; init; }
     }
 
     /// <summary>Fail closed if any frozen source attribute or manager has drifted in Silver.</summary>
@@ -455,6 +456,12 @@ public static class V9ControlledDevOperationalCandidateSource
                     Array.AsReadOnly(candidates.ToArray())))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
         }
+        // Read the provenance of all persistent origins for the exact Gold
+        // UUID union before committing this same snapshot. This first stage
+        // carries facts only; the b1 scorer switch follows the authority tests.
+        var secureOriginFacts = await V9ControlledDevSecureOriginReader.ReadAsync(
+            connection, snapshot, result.Values.SelectMany(v => v)
+                .Select(v => v.PessoaUuid).Distinct().ToArray(), cancellationToken);
         // Physical Silver graph uses the same verified source values and
         // SNAPSHOT as the Gold candidate census: no inter-snapshot repair.
         var silverGraph = await V9ControlledDevSilverGraph.ReadAsync(
@@ -468,7 +475,8 @@ public static class V9ControlledDevOperationalCandidateSource
             new ReadOnlyDictionary<long, Guid>(existingResolvedGold))
         {
             SilverGraph = silverGraph,
-            NoEligibleBlockingPassObservationIds = noEligiblePass
+            NoEligibleBlockingPassObservationIds = noEligiblePass,
+            SecureOriginFactsByPerson = secureOriginFacts
         };
     }
 }

@@ -202,6 +202,25 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(gold[4], Is.EqualTo(T3A.NomeMae));
             Assert.That(gold[4], Is.Not.EqualTo(T3S.NomeMae));
             await AssertT3CandidateAsync(db,winner,T3B,x);
+            // Read the actual b1 origin provenance on the same disposable SQL
+            // database before the baseline second FULL. This test does not
+            // switch the existing scorer or overwrite the historical T3 proof.
+            await using (var snapshot = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Snapshot))
+            {
+                var census = await V9ControlledDevSecureOriginReader.ReadAsync(
+                    db, snapshot, new[] { x }, CancellationToken.None);
+                var origins = census[x];
+                Assert.That(origins.Count, Is.EqualTo(2));
+                var root = origins.Single(o => o.InitialUuid == x);
+                Assert.That(root.HasPublishedFounderProof, Is.True);
+                Assert.That(root.Observations.Count, Is.EqualTo(1));
+                var probabilistic = origins.Single(o => o.OriginId != root.OriginId);
+                Assert.That(probabilistic.HasPublishedFounderProof, Is.False);
+                Assert.That(probabilistic.HasPriorProbabilisticAssociation, Is.True);
+                Assert.That(probabilistic.HasCpf || probabilistic.HasGovernedCorrection
+                    || probabilistic.HasUuidFeedback, Is.False);
+                await snapshot.CommitAsync();
+            }
             var second = await Pr1FullAsync(config,sql,attempt,temp,3,100);
             var after = await ReadPr1RowsAsync(db,Pr1Decisions,second);
             var linksAfter = await ReadPr1RowsAsync(db,Pr1Links);
