@@ -119,18 +119,66 @@ jobs:
           set -euo pipefail
           test -n "$ConnectionStrings__Jornada"
           test -n "$JORNADA_V9_DEV_ATTEMPT_DB"
+          results="$RUNNER_TEMP/v9-dev-r1-trx"
+          oracle="$RUNNER_TEMP/v9-dev-r1-oracle"
+          mkdir -p "$results" "$oracle"
+          JORNADA_V9_R1_SQL_ORACLE_OUTPUT="$oracle" \
           JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL="$ConnectionStrings__Jornada" \
             dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
               --filter 'FullyQualifiedName~V9ControlledDevFullSqlR1Tests.FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance' \
-              --logger 'console;verbosity=normal'
+              --logger 'console;verbosity=normal' --logger 'trx;LogFileName=r1-full.trx' \
+              --results-directory "$results"
+          # A successful dotnet test exit code with zero selected tests or skips is NOT PASS.
+          python3 - "$results/r1-full.trx" <<'PY'
+          import sys
+          from xml.etree import ElementTree as ET
+          counters = [node.attrib for node in ET.parse(sys.argv[1]).getroot().iter()
+                      if node.tag.rsplit('}', 1)[-1] == 'Counters']
+          if len(counters) != 1:
+              raise SystemExit("V9_DEV_R1_TRX_COUNTERS_MISSING_OR_AMBIGUOUS")
+          c = counters[0]
+          if (int(c["total"]) != 1 or int(c["passed"]) != 1
+              or int(c["failed"]) != 0 or int(c["notExecuted"]) != 0
+              or int(c.get("skipped", 0)) != 0):
+              raise SystemExit(f"V9_DEV_R1_PHYSICAL_SQL_TEST_NOT_1_PASS_0_SKIP: {c}")
+          print("V9_DEV_R1_PHYSICAL_SQL_TEST: 1 aprovado, 0 pulados")
+          PY
+          # Reuse the existing independent decision oracle on the actual SQL
+          # publication recorte. No scientific TEST data or external ZIP is used.
+          python3 scripts/e2e-independent-decision-oracle.py \
+            --truth "$oracle/truth.json" --observed "$oracle/observed.json" \
+            --receipt "$oracle/receipt.json"
+          python3 - "$oracle/receipt.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          receipt = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if (receipt.get("status") != "PASS"
+              or receipt.get("expectedCount") != 3
+              or receipt.get("observedCount") != 3
+              or receipt.get("missingObservations") != []
+              or receipt.get("unexpectedObservations") != []
+              or receipt.get("divergentObservations") != []
+              or receipt.get("scope") !=
+                  "OFFLINE_DECISION_ROWS_ONLY_NOT_RUNNER_PARITY_OR_SCIENTIFIC_TEST"):
+              raise SystemExit(f"V9_DEV_R1_EXISTING_ORACLE_REJECTED: {receipt}")
+          print("V9_DEV_R1_EXISTING_ORACLE: PASS; 3 synthetic source decisions")
+          PY
           printf '%s\n' "dev_full_r1_physical_sql=PASS" "dev_full_r1_gold_publication=PASS" \
+            "dev_full_r1_trx=1 aprovado, 0 pulados" \
+            "dev_full_r1_s1_existing_gold=PASS" \
+            "dev_full_r1_s2_gold_conflict_veto=PASS" \
+            "dev_full_r1_s6_protected_reference=PASS" \
+            "dev_full_r1_existing_decision_oracle=PASS" \
             "dev_attempt_db=$JORNADA_V9_DEV_ATTEMPT_DB" >>"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
       - name: Archive sanitized noncertifying receipt
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
           name: v9-fullschema-real-runasync-nonpublishing
-          path: ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
+          path: |
+            ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
+            ${{ runner.temp }}/v9-dev-r1-oracle/receipt.json
           retention-days: 30
           if-no-files-found: error
       - name: Dispose private SQL container on success and failure
