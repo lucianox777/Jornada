@@ -411,6 +411,44 @@ public sealed class V9ControlledDevFullSqlR1Tests
             "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold),
             "Repeated FULL must be idempotent at Gold identity level.");
 
+        // Concurrency fail-closed: while another owner holds BOTH real SQL
+        // coordination locks, a second V9 request is refused before creating
+        // a run, even though its selected model and DB pin are valid.
+        var beforeBlocked = await CountSqlAsync(
+            connection, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
+        await using (var held = await new SqlPipelineCoordinator(sql)
+            .AcquireExclusiveJobAsync("V9_DEV_R1_LOCK_OWNER",
+                TimeSpan.FromSeconds(5), CancellationToken.None))
+        {
+            var contender = await NewDevRunnerAsync(
+                configuration, sql, attempt, temp,
+                exclusiveIntentTimeout: TimeSpan.FromMilliseconds(250));
+            Exception? blockedFailure = null;
+            try
+            {
+                await contender.RunV9ControlledDevAsync(
+                    new ProbabilisticLinkageRunRequest(
+                        LinkageRunType.FULL, 9, long.MaxValue, null, null,
+                        100, 1, null, "V9_DEV_R1_CONCURRENCY", "LOCK_DENIAL",
+                        Guid.NewGuid(), true),
+                    attempt, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                blockedFailure = ex;
+            }
+            Assert.That(blockedFailure,
+                Is.TypeOf<PipelineCoordinationBusyException>(),
+                "A second job cannot run or publish while a SQL lease is held.");
+            Assert.That(await CountSqlAsync(connection,
+                "SELECT COUNT_BIG(*) FROM identidade.linkage_run;"),
+                Is.EqualTo(beforeBlocked),
+                "Denied concurrent job must not even create a run header.");
+        }
+        Assert.That(await CountSqlAsync(connection,
+            "SELECT COUNT_BIG(*) FROM gold.pessoa;"), Is.EqualTo(baselineGold));
+        TestContext.WriteLine("V9_DEV_R1_SQL_CONCURRENCY_GATE_PASS: exclusive lock denied without run/Gold changes");
+
         // Empty scoped FULL is real (no guessed success). An out-of-universe
         // id must produce zero run items/results and zero new Gold.
         var empty = await NewDevRunnerAsync(configuration, sql, attempt, temp);
@@ -482,13 +520,15 @@ public sealed class V9ControlledDevFullSqlR1Tests
 
     private static async Task<ProbabilisticLinkageBatchRunner> NewDevRunnerAsync(
         IConfiguration configuration, IOperationalSqlAdapter sql,
-        Guid attempt, string temp)
+        Guid attempt, string temp,
+        TimeSpan? exclusiveIntentTimeout = null)
     {
         var scorer = await V9ControlledDevCohortScorer.CreateAsync(
             configuration, sql, attempt, CancellationToken.None);
         return new ProbabilisticLinkageBatchRunner(
             configuration, sql, scorer,
-            new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
+            new SqlPipelineCoordinator(sql,
+                exclusiveIntentTimeout: exclusiveIntentTimeout), new Dt05ReplaySql(sql),
             new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(temp), temp),
             new Dt05CandidateStateSnapshotPublisher(sql, temp),
             new Dt05BlockingProjectionSnapshotPublisher(sql, temp),
