@@ -183,6 +183,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
             || request.Mode is not (LinkageRunType.FULL or LinkageRunType.INCREMENTAL)
             || request.ReplaySourceRunId is not null)
             throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
+        // R1 is approved for FULL first. The same existing interface remains
+        // available for the subsequent governed INCREMENTAL implementation.
+        if (request.Mode != LinkageRunType.FULL)
+            throw new InvalidOperationException("RUNNER_V9_DEV_INCREMENTAL_R1_PENDING");
 
         var boundary = await V9ControlledDevSelection.VerifyAsync(
             configuration, operationalSql, disposableAttemptId, ct);
