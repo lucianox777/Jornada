@@ -18,7 +18,7 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
         new(id,"JOANA PEREIRA",new DateOnly(1970,1,2),"EVA FONSECA");
 
     [Test]
-    public void B1_single_record_per_person_preserves_frozen_FS_and_distinct_person_prior()
+    public void B1_single_record_per_person_preserves_frozen_FS()
     {
         var evidence = new V9ControlledDevSecureEvidenceScore.Evidence[] {
             new(1,1,Exact(X)), new(2,2,Weak(Y))
@@ -36,7 +36,19 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
         var evidence = new V9ControlledDevSecureEvidenceScore.Evidence[] {
             new(1,1,Weak(X)), new(2,1,Exact(X)), new(3,1,Exact(X)), new(4,2,Weak(Y))
         };
-        var expected = Winner.ResolvePreview(Model,Source,new[] { Exact(X), Weak(Y) });
+        // Independent reference: historical #38 observation IDs and full
+        // record-population ranking before collapsing the strongest per person.
+        Guid RecordId(int id) => new(id,0,0,0,0,0,0,0,0,0,1);
+        var peopleByRecord = new Dictionary<Guid,Guid> {
+            [RecordId(1)] = X, [RecordId(2)] = X, [RecordId(3)] = X, [RecordId(4)] = Y
+        };
+        var ranked = Winner.RankPreview(Source, new[] {
+            Weak(RecordId(1)), Exact(RecordId(2)), Exact(RecordId(3)), Weak(RecordId(4))
+        });
+        var expected = Winner.ResolveRankedPreview(Model, ranked
+            .GroupBy(x => peopleByRecord[x.PessoaUuid])
+            .Select(g => g.First() with { PessoaUuid = g.Key })
+            .OrderByDescending(x => x.LogOdds).ThenBy(x => x.PessoaUuid).ToArray());
         var actual = V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[] {X,Y},evidence);
         Assert.That(actual.Decision, Is.EqualTo(expected));
         Assert.That(actual.Decision.SegundoCandidatoUuid, Is.EqualTo(Y));
@@ -46,6 +58,22 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
         var reversed = V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[] {Y,X},
             evidence.Reverse().ToArray());
         Assert.That(reversed, Is.EqualTo(actual));
+    }
+
+    [Test]
+    public void B1_distinct_bigint_observations_do_not_alias_on_low_32_bits()
+    {
+        var evidence = new V9ControlledDevSecureEvidenceScore.Evidence[] {
+            new(1,1,Weak(X)), new(4294967297L,1,Exact(X)),
+            new(long.MaxValue,2,Weak(Y))
+        };
+        var actual = V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[] {X,Y},evidence);
+        Assert.That(actual.EvidenceReceipt.ComparedRecords, Is.EqualTo(3));
+        Assert.That(actual.EvidenceReceipt.ScoreableRecords, Is.EqualTo(3));
+        Assert.That(actual.Decision.MelhorCandidatoUuid, Is.EqualTo(X));
+        Assert.That(actual.Decision.SegundoCandidatoUuid, Is.EqualTo(Y));
+        Assert.That(actual, Is.EqualTo(V9ControlledDevSecureEvidenceScore.Score(
+            Winner,Model,Source,new[] {Y,X},evidence.Reverse().ToArray())));
     }
 
     [Test]
@@ -81,11 +109,11 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
     [Test]
     public void B1_rejects_evidence_outside_census_or_duplicate_observation()
     {
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[] {X},
-                new V9ControlledDevSecureEvidenceScore.Evidence[] { new(1,1,Exact(Y)) }));
-        Assert.Throws<InvalidDataException>(() =>
+                new V9ControlledDevSecureEvidenceScore.Evidence[] { new(1,1,Exact(Y)) })));
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[] {X,Y},
-                new V9ControlledDevSecureEvidenceScore.Evidence[] { new(1,1,Exact(X)),new(1,1,Exact(Y)) }));
+                new V9ControlledDevSecureEvidenceScore.Evidence[] { new(1,1,Exact(X)),new(1,1,Exact(Y)) })));
     }
 }

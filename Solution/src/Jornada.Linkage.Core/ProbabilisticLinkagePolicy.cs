@@ -279,8 +279,7 @@ internal static class ProbabilisticLinkageDecisions
         Func<IdentityObservation, LinkageCandidate, bool>? personRequiredForPair = null,
         Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null,
         V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
-        Func<IdentityObservation, LinkageCandidate, bool>? candidateIsScoreable = null,
-        int? distinctCandidatePersonCount = null)
+        Func<IdentityObservation, LinkageCandidate, bool>? candidateIsScoreable = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(numericParameters);
@@ -290,8 +289,6 @@ internal static class ProbabilisticLinkageDecisions
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("Ranking probabilístico V9 só é permitido sem CPF.");
         var unique = DeduplicateCandidates(candidates);
-        if (distinctCandidatePersonCount is { } count && (count < 1 || count < unique.Count))
-            throw new InvalidDataException("RUNNER_V9_DEV_B1_CANDIDATE_PERSON_COUNT_INVALID");
         // Preserve the ORIGINAL SQL candidate count in score/priors even when
         // an explicitly versioned missing-TF policy abstains on a candidate.
         // The ineligible candidate gets NO posterior and cannot be accepted;
@@ -330,7 +327,7 @@ internal static class ProbabilisticLinkageDecisions
                 motherUnitForPair?.Invoke(observation, candidate) ?? motherUnit, mother);
             var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
                 parameters, observation.NomeCompleto, candidate.NomeCompleto,
-                observation.NomeMae, candidate.NomeMae, frozen, distinctCandidatePersonCount ?? unique.Count,
+                observation.NomeMae, candidate.NomeMae, frozen, unique.Count,
                 observation.DataNascimento, candidate.DataNascimento,
                 person, mother, numericParameters, sharedSurnameMode);
             var fullExact = CompositeNominalComparisonV9.Classify(

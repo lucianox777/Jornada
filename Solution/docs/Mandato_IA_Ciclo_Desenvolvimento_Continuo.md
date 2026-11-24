@@ -20,6 +20,10 @@ Não existe autorização implícita para TRAIN, TEST, 100k, alteração de LOCK
 4. Este mandato operacional detalha a **retomada entre conversas** sem modificar o protocolo técnico; `AGENTS.md` e as Instruções do Projeto ChatGPT são **apontadores de ativação**, não fontes alternativas de requisitos.
 5. Se uma decisão posterior aprovada modificar expressamente uma regra, registrar sua precedência e alcance conforme GOV-DOC-01; não resolver contradições silenciosamente nem atribuir vigência à branch não integrada.
 
+## Aditivo operacional — correções técnicas enviadas pelo PO (24/11/2026)
+
+**GOV-OPS-CORRECAO-PO-EXECUCAO-DIRETA-20261124 — DECIDIDO pelo PO, registro na PR #1935, integração pendente.** Quando o PO enviar uma correção técnica e a IA, após avaliação fundamentada, concordar integralmente, executá-la na frente autorizada sem aguardar segunda aprovação. Vale prospectivamente para o Jornada; exemplo: retificação b1 na #1935. Não converte mera consulta, proposta parcialmente aceita ou divergência em autorização. Manter escopo explícito, diagnóstico, evidências, limites de correção, gates, pontos de parada, autorização de merge, segurança, ciência, GOV-DOC-01 e rastreabilidade. Na existência de divergência material, risco novo ou ponto de parada, explicitar e respeitar o protocolo aplicável. Não implica execução assíncrona. Prevalece apenas sobre exigência de nova confirmação após concordância integral com correção técnica enviada pelo PO. [Decisão b1 e contexto](Decisao_GOV_V9_Etapa3_Traducao_Grupo_Gold_R1_20261123.md).
+
 ## 2. Inicialização e retomada obrigatórias — inclusive em conversa nova
 
 Toda interação operacional, inclusive após limite de contexto, troca de agente ou interrupção, começa pela **recuperação do estado vivo no GitHub**, sem depender do histórico da conversa:

@@ -12,7 +12,14 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 internal static class V9ControlledDevSecureEvidenceScore
 {
-    internal const string PolicyVersion = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_V1";
+    internal const string PolicyVersion = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_RECORD_RANK_V1";
+
+    // Full positive SQL bigint encoded injectively in a transient Guid.
+    // Never a Gold UUID or a persisted identity. Matches the historical
+    // observation-Guid ordering for IDs in the original int domain.
+    private static Guid ObservationGuid(long id) =>
+        new(unchecked((int)id), unchecked((short)(id >> 32)),
+            unchecked((short)(id >> 48)), 0, 0, 0, 0, 0, 0, 0, 1);
     internal const string NoSecureEvidence = "V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA";
     internal const string EvidenceLimit = "V9_R1_INDEFINIDO_LIMITE_EVIDENCIAS";
 
@@ -62,26 +69,26 @@ internal static class V9ControlledDevSecureEvidenceScore
             return new(Empty(EvidenceLimit), Census(0, 0,
                 people.Count - secureEvidence.Select(e => e.Candidate.PersonUuid).Distinct().Count()));
 
-        var maxima = new Dictionary<Guid, CandidateScore>();
-        long compared = 0, scoreable = 0;
-        // Stable tie-break among records of a single person. Across persons,
-        // use the same log-odds and UUID ordering as the frozen resolver.
-        foreach (var item in secureEvidence.OrderBy(e => e.ObservationId))
-        {
-            var ranked = winner.RankPreview(source, new[] { item.Candidate },
-                distinctCandidatePersonCount: people.Count);
-            compared++;
-            if (ranked.Count == 0) continue; // frozen TF abstention
-            if (ranked.Count != 1 || ranked[0].PessoaUuid != item.Candidate.PersonUuid)
-                throw new InvalidDataException("RUNNER_V9_DEV_B1_PAIR_RANK_INVALID");
-            var pair = ranked[0];
-            scoreable++;
-            if (!maxima.TryGetValue(pair.PessoaUuid, out var current)
-                || pair.LogOdds > current.LogOdds)
-                maxima[pair.PessoaUuid] = pair;
-        }
-        var ranking = maxima.Values.OrderByDescending(x => x.LogOdds)
+        // Same sequence as the #38 calibration: one distinct candidate per
+        // observation, rank the whole record population once, collapse the
+        // best log-odds per person, then resolve between persons. The frozen
+        // kernel alone decides how its count argument affects the prior.
+        var records = secureEvidence.OrderBy(e => e.ObservationId)
+            .Select(e => e.Candidate with { PersonUuid = ObservationGuid(e.ObservationId) })
+            .ToArray();
+        var personByRecord = secureEvidence.ToDictionary(
+            e => ObservationGuid(e.ObservationId), e => e.Candidate.PersonUuid);
+        var rankedRecords = winner.RankPreview(source, records);
+        if (rankedRecords.Count > records.Length
+            || rankedRecords.Select(x => x.PessoaUuid).Distinct().Count() != rankedRecords.Count
+            || rankedRecords.Any(x => !personByRecord.ContainsKey(x.PessoaUuid)))
+            throw new InvalidDataException("RUNNER_V9_DEV_B1_PAIR_RANK_INVALID");
+        var ranking = rankedRecords
+            .GroupBy(x => personByRecord[x.PessoaUuid])
+            .Select(g => g.First() with { PessoaUuid = g.Key })
+            .OrderByDescending(x => x.LogOdds)
             .ThenBy(x => x.PessoaUuid).ToArray();
+        long compared = records.Length, scoreable = rankedRecords.Count;
         var without = people.Count - ranking.Length;
         var decision = winner.ResolveRankedPreview(modelId, ranking,
             people.Count == 0 ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : NoSecureEvidence);
