@@ -231,6 +231,33 @@ public sealed class V9ControlledDevFullSqlR1Tests
     private static V9FittedSnapshot DistinctivePhysicalFixtureWinner()
     {
         var baseline = V9FittedSnapshotTests.CompleteTf4OperationalWinner();
+        // Only this disposable fixture extends synthetic vocabulary so the
+        // *unchanged* V9 positive-TF fail-closed guard can score the actual
+        // persisted ALFA0003/CARLA0003 Gold Z. The production winner/TF hashes
+        // and published IBGE data are never changed or claimed as evidence.
+        var fixtureTf = baseline.Payload.UnitTfCalibrations!.Select(slot =>
+        {
+            if (slot.Unit != NominalFrequencyUnitV9.FirstName)
+                return slot;
+            var term = slot.Side == CompositeNominalTfSideV9.Person
+                ? "ALFA0003" : "CARLA0003";
+            var active = slot.Calibration
+                ?? throw new InvalidDataException("V9_DEV_R1_SYNTHETIC_TF_MISSING");
+            var frequencies = active.Frequencies.ToDictionary(
+                x => x.Key, x => x.Value, StringComparer.Ordinal);
+            var trainU = active.TrainUnitUByValue.ToDictionary(
+                x => x.Key, x => x.Value, StringComparer.Ordinal);
+            frequencies.Add(term, .25m);
+            trainU.Add(term, .1m);
+            return slot with
+            {
+                Calibration = active with
+                {
+                    Frequencies = frequencies,
+                    TrainUnitUByValue = trainU
+                }
+            };
+        }).ToArray();
         var observations = Enum.GetValues<CompositeNominalLevelV9>()
             .SelectMany(person => Enum.GetValues<CompositeNominalLevelV9>()
                 .Select(mother =>
@@ -247,7 +274,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
         return V9FittedSnapshot.Create(baseline.Payload with
         {
             JointCells = support.Probabilities,
-            JointSupport = support.Provenance
+            JointSupport = support.Provenance,
+            UnitTfCalibrations = fixtureTf
         });
     }
 
