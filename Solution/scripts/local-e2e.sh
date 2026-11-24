@@ -16,11 +16,43 @@ fi
 set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
 PORT="${JORNADA_SQL_PORT:-14333}"; DB="JornadaE2E"
-[[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || { echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2; }
+v9_e2e_full=false
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" == true ]]; then
+  [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-}" == 1000
+     && "${JORNADA_E2E_IBGE_1K:-}" == true
+     && "${JORNADA_RUNTIME_MODE:-}" == DEV
+     && -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}"
+     && -n "${Linkage__V9SelectionFile:-}"
+     && -f "$Linkage__V9SelectionFile" && ! -L "$Linkage__V9SelectionFile" ]] || {
+     echo 'ERRO: V9 FULL E2E exige 1k IBGE, seleção SHA-pinned e DEV sem override SQL.' >&2; exit 2;
+  }
+  v9_e2e_full=true
+  JORNADA_V9_DEV_ATTEMPT="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  export JORNADA_V9_DEV_ATTEMPT
+  DB="JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}"
+else
+  [[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || {
+    echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2;
+  }
+fi
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
 rm -f -- "$OUT/resultado-api-evidence.json"
-JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
+if [[ "$v9_e2e_full" == true ]]; then
+  JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset --no-synthetic-corpus >/dev/null
+  (
+    cd "$ROOT"
+    export SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD"
+    docker compose --env-file "$ENV_FILE" exec -T -w /workspace -e SQLCMDPASSWORD sqlserver \
+      /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d "$DB" \
+        -i database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >/dev/null
+    docker compose --env-file "$ENV_FILE" exec -T -w /workspace -e SQLCMDPASSWORD sqlserver \
+      /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d "$DB" \
+        -Q "EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';" >/dev/null
+  )
+else
+  JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
+fi
 CONN="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export ConnectionStrings__Jornada="$CONN"
 export ASPNETCORE_ENVIRONMENT=Development
@@ -649,6 +681,12 @@ case "${JORNADA_E2E_IBGE_1K:-false}" in
   false) : ;;
   *) echo 'ERRO: JORNADA_E2E_IBGE_1K exige true/false.' >&2; exit 51 ;;
 esac
+
+if [[ "$v9_e2e_full" == true ]]; then
+  # All four ZIPs have been accepted by the real HTTP/Processor pipeline.
+  # This path is exclusively 1k and never enters the 10k/100k stage.
+  source "$ROOT/scripts/v9-e2e-dev-full-1k.sh"
+fi
 
 # Stage 2: ten distinct 1k ZIP deliveries = 10k people, with per-delivery
 # SQL reconciliation and explicit multi-batch latency observations.
