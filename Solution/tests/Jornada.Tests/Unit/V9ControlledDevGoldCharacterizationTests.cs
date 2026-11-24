@@ -512,7 +512,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 Assert.That(a[0], Is.AnyOf("V9TEST_0003", "V9TEST_0106"));
             }
         }
-        var appended = after.Single(r => Equals(r[0], "V9TEST_0003") && Convert.ToInt64(r[1]) == 2);
+        var appended = after.Single(r => Equals(r[0], "V9TEST_0003") && Convert.ToInt64(r[1], System.Globalization.CultureInfo.InvariantCulture) == 2);
         Assert.That(appended[2], Is.EqualTo("RESOLVIDO"));
         Assert.That(appended[4], Is.EqualTo(ExistingZ));
         Assert.That(appended[10], Is.EqualTo("ASSOCIACAO_EXISTENTE"));
