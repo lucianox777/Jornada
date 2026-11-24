@@ -82,14 +82,15 @@ internal static class V9DevE2EGoldProjection
             """, connection, tx) { CommandTimeout = 180 })
         {
             await using var rd = await query.ExecuteReaderAsync(ct);
-            Guid? previous = null;
+            var seen = new HashSet<Guid>();
             while (await rd.ReadAsync(ct))
             {
                 ct.ThrowIfCancellationRequested();
                 var id = rd.GetGuid(0);
-                if (previous is { } last && last.CompareTo(id) >= 0)
+                // SQL Server uniqueidentifier ORDER BY is not .NET Guid
+                // CompareTo ordering; duplicate detection is set-based.
+                if (!seen.Add(id))
                     throw new InvalidDataException("RUNNER_V9_DEV_E2E_DUPLICATED_GOLD_REFERENCE");
-                previous = id;
                 if (rd.IsDBNull(1) || rd.IsDBNull(2) || rd.IsDBNull(3)
                     || !rd.IsDBNull(4) || rd.GetString(5) != "SEM_CPF"
                     || rd.GetString(6) != "COMPLETO" || rd.GetString(7) != "ATIVO")
