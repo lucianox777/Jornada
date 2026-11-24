@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import unittest
 
@@ -89,6 +90,22 @@ class Stage7And8OracleTests(unittest.TestCase):
         self.assertIn('RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED',program)
         runner=(ROOT/"src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
         self.assertIn('boundary.EnsureProductiveCertified()',runner)
+
+
+    def test_shell_scripts_parse_and_1k_sql_migration_is_explicit(self):
+        for name in ("local-e2e.sh", "v9-e2e-ibge-http.sh",
+                     "v9-e2e-dev-full-1k.sh"):
+            subprocess.run(["bash", "-n", str(ROOT / "scripts" / name)],
+                           check=True, capture_output=True)
+        local=(ROOT/"scripts/local-e2e.sh").read_text(encoding="utf-8")
+        stage=(ROOT/"scripts/v9-e2e-dev-full-1k.sh").read_text(encoding="utf-8")
+        self.assertIn(
+            "database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql",
+            local)
+        self.assertIn("ALLOW_SNAPSHOT_ISOLATION ON", local)
+        self.assertIn("Jornada.V9.DevAttempt",stage)
+        self.assertIn("Jornada.EnvironmentProfile",stage)
+        self.assertIn("Jornada.V9.HttpE2eScope",stage)
 
 
 if __name__=="__main__":
