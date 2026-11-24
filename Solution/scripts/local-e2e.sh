@@ -650,6 +650,13 @@ case "${JORNADA_E2E_IBGE_1K:-false}" in
   *) echo 'ERRO: JORNADA_E2E_IBGE_1K exige true/false.' >&2; exit 51 ;;
 esac
 
+# Stage 7/8 opt-in after verified HTTP/Processor 1k IBGE. 10k/100k blocked.
+case "\${JORNADA_E2E_V9_DEV_FULL:-false}" in
+  true) source "$ROOT/scripts/v9-e2e-dev-full-1k.sh" ;;
+  false) : ;;
+  *) echo 'ERRO: JORNADA_E2E_V9_DEV_FULL exige true/false.' >&2; exit 54 ;;
+esac
+
 # Stage 2: ten distinct 1k ZIP deliveries = 10k people, with per-delivery
 # SQL reconciliation and explicit multi-batch latency observations.
 if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" == 10000 ]]; then

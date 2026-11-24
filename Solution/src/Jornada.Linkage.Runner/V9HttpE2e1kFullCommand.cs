@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using Jornada.Bronze.Storage;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
