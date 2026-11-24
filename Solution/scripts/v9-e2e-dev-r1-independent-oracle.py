@@ -53,8 +53,8 @@ def check(truth_file: Path, preflight_file: Path, observed_file: Path, run_id: s
         require(row.get("Status") == "MATERIALIZADA"
                 and isinstance(row.get("BasePersonId"), str)
                 and bool(row["BasePersonId"])
-                and row.get("Partition") == "TRAIN"
-                    or row.get("Partition") == "VALIDATION",
+                and isinstance(row.get("Partition"), str)
+                and bool(row["Partition"]),
                 "SOURCE_TRUTH_LINE_INVALID")
         # This is a non-scientific ingestion fixture: the partition is only
         # historical source metadata, never authorization to run TEST/TRAIN.

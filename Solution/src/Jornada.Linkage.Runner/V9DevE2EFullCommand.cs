@@ -8,6 +8,7 @@ using Jornada.Pipeline.Coordination;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Hosting;
 
 namespace Jornada.Linkage.Runner;
 
@@ -33,7 +34,7 @@ public static class V9DevE2EFullCommand
                 out var attempt) || attempt == Guid.Empty)
             throw new InvalidOperationException("RUNNER_V9_DEV_E2E_FULL_1K_EXPLICIT_ADMISSION_REQUIRED");
 
-        var host = Host.CreateApplicationBuilder(args);
+        var host = Host.CreateApplicationBuilder(Array.Empty<string>());
         var config = host.Configuration;
         var connectionString = config.GetConnectionString("Jornada")
             ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING");
