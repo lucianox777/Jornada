@@ -20,6 +20,33 @@ public static class V9ControlledDevSilverGraph
     public sealed record Receipt(IReadOnlyList<(int A, int B)> Edges,
         int SignatureCount, string CanonicalEdgesSha256);
 
+    /// <summary>
+    /// SQL Server forbids CREATE TABLE / CREATE INDEX inside SNAPSHOT (3964).
+    /// Prepare connection-local temp metadata BEFORE the authenticated source
+    /// SNAPSHOT begins; all Silver/Gold reads and edge joins remain in SNAPSHOT.
+    /// No durable database table is created or modified.
+    /// </summary>
+    public static async Task PrepareTempTableAsync(SqlConnection connection, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("RUNNER_V9_DEV_GRAPH_CONNECTION_REQUIRED");
+        await using (var setup = new SqlCommand("""
+            CREATE TABLE #v9_dev_silver_sig(
+              obs_id int NOT NULL,
+              gestor nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+              pass_id nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+              signature char(64) COLLATE Latin1_General_100_BIN2 NOT NULL
+            );
+            CREATE UNIQUE INDEX UX_v9_dev_silver_sig
+              ON #v9_dev_silver_sig(obs_id,pass_id,signature);
+            CREATE INDEX IX_v9_dev_silver_sig_join
+              ON #v9_dev_silver_sig(pass_id,signature,obs_id);
+            """, connection))
+            await setup.ExecuteNonQueryAsync(ct);
+
+    }
+
     public static async Task<Receipt> ReadAsync(SqlConnection connection,
         SqlTransaction snapshot, V9FittedSnapshot winner,
         IReadOnlyList<V9FrozenRunObservation> frozen,
@@ -85,21 +112,7 @@ public static class V9ControlledDevSilverGraph
             }
         }
 
-        // Temp tables belong solely to the physically guarded DEV connection.
-        await using (var setup = new SqlCommand("""
-            CREATE TABLE #v9_dev_silver_sig(
-              obs_id int NOT NULL,
-              gestor nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
-              pass_id nvarchar(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
-              signature char(64) COLLATE Latin1_General_100_BIN2 NOT NULL
-            );
-            CREATE UNIQUE INDEX UX_v9_dev_silver_sig
-              ON #v9_dev_silver_sig(obs_id,pass_id,signature);
-            CREATE INDEX IX_v9_dev_silver_sig_join
-              ON #v9_dev_silver_sig(pass_id,signature,obs_id);
-            """, connection, snapshot))
-            await setup.ExecuteNonQueryAsync(ct);
-
+        // Temp table metadata was prepared before SNAPSHOT; never run DDL here.
         var table = new DataTable { Locale = CultureInfo.InvariantCulture };
         table.Columns.Add("obs_id", typeof(int));
         table.Columns.Add("gestor", typeof(string));

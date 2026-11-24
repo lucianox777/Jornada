@@ -216,6 +216,11 @@ public static class V9ControlledDevOperationalCandidateSource
         await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(
             connection, attemptId, cancellationToken);
 
+        // SQL Server error 3964: session-local temp-table DDL must precede
+        // SNAPSHOT. No operational table DDL/DML is performed here.
+        await V9ControlledDevSilverGraph.PrepareTempTableAsync(
+            connection, cancellationToken);
+
         // One consistent operational READ snapshot for header, run_item,
         // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
         // must fail closed; never fall back to independent READ COMMITTED pages.
