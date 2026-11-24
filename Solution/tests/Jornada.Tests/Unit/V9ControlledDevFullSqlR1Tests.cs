@@ -778,10 +778,8 @@ public sealed class V9ControlledDevFullSqlR1Tests
                 x => x.Key, x => x.Value, StringComparer.Ordinal);
             foreach (var term in terms)
             {
-                if (!frequencies.ContainsKey(term))
-                    frequencies.Add(term, .25m);
-                if (!trainU.ContainsKey(term))
-                    trainU.Add(term, .001m);
+                frequencies.TryAdd(term, .25m);
+                trainU.TryAdd(term, .001m);
             }
             return slot with
             {
