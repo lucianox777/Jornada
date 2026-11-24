@@ -35,6 +35,30 @@ else
     echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2;
   }
 fi
+# The attempt is discarded even if schema or preflight preparation fails
+# BEFORE the worker's normal cleanup trap has been installed. Never drop
+# JornadaE2E, an externally supplied DB or an unverified database name.
+v9_e2e_drop_disposable_db(){
+  [[ "$v9_e2e_full" == true ]] || return 0
+  [[ "$DB" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}"
+     && "$DB" =~ ^JornadaV9Dev_[0-9a-f]{32}$ ]] || {
+    echo 'ERRO: V9 DEV cleanup recusou nome de banco nao autenticado.' >&2
+    return 1
+  }
+  (
+    cd "$ROOT"
+    export SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD"
+    docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
+      /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d master \
+        -Q "IF DB_ID(N'$DB') IS NOT NULL BEGIN ALTER DATABASE [$DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$DB]; END"
+  ) >/dev/null || {
+    echo 'ERRO: banco V9 DEV efemero nao foi descartado; inspecionar tentativa isolada.' >&2
+    return 1
+  }
+}
+if [[ "$v9_e2e_full" == true ]]; then
+  trap 'v9_e2e_drop_disposable_db' EXIT
+fi
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
 rm -f -- "$OUT/resultado-api-evidence.json"
@@ -82,6 +106,7 @@ cleanup(){
   wait "$worker_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true
   # Raw IBGE synthetic ZIPs/truth never survive successful or failed harness cleanup.
   rm -rf -- "$OUT/ibge-1k"
+  v9_e2e_drop_disposable_db
 }
 trap cleanup EXIT INT TERM
 
