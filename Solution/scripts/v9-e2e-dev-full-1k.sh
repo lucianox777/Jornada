@@ -22,14 +22,14 @@ v9_e2e_attempt="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 [[ "$v9_e2e_attempt" =~ ^[0-9a-f-]{36}$ ]] || exit 56
 [[ "$(scalar "SELECT DB_NAME();")" == JornadaE2E ]] || exit 56
 existing="$(scalar "SELECT COUNT(*) FROM sys.extended_properties WHERE class=0
- AND name IN (N'Jornada.EnvironmentProfile',N'Jornada.V9.DevAttempt',
- N'Jornada.V9.HttpE2eScope');")"
-[[ "$existing" == 0 ]] || {
-  echo 'ERRO: V9 E2E já possui perfil residente; não reutilizar.' >&2; exit 56;
+ AND name IN (N'Jornada.V9.DevAttempt',N'Jornada.V9.HttpE2eScope');")"
+profile="$(scalar "SELECT COUNT(*) FROM sys.extended_properties WHERE class=0
+ AND name=N'Jornada.EnvironmentProfile'
+ AND CONVERT(nvarchar(200),value)=N'Development';")"
+[[ "$existing" == 0 && "$profile" == 1 ]] || {
+  echo 'ERRO: E2E não é DEV ou tentativa V9 já utilizada.' >&2; exit 56;
 }
 compose_sql "EXEC sys.sp_addextendedproperty
- @name=N'Jornada.EnvironmentProfile',@value=N'Development';
- EXEC sys.sp_addextendedproperty
  @name=N'Jornada.V9.DevAttempt',@value=N'$v9_e2e_attempt';
  EXEC sys.sp_addextendedproperty
  @name=N'Jornada.V9.HttpE2eScope',@value=N'IBGE_1K_AFTER_PROCESSOR';" >/dev/null

@@ -17,10 +17,40 @@ set -a; source "$ENV_FILE"; set +a
 : "${JORNADA_SQL_SA_PASSWORD:?JORNADA_SQL_SA_PASSWORD não definido}"
 PORT="${JORNADA_SQL_PORT:-14333}"; DB="JornadaE2E"
 [[ -z "${JORNADA_SQL_DATABASE_OVERRIDE:-}" || "$JORNADA_SQL_DATABASE_OVERRIDE" == "$DB" ]] || { echo "ERRO: E2E só pode resetar JornadaE2E; perfil incompatível." >&2; exit 2; }
+
+# Opt-in only for exact 1k, before resetting the database.
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" == true ]]; then
+  [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-}" == 1000 &&
+     "${JORNADA_E2E_IBGE_1K:-}" == true ]] || {
+    echo 'ERRO: V9 FULL E2E só aceita 1k HTTP IBGE.' >&2; exit 54;
+  }
+fi
+
 mkdir -p "$OUT"; rm -rf "$OUT/bronze" "$OUT/staging" "$OUT/packages"; mkdir -p "$OUT/bronze" "$OUT/staging" "$OUT/packages"
 
 rm -f -- "$OUT/resultado-api-evidence.json"
 JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" reset >/dev/null
+
+# Canonical opt-in V9 SQL metadata/SNAPSHOT for the disposable 1k profile.
+# Before Processor/API start, no model generation or scientific activation.
+if [[ "${JORNADA_E2E_V9_DEV_FULL:-false}" == true ]]; then
+  (
+    cd "$ROOT"
+    SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" \
+    docker compose --env-file "$ENV_FILE" exec -T -w /workspace \
+      -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd \
+      -S localhost -U sa -C -b -I -d "$DB" \
+      -i database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+    SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" \
+    docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD \
+      sqlserver /opt/mssql-tools18/bin/sqlcmd \
+      -S localhost -U sa -C -b -I -d master \
+      -Q "ALTER DATABASE [JornadaE2E] SET ALLOW_SNAPSHOT_ISOLATION ON;"
+  ) >"$OUT/v9-dev-1k-schema.log" 2>&1 || {
+    echo 'ERRO: V9 schema/SNAPSHOT incompatível no E2E 1k.' >&2; exit 54;
+  }
+fi
+
 CONN="Server=localhost,$PORT;Database=$DB;User Id=sa;Password=$JORNADA_SQL_SA_PASSWORD;TrustServerCertificate=true;Encrypt=false"
 export ConnectionStrings__Jornada="$CONN"
 export ASPNETCORE_ENVIRONMENT=Development
