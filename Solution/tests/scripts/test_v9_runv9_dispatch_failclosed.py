@@ -14,9 +14,13 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
     def setUpClass(cls):
         source = RUNNER.read_text(encoding="utf-8")
         start = source.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(")
-        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        end = source.index(
+            "public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", start)
+        core = source.index(
+            "private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", end)
         cls.typed = source[start:end]
-        cls.general = source[end:]
+        cls.general = source[core:]
+        cls.facade = source[end:core]
 
     def test_pinned_rehearsal_remains_noncertifying_and_reconciled(self):
         source = RUNNER.read_text(encoding="utf-8")
@@ -92,6 +96,10 @@ class V9TypedDispatchFailClosedTests(unittest.TestCase):
             self.assertNotIn(forbidden, self.typed)
 
     def test_general_dispatch_rejects_v9_before_legacy_sql(self):
+        # Regression of a real #1924 unit-runtime CI failure: the public
+        # RunAsync entry is now a facade; fail closed within the shared core.
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", self.facade)
+        self.assertIn("RunCoreAsync(request, controlledDev: true, ct)", self.facade)
         gate = self.general.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED")
         self.assertIn("request.ModelVersion == 9", self.general[:gate])
         self.assertIn("request.Mode != LinkageRunType.REPLAY", self.general[:gate])

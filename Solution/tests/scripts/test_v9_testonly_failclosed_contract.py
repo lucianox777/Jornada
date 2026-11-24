@@ -30,7 +30,10 @@ class TestV9TestOnlyFailClosedContract(unittest.TestCase):
 
     def test_runner_refuses_v9_production_fallback(self):
         runner = RUNNER.read_text(encoding="utf-8")
-        run = runner.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1]
+        # RunAsync must stay a closed public facade; the V9 checks run
+        # inside the identical private core shared by the DEV entry.
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", runner)
+        run = runner.split("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", 1)[1]
         guard = run.split("var drainTimeoutSeconds", 1)[0]
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", guard)
         self.assertIn("request.ModelVersion == 9", guard)

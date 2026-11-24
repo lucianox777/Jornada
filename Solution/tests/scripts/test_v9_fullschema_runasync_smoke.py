@@ -71,7 +71,10 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         self.assertLess(runner.index("await v9Grouped.PrepareAsync(runId, model, frozen, workCt)"),
                         runner.index("while (evaluated < eligible)"))
         self.assertIn("v9.ResolvePreparedAsync(runId, row.PessoaObservacaoId", runner)
-        self.assertIn("IV9NonPublishingFrozenCohortScorer : IProbabilisticIdentityLinkage", scorer)
+        self.assertIn("IV9RunScopedCohortScorer : IProbabilisticIdentityLinkage", scorer)
+        self.assertIn("IV9NonPublishingFrozenCohortScorer : IV9RunScopedCohortScorer", scorer)
+        self.assertIn("linkage is IV9RunScopedCohortScorer v9Grouped", runner)
+        self.assertIn("linkage is not IV9NonPublishingFrozenCohortScorer", runner)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(", scorer)
         self.assertIn("preparedRunId = runId", scorer)
         self.assertIn("operationalLinkage.ResolvePinnedV9FrozenTestCohortAsync(", scorer)

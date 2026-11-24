@@ -50,13 +50,26 @@ public static class V9BlindIncrementalIdentityGrouping
         => BuildForPurpose(test, scoredSqlEdges, minimumPairPosterior,
             maximumObservationsPerIdentity, "TEST");
 
+    /// <summary>
+    /// Controlled disposable DEV run: same immutable complete-link kernel,
+    /// independently partitioned from scientific VALIDATION and TEST.
+    /// Does not load candidates, persist SQL, publish Gold or certify V9.
+    /// </summary>
+    public static V9BlindIncrementalGroupingResult BuildDev(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
+        decimal minimumPairPosterior = .99m,
+        int maximumObservationsPerIdentity = 16)
+        => BuildForPurpose(observations, scoredSqlEdges, minimumPairPosterior,
+            maximumObservationsPerIdentity, "DEV");
+
     private static V9BlindIncrementalGroupingResult BuildForPurpose(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
         decimal minimumPairPosterior, int maximumObservationsPerIdentity,
         string purpose)
     {
-        if (purpose is not ("VALIDATION" or "TEST"))
+        if (purpose is not ("VALIDATION" or "TEST" or "DEV"))
             throw new InvalidDataException("Finalidade FS não reconhecida.");
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(scoredSqlEdges);
@@ -66,7 +79,9 @@ public static class V9BlindIncrementalIdentityGrouping
                 "Exige posterior FS em (0.5,1) e cap de identidade >= 2.");
 
         var rows = observations.ToArray();
-        if (rows.Length < 2 || rows.Any(x => x is null
+        // An eligible DEV FULL/INCREMENTAL run may have 0 or 1 pending rows;
+        // keep the scientific VALIDATION/TEST minimum of two unchanged.
+        if ((purpose != "DEV" && rows.Length < 2) || rows.Any(x => x is null
             || x.Partition != purpose || x.ObservationId <= 0
             || string.IsNullOrWhiteSpace(x.Gestor))
             || rows.Select(x => x.ObservationId).Distinct().Count() != rows.Length)

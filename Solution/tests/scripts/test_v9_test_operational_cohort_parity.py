@@ -25,7 +25,12 @@ class V9OperationalCohortParityContract(unittest.TestCase):
         group = (CORE / "V9BlindIncrementalIdentityGrouping.cs").read_text()
         replay = (CORE / "V9FrozenSourceResolveReplay.cs").read_text()
         self.assertIn("public static V9BlindIncrementalGroupingResult BuildTest(", group)
-        self.assertIn('partition == "TEST"', replay)
+        # The original TEST branch is preserved in the shared purpose switch;
+        # DEV uses the same kernel but cannot enter the TEST-only grouping.
+        self.assertIn('"TEST" => V9BlindIncrementalIdentityGrouping.BuildTest(rows, edges,', replay)
+        self.assertIn('"DEV" => V9BlindIncrementalIdentityGrouping.BuildDev(rows, edges,', replay)
+        self.assertIn('=> ReplayForPartition(snapshot, test, completePhysicalSqlEdges, "TEST")', replay)
+        self.assertIn('=> ReplayForPartition(snapshot, dev, completeOperationalSqlEdges, "DEV")', replay)
         self.assertIn("V9BlindIncrementalIdentityGrouping.BuildTest(rows, edges,", replay)
         self.assertIn("snapshot.RankPreview(", replay)
         self.assertIn("snapshot.ResolveRankedPreview(", replay)

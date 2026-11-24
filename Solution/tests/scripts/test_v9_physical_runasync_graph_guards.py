@@ -82,7 +82,8 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
 
     def test_direct_runasync_v9_fails_before_sql_and_pipeline_lock(self):
         s = self.runner
-        start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(")
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", s)
+        start = s.index("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(")
         gate = s.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", start)
         self.assertLess(start, gate)
         self.assertLess(gate, s.index("AcquireExclusiveJobAsync(", start))
@@ -111,7 +112,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
     def test_typed_runv9_entry_is_fail_closed_before_legacy_pipeline(self):
         source = (ROOT / "ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
         start = source.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(")
-        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        end = source.index("public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", start)
         typed = source[start:end]
         self.assertIn("V9OperationalRunBoundary boundary", typed)
         self.assertIn("boundary.EnsureProductiveCertified();", typed)
@@ -119,6 +120,44 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
         self.assertNotIn("GetModelByVersionAsync", typed)
         self.assertNotIn("OpenAsync(", typed)
         self.assertNotIn("PublishAsync(", typed)
+
+    def test_controlled_dev_selection_requires_pinned_file_and_owned_sql(self):
+        source = (ROOT / "V9ControlledDevSelection.cs").read_text(encoding="utf-8")
+        self.assertIn('configuration.GetValue<int?>("Linkage:SelectedModelVersion") != 9', source)
+        self.assertIn('configuration["Linkage:V9SelectionFile"]', source)
+        self.assertIn("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(", source)
+        self.assertIn("new V9OperationalRunBoundary(runtime)", source)
+        self.assertIn('if (attemptId == Guid.Empty)', source)
+        self.assertIn('"JornadaV9Dev_" + attemptId.ToString("N")', source)
+        self.assertIn("DB_NAME()=@database", source)
+        self.assertIn("Jornada.EnvironmentProfile", source)
+        self.assertIn("Jornada.V9.DevAttempt", source)
+        self.assertIn("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED", source)
+        self.assertNotIn("INSERT ", source)
+        self.assertNotIn("UPDATE ", source)
+        self.assertNotIn("PublishAsync", source)
+        self.assertNotIn("GetActiveModelAsync(", source)
+        self.assertLess(source.index("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync("),
+                        source.index("operationalSql.OpenAsync("))
+
+    def test_stage3_dev_entry_uses_existing_runner_without_normal_activation(self):
+        s = self.runner
+        start = s.index("public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(")
+        end = s.index("public Task<ProbabilisticLinkageRunSummary> RunAsync(", start)
+        stage3 = s[start:end]
+        self.assertIn("linkage is not IV9ControlledDevCohortScorer devScorer", stage3)
+        self.assertIn("request.Mode is not (LinkageRunType.FULL or LinkageRunType.INCREMENTAL)", stage3)
+        self.assertIn("request.ModelVersion != 9 || !request.Publish", stage3)
+        self.assertIn("V9ControlledDevSelection.VerifyAsync(", stage3)
+        self.assertIn("boundary.Runtime.WinnerSha256, devScorer.WinnerSha256", stage3)
+        self.assertIn("RunCoreAsync(request, controlledDev: true, ct)", stage3)
+        self.assertNotIn("PublishAsync(", stage3)
+        self.assertNotIn("PersistBatchAsync(", stage3)
+        self.assertLess(stage3.index("V9ControlledDevSelection.VerifyAsync("),
+                        stage3.index("RunCoreAsync(request, controlledDev: true, ct)"))
+        scorer = self.scorer
+        self.assertIn("IV9ControlledDevCohortScorer : IV9RunScopedCohortScorer", scorer)
+        self.assertIn("string WinnerSha256 { get; }", scorer)
 
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")

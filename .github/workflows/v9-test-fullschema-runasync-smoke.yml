@@ -70,6 +70,26 @@ jobs:
             echo "::error::Full SQL preflight rejected disposable schema"; exit 1;
           }
           grep -q 'SCHEMA_PREFLIGHT_PASS_NOT_RUNTIME_PARITY' "$RUNNER_TEMP/v9-fullschema-preflight.log"
+          # Same SQL container, but a distinct, never-reused DEV attempt with
+          # resident authorization and SNAPSHOT. No scientific TEST data.
+          dev_attempt="$(python3 -c 'import uuid;print(uuid.uuid4())')"
+          dev_db="JornadaV9Dev_${dev_attempt//-/}"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+            sh "CREATE DATABASE [$dev_db];"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "$1"' \
+            sh "ALTER DATABASE [$dev_db] SET ALLOW_SNAPSHOT_ISOLATION ON;"
+          run_sql "$dev_db" database/Jornada_Fase1_v3.70.sql >"$RUNNER_TEMP/v9-dev-full-schema.log" 2>&1 || {
+            echo "::error::DEV SQL complete schema failed"; tail -n 40 "$RUNNER_TEMP/v9-dev-full-schema.log"; exit 1;
+          }
+          run_sql "$dev_db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql >"$RUNNER_TEMP/v9-dev-model.log" 2>&1 || {
+            echo "::error::DEV SQL model migration failed"; tail -n 25 "$RUNNER_TEMP/v9-dev-model.log"; exit 1;
+          }
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' \
+            sh "$dev_db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$dev_attempt';"
+          echo "JORNADA_V9_DEV_ATTEMPT_DB=$dev_db" >>"$GITHUB_ENV"
       - name: Execute actual RunAsync in 200 synthetic observations and induced second-batch failure
         working-directory: Solution
         run: |
@@ -93,12 +113,88 @@ jobs:
             "scientific_test_100k=BLOCKED" \
             "production_equivalence_certified=false" \
             >"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
+      - name: Execute controlled DEV FULL r1 physically against isolated SQL Gold (no scientific TEST)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          test -n "$ConnectionStrings__Jornada"
+          test -n "$JORNADA_V9_DEV_ATTEMPT_DB"
+          results="$RUNNER_TEMP/v9-dev-r1-trx"
+          oracle="$RUNNER_TEMP/v9-dev-r1-oracle"
+          mkdir -p "$results" "$oracle"
+          JORNADA_V9_R1_SQL_ORACLE_OUTPUT="$oracle" \
+          JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL="$ConnectionStrings__Jornada" \
+            dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+              --filter 'FullyQualifiedName~V9ControlledDevFullSqlR1Tests.FULL_200_real_SQL_publishes_Gold_with_frozen_r1_and_no_implicit_identity_inheritance' \
+              --logger 'console;verbosity=normal' --logger 'trx;LogFileName=r1-full.trx' \
+              --results-directory "$results"
+          # A successful dotnet test exit code with zero selected tests or skips is NOT PASS.
+          python3 - "$results/r1-full.trx" <<'PY'
+          import sys
+          from xml.etree import ElementTree as ET
+          counters = [node.attrib for node in ET.parse(sys.argv[1]).getroot().iter()
+                      if node.tag.rsplit('}', 1)[-1] == 'Counters']
+          if len(counters) != 1:
+              raise SystemExit("V9_DEV_R1_TRX_COUNTERS_MISSING_OR_AMBIGUOUS")
+          c = counters[0]
+          if (int(c["total"]) != 1 or int(c["passed"]) != 1
+              or int(c["failed"]) != 0 or int(c["notExecuted"]) != 0
+              or int(c.get("skipped", 0)) != 0):
+              raise SystemExit(f"V9_DEV_R1_PHYSICAL_SQL_TEST_NOT_1_PASS_0_SKIP: {c}")
+          print("V9_DEV_R1_PHYSICAL_SQL_TEST: 1 aprovado, 0 pulados")
+          PY
+          # Reuse the existing independent decision oracle on the actual SQL
+          # publication recorte. No scientific TEST data or external ZIP is used.
+          (cd "$oracle" && sha256sum --check --status truth.sha256) || {
+            echo "::error::V9_R1_GABARITO_SHA256_DIVERGENT"; exit 1;
+          }
+          python3 - "$oracle/truth.json" "$oracle/truth-oracle.json" "$oracle/observed.json" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          truth = Path(sys.argv[1]).read_bytes()
+          actual = hashlib.sha256(truth).hexdigest()
+          envelope = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          observed = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          if (envelope["zipSha256"] != actual or observed["zipSha256"] != actual
+              or envelope["expectedDecisions"] != json.loads(truth)["expectedDecisions"]):
+              raise SystemExit("V9_R1_GABARITO_REAL_CONTENT_SEAL_MISMATCH")
+          print("V9_R1_GABARITO_SEAL: SHA256(truth.json) verified")
+          PY
+          python3 scripts/e2e-independent-decision-oracle.py \
+            --truth "$oracle/truth-oracle.json" --observed "$oracle/observed.json" \
+            --receipt "$oracle/receipt.json"
+          python3 - "$oracle/receipt.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          receipt = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if (receipt.get("status") != "PASS"
+              or receipt.get("expectedCount") != 3
+              or receipt.get("observedCount") != 3
+              or receipt.get("missingObservations") != []
+              or receipt.get("unexpectedObservations") != []
+              or receipt.get("divergentObservations") != []
+              or receipt.get("scope") !=
+                  "OFFLINE_DECISION_ROWS_ONLY_NOT_RUNNER_PARITY_OR_SCIENTIFIC_TEST"):
+              raise SystemExit(f"V9_DEV_R1_EXISTING_ORACLE_REJECTED: {receipt}")
+          print("V9_DEV_R1_EXISTING_ORACLE: PASS; 3 synthetic source decisions")
+          PY
+          printf '%s\n' "dev_full_r1_physical_sql=PASS" "dev_full_r1_gold_publication=PASS" \
+            "dev_full_r1_trx=1 aprovado, 0 pulados" \
+            "dev_full_r1_s1_existing_gold=PASS" \
+            "dev_full_r1_s2_gold_conflict_veto=PASS" \
+            "dev_full_r1_s6_protected_reference=PASS" \
+            "dev_full_r1_existing_decision_oracle=PASS" \
+            "dev_attempt_db=$JORNADA_V9_DEV_ATTEMPT_DB" >>"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
       - name: Archive sanitized noncertifying receipt
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
           name: v9-fullschema-real-runasync-nonpublishing
-          path: ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
+          path: |
+            ${{ runner.temp }}/v9-fullschema-runasync-receipt.txt
+            ${{ runner.temp }}/v9-dev-r1-oracle/receipt.json
+            ${{ runner.temp }}/v9-dev-r1-oracle/truth.sha256
           retention-days: 30
           if-no-files-found: error
       - name: Dispose private SQL container on success and failure

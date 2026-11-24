@@ -9,10 +9,23 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         source = SOURCE.read_text(encoding="utf-8")
-        cls.typed = source.split("public Task<ProbabilisticLinkageRunSummary> RunV9Async(", 1)[1].split(
-            "public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[0]
-        cls.run_source = source.split("public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[1].split(
-            "private async Task CaptureBronzeSourcesAsync(", 1)[0]
+        # Regression: the productive typed entry ends at the explicit DEV
+        # entry, while the public RunAsync facade shares the guarded core.
+        typed_start = source.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(")
+        dev_start = source.index(
+            "public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(", typed_start)
+        facade_start = source.index(
+            "public Task<ProbabilisticLinkageRunSummary> RunAsync(", dev_start)
+        core_start = source.index(
+            "private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(", facade_start)
+        core_end = source.index("private async Task CaptureBronzeSourcesAsync(", core_start)
+        # The DEV entry has its own XML documentation preceding its signature.
+        # Stop at the real RunV9Async closing brace, not at the next signature:
+        # including that comment caused the observed CI endswith("}") failure.
+        typed_close = source.index("\n    }\n", typed_start, dev_start) + len("\n    }\n")
+        cls.typed = source[typed_start:typed_close]
+        cls.facade = source[facade_start:core_start]
+        cls.run_source = source[core_start:core_end]
 
     def test_typed_dispatch_refuses_uncertified_productive_adapter(self):
         self.assertIn("boundary.EnsureProductiveCertified();", self.typed)
@@ -36,6 +49,9 @@ class V9ProductiveDispatchBoundary(unittest.TestCase):
         self.assertTrue(typed.strip().endswith("}"))
 
     def test_legacy_runasync_rejects_all_explicit_v9_selectors_before_sql(self):
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", self.facade)
+        self.assertIn("RunCoreAsync(request, controlledDev: true, ct)",
+                      SOURCE.read_text(encoding="utf-8"))
         run = self.run_source
         start = run.index("ValidateRequest(request);")
         lock = run.index("pipelineCoordinator.AcquireExclusiveJobAsync(")

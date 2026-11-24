@@ -67,6 +67,22 @@ public sealed class V9OperationalPinnedCohortRuntime
     }
 
     /// <summary>
+    /// Controlled DEV-only execution of the immutable, SHA-verified winner
+    /// over the complete frozen SQL candidate graph. This delegates to the
+    /// SAME shared FS scoring, complete-link and Resolve kernel as TEST; it
+    /// does not authorize model activation, refitting or Gold publication.
+    /// </summary>
+    public V9FrozenSourceReplayResult ScoreControlledDevCohort(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> frozenDev,
+        IReadOnlyList<(int A, int B)> completeOperationalSqlEdges)
+    {
+        ArgumentNullException.ThrowIfNull(frozenDev);
+        ArgumentNullException.ThrowIfNull(completeOperationalSqlEdges);
+        return V9FrozenSourceResolveReplay.ReplayDev(
+            winner, frozenDev, completeOperationalSqlEdges);
+    }
+
+    /// <summary>
     /// Diagnostic-only replay of the complete operational graph. The independently
     /// observed physical SQL graph is mandatory; no edge repair or fallback.
     /// Does not authorize the production RunAsync or TEST certification.

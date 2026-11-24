@@ -24,7 +24,8 @@ class ProcessorRunnerExplicitBoundaryTests(unittest.TestCase):
 
     def test_v9_dispatch_remains_fail_closed_before_legacy_pipeline(self):
         source = (RUNNER / "ProbabilisticLinkageBatchRunner.cs").read_text(encoding="utf-8")
-        dispatch = source.index("public async Task<ProbabilisticLinkageRunSummary> RunAsync(")
+        self.assertIn("RunCoreAsync(request, controlledDev: false, ct)", source)
+        dispatch = source.index("private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(")
         guard = source.index("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", dispatch)
         lease = source.index("Acquire", dispatch) if "Acquire" in source[dispatch:] else -1
         self.assertGreater(guard, dispatch)

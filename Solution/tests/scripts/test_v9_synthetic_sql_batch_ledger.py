@@ -66,8 +66,11 @@ class V9TestSyntheticLedgerContract(unittest.TestCase):
 
     def test_real_runner_uses_existing_rehearsal_and_not_legacy_execution(self):
         runner = RUNNER.read_text()
-        block = runner.split("public async Task<V9SyntheticNonPublishingLedgerReceipt> PersistV9SyntheticRehearsalLedgerAsync(", 1)[1].split(
-            "public async Task<ProbabilisticLinkageRunSummary> RunAsync(", 1)[0]
+        # Regression: the old public async RunAsync signature is gone.
+        # Keep the TEST_ONLY ledger proof confined to its own method body.
+        start = runner.index("public async Task<V9SyntheticNonPublishingLedgerReceipt> PersistV9SyntheticRehearsalLedgerAsync(")
+        end = runner.index("public Task<ProbabilisticLinkageRunSummary> RunV9Async(", start)
+        block = runner[start:end]
         self.assertIn("RehearseV9NonPublishingSyntheticTestAsync(", block)
         self.assertIn("V9SyntheticNonPublishingSqlLedger.PersistAsync(", block)
         self.assertIn("operationalSql.OpenAsync(cancellationToken)", block)

@@ -983,6 +983,9 @@ public sealed class V9FullSchemaNonPublishingRunnerTests
             Is.EqualTo(200), "Prepared V9 TEST source must be restored exactly.");
     }
 
+    internal static Task SeedControlledDevFullFixtureAsync(SqlConnection connection, int count) =>
+        InsertSyntheticUniverseAsync(connection, count);
+
     private static async Task InsertSyntheticUniverseAsync(SqlConnection connection, int count)
     {
         // Canonical data contracts are inserted, not fake copies of linkage tables.

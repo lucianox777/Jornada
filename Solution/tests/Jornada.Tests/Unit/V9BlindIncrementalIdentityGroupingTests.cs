@@ -157,6 +157,87 @@ public sealed class V9BlindIncrementalIdentityGroupingTests
     }
 
     [Test]
+    public void Controlled_DEV_accepts_empty_and_singleton_universe_without_TEST_bypass()
+    {
+        var empty = V9BlindIncrementalIdentityGrouping.BuildDev(
+            Array.Empty<V9PhysicalCalibrationObservation>(),
+            Array.Empty<V9BlindFsSqlEdge>());
+        Assert.That(empty.IdentityByObservation, Is.Empty);
+        Assert.That(empty.AcceptedTransitions, Is.Zero);
+
+        var one = new[] { Row(1, "G1", partition: "DEV") };
+        var singleton = V9BlindIncrementalIdentityGrouping.BuildDev(one,
+            Array.Empty<V9BlindFsSqlEdge>());
+        Assert.That(singleton.IdentityByObservation.Count, Is.EqualTo(1));
+        Assert.That(singleton.OperationallyCertified, Is.False);
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.Build(
+                Array.Empty<V9PhysicalCalibrationObservation>(), Array.Empty<V9BlindFsSqlEdge>())),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildTest(
+                [one[0] with { Partition = "TEST" }], Array.Empty<V9BlindFsSqlEdge>())),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Controlled_DEV_reuses_complete_link_without_leaking_scientific_partitions()
+    {
+        var dev = new[]
+        {
+            Row(1, "G1", partition: "DEV"),
+            Row(2, "G2", name: "ANA PAULA SILVA", partition: "DEV"),
+            Row(3, "G3", name: "JOAO CARLOS SOUZA", partition: "DEV")
+        };
+        var edges = new[] { Edge(1, 2, 9m, 9m) };
+        var result = V9BlindIncrementalIdentityGrouping.BuildDev(dev, edges);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.IdentityByObservation[1], Is.EqualTo(result.IdentityByObservation[2]));
+            Assert.That(result.IdentityByObservation[3], Is.Not.EqualTo(result.IdentityByObservation[1]));
+            Assert.That(result.OperationallyCertified, Is.False);
+        }));
+
+        // No new calculator: identical grouping outcomes under the existing
+        // canonical VALIDATION kernel for an otherwise identical cohort.
+        var validation = dev.Select(x => x with { Partition = "VALIDATION" }).ToArray();
+        var canonical = V9BlindIncrementalIdentityGrouping.Build(validation, edges);
+        foreach (var id in new[] { 1, 2, 3 })
+            foreach (var other in new[] { 1, 2, 3 })
+                Assert.That(result.IdentityByObservation[id] == result.IdentityByObservation[other],
+                    Is.EqualTo(canonical.IdentityByObservation[id] == canonical.IdentityByObservation[other]));
+
+        // Scientific TEST/VALIDATION cannot be silently routed through DEV.
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildDev(validation, edges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildDev(
+            dev.Select(x => x with { Partition = "TEST" }).ToArray(), edges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.Build(dev, edges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildTest(dev, edges)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Controlled_DEV_rejects_incomplete_noncanonical_or_intramanager_edges()
+    {
+        var dev = new[]
+        {
+            Row(1, "G1", partition: "DEV"),
+            Row(2, "G2", partition: "DEV"),
+            Row(3, "G1", partition: "DEV")
+        };
+        foreach (var edges in new[]
+        {
+            new[] { Edge(2, 1) },
+            new[] { Edge(1, 4) },
+            new[] { Edge(1, 2), Edge(1, 2) },
+            new[] { Edge(1, 3) }
+        })
+            Assert.That((Action)(() => V9BlindIncrementalIdentityGrouping.BuildDev(dev, edges)),
+                Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Invalid_test_duplicates_unknown_or_reversed_edges_fail_closed()
     {
         var rows = new[] { Row(1, "G1"), Row(2, "G2") };

@@ -166,8 +166,45 @@ public sealed class ProbabilisticLinkageBatchRunner(
             "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED");
     }
 
-    public async Task<ProbabilisticLinkageRunSummary> RunAsync(
+    /// <summary>
+    /// Explicit stage-3 DEV entry. It shares the exact RunAsync universe,
+    /// scoring, SQL ledger, run counters and atomic Gold publication path.
+    /// It does not change Program.cs or authorize productive V9 dispatch.
+    /// </summary>
+    public async Task<ProbabilisticLinkageRunSummary> RunV9ControlledDevAsync(
         ProbabilisticLinkageRunRequest request,
+        Guid disposableAttemptId,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ct.ThrowIfCancellationRequested();
+        if (linkage is not IV9ControlledDevCohortScorer devScorer
+            || request.ModelVersion != 9 || !request.Publish
+            || request.Mode is not (LinkageRunType.FULL or LinkageRunType.INCREMENTAL)
+            || request.ReplaySourceRunId is not null)
+            throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
+        // R1 is approved for FULL first. The same existing interface remains
+        // available for the subsequent governed INCREMENTAL implementation.
+        if (request.Mode != LinkageRunType.FULL)
+            throw new InvalidOperationException("RUNNER_V9_DEV_INCREMENTAL_R1_PENDING");
+
+        var boundary = await V9ControlledDevSelection.VerifyAsync(
+            configuration, operationalSql, disposableAttemptId, ct);
+        if (!string.Equals(boundary.Runtime.WinnerSha256, devScorer.WinnerSha256,
+                StringComparison.Ordinal))
+            throw new InvalidOperationException("RUNNER_V9_DEV_SCORER_WINNER_MISMATCH");
+
+        return await RunCoreAsync(request, controlledDev: true, ct);
+    }
+
+    public Task<ProbabilisticLinkageRunSummary> RunAsync(
+        ProbabilisticLinkageRunRequest request,
+        CancellationToken ct) =>
+        RunCoreAsync(request, controlledDev: false, ct);
+
+    private async Task<ProbabilisticLinkageRunSummary> RunCoreAsync(
+        ProbabilisticLinkageRunRequest request,
+        bool controlledDev,
         CancellationToken ct)
     {
         ValidateRequest(request);
@@ -175,12 +212,22 @@ public sealed class ProbabilisticLinkageBatchRunner(
         // Until the productive V9 adapter is certified, do not let an explicit
         // V9 selection enter the legacy SQL model loader or acquire a pipeline lock.
         // Historical DT-05 REPLAY retains its separate source-run contract.
-        if (request.Mode != LinkageRunType.REPLAY
+        if (!controlledDev && request.Mode != LinkageRunType.REPLAY
             && (request.ModelVersion == 9
                 || configuration.GetValue<int?>("Linkage:SelectedModelVersion") == 9
                 || !string.IsNullOrWhiteSpace(configuration["Linkage:V9SelectionFile"])))
             throw new InvalidOperationException(
                 "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: RunAsync V9 exige adaptador de coorte certificado; fallback SQL proibido.");
+        // No DEV V9 scorer can be injected into the normal RunAsync entrypoint:
+        // an explicitly controlled and isolated entrypoint is required first.
+        // The existing TEST_ONLY fixture retains its stricter guards below.
+        if (linkage is IV9RunScopedCohortScorer
+            && linkage is not IV9NonPublishingFrozenCohortScorer
+            && !controlledDev)
+            throw new InvalidOperationException(
+                "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED: V9 DEV scorer requires controlled invocation.");
+        if (controlledDev && linkage is not IV9ControlledDevCohortScorer)
+            throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
         if (linkage is IV9NonPublishingFrozenCohortScorer)
         {
             // This is an opt-in, bounded TEST fixture, never the productive
@@ -232,6 +279,15 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 : await linkage.GetActiveModelAsync(workCt);
         if (replayIdentity is not null && model.ModelId != replayIdentity.ModelId)
             throw new InvalidOperationException("DT-05: identidade do modelo histórico diverge do source run; replay recusado.");
+
+        if (controlledDev)
+        {
+            // Validate the model used by the real run/ledger against the
+            // file-pinned DEV winner before SQL run creation.
+            if (linkage is not IV9ControlledDevCohortScorer devScorer)
+                throw new InvalidOperationException("RUNNER_V9_DEV_ADAPTER_NOT_CONFIGURED");
+            V9ControlledDevSelection.VerifyRunModelPin(model, devScorer.WinnerSha256);
+        }
 
         if (request.Mode == LinkageRunType.REPLAY)
         {
@@ -329,10 +385,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 throw new InvalidOperationException(
                     $"Métricas do universo incremental inconsistentes: elegíveis={universe.Eligible}, fresh={universe.FreshPending}, reavaliados={universe.Reevaluated}.");
 
-            if (linkage is IV9NonPublishingFrozenCohortScorer v9Grouped)
+            if (linkage is IV9RunScopedCohortScorer v9Grouped)
             {
-                if (eligible is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
+                if (linkage is IV9NonPublishingFrozenCohortScorer
+                    && eligible is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
                     throw new InvalidDataException("Universo V9 sintético fora do limite 2..512; nenhuma decisão será avaliada.");
+                if (eligible > int.MaxValue)
+                    throw new InvalidDataException("Universo V9 excede o limite de indexação por run.");
                 var frozen = new List<V9FrozenRunObservation>((int)eligible);
                 long frozenAfterId = 0;
                 while (frozen.Count < eligible)
@@ -482,7 +541,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             new ParallelOptions { MaxDegreeOfParallelism = maxParallelism, CancellationToken = ct },
             async (row, token) =>
             {
-                var decision = linkage is IV9NonPublishingFrozenCohortScorer v9
+                var decision = linkage is IV9RunScopedCohortScorer v9
                     ? await v9.ResolvePreparedAsync(runId, row.PessoaObservacaoId, row.Observation, model.ModelId, token)
                     : await linkage.ResolveWithoutCpfAsync(row.Observation, model.ModelId, token);
                 if (decision.ModeloId != model.ModelId)
