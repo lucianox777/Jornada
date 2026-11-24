@@ -126,27 +126,27 @@ public sealed class V9ControlledDevGroupGoldR1Tests
     [Test]
     public void Unverified_Gold_or_false_no_candidate_fails_before_SQL_publication()
     {
-        Assert.Throws<InvalidDataException>(() => Run(
+        Assert.Throws<InvalidDataException>((Action)(() => Run(
             new Dictionary<long, Guid> { [1] = Group },
             new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Resolved(Y) },
-            new Dictionary<long, Guid[]> { [1] = [X] }));
-        Assert.Throws<InvalidDataException>(() => Run(
+            new Dictionary<long, Guid[]> { [1] = [X] })));
+        Assert.Throws<InvalidDataException>((Action)(() => Run(
             new Dictionary<long, Guid> { [1] = Group },
             new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing() },
-            new Dictionary<long, Guid[]> { [1] = [X] }));
+            new Dictionary<long, Guid[]> { [1] = [X] })));
     }
 
     [Test]
     public void A_missing_member_or_unauthenticated_existing_reference_rejects_entire_translation()
     {
-        Assert.Throws<InvalidDataException>(() => Run(
+        Assert.Throws<InvalidDataException>((Action)(() => Run(
             new Dictionary<long, Guid> { [1] = Group, [2] = Group },
             new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing() },
-            new Dictionary<long, Guid[]> { [1] = [], [2] = [] }));
-        Assert.Throws<InvalidDataException>(() => Run(
+            new Dictionary<long, Guid[]> { [1] = [], [2] = [] })));
+        Assert.Throws<InvalidDataException>((Action)(() => Run(
             new Dictionary<long, Guid> { [1] = Group },
             new Dictionary<long, ProbabilisticLinkageDecision> { [1] = Missing() },
             new Dictionary<long, Guid[]> { [1] = [] },
-            new Dictionary<long, Guid> { [2] = X }));
+            new Dictionary<long, Guid> { [2] = X })));
     }
 }
