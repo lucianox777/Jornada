@@ -54,8 +54,8 @@ public static class V9DevE2EFullCommand
             await using var connection = await sql.OpenAsync(CancellationToken.None);
             await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(connection, attempt, CancellationToken.None);
             var catalog = await ReadPrivateAsync(root, "catalog.sql");
-            if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(catalog))).ToLowerInvariant() != "a976dfda5ef42e15120d1318f80fd3274f54c85310567e5081fab6f73126f728")
+            if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(catalog))) != "a976dfda5ef42e15120d1318f80fd3274f54c85310567e5081fab6f73126f728")
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_CATALOG_PIN_MISMATCH");
             await using var command = new SqlCommand(catalog, connection);
             command.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
@@ -79,8 +79,8 @@ public static class V9DevE2EFullCommand
             || l.GetProperty("sourceVersions").GetInt32() != total
             || l.GetProperty("attempt").GetString() != attempt.ToString("D")
             || l.GetProperty("preflightSha256").GetString() !=
-               Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                   await File.ReadAllBytesAsync(Path.Combine(root, "wave-preflight-receipt.json")))).ToLowerInvariant())
+               Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                   await File.ReadAllBytesAsync(Path.Combine(root, "wave-preflight-receipt.json")))))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_LINEAGE_INVALID");
 
         var loaded = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
