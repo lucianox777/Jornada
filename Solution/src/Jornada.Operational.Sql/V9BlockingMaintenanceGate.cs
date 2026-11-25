@@ -42,6 +42,7 @@ public static class V9BlockingMaintenanceGate
                 @LockOwner=N'Transaction', @LockTimeout=10000;
             SELECT CASE WHEN @lock_result>=0
                 AND OBJECT_ID(N'identidade.blocking_chave_v9',N'U') IS NOT NULL
+                AND OBJECT_ID(N'identidade.blocking_chave_v9_cobertura',N'U') IS NOT NULL
                 AND EXISTS(SELECT 1 FROM sys.extended_properties
                            WHERE class=0 AND name=N'Jornada.V9.BlockingSchemaEnabled'
                              AND CONVERT(nvarchar(10),value)=N'1')
