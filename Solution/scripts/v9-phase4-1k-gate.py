@@ -87,7 +87,7 @@ def build(root, sha, attempt):
     plan["firstContrast"].update(status="MEASURED",receiptSha256=hashlib.sha256(raw("s4b-receipt.json")).hexdigest(),
                                 commit=sha,runId=nucleus["runId"])
     plan["factorialGate"]={"s4bReceiptVerified":True,"samePhysicalAttempt":True,
-                          "scoringExecutorImplemented":False,"executionAuthorizedByThisPlan":False}
+                          "scoringExecutorImplemented":True,"executionAuthorizedByThisPlan":False}
     return plan
 
 def r2_indication_hypothesis(rows):

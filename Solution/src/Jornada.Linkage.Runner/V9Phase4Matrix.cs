@@ -31,7 +31,7 @@ internal static class V9Phase4Matrix
     private sealed record IndexEntry(Ref Summary,HashSet<BlockingProjectionKey> Keys,Row[] All,Row[] Secure);
     private sealed record Projection(long Id,Guid? Person,string RawReason,string EffectiveReason,
         string Method,decimal Score,int Fs,int Candidates,int SecureCandidates,int PriorCardinality,
-        Guid? Best,bool OnlyViaNonsecure);
+        Guid? Best,int OnlyViaNonsecure);
     private sealed record RoundResult(Projection[] Rows,object Resources);
     private static void Require(bool ok,string reason)
     { if(!ok) throw new InvalidDataException("RUNNER_V9_PHASE4_"+reason); }
@@ -164,7 +164,7 @@ internal static class V9Phase4Matrix
             var keys=Keys(planner,Obs(summary));
             foreach(var row in used)
                 keys.UnionWith(Keys(planner,row.Observation with {DataNascimento=null}).Where(k=>
-                    BlockingFeatureTemporalCatalog.Get(k.Feature)==BlockingFeatureTemporalSemantics.VersionedAlias));
+                    planner.TemporalSemantics(k.Feature)==BlockingFeatureTemporalSemantics.VersionedAlias));
             index.Add(group.Key,new(Summary(group.Key,all),keys,all,secure));
         }
         return index;
@@ -216,7 +216,7 @@ internal static class V9Phase4Matrix
         var raw=new Dictionary<long,ProbabilisticLinkageDecision>();
         var candidates=new Dictionary<long,IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>>();
         var established=graph.Pending.Where(x=>links.ContainsKey(x.Origin)).ToDictionary(x=>x.Id,x=>links[x.Origin].Person);
-        var metadata=new Dictionary<long,(int Fs,int Candidates,int SecureCandidates,int PriorCount,bool Only)>();
+        var metadata=new Dictionary<long,(int Fs,int Candidates,int SecureCandidates,int PriorCount,int Only)>();
         var physicalScores=physical.HasValue?new List<V9ControlledDevCohortScorer.GoldScore>():null;
         foreach(var row in graph.Pending)
         {
@@ -243,7 +243,7 @@ internal static class V9Phase4Matrix
                 observe:physicalScores is null?null:values=>physicalScores.AddRange(values.Select(v=>new V9ControlledDevCohortScorer.GoldScore(row.Id,v.ObservationId,v.Person,v.Posterior,v.LogOdds))));
             raw.Add(row.Id,scored.Decision);
             metadata.Add(row.Id,((int)scored.EvidenceReceipt.ComparedRecords,people.Length,restricted.Length,
-                prior=="records"?records.Count:people.Length,broad.Except(restricted).Any()));
+                prior=="records"?records.Count:people.Length,broad.Except(restricted).Count()));
         }
         Sample("score");
         var translated=V9ControlledDevGroupGoldR1.Translate(graph.Groups,raw,candidates,established,graph.Incident,graph.NoPass);
@@ -251,7 +251,7 @@ internal static class V9Phase4Matrix
         {
             Require(actualGraph.HasValue&&diagnostic.HasValue&&graph.DirectionSha256==actualGraph.Value.GetProperty("directionSha256").GetString()
                 && V9DevE2EFirstFullMembershipOracle.GoldScoreDigest(physicalScores!)==actualGraph.Value.GetProperty("goldRecordScoreSha256").GetString(),"BASELINE_SCORES");
-            var d=diagnostic.Value.EnumerateArray().ToDictionary(x=>x.GetProperty("observationId").GetInt64());
+            var d=diagnostic.GetValueOrDefault().EnumerateArray().ToDictionary(x=>x.GetProperty("observationId").GetInt64());
             var roots=graph.Groups.GroupBy(x=>x.Value).SelectMany(g=>g.Select(x=>(x.Key,Root:g.Min(y=>y.Key)))).ToDictionary(x=>x.Key,x=>x.Root);
             var ordinal=graph.Pending.Select((x,i)=>(x.Id,i)).ToDictionary(x=>x.Id,x=>x.i);
             foreach(var row in graph.Pending)
@@ -309,10 +309,11 @@ internal static class V9Phase4Matrix
             var t=translated.GetValueOrDefault(x.Id);
             var m=metadata.GetValueOrDefault(x.Id);
             var rawReason=t?.Motivo??(x.HasCpf?"CPF":"RESOLVIDO");
+            var leaderScore=x.HasCpf?0m:translated[leaderByOrigin[x.Origin]].MelhorScore;
             var effective=link is null?translated[leaderByOrigin[x.Origin]].Motivo??"SEM_MOTIVO":
                 link.Method;
             return new Projection(x.Id,link?.Person,rawReason,effective,link?.Method??"INDEFINIDA",
-                t?.ScoreMelhor??0m,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only);
+                leaderScore,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only);
         }).ToArray();
         if(physical.HasValue)
         {
@@ -370,7 +371,7 @@ internal static class V9Phase4Matrix
                     var wave=s.GetProperty("throughWave").GetInt32();
                     var baseline=cell.GetProperty("officialBaseline").GetBoolean()&&t.GetProperty("schedule").GetString()=="single";
                     Require(baselineDone||baseline,"BASELINE_MUST_BE_FIRST");
-                    var res=Round(winner,planner,visible[wave],graphs[wave]!,links,trajectory,F("s4b"),F("evidence"),F("prior"),F("policy"),F("blocking"),
+                    var res=Round(winner,planner,visible[wave],graphs[wave]!,links,trajectory+"/"+wave.ToString(CultureInfo.InvariantCulture),F("s4b"),F("evidence"),F("prior"),F("policy"),F("blocking"),
                         baseline?census.RootElement:null,baseline?diag.RootElement:null,baseline?actualGraph.RootElement:null);
                     if(baseline)baselineDone=true;
                     await output.WriteLineAsync(JsonSerializer.Serialize(new {cell=cell.GetProperty("cell").GetString(),schedule=t.GetProperty("schedule").GetString(),

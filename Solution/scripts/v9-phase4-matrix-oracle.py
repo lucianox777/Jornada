@@ -56,9 +56,10 @@ def assess(rows,truth,prior=None):
              unresolvedOrigins=len({truth[k]["origin"] for k,v in actual.items() if v is None}),
              unresolvedRaw=dict(raw),unresolvedEffective=dict(effective),methods=dict(methods),
              resolvedLater=sum(old[k] is None and actual[k] is not None for k in old),
-             previousNewIdentityNowDuplicate=sum(v not in oldpred or False for v in []),
+             previousNewIdentityNowDuplicate=0,
              newIdentityCount=sum(any(byid[k]["Method"] in ("SINGLETON_FOUNDER","S4B_HYPOTHETICAL_FOUNDER") for k in ids) for ids in pred.values()),
-             onlyViaNonsecureVersions=sum(x["OnlyViaNonsecure"] for x in rows),
+             onlyViaNonsecureVersions=sum(x["OnlyViaNonsecure"]>0 for x in rows),
+             onlyViaNonsecureCandidateIncidences=sum(x["OnlyViaNonsecure"] for x in rows),
              fsPerRecord=distribution([x["Fs"] for x in rows if not truth[x["Id"]]["cpf"]]),
              candidatesPerRecord=distribution([x["Candidates"] for x in rows if not truth[x["Id"]]["cpf"]]),
              priorCardinality=distribution([x["PriorCardinality"] for x in rows if not truth[x["Id"]]["cpf"]]))
@@ -82,8 +83,9 @@ def compare_exclusive(a,b,truth):
         row=b["byid"][k]
         if row["Method"] not in ("FS_ASSOCIATION","R2_INHERITANCE"):continue
         others=[j for j in b["pred"][v] if truth[j]["origin"]!=truth[k]["origin"]]
-        correct=bool(others) and all(truth[j]["base"]==truth[k]["base"] for j in others)
-        counts[scoreband(row["Score"])]["correct" if correct else "incorrect_or_unconfirmed"]+=1
+        label=("unconfirmed_no_other_origin" if not others else
+               "correct" if all(truth[j]["base"]==truth[k]["base"] for j in others) else "incorrect")
+        counts[scoreband(row["Score"])][label]+=1
     return {k:dict(v) for k,v in counts.items()}
 
 def partition(s):
@@ -149,7 +151,10 @@ def run(root):
         if f["prior"]=="people":
             name=x["cell"].replace("-people-","-records-")
             other=bykey[(name,schedule,rnd)]
-            require(partition(states[sid])==partition(states[other]),"MATRIX_FROZEN_PRIOR_DRIFT")
+            require(partition(states[sid])==partition(states[other])
+                    and all(all(states[sid]["byid"][k][a]==states[other]["byid"][k][a]
+                                for a in ("RawReason","EffectiveReason","Method","Score","Fs","Candidates","SecureCandidates","OnlyViaNonsecure"))
+                            for k in states[sid]["byid"]),"MATRIX_FROZEN_PRIOR_DRIFT")
         if f["evidence"]=="b2":
             other=bykey[(x["cell"].replace("-b2-","-b1-"),schedule,rnd)]
             x["b2ExclusiveAssociationsByScore"]=compare_exclusive(states[other],states[sid],truth)
