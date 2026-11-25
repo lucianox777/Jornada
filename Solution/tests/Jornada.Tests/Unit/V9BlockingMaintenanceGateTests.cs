@@ -31,9 +31,9 @@ public sealed class V9BlockingMaintenanceGateTests
     public void Denied_environment_fails_before_accessing_SQL(string? profile, bool enabled)
     {
         using var closed = new SqlConnection();
-        var denied = Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var denied = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
             V9BlockingMaintenanceGate.RequireAsync(profile, enabled, Guid.NewGuid(),
-                closed, null!, CancellationToken.None));
+                closed, null!, CancellationToken.None)));
         Assert.That(denied!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
     }
 }

@@ -234,11 +234,11 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             {
                 var deniedProcessor = new SqlProcessorRepository(sql, new RegistryQualityEngine([]),
                     plan with { EffectiveEnvironment = environment });
-                var error = Assert.ThrowsAsync<InvalidOperationException>(() => PersistAsync(deniedProcessor,
-                    "V9TEST", Rf1936Person("RF1936_DENIED_" + environment, null,"MARIA SILVA","ANA COSTA")));
+                var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() => PersistAsync(deniedProcessor,
+                    "V9TEST", Rf1936Person("RF1936_DENIED_" + environment, null,"MARIA SILVA","ANA COSTA"))));
                 Assert.That(error!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
-                var runnerError = Assert.ThrowsAsync<InvalidOperationException>(() =>
-                    V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt, CancellationToken.None, environment));
+                var runnerError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                    V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt, CancellationToken.None, environment)));
                 Assert.That(runnerError!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
                 Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(before));
                 Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBefore));
@@ -252,17 +252,17 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             var defaultConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> {
                 ["Linkage:SelectedModelVersion"] = "9", ["Linkage:V9SelectionFile"] = selection
             }).Build();
-            Assert.That(Assert.ThrowsAsync<InvalidOperationException>(() =>
-                V9ControlledDevCohortScorer.CreateAsync(defaultConfig, sql, attempt, CancellationToken.None, "Development"))!
+            Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                V9ControlledDevCohortScorer.CreateAsync(defaultConfig, sql, attempt, CancellationToken.None, "Development")))!
                 .Message, Is.EqualTo("RUNNER_V9_BLOCKING_EXPLICIT_PATH_REQUIRED"));
 
             // Physical negative for wrong attempt, and actual versioned
             // reversal script against already populated V9/legacy tables.
             await using (var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
             {
-                Assert.That(Assert.ThrowsAsync<InvalidOperationException>(() =>
+                Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
                     BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, tx, "Development", true,
-                        Guid.NewGuid(), prefix, fingerprint, CancellationToken.None))!.Message,
+                        Guid.NewGuid(), prefix, fingerprint, CancellationToken.None)))!.Message,
                     Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
                 await tx.RollbackAsync();
             }
@@ -280,9 +280,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBeforeReversal));
             await using (var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
             {
-                Assert.That(Assert.ThrowsAsync<InvalidOperationException>(() =>
+                Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
                     BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, tx, "Development", true,
-                        attempt, prefix, fingerprint, CancellationToken.None))!.Message,
+                        attempt, prefix, fingerprint, CancellationToken.None)))!.Message,
                     Is.EqualTo("RUNNER_V9_BLOCKING_SCHEMA_NOT_AVAILABLE"));
                 await tx.RollbackAsync();
             }
@@ -304,10 +304,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 Assert.That(await damage.ExecuteNonQueryAsync(), Is.EqualTo(1));
             var runsBefore = await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
             var corrupt = await RunnerAsync();
-            var stale = Assert.ThrowsAsync<InvalidDataException>(() =>
+            var stale = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() =>
                 corrupt.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
                     LinkageRunType.FULL,9,null,null,null,100,1,null,"RF1936","STALE_NEGATIVE",
-                    Guid.NewGuid(),true),attempt,CancellationToken.None));
+                    Guid.NewGuid(),true),attempt,CancellationToken.None)));
             Assert.That(stale!.Message, Is.EqualTo("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE"));
             Assert.That(await CountSqlAsync(db,"SELECT COUNT_BIG(*) FROM identidade.linkage_run;"), Is.EqualTo(runsBefore));
             await File.WriteAllTextAsync(Path.Combine(Pr1Directory(),"rf1936-repository-full.json"),
