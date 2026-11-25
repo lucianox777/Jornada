@@ -27,12 +27,12 @@ public sealed class V9DevE2EFirstFullMembershipOracleTests
         V9DevE2EGroupOracle.VerifyDirection(null, null);
         Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(
-                expected, expected with { Posterior = .74m }));
-            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(
-                expected, expected with { LogOdds = 1.09861228m }));
-            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(expected, null));
-            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(null, expected));
+            Assert.Throws<InvalidDataException>((Action)(() => V9DevE2EGroupOracle.VerifyDirection(
+                expected, expected with { Posterior = .74m })));
+            Assert.Throws<InvalidDataException>((Action)(() => V9DevE2EGroupOracle.VerifyDirection(
+                expected, expected with { LogOdds = 1.09861228m })));
+            Assert.Throws<InvalidDataException>((Action)(() => V9DevE2EGroupOracle.VerifyDirection(expected, null)));
+            Assert.Throws<InvalidDataException>((Action)(() => V9DevE2EGroupOracle.VerifyDirection(null, expected)));
         }));
     }
 
