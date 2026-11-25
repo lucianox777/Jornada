@@ -39,7 +39,8 @@ IF (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE cpf IS NULL)
     <> (SELECT registros_elegiveis FROM identidade.linkage_run WHERE linkage_run_id=@run)
     THROW 52983,'V9_E2E_CENSUS_ELIGIBLE_MISMATCH',1;
 
-SELECT g.codigo AS manager,b.nome_arquivo AS package,
+SELECT po.pessoa_observacao_id AS observationId,po.versao_interna AS version,
+       g.codigo AS manager,b.nome_arquivo AS package,
        po.codigo_pessoa_origem AS opaque,po.pessoa_origem_id AS originId,
        CONVERT(bit,CASE WHEN po.cpf IS NULL THEN 0 ELSE 1 END) AS hasCpf,
        LOWER(CONVERT(nvarchar(36),vc.pessoa_uuid)) AS currentUuid,

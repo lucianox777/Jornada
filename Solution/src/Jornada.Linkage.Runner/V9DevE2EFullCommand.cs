@@ -224,7 +224,7 @@ public static class V9DevE2EFullCommand
             stage = "post-full-census";
             var query = await ReadPrivateAsync(root, "census.sql");
             if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(query))) != "28cacd8133014137b3c331cf58c66cfa06abbc266663b58ed2022ca93ea99034")
+                Encoding.UTF8.GetBytes(query))) != "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece")
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
             await using var census = new SqlCommand(query, connection)
                 { CommandTimeout = 120 };
@@ -235,6 +235,9 @@ public static class V9DevE2EFullCommand
                 while (await reader.ReadAsync()) json.Append(reader.GetString(0));
             await WriteNewAsync(root, "sql-census.json", json.ToString());
         }
+        stage = "retry-preview";
+        var preview = await V9DevE2ERetryPreview.ReadAsync(sql,loaded.Snapshot,attempt,summary.RunId,CancellationToken.None);
+        await WriteNewAsync(root, "retry-private.json", JsonSerializer.Serialize(preview));
         stage = "receipt";
         await WriteNewAsync(root, "runner-receipt.json", JsonSerializer.Serialize(new {
             mode = "FULL", status = "PUBLICADO", winnerSha256 = Winner, scientificTest = false,
