@@ -135,7 +135,21 @@ def quality(state,truth,comparisons):
     pred=state["pred"];actual=state["actual"];true=state["true"]
     dest_bases={p:{truth[k]["base"] for k in ids} for p,ids in pred.items()}
     multi={p for p,ids in pred.items() if len({truth[k]["origin"] for k in ids})>1 or len(dest_bases[p])>1}
-    accepted=Counter();wrong=Counter();integral=partial=unassigned=0
+    # Anchor is one VERSION, not every observation of its founding origin.
+    # Choose by recorded authority, then first wave / stable observation ID;
+    # never use truth or purity to choose it. If provenance is absent, label
+    # deterministic fallback explicitly; this is a sensitivity, not a proven founder.
+    anchors={};fallback=0
+    for dest in multi:
+        ids=pred[dest]
+        cpf=[k for k in ids if truth[k]["cpf"]]
+        founders=[k for k in ids if state["byid"][k]["Method"] in
+                  ("SINGLETON_FOUNDER","S4B_HYPOTHETICAL_FOUNDER")]
+        candidates=cpf or founders or ids
+        if not cpf and not founders:fallback+=1
+        anchors[dest]=min(candidates,key=lambda k:(truth[k]["wave"],k))
+    accepted=Counter();wrong=Counter();nonanchor=Counter();nonanchor_wrong=Counter()
+    integral=partial=unassigned=0
     for base,ids in true.items():
         assigned={actual[k] for k in ids if actual[k] is not None}
         if len(assigned)==1 and all(actual[k] is not None for k in ids) and len(dest_bases[next(iter(assigned))])==1:integral+=1
@@ -146,13 +160,25 @@ def quality(state,truth,comparisons):
             if not truth[k]["cpf"] and p in multi:
                 accepted[base]+=1
                 if dest_bases[p]!={base}:wrong[base]+=1
+                if k!=anchors[p]:
+                    nonanchor[base]+=1
+                    if dest_bases[p]!={base}:nonanchor_wrong[base]+=1
     require(integral+partial+unassigned==len(true) and all(v<=CAP for v in accepted.values()),"SCALE_INTEGRAL_CENSUS")
     a=sum(accepted.values());f=sum(wrong.values());e=len(wrong)
+    na=sum(nonanchor.values());nf=sum(nonanchor_wrong.values());ne=len(nonanchor_wrong)
+    removed=sum(not truth[k]["cpf"] for k in anchors.values())
+    require(a-na==removed and nf<=f and ne<=e,"SCALE_ANCHOR_RECONCILIATION")
     counts=Counter(len(ids) for ids in true.values())
     require(max(counts)<=CAP,"SCALE_VERSION_CAP")
     pairs=sum(len(ids)*(len(ids)-1)//2 for ids in pred.values())
     return dict(fullyIntactTruePeople=integral,assignedButNotIntactTruePeople=partial,unassignedTruePeople=unassigned,
         acceptedPairs=pairs,acceptedSources=a,errorSourcePeople=e,contaminatedDestinations=sum(len(b)>1 for b in dest_bases.values()),
+        sourceAnchorPolicy="CPF_THEN_FOUNDER_THEN_FIRST_WAVE_ID_FALLBACK_ONE_VERSION_PER_DESTINATION",
+        eligibleAnchorsRemoved=removed,anchorFallbackDestinations=fallback,
+        nonAnchorAcceptedSources=na,nonAnchorFalseAcceptedSources=nf,nonAnchorErrorSourcePeople=ne,
+        nonAnchorSourceFdr=nf/na if na else None,
+        nonAnchorSourceFdr95Conditional=bound(len(true),ne,na,nf,1),
+        nonAnchorSourceFdr95SimultaneousConditional=bound(len(true),ne,na,nf,comparisons),
         versionsPerPersonHistogram=dict(sorted(counts.items())),
         sourceCapSensitivity=[dict(cap=cap,diagnosticOnly=cap!=CAP,nominal=bound(len(true),e,a,f,1,cap),
             simultaneous=bound(len(true),e,a,f,comparisons,cap)) for cap in range(max(counts),CAP+1)],

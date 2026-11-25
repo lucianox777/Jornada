@@ -45,9 +45,10 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
-      - name: Admit only the comparable census diagnostic, challenge remains blocked
+      - name: Stop all scale runs pending verified census correction
         run: |
-          [[ '${{ matrix.profile }}' == comparable ]] || exit 1
+          echo 'V9_SCALE_BLOCKED: awaiting existing diagnostic run 45648488128 and verified SQL correction; challenge coverage still pending'
+          exit 1
       - name: Admit only owner-controlled exact repository commit
         env:
           EVENT_NAME: ${{ github.event_name }}

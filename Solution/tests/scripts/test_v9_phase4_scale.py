@@ -23,6 +23,23 @@ class ScaleTests(unittest.TestCase):
         self.assertEqual(q["sourceFdr95Conditional"]["falseAcceptedSources"],2)
         self.assertEqual(q["acceptedPairs"],1)
         self.assertEqual(q["acceptedSources"],2)
+        self.assertEqual(q["nonAnchorAcceptedSources"],1)
+        self.assertEqual(q["nonAnchorFalseAcceptedSources"],1)
+        self.assertEqual(q["nonAnchorErrorSourcePeople"],1)
+        self.assertEqual(q["eligibleAnchorsRemoved"],1)
+        self.assertEqual(q["anchorFallbackDestinations"],1)
+        # Proven founder takes precedence over earlier ID, and CPF anchor
+        # is already excluded from the original denominator.
+        state["byid"][3]["Method"]="S4B_HYPOTHETICAL_FOUNDER"
+        q2=S.quality(state,truth,216)
+        self.assertEqual(q2["anchorFallbackDestinations"],0)
+        self.assertEqual(q2["nonAnchorAcceptedSources"],1)
+        truth[3]["cpf"]=True
+        q3=S.quality(state,truth,216)
+        self.assertEqual(q3["eligibleAnchorsRemoved"],0)
+        self.assertEqual(q3["acceptedSources"],q3["nonAnchorAcceptedSources"])
+        truth[3]["cpf"]=False
+        state["byid"][3]["Method"]="FS_ASSOCIATION"
         self.assertEqual(q["errorSourcePeople"],2)
         self.assertEqual(q["contaminatedDestinations"],1)
         self.assertEqual(q["versionsPerPersonHistogram"],{1:1,2:1})
