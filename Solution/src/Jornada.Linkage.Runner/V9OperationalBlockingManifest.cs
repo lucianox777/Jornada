@@ -19,7 +19,7 @@ public static class V9OperationalBlockingManifest
     // explicitly pinned operational V9 consumer uses the isolated table.
     public static Task<Receipt> ReadAsync(
         SqlConnection connection, SqlTransaction snapshotTransaction, CancellationToken ct) =>
-        ReadCoreAsync(connection, snapshotTransaction, ct, null);
+        ReadCoreAsync(connection, snapshotTransaction, null, ct);
 
     public static Task<Receipt> ReadIsolatedAsync(SqlConnection connection,
         SqlTransaction snapshotTransaction, V9FittedSnapshotExecutionRuntime pinnedRuntime, CancellationToken ct)
@@ -27,7 +27,7 @@ public static class V9OperationalBlockingManifest
         ArgumentNullException.ThrowIfNull(pinnedRuntime);
         if (pinnedRuntime.MaximumPrefixLength is null)
             throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH");
-        return ReadCoreAsync(connection, snapshotTransaction, ct, pinnedRuntime);
+        return ReadCoreAsync(connection, snapshotTransaction, pinnedRuntime, ct);
     }
 
     private static void BindIsolatedProjection(SqlCommand command, V9FittedSnapshotExecutionRuntime? pin)
@@ -48,7 +48,7 @@ public static class V9OperationalBlockingManifest
     }
 
     private static async Task<Receipt> ReadCoreAsync(SqlConnection connection,
-        SqlTransaction snapshotTransaction, CancellationToken ct, V9FittedSnapshotExecutionRuntime? pin)
+        SqlTransaction snapshotTransaction, V9FittedSnapshotExecutionRuntime? pin, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(snapshotTransaction);
