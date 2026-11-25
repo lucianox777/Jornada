@@ -170,10 +170,13 @@ public static class V9DevE2EFullCommand
             if (!roots.SequenceEqual(membership.ExpectedGroupRoots))
                 throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_PARTITION_DIVERGENCE");
             var sizes = roots.GroupBy(x => x).ToDictionary(x => x.Key,x => x.Count());
+            var neighbors = directions.GroupBy(x=>x.Source).ToDictionary(x=>x.Key,
+                x=>x.Select(y=>ids[y.Target-1]).OrderBy(y=>y).ToArray());
             observedRun = runId;
             privateDiagnostic = ids.Select((id,i) => new {
                 observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
                 candidates = candidates[id].Select(x => x.PessoaUuid).OrderBy(x => x).ToArray(),
+                silverNeighbors = neighbors.GetValueOrDefault(i+1) ?? Array.Empty<long>(),
                 rankReason = membership.ExpectedRanks[i].Reason
             }).ToArray();
         };

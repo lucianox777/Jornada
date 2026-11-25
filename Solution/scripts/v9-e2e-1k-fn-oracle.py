@@ -37,7 +37,12 @@ def breakdown(waves, observed, diagnostic, retry, expected_fn):
     require(set(d)==pending and len(d)==len(diagnostic),"FN_DIAGNOSTIC_CENSUS")
     for x in d.values():
         require(type(x["groupSize"]) is int and x["groupSize"]>0 and
-                len(set(x["candidates"]))==len(x["candidates"]),"FN_DIAGNOSTIC_INVALID")
+                len(set(x["candidates"]))==len(x["candidates"]) and
+                len(set(x["silverNeighbors"]))==len(x["silverNeighbors"]),"FN_DIAGNOSTIC_INVALID")
+    for k,x in d.items():
+        require(all(n in d and n!=k and k in d[n]["silverNeighbors"]
+                    and rows[k]["manager"]!=rows[n]["manager"] for n in x["silverNeighbors"]),
+                "FN_SILVER_NEIGHBOR_DRIFT")
     group_sizes=Counter(x["groupRoot"] for x in d.values())
     require(all(group_sizes[x["groupRoot"]]==x["groupSize"] for x in d.values()),"FN_GROUP_SIZE_DRIFT")
     def resolved(row):
@@ -70,6 +75,7 @@ def breakdown(waves, observed, diagnostic, retry, expected_fn):
     def label(a,b): return " + ".join(sorted((str(a),str(b))))
     by_reason=Counter(); by_raw=Counter(); by_publication=Counter(); by_cpf=Counter()
     by_truth_size=Counter(); by_inferred_size=Counter(); by_search=Counter(); by_base_cpf=Counter()
+    by_direct_silver=Counter(); by_reason_involved=Counter()
     opportunity=0; recovered=0; recovered_new=0; old_tp=0
     for ids in true_groups.values():
         anchors={actual[k] for k in ids if rows[k]["hasCpf"] and actual[k] is not None}
@@ -83,6 +89,17 @@ def breakdown(waves, observed, diagnostic, retry, expected_fn):
                 old_tp+=1
                 continue
             by_reason[label(reason(a),reason(b))]+=1
+            for reason_code in {reason(a),reason(b)}-{"RESOLVIDO"}:
+                by_reason_involved[reason_code]+=1
+            if a not in pending or b not in pending:
+                direct="CPF_FORA_GRAFO_SILVER"
+            elif rows[a]["manager"]==rows[b]["manager"]:
+                direct="MESMO_GESTOR_FORA_GRAFO"
+            elif b in d[a]["silverNeighbors"]:
+                direct="ARESTA_VERDADEIRA_ENCONTRADA"
+            else:
+                direct="ARESTA_VERDADEIRA_NAO_ENCONTRADA"
+            by_direct_silver[direct]+=1
             by_raw[label((d[a]["rankReason"] or "SEM_MOTIVO_RAW") if a in d else "CPF",
                          (d[b]["rankReason"] or "SEM_MOTIVO_RAW") if b in d else "CPF")]+=1
             by_publication[label(rows[a]["publicationReason"] or "CPF",rows[b]["publicationReason"] or "CPF")]+=1
@@ -101,10 +118,12 @@ def breakdown(waves, observed, diagnostic, retry, expected_fn):
     new_fp=sum(I.comb(n,2) for n in pred_sizes.values())-sum(I.comb(n,2) for n in joint.values())
     buckets={"byLeaderReasonPair":by_reason,"byOwnRawReasonPair":by_raw,"byPublicationReasonPair":by_publication,
              "byCpfPair":by_cpf,"byTrueGroupCpf":by_base_cpf,"byTrueGroupSize":by_truth_size,
-             "byInferredSilverGroupSizePair":by_inferred_size,"byTrueCpfReferenceSearchPair":by_search}
+             "byInferredSilverGroupSizePair":by_inferred_size,"byTrueCpfReferenceSearchPair":by_search,
+             "byTrueDirectSilverSearch":by_direct_silver}
     require(all(sum(x.values())==expected_fn for x in buckets.values()),"FN_PAIR_TOTAL")
     return {"schema":"V9_DEV_FN_PAIR_BREAKDOWN_V1","status":"PASS","fn":expected_fn,"tp":old_tp,
             **{k:dict(v) for k,v in buckets.items()},
+            "pairsInvolvingLeaderReasonNonAdditive":dict(by_reason_involved),
             "singleFullContrast":{"mode":"POST_FULL_READ_ONLY_RETRY_UNRESOLVED_ORIGINS_B1_R1_BROAD",
             "eligibleVersions":len(rr),"opportunityPairsWithNewFounderInTrueGroup":opportunity,
             "recoveredFnPairs":recovered,"recoveredViaNewFounderUuid":recovered_new,

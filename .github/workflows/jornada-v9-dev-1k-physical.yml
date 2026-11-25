@@ -217,12 +217,13 @@ jobs:
           python3 scripts/v9-e2e-1k-factual.py verify --root "$root/fixture"
           python3 scripts/v9-e2e-1k-system-api.py --root "$root/fixture"
           python3 scripts/v9-e2e-1k-person-census.py --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-acceptance.py "$root"
           # Explicit allowlist of aggregate files only. Never upload the private root.
           out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
           mkdir -m 700 "$out"
-          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/fixture/person-census-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/fn-receipt.json" "$out/"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/fixture/person-census-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/fn-receipt.json" "$root/nucleus-receipt.json" "$out/"
           printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
-          echo 'V9_E2E_1K_PHYSICAL_IDENTITY_PATH_PASS_NOT_FULL_ORACLE_OR_INTEGRAL'
+          echo 'V9_E2E_1K_PHYSICAL_NUCLEUS_PASS_NOT_INTEGRAL'
       - name: Publish only aggregate evidence of completed physical path
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

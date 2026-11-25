@@ -19,7 +19,7 @@ class FnTests(unittest.TestCase):
             truth.append(dict(GestorCodigo="SEHAB",PackageFileName="x.zip",OpaquePersonId=opaque,BasePersonId="one"))
         raw=b"".join(json.dumps(x).encode()+b"\n" for x in truth)
         waves=[({"truthSidecar":{"sha256":hashlib.sha256(raw).hexdigest().upper()}},raw)]
-        diagnostics=[dict(observationId=k,groupSize=1,groupRoot=k,candidates=[],rankReason="SEM_CANDIDATO_NO_RULESET_BLOCKING") for k in (2,3)]
+        diagnostics=[dict(observationId=k,groupSize=1,groupRoot=k,candidates=[],silverNeighbors=[],rankReason="SEM_CANDIDATO_NO_RULESET_BLOCKING") for k in (2,3)]
         retry=[dict(ObservationId=2,OriginId=2,ProposedUuid=uid),dict(ObservationId=3,OriginId=3,ProposedUuid=uid)]
         receipt=m.breakdown(waves,rows,diagnostics,retry,3)
         self.assertEqual(receipt["fn"],3)
