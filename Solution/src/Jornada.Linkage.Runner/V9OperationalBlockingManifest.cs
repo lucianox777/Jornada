@@ -93,15 +93,19 @@ public static class V9OperationalBlockingManifest
         while (await reader.ReadAsync(ct))
         {
             ct.ThrowIfCancellationRequested();
-            if (reader.IsDBNull(0) || Enumerable.Range(1, 6).Any(reader.IsDBNull))
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_NULL");
+            // SequentialAccess permits only forward reads: check null and
+            // consume each field before advancing to the next ordinal.
+            var fields = new string[7];
+            for (var ordinal = 0; ordinal < fields.Length; ordinal++)
+            {
+                if (reader.IsDBNull(ordinal))
+                    throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_NULL");
+                fields[ordinal] = ordinal == 0
+                    ? reader.GetGuid(ordinal).ToString("D")
+                    : reader.GetString(ordinal);
+            }
             // Length-prefixed fields make the digest unambiguous even when
             // source values contain separators or line breaks.
-            var fields = new[] {
-                reader.GetGuid(0).ToString("D"),
-                reader.GetString(1), reader.GetString(2), reader.GetString(3),
-                reader.GetString(4), reader.GetString(5), reader.GetString(6)
-            };
             var canonical = string.Concat(fields.Select(value =>
                 Encoding.UTF8.GetByteCount(value).ToString(CultureInfo.InvariantCulture)
                 + ":" + value)) + "\n";
