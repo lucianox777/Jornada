@@ -90,6 +90,69 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         return (string)(await cmd.ExecuteScalarAsync())!;
     }
 
+    // Exercise the real legacy SQL candidate loader and the frozen V8
+    // decision implementation with the existing neutral-missing test parameters.
+    // No production model is loaded or activated; only a digest is retained.
+    private static async Task<string> Rf1936V8ReceiptAsync(SqlConnection db, Guid founderUuid)
+    {
+        var p = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .01m,
+            [LinkageParameterCatalog.PriorBlockMin] = .000001m,
+            [LinkageParameterCatalog.PriorBlockMax] = .25m,
+            [LinkageParameterCatalog.Threshold] = .95m,
+            [LinkageParameterCatalog.ConflictMargin] = .03m,
+            [LinkageParameterCatalog.LogOddsConflictMargin] = .03m,
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 1m
+        };
+        foreach (var state in LinkageParameterCatalog.NameStates)
+        {
+            p["M_NOME_" + state] = .25m;
+            p["U_NOME_" + state] = .25m;
+            p["M_NOME_MAE_" + state] = .25m;
+            p["U_NOME_MAE_" + state] = .25m;
+        }
+        foreach (var state in BirthDateSemanticEvidence.States)
+        {
+            p["M_NASCIMENTO_SEMANTICO_" + state] = .5m;
+            p["U_NASCIMENTO_SEMANTICO_" + state] = .5m;
+        }
+        var model = LinkageModelPolicy.Create(
+            Guid.Parse("88000000-0000-4000-8000-000000000008"), 8,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p);
+        var ruleset = LinkageDynamicRuleSet.CreateWithPasses(
+            "RF1936-V8-CONTROL", "INTEGRATION-TEST",
+            [LinkageBlockingPass.Create("full-name", [BlockingFeatureNames.FullName])],
+            Array.Empty<KeyValuePair<string, decimal>>()) with
+        {
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256
+        };
+        var birth = new DateOnly(1980, 5, 6);
+        var observations = new IdentityObservation[]
+        {
+            new(null, "SEM_CPF", "ALFA0003 SILVA", birth, "CARLA0003 COSTA"),
+            new(null, "SEM_CPF", "ALFA0003 SILVA", birth, null),
+            new(null, "SEM_CPF", "MARIA SILVA", birth, "ANA COSTA"),
+            new(null, "SEM_CPF", "OMEGA9108 SILVA", birth, "ANA COSTA"),
+            new(null, "SEM_CPF", "UNMATCHED9109", birth, null)
+        };
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        for (var i = 0; i < observations.Length; i++)
+        {
+            var observation = observations[i];
+            var candidates = await BlockingProjectionCandidateLoader.LoadAsync(db, ruleset,
+                observation, 20, 60, CancellationToken.None);
+            if (i == 0)
+                Assert.That(candidates.Select(c => c.PessoaUuid), Does.Contain(founderUuid));
+            var decision = ProbabilisticLinkageDecisions.Resolve(model, observation, candidates);
+            sha.AppendData(JsonSerializer.SerializeToUtf8Bytes(new { candidates, decision }));
+        }
+        return Convert.ToHexString(sha.GetHashAndReset());
+    }
+
     // Independent read-only rederivation of all temporal keys from the
     // same Gold and linked Silver history. It uses the frozen pure projector,
     // not the new persistence writer or its coverage receipt.
@@ -338,6 +401,28 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             var thirdRows = await ReadPr1RowsAsync(db, Pr1Decisions, third);
             foreach (var row in secondRows)
                 Assert.That(thirdRows.Single(r => Equals(r[0],row[0])).Take(10), Is.EqualTo(row.Take(10)));
+            // Isolate the V9 writer from legitimate Gold mutations: capture
+            // V8 only after Processor finishes, then reconcile the changed
+            // V9 index with no publication or mutation of the Gold universe.
+            // The first/repeated FULL proofs above never rely on this control.
+            var priorV9 = await Rf1936DigestAsync(db);
+            await PersistAsync(processor, "V9TEST",
+                Rf1936Person("RF1936_V8_CONTROL_DELTA", "52998224725", "OMEGA9108 SILVA", "ANA COSTA"));
+            Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(priorV9));
+            var legacyControl = await Rf1936LegacyDigestAsync(db);
+            var v8Control = await Rf1936V8ReceiptAsync(db, founderUuid);
+            await using (var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Snapshot))
+            {
+                await BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, tx, "Development", true,
+                    attempt, prefix, fingerprint, CancellationToken.None);
+                await tx.CommitAsync();
+            }
+            Assert.That(await Rf1936DigestAsync(db), Is.Not.EqualTo(priorV9));
+            Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyControl));
+            Assert.That(await Rf1936V8ReceiptAsync(db, founderUuid), Is.EqualTo(v8Control),
+                "V8 SQL candidates and decisions are unchanged by an actual V9 projection write");
+            await VerifyRf1936ProjectionParityAsync(db, attempt, planner);
+
             var before = await Rf1936DigestAsync(db);
             var legacyBefore = await Rf1936LegacyDigestAsync(db);
             await using (var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
@@ -541,7 +626,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     physicalReplayDigest = before, c07NonemptyNegative = true,
                     c07ResidentDatabaseNegatives = negativeIndex, staleRejected = true,
                     reversalPreserved = true, fullTemporalParity = true, isolatedManifest = true,
-                    rollbackAndRecovery = true, scientificTest = false, certified = false }));
+                    rollbackAndRecovery = true, v8LegacySqlCandidateDecisionParity = true, scientificTest = false, certified = false }));
             TestContext.WriteLine("V9_RF1936_REPOSITORY_FIRST_AND_REPEATED_FULL_C07_PASS_NOT_HTTP_OR_SCALE");
         }
         finally
