@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
@@ -14,8 +15,40 @@ public static class V9OperationalBlockingManifest
 {
     public sealed record Receipt(long ActiveKeyRows, string CanonicalManifestSha256);
 
-    public static async Task<Receipt> ReadAsync(
-        SqlConnection connection, SqlTransaction snapshotTransaction, CancellationToken ct)
+    // Preserve the existing diagnostic/legacy manifest path. Only the
+    // explicitly pinned operational V9 consumer uses the isolated table.
+    public static Task<Receipt> ReadAsync(
+        SqlConnection connection, SqlTransaction snapshotTransaction, CancellationToken ct) =>
+        ReadCoreAsync(connection, snapshotTransaction, null, ct);
+
+    public static Task<Receipt> ReadIsolatedAsync(SqlConnection connection,
+        SqlTransaction snapshotTransaction, V9FittedSnapshotExecutionRuntime pinnedRuntime, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(pinnedRuntime);
+        if (pinnedRuntime.MaximumPrefixLength is null)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH");
+        return ReadCoreAsync(connection, snapshotTransaction, pinnedRuntime, ct);
+    }
+
+    private static void BindIsolatedProjection(SqlCommand command, V9FittedSnapshotExecutionRuntime? pin)
+    {
+        if (pin is null)
+            return;
+        // Fixed table token and parameterized projection identity. Never a
+        // fallback to legacy or a table name supplied by the caller.
+        command.CommandText = command.CommandText
+            .Replace("identidade.blocking_chave", "identidade.blocking_chave_v9", StringComparison.Ordinal)
+            .Replace("WHERE vigencia_fim IS NULL",
+                "WHERE vigencia_fim IS NULL AND normalizacao_versao=@normalization " +
+                "AND projection_schema_version=@schema AND projection_fingerprint_sha256=@fingerprint",
+                StringComparison.Ordinal);
+        command.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
+        command.Parameters.Add("@schema", SqlDbType.NVarChar, 120).Value = pin.ProjectionSchemaVersion;
+        command.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = pin.ProjectionFingerprintSha256;
+    }
+
+    private static async Task<Receipt> ReadCoreAsync(SqlConnection connection,
+        SqlTransaction snapshotTransaction, V9FittedSnapshotExecutionRuntime? pin, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(snapshotTransaction);
@@ -28,7 +61,10 @@ public static class V9OperationalBlockingManifest
         await using (var census = new SqlCommand(
             "SELECT COUNT_BIG(*) FROM identidade.blocking_chave WHERE vigencia_fim IS NULL;",
             connection, snapshotTransaction) { CommandTimeout = 120 })
+        {
+            BindIsolatedProjection(census, pin);
             expected = Convert.ToInt64(await census.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        }
         if (expected < 0)
             throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_CENSUS_INVALID");
 
@@ -48,6 +84,7 @@ public static class V9OperationalBlockingManifest
                       projection_fingerprint_sha256 COLLATE Latin1_General_100_BIN2,
                       semantica_temporal COLLATE Latin1_General_100_BIN2;
             """, connection, snapshotTransaction) { CommandTimeout = 0 };
+        BindIsolatedProjection(query, pin);
         using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         long seen = 0;
         string? previous = null;
@@ -56,15 +93,19 @@ public static class V9OperationalBlockingManifest
         while (await reader.ReadAsync(ct))
         {
             ct.ThrowIfCancellationRequested();
-            if (reader.IsDBNull(0) || Enumerable.Range(1, 6).Any(reader.IsDBNull))
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_NULL");
+            // SequentialAccess permits only forward reads: check null and
+            // consume each field before advancing to the next ordinal.
+            var fields = new string[7];
+            for (var ordinal = 0; ordinal < fields.Length; ordinal++)
+            {
+                if (reader.IsDBNull(ordinal))
+                    throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_NULL");
+                fields[ordinal] = ordinal == 0
+                    ? reader.GetGuid(ordinal).ToString("D")
+                    : reader.GetString(ordinal);
+            }
             // Length-prefixed fields make the digest unambiguous even when
             // source values contain separators or line breaks.
-            var fields = new[] {
-                reader.GetGuid(0).ToString("D"),
-                reader.GetString(1), reader.GetString(2), reader.GetString(3),
-                reader.GetString(4), reader.GetString(5), reader.GetString(6)
-            };
             var canonical = string.Concat(fields.Select(value =>
                 Encoding.UTF8.GetByteCount(value).ToString(CultureInfo.InvariantCulture)
                 + ":" + value)) + "\n";

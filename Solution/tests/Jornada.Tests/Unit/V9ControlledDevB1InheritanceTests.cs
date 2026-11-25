@@ -187,6 +187,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 new V9ConfiguredArtifactLoader.Selection(exported.FileName, winner.ContentSha256)));
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> {
                 ["Linkage:SelectedModelVersion"] = "9", ["Linkage:V9SelectionFile"] = selection,
+                [V9ControlledDevCohortScorer.DiagnosticFixtureSetting] = "true",
                 ["LinkageReplay:CaptureBronzeSources"] = "false"
             }).Build();
             await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(db, 1);

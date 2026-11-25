@@ -45,6 +45,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
     [Test]
     public Task FULL_T3_indirect_probabilistic_inheritance() => RunFixtureAsync("t3");
 
+    [Test]
+    public Task FULL_RF1936_automatic_isolated_blocking_and_C07() => RunFixtureAsync("blocking2b");
+
     private static async Task RunFixtureAsync(string scenario)
     {
         var source = Environment.GetEnvironmentVariable("JORNADA_V9_FULL_SCHEMA_NONPUBLISH_SQL");
@@ -102,6 +105,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 IdentityComparison.NormalizationVersion;
             anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = winner.ContentSha256;
             Assert.That(await anchor.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
+        if (scenario == "blocking2b")
+        {
+            await VerifyRf1936Async(connection, sql, attempt, winner);
+            return;
         }
 
         if (scenario == "t3")
@@ -204,6 +213,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 new Dictionary<string, string?>
                 {
                     ["Linkage:SelectedModelVersion"] = "9",
+                    [V9ControlledDevCohortScorer.DiagnosticFixtureSetting] = "true",
                     ["Linkage:V9SelectionFile"] = selected,
                     ["LinkageReplay:CaptureBronzeSources"] = "false"
                 }).Build();

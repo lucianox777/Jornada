@@ -75,6 +75,17 @@ public sealed class V9FittedSnapshotExecutionRuntime
         return BlockingProjectionCandidateQueryBuilder.BuildVerifiedSnapshotCandidateUuidQuery(command, Plan(observation), this, maximumParameters);
     }
 
+    // Only the controlled operational reader calls this route after exact
+    // coverage verification. Reuse the identical parameterized query; the
+    // sole difference is the fixed physical table token, never caller SQL.
+    internal string BuildIsolatedCandidateUuidQuery(DbCommand command, IdentityObservation observation)
+    {
+        if (MaximumPrefixLength is null)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH");
+        return BuildCandidateUuidQuery(command, observation, ProjectionSchemaVersion, ProjectionFingerprintSha256)
+            .Replace("identidade.blocking_chave", "identidade.blocking_chave_v9", StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Candidates must come from the complete, untruncated union under this materialization.
     /// The caller remains responsible for authenticating that provenance. No scorer is refit.

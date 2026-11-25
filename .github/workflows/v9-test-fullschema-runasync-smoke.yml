@@ -187,7 +187,7 @@ jobs:
             "dev_full_r1_s6_protected_reference=PASS" \
             "dev_full_r1_existing_decision_oracle=PASS" \
             "dev_attempt_db=$JORNADA_V9_DEV_ATTEMPT_DB" >>"$RUNNER_TEMP/v9-fullschema-runasync-receipt.txt"
-      - name: Gold b1 regressions in four fresh SQL attempts (T1, T2 and T3)
+      - name: Gold b1 regressions and RF1936 isolated blocking in fresh SQL attempts
         if: ${{ !cancelled() && (steps.dev_r1_physical.outcome == 'success' || steps.dev_r1_physical.outcome == 'failure') }}
         working-directory: Solution
         run: |
@@ -201,7 +201,7 @@ jobs:
               sh "$1" "$2"
           }
           failed=0
-          for scenario in stable permuted historical t3; do
+          for scenario in stable permuted historical t3 blocking2b; do
             dev_attempt="$(python3 -c 'import uuid;print(uuid.uuid4())')"
             dev_db="JornadaV9Dev_${dev_attempt//-/}"
             docker exec "$sql_name" sh -c \
@@ -217,6 +217,10 @@ jobs:
               sh "$dev_db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$dev_attempt';"
             filter=FULL_Gold_characterization_PR1
             if [ "$scenario" = t3 ]; then filter=FULL_T3_indirect_probabilistic_inheritance; fi
+            if [ "$scenario" = blocking2b ]; then
+              run_sql "$dev_db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql >"$RUNNER_TEMP/v9-blocking-2b-schema.log" 2>&1
+              filter=FULL_RF1936_automatic_isolated_blocking_and_C07
+            fi
             JORNADA_V9_DEV_ATTEMPT_DB="$dev_db" \
             JORNADA_V9_GOLD_CHARACTERIZATION="$scenario" \
             JORNADA_V9_GOLD_PR1_OUTPUT="$out" \

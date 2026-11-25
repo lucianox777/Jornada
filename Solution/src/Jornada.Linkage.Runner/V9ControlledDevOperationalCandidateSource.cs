@@ -2,15 +2,17 @@ using System.Collections.ObjectModel;
 using System.Data;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
 
 /// <summary>
-/// A read-only DEV candidate source, NOT a second scorer. Executes the original
+/// A DEV candidate source, NOT a second scorer. Executes the original
 /// production BlockingProjectionCandidateQueryBuilder against real Gold UUIDs.
 /// No synthetic TEST UUID, direct signature-join fallback, model refit or Gold
-/// mutation is possible here. The DEV scorer still has to reconcile complete-link
+/// mutation is possible here. Only the isolated derived index may be synchronized
+/// under C07 in the same snapshot. The DEV scorer still has to reconcile complete-link
 /// groups with real identities before publication is permitted.
 /// </summary>
 public static class V9ControlledDevOperationalCandidateSource
@@ -50,6 +52,7 @@ public static class V9ControlledDevOperationalCandidateSource
     {
         /// <summary>Physically authenticated Silver-to-Silver graph for this SNAPSHOT.</summary>
         public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
+        public V9OperationalBlockingManifest.Receipt? IsolatedBlockingManifest { get; init; }
         public IReadOnlySet<long>? NoEligibleBlockingPassObservationIds { get; init; }
         internal IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>>? SecureOriginFactsByPerson { get; init; }
     }
@@ -189,7 +192,8 @@ public static class V9ControlledDevOperationalCandidateSource
         Guid runId,
         IReadOnlyList<V9FrozenRunObservation> frozenRows,
         int maximumCandidatesPerObservation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool useIsolatedProjection = false,
+        string? effectiveEnvironment = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(pinnedWinner);
@@ -220,11 +224,11 @@ public static class V9ControlledDevOperationalCandidateSource
             connection, attemptId, cancellationToken);
 
         // SQL Server error 3964: session-local temp-table DDL must precede
-        // SNAPSHOT. No operational table DDL/DML is performed here.
+        // SNAPSHOT. The temp-table preparation itself performs no operational DDL/DML.
         await V9ControlledDevSilverGraph.PrepareTempTableAsync(
             connection, cancellationToken);
 
-        // One consistent operational READ snapshot for header, run_item,
+        // One consistent operational snapshot for header, run_item,
         // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
         // must fail closed; never fall back to independent READ COMMITTED pages.
         await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(
@@ -397,6 +401,19 @@ public static class V9ControlledDevOperationalCandidateSource
         var planner = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), pinnedWinner.WinnerSha256);
 
+        V9OperationalBlockingManifest.Receipt? blockingManifest = null;
+        if (useIsolatedProjection)
+        {
+            await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, true, attemptId,
+                connection, snapshot, cancellationToken);
+            await BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(connection, snapshot,
+                effectiveEnvironment, true, attemptId, planner.MaximumPrefixLength
+                    ?? throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH"),
+                planner.ProjectionFingerprintSha256, cancellationToken);
+            blockingManifest = await V9OperationalBlockingManifest.ReadIsolatedAsync(
+                connection, snapshot, planner, cancellationToken);
+        }
+
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
         var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>(frozenRows.Count);
         var noEligiblePass = new HashSet<long>();
@@ -412,14 +429,16 @@ public static class V9ControlledDevOperationalCandidateSource
             // full Gold-reference UUID union and verifies its SQL cardinality
             // inside this SAME SNAPSHOT. It is not a new candidate oracle.
             var authenticated = await V9OperationalCandidateRead.ReadAsync(
-                connection, snapshot, planner, row.Observation, cancellationToken);
+                connection, snapshot, planner, row.Observation, cancellationToken, useIsolatedProjection);
             if (authenticated.CandidateCount > maximumCandidatesPerObservation)
                 throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_GRAPH_TRUNCATED");
             if (!evidence.TryAdd(row.PessoaObservacaoId, authenticated))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
-            var candidateSql = planner.BuildCandidateUuidQuery(command,
-                row.Observation, planner.ProjectionSchemaVersion,
-                planner.ProjectionFingerprintSha256);
+            var candidateSql = useIsolatedProjection
+                ? planner.BuildIsolatedCandidateUuidQuery(command, row.Observation)
+                : planner.BuildCandidateUuidQuery(command,
+                    row.Observation, planner.ProjectionSchemaVersion,
+                    planner.ProjectionFingerprintSha256);
             command.CommandText = """
                 SELECT c.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae,
                        g.estado_identidade
@@ -475,6 +494,7 @@ public static class V9ControlledDevOperationalCandidateSource
             new ReadOnlyDictionary<long, Guid>(existingResolvedGold))
         {
             SilverGraph = silverGraph,
+            IsolatedBlockingManifest = blockingManifest,
             NoEligibleBlockingPassObservationIds = noEligiblePass,
             SecureOriginFactsByPerson = secureOriginFacts
         };

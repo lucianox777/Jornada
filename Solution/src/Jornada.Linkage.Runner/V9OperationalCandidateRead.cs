@@ -19,7 +19,7 @@ public static class V9OperationalCandidateRead
     public static async Task<Receipt> ReadAsync(
         SqlConnection connection, SqlTransaction snapshotTransaction,
         V9FittedSnapshotExecutionRuntime pinnedRuntime, IdentityObservation observation,
-        CancellationToken ct)
+        CancellationToken ct, bool useIsolatedProjection = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(snapshotTransaction);
@@ -34,8 +34,10 @@ public static class V9OperationalCandidateRead
         // semantics used by the existing operational blocking planner.
         await using var cmd = new SqlCommand { Connection = connection,
             Transaction = snapshotTransaction, CommandTimeout = 0 };
-        var candidateSql = pinnedRuntime.BuildCandidateUuidQuery(cmd, observation,
-            pinnedRuntime.ProjectionSchemaVersion, pinnedRuntime.ProjectionFingerprintSha256);
+        var candidateSql = useIsolatedProjection
+            ? pinnedRuntime.BuildIsolatedCandidateUuidQuery(cmd, observation)
+            : pinnedRuntime.BuildCandidateUuidQuery(cmd, observation,
+                pinnedRuntime.ProjectionSchemaVersion, pinnedRuntime.ProjectionFingerprintSha256);
         var source = " FROM (" + candidateSql + ") c INNER JOIN gold.pessoa g" +
             " ON g.pessoa_uuid=c.pessoa_uuid WHERE g.estado_identidade=N'REFERENCIA'";
         cmd.CommandText = "SELECT g.pessoa_uuid" + source + " ORDER BY g.pessoa_uuid;";

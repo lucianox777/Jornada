@@ -27,6 +27,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
     private Guid preparedRunId;
 
     public string WinnerSha256 => winner.WinnerSha256;
+    internal const string DiagnosticFixtureSetting = "Linkage:V9BlockingMaintenance:DiagnosticLegacyFixture";
+    internal V9ControlledDevBlockingMaintenance? Maintenance { get; private init; }
 
     public V9ControlledDevCohortScorer(IOperationalSqlAdapter sql,
         V9OperationalPinnedCohortRuntime verifiedWinner,
@@ -49,11 +51,28 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
     /// </summary>
     public static async Task<V9ControlledDevCohortScorer> CreateAsync(
         IConfiguration configuration, IOperationalSqlAdapter sql,
-        Guid disposableAttemptId, CancellationToken ct)
+        Guid disposableAttemptId, CancellationToken ct, string? effectiveEnvironment = null)
     {
         var verified = await V9ControlledDevSelection.VerifyAsync(
             configuration, sql, disposableAttemptId, ct);
-        return new(sql, verified.Runtime, disposableAttemptId);
+        var enabled = configuration.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting);
+        var diagnostic = configuration.GetValue<bool>(DiagnosticFixtureSetting);
+        if (enabled == diagnostic)
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_EXPLICIT_PATH_REQUIRED");
+        if (diagnostic)
+            return new(sql, verified.Runtime, disposableAttemptId);
+
+        if (!Guid.TryParseExact(configuration[V9BlockingMaintenanceGate.AttemptSetting], "D", out var attempt)
+            || attempt != disposableAttemptId
+            || !V9BlockingMaintenanceGate.IsExplicitDevOptIn(effectiveEnvironment, enabled, attempt))
+            throw new InvalidOperationException(V9BlockingMaintenanceGate.ProductiveNotCertified);
+        var payload = verified.Runtime.FrozenWinner.Payload;
+        var prefix = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
+            payload.ProjectionSchemaVersion, payload.ProjectionFingerprintSha256);
+        return new(sql, verified.Runtime, disposableAttemptId)
+        {
+            Maintenance = new(effectiveEnvironment!, attempt, prefix, payload.ProjectionFingerprintSha256)
+        };
     }
 
     public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
@@ -107,7 +126,9 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         await using var connection = await sql.OpenAsync(ct);
         var verified = await V9ControlledDevOperationalCandidateSource.ReadAsync(
             connection, winner, attemptId, runId, frozenRows,
-            maximumGoldCandidates, ct);
+            maximumGoldCandidates, ct, Maintenance is not null, Maintenance?.EffectiveEnvironment);
+        if (Maintenance is not null && verified.IsolatedBlockingManifest is null)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_MISSING");
         var physical = verified.SilverGraph
             ?? throw new InvalidDataException("RUNNER_V9_DEV_SILVER_GRAPH_MISSING");
         if (physical.CanonicalEdgesSha256.Length != 64)
