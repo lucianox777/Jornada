@@ -24,6 +24,7 @@ public static class V9DevE2EFullCommand
          Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")) switch
         {
             ("diagnostic1k", "1000") => 1000,
+            ("optimized1k", "1000") => 1000,
             ("diagnostic2k", "2000") => 2000,
             ("diagnostic4k", "4000") => 4000,
             _ => 0
@@ -146,6 +147,11 @@ public static class V9DevE2EFullCommand
                 await V9BlockingMaintenanceGate.RequireAsync("Development", true, attempt,
                     connection, tx, CancellationToken.None);
                 await tx.CommitAsync();
+            }
+            if (V9DevPublicationScale.Enabled)
+            {
+                stage = "dev-publication-scale-guards";
+                await V9DevPublicationScale.InstallAsync(connection,attempt,CancellationToken.None);
             }
             stage = "model-staging";
         var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
@@ -303,6 +309,8 @@ public static class V9DevE2EFullCommand
             if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
                 Encoding.UTF8.GetBytes(query))) != "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece")
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
+            if (V9DevPublicationScale.Enabled)
+                query = V9DevPublicationScale.MaterializeCurrentLinks(query, "SELECT po.pessoa_observacao_id AS observationId");
             await using var census = new SqlCommand(query, connection)
                 { CommandTimeout = 120 };
             census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;

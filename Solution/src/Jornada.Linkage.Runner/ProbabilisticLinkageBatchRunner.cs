@@ -1235,7 +1235,10 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 "Publicação linkage {RunId}: fase 2/4 - recompondo Gold em lote.",
                 runId);
             var recompose = new SqlCommand(
-                LinkagePublicationBatchSql.RecomposeAffectedGoldSql,
+                maintenance is not null && V9DevPublicationScale.Enabled
+                    ? V9DevPublicationScale.MaterializeCurrentLinks(LinkagePublicationBatchSql.RecomposeAffectedGoldSql,
+                        "SELECT u.pessoa_uuid")
+                    : LinkagePublicationBatchSql.RecomposeAffectedGoldSql,
                 connection,
                 transaction)
             {

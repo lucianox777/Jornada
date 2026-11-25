@@ -14,9 +14,9 @@ W=module("wave","v9-e2e-1k-wave-preflight.py")
 H=module("http","v9-e2e-1k-http.py")
 require=I.require
 PROFILES={"audit1k":(1000,355,"clean"),"diagnostic1k":(1000,355,"clean"),
-          "diagnostic2k":(2000,355,"clean"),"diagnostic4k":(4000,355,"clean"),
+          "diagnostic2k":(2000,355,"clean"),"diagnostic4k":(4000,355,"clean"),"optimized1k":(1000,355,"clean"),
           "comparable":(10000,355,"clean"),"challenge":(10000,7311026,"field")}
-DIAGNOSTIC_PROFILES=("diagnostic1k","diagnostic2k","diagnostic4k")
+DIAGNOSTIC_PROFILES=("diagnostic1k","diagnostic2k","diagnostic4k","optimized1k")
 CAP=8
 LIMIT=.001446
 def profile():
@@ -309,11 +309,31 @@ def diagnostic_receipt(root):
     full=read(root/"matrix-full-physical-resource.json")
     require(member["status"]=="PASS" and runner["status"]=="PUBLICADO"
             and runner["eligible"]==runner["evaluated"] and full["fullElapsedMs"]>0,"SCALE_DIAGNOSTIC_GATE")
+    # Compare independent runs without depending on randomly allocated SQL
+    # UUIDs or observation IDs. Canonical destination = exact set of source
+    # version keys attached to that UUID; preserve every publication state.
+    version_key=lambda x:I.version_key(x["manager"],x["package"],x["opaque"])
+    groups=defaultdict(list)
+    for row in census:
+        if row["currentUuid"]:groups[row["currentUuid"]].append(version_key(row))
+    canon={u:sorted(keys) for u,keys in groups.items()}
+    def target(u):
+        if u is None:return None
+        require(u in canon,"SCALE_PARITY_UNKNOWN_DESTINATION")
+        return canon[u]
+    normalized=[]
+    for row in census:
+        normalized.append(dict(key=version_key(row),cpf=row["hasCpf"],
+            current=target(row["currentUuid"]),published=target(row["publishedUuid"]),
+            status=row["currentStatus"],method=row["currentMethod"],goldState=row["goldState"],
+            result=row["runResult"],reason=row["publicationReason"]))
+    normalized.sort(key=lambda x:x["key"])
+    parity_digest=hashlib.sha256(json.dumps(normalized,sort_keys=True,separators=(",",":")).encode()).hexdigest()
     write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",
         profile=label,population=n,versions=len(census),eligible=runner["eligible"],
         commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
         fullCompleted=True,independentMembershipVerified=True,identityCensusStatus=identity["status"],
-        pairMetrics=identity["pairMetrics"],physicalFull=full,
+        pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,
         matrixExecuted=False,scientificTest=False,activation=False))
 def main():
     p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()

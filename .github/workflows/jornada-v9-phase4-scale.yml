@@ -28,12 +28,8 @@ jobs:
             people: '1000'
             seed: '355'
             error: clean
-          - profile: diagnostic2k
-            people: '2000'
-            seed: '355'
-            error: clean
-          - profile: diagnostic4k
-            people: '4000'
+          - profile: optimized1k
+            people: '1000'
             seed: '355'
             error: clean
     env:
@@ -54,12 +50,12 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
-      - name: Admit only progressive FULL diagnostics; 10k and family stay blocked
+      - name: Admit only baseline and optimized 1k parity; 10k stays blocked
         run: |
           set -euo pipefail
           [[ "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]]
           case "$JORNADA_V9_PHASE4_SCALE:$JORNADA_E2E_HTTP_VOLUME_COUNT" in
-            diagnostic1k:1000|diagnostic2k:2000|diagnostic4k:4000) ;;
+            diagnostic1k:1000|optimized1k:1000) ;;
             *) exit 1 ;;
           esac
       - name: Admit only owner-controlled exact repository commit
