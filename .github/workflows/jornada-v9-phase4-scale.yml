@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/jornada-v9-phase4-scale.yml'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevFullDiagnostics.cs'
+      - 'Solution/database/migrations/20261125_Linkage_Publication_Scale.sql'
+      - 'Solution/database/rollback/20261125_Linkage_Publication_Scale_Restore.sql'
+      - 'Solution/database/tests/20261125_Linkage_Publication_Scale_Regression.sql'
 
 permissions:
   contents: read
@@ -197,6 +200,10 @@ jobs:
             run_sql "$db" database/Jornada_Fase1_v3.70.sql
             run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
             run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql
+            if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
+            fi
             sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';"
           } >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
           [[ "$ConnectionStrings__Jornada" == *'Database=JornadaHarness;'* ]]
@@ -208,6 +215,27 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-phase4-scale-execute.sh
+      - name: SQL regression on the completed disposable FULL; reverse, verify and reapply
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          db="$JORNADA_V9_DEV_ATTEMPT_DB"
+          [[ "$db" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}" ]]
+          run_sql() {
+            docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$db" "$1"
+          }
+          {
+            # Both original and migrated guards execute the same negative fixture.
+            if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql
+            fi
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            run_sql database/migrations/20261125_Linkage_Publication_Scale.sql
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || { echo V9_PUBLICATION_SCALE_REGRESSION_FAILED; exit 1; }
+          echo V9_PUBLICATION_SCALE_REGRESSION_PASS
       - name: Publish sanitized FULL diagnostic even on failure
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

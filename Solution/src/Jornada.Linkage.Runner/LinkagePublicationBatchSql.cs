@@ -6,7 +6,17 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 internal static class LinkagePublicationBatchSql
 {
+    // Shared V8/V9 path, no runtime DDL or text substitution. The sealed
+    // pre-extension schema remains compatible; a migrated schema must have
+    // its versioned procedure. Reversal installs the original procedure.
     internal const string RecomposeAffectedGoldSql = """
+        IF OBJECT_ID(N'identidade.sp_recompor_gold_linkage_lote',N'P') IS NOT NULL
+        BEGIN
+            EXEC identidade.sp_recompor_gold_linkage_lote @run_id=@run_id;
+            RETURN;
+        END;
+        IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.LinkagePublicationScale')
+            THROW 52994,'Publication scale procedure missing.',1;
         SET NOCOUNT ON;
 
         SELECT u.pessoa_uuid

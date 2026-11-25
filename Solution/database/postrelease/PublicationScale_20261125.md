@@ -1,0 +1,3 @@
+# Extensão de desempenho da publicação — 20261125
+
+Aplicar administrativamente via sqlcmd -b, após baseline 3.70 ou extensão compatível: `database/migrations/20261125_Linkage_Publication_Scale.sql`. A reversão `database/rollback/20261125_Linkage_Publication_Scale_Restore.sql` restaura os dois gatilhos e a recomposição original. Ambos são transacionais, usam o lock de publicação e não alteram dados, modelo ou versão selada. Não incluir no manifest 3.70 selado. Reaplicar explicitamente depois de reversão. A versão pré-extensão permanece compatível, mas não recebe a otimização até migração. Sem deploy HML/PROD autorizado; exigir gates PO em #1931.
