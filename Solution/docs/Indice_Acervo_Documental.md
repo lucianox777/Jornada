@@ -306,3 +306,5 @@ Decisão nova deve entrar na fonte canônica adequada; estado comprovado no Esta
 **Existe um único Ensaio** técnico e operacional antes de HML; HML muda a massa para a preparada pelas Secretarias, preservando contratos e controles. Não transformar documentos auxiliares de ensaio em fases concorrentes.
 
 > **ACERVO — Fase 4 S4b 1k (25/11/2026):** [resultado medido e estratos](Resultado_V9_Fase4_S4b_1k_20261125.md) · [plano de execução do harness](V9_Fase4_Harness_1k_Plano_Execucao_20261125.md) · #1939/#1851. Contraste isolado sem publicação; S4b(i) oficial preservada; matriz de 24 ainda pendente. GOV-DOC-01.
+
+> **ACERVO — Fase 4 final (25/11/2026):** [Relatório 1k medido](Relatorio_V9_Fase4_1k_20261125.md) · [Plano 10k proposto, não executado](Plano_V9_Fase4_10k_20261125.md) · #1939/#1851/#1926/#1931. Evidência DEV, política intacta, parada PO. Prevalece sobre estados anteriores de preparação. GOV-DOC-01.
