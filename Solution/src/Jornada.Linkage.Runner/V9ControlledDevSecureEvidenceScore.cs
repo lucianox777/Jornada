@@ -29,6 +29,7 @@ internal static class V9ControlledDevSecureEvidenceScore
         long ComparedRecords, long ScoreableRecords, int PeopleWithoutScoreableEvidence,
         string EvidenceMembershipSha256);
     internal sealed record Result(ProbabilisticLinkageDecision Decision, Receipt EvidenceReceipt);
+    internal sealed record RecordScore(long ObservationId, Guid Person, decimal? Posterior, decimal? LogOdds);
 
     // Explicit bridge from the SQL provenance census to the frozen record
     // scorer. A current protected link or a proven founder is origin-level
@@ -37,7 +38,7 @@ internal static class V9ControlledDevSecureEvidenceScore
     internal static Result ScoreFromOrigins(V9FittedSnapshot winner, Guid modelId,
         IdentityObservation source, IReadOnlyList<Guid> candidatePeople,
         IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>> originFacts,
-        long? maximumComparisons = null)
+        long? maximumComparisons = null, Action<IReadOnlyList<RecordScore>>? observe = null)
     {
         ArgumentNullException.ThrowIfNull(candidatePeople);
         ArgumentNullException.ThrowIfNull(originFacts);
@@ -59,7 +60,7 @@ internal static class V9ControlledDevSecureEvidenceScore
                     selected.AddRange(origin.Observations);
             }
         }
-        return Score(winner, modelId, source, candidatePeople, selected, maximumComparisons);
+        return Score(winner, modelId, source, candidatePeople, selected, maximumComparisons, observe);
     }
 
     internal static bool IsSecureOrigin(V9ControlledDevSecureOriginReader.OriginFacts origin)
@@ -85,7 +86,8 @@ internal static class V9ControlledDevSecureEvidenceScore
 
     internal static Result Score(V9FittedSnapshot winner, Guid modelId,
         IdentityObservation source, IReadOnlyList<Guid> candidatePeople,
-        IReadOnlyList<Evidence> secureEvidence, long? maximumComparisons = null)
+        IReadOnlyList<Evidence> secureEvidence, long? maximumComparisons = null,
+        Action<IReadOnlyList<RecordScore>>? observe = null)
     {
         ArgumentNullException.ThrowIfNull(winner);
         ArgumentNullException.ThrowIfNull(source);
@@ -153,6 +155,16 @@ internal static class V9ControlledDevSecureEvidenceScore
                 PessoaUuidResolvido = null,
                 Motivo = NoSecureEvidence
             };
+        if (observe is not null)
+        {
+            var byRecord = rankedRecords.ToDictionary(x=>x.PessoaUuid);
+            var captured = secureEvidence.OrderBy(x=>x.ObservationId).Select(e =>
+            {
+                byRecord.TryGetValue(ObservationGuid(e.ObservationId),out var score);
+                return new RecordScore(e.ObservationId,e.Candidate.PersonUuid,score?.Score,score?.LogOdds);
+            }).ToArray();
+            observe(Array.AsReadOnly(captured));
+        }
         return new(decision, Census(compared, scoreable, without));
     }
 }

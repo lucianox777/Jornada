@@ -264,6 +264,23 @@ public sealed class V9IndependentScalarReplayTests
     }
 
     [Test]
+    public void Dev_diagnostic_is_observational_and_captures_every_direction()
+    {
+        var winner = BlindScalarOracleWinner();
+        var rows = TwoIndependentPairs().Select(x => x with { Partition = "DEV" }).ToArray();
+        var edges = new[] { (A:1,B:2), (A:3,B:4) };
+        var baseline = V9FrozenSourceResolveReplay.ReplayDev(winner,rows,edges);
+        IReadOnlyList<V9DevDirectionalScore>? seen = null;
+        var observed = V9FrozenSourceResolveReplay.ReplayDev(winner,rows,edges,x => seen = x);
+        Assert.That(observed.Decisions, Is.EqualTo(baseline.Decisions));
+        Assert.That(observed.IdentityByObservation, Is.EquivalentTo(baseline.IdentityByObservation));
+        Assert.That(observed.SnapshotSha256, Is.EqualTo(baseline.SnapshotSha256));
+        Assert.That(seen, Is.Not.Null);
+        Assert.That(seen!.Select(x => (x.Source,x.Target)), Is.EqualTo(new[] {(1,2),(2,1),(3,4),(4,3)}));
+        Assert.That(seen!.All(x => x.Posterior.HasValue && x.LogOdds.HasValue), Is.True);
+    }
+
+    [Test]
     public void Controlled_DEV_replay_handles_zero_or_one_pending_without_scientific_TEST()
     {
         var winner = BlindScalarOracleWinner();

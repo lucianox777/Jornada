@@ -5,6 +5,8 @@ using Jornada.Linkage.Runner;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
+public sealed record V9DevDirectionalScore(int Source, int Target, decimal? Posterior, decimal? LogOdds);
+
 public sealed record V9FrozenSourceDecision(int ObservationId, ProbabilisticLinkageDecision Decision);
 public sealed record V9FrozenSourceReplayResult(string SnapshotSha256,
     IReadOnlyList<V9FrozenSourceDecision> Decisions, IReadOnlyDictionary<int, Guid> IdentityByObservation);
@@ -42,9 +44,17 @@ public static class V9FrozenSourceResolveReplay
         IReadOnlyList<(int A, int B)> completeOperationalSqlEdges)
         => ReplayForPartition(snapshot, dev, completeOperationalSqlEdges, "DEV");
 
+    // Diagnostic-only overload: immutable scalar values after ranking, no input or decision mutation.
+    public static V9FrozenSourceReplayResult ReplayDev(V9FittedSnapshot snapshot,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> dev,
+        IReadOnlyList<(int A, int B)> completeOperationalSqlEdges,
+        Action<IReadOnlyList<V9DevDirectionalScore>> observe)
+        => ReplayForPartition(snapshot, dev, completeOperationalSqlEdges, "DEV", observe);
+
     private static V9FrozenSourceReplayResult ReplayForPartition(V9FittedSnapshot snapshot,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
-        IReadOnlyList<(int A, int B)> completePhysicalSqlEdges, string partition)
+        IReadOnlyList<(int A, int B)> completePhysicalSqlEdges, string partition,
+        Action<IReadOnlyList<V9DevDirectionalScore>>? observe = null)
     {
         if (partition is not ("VALIDATION" or "TEST" or "DEV"))
             throw new InvalidDataException("Apenas coortes de avaliação externas são admitidas.");
@@ -111,6 +121,17 @@ public static class V9FrozenSourceResolveReplay
             return new V9FrozenSourceDecision(source.ObservationId,
                 snapshot.ResolveRankedPreview(ObservationGuid(source.ObservationId), collapsed));
         }).ToArray();
+        if (observe is not null)
+        {
+            var diagnostic = new List<V9DevDirectionalScore>();
+            foreach (var source in neighbors.OrderBy(x => x.Key))
+            foreach (var target in source.Value.OrderBy(x => x))
+            {
+                scores[source.Key].TryGetValue(ObservationGuid(target), out var score);
+                diagnostic.Add(new(source.Key, target, score?.Score, score?.LogOdds));
+            }
+            observe(diagnostic.AsReadOnly());
+        }
         return new(snapshot.ContentSha256, Array.AsReadOnly(decisions),
             new ReadOnlyDictionary<int, Guid>(inferred.IdentityByObservation.ToDictionary(x => x.Key, x => x.Value)));
     }
