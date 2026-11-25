@@ -12,9 +12,9 @@ if (args.FirstOrDefault() == V9DevE2EFullCommand.Flag)
     {
         await V9DevE2EFullCommand.RunAsync(args);
     }
-    catch (Exception)
+    catch (Exception error)
     {
-        Console.Error.WriteLine("V9_DEV_E2E_COMMAND_FAILED");
+        V9DevE2EFullCommand.ReportFailure(error);
         Environment.ExitCode = 1;
     }
     return;

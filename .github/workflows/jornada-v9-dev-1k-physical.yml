@@ -166,6 +166,65 @@ jobs:
           root="$JORNADA_V9_E2E_PRIVATE_ROOT"
           run_cli() {
             dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Linkage.Runner -- --v9-dev-full-1k "$1" >"$root/runner-$1.log" 2>&1 || {
+              grep -E '^V9_DEV_E2E_FAILURE stage=[a-z-]+ type=[A-Za-z0-9_-]+ code=[A-Z0-9_]+
+            }
+          }
+          run_cli catalog
+          echo 'V9_E2E_CATALOG_EXECUTED'
+          contracts="$PWD/config/contracts/gestores/SEHAB"
+          support="$PWD/tests/fixtures/external-contracts/gestores/SEHAB"
+          if [[ -e "$contracts" ]]; then diff -qr "$support" "$contracts" >/dev/null; else cp -R "$support" "$contracts"; fi
+          export ASPNETCORE_URLS=http://127.0.0.1:5088
+          export BronzeStorage__Provider=FileSystem
+          export BronzeStorage__RootPath="$root/bronze"
+          export IngestionStaging__RootPath="$root/staging"
+          export Processor__PollingMilliseconds=100
+          export SemiblindIdentitySearch__Enabled=false
+          dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Api >"$root/api.log" 2>&1 & api=$!
+          dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Processor.Worker >"$root/processor.log" 2>&1 & worker=$!
+          trap 'kill "$worker" "$api" 2>/dev/null || true; wait "$worker" "$api" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl --silent --fail --output "$root/ready.json" http://127.0.0.1:5088/health/ready; then ready=1; break; fi
+            sleep 1
+          done
+          [[ "$ready" == 1 ]] || { echo 'V9_E2E_API_READINESS_FAILED'; exit 1; }
+          python3 scripts/v9-e2e-1k-http.py ingest --root "$root/fixture"
+          cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
+          run_cli full
+          echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
+          python3 scripts/v9-e2e-1k-identity-census.py \
+            --wave "$root/fixture/ingestion/wave-01/bridge-manifest.json" "$root/fixture/ingestion/wave-01/bridge-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-02/bridge-manifest.json" "$root/fixture/ingestion/wave-02/bridge-truth.jsonl" \
+            --sql "$root/sql-census.json" --runner "$root/runner-receipt.json" --receipt "$root/identity-receipt.json"
+          cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/fixture/"
+          python3 scripts/v9-e2e-1k-http.py api --root "$root/fixture"
+          # Explicit allowlist of aggregate files only. Never upload the private root.
+          out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
+          mkdir -m 700 "$out"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$out/"
+          printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
+          echo 'V9_E2E_1K_PHYSICAL_IDENTITY_PATH_PASS_NOT_FULL_ORACLE_OR_INTEGRAL'
+      - name: Publish only aggregate evidence of completed physical path
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-dev-1k-physical-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/v9-e2e-1k-aggregate/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dispose attempt resources
+        if: always()
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [[ "$(docker ps -aq --filter "name=^/$sql_name$")" != "" ]]; then
+            docker stop "$sql_name" >/dev/null
+          fi
+          if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
+            rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          fi
+ "$root/runner-$1.log" || true
               echo "V9_E2E_RUNNER_STAGE_FAILED_$1"; exit 1;
             }
           }

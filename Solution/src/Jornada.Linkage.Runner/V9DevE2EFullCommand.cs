@@ -18,6 +18,7 @@ namespace Jornada.Linkage.Runner;
 public static class V9DevE2EFullCommand
 {
     public const string Flag = "--v9-dev-full-1k";
+    private static string stage = "admission";
     private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
 
     public static async Task RunAsync(string[] args)
@@ -31,6 +32,7 @@ public static class V9DevE2EFullCommand
                 "D", out var attempt) || attempt == Guid.Empty)
             throw new InvalidOperationException("RUNNER_V9_DEV_E2E_FULL_1K_EXPLICIT_ADMISSION_REQUIRED");
 
+        stage = "configuration";
         var config = Host.CreateApplicationBuilder(Array.Empty<string>()).Configuration;
         var sql = new OperationalSqlAdapter(config.GetConnectionString("Jornada")
             ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING"));
@@ -39,6 +41,7 @@ public static class V9DevE2EFullCommand
             || config.GetValue<bool>(V9ControlledDevCohortScorer.DiagnosticFixtureSetting)
             || config.GetValue("LinkageReplay:CaptureBronzeSources", false))
             throw new InvalidOperationException(V9BlockingMaintenanceGate.ProductiveNotCertified);
+        stage = "selection";
         var boundary = await V9ControlledDevSelection.VerifyAsync(config, sql, attempt, CancellationToken.None);
         if (boundary.Runtime.WinnerSha256 != Winner)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_WINNER_MISMATCH");
@@ -47,6 +50,7 @@ public static class V9DevE2EFullCommand
             || !Directory.Exists(root) || new DirectoryInfo(root).LinkTarget is not null)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PRIVATE_ROOT_REQUIRED");
 
+        stage = "catalog";
         if (args[1] == "catalog")
         {
             // Catalog batch was derived by the fixed source-pin script. The
@@ -64,6 +68,7 @@ public static class V9DevE2EFullCommand
             return;
         }
 
+        stage = "lineage";
         using var pre = JsonDocument.Parse(await ReadPrivateAsync(root, "wave-preflight-receipt.json"));
         using var lineage = JsonDocument.Parse(await ReadPrivateAsync(root, "http-lineage.json"));
         var p = pre.RootElement;
@@ -83,9 +88,11 @@ public static class V9DevE2EFullCommand
                    await File.ReadAllBytesAsync(Path.Combine(root, "wave-preflight-receipt.json")))))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_LINEAGE_INVALID");
 
+        stage = "scorer";
         var loaded = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
         var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
             CancellationToken.None, effectiveEnvironment: "Development");
+        stage = "pre-full-sql";
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
         {
             await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(connection, attempt, CancellationToken.None);
@@ -115,7 +122,8 @@ public static class V9DevE2EFullCommand
                     connection, tx, CancellationToken.None);
                 await tx.CommitAsync();
             }
-            var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
+            stage = "model-staging";
+        var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
             if (model.ModelId != boundary.Runtime.ModelId || model.Active || model.Published)
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
             await using var anchor = new SqlCommand("""
@@ -136,6 +144,7 @@ public static class V9DevE2EFullCommand
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
         }
 
+        stage = "runner-composition";
         var storeRoot = Path.Combine(root, "runner-storage");
         if (Directory.Exists(storeRoot))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
@@ -148,6 +157,7 @@ public static class V9DevE2EFullCommand
             new Dt05HistoricalCandidateStateVerifier(storeRoot),
             new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
             NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
+        stage = "full-run";
         var summary = await runner.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
             "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true),
@@ -156,6 +166,7 @@ public static class V9DevE2EFullCommand
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
 
+        stage = "post-full-census";
         // Only the independent oracle sees the private census; the scorer never reads truth.
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
         {
@@ -177,12 +188,27 @@ public static class V9DevE2EFullCommand
                 while (await reader.ReadAsync()) json.Append(reader.GetString(0));
             await WriteNewAsync(root, "sql-census.json", json.ToString());
         }
+        stage = "receipt";
         await WriteNewAsync(root, "runner-receipt.json", JsonSerializer.Serialize(new {
             mode = "FULL", status = "PUBLICADO", winnerSha256 = Winner, scientificTest = false,
             activated = false, eligible = summary.Elegiveis, evaluated = summary.Avaliados,
             runId = summary.RunId, automaticV9Index = true
         }));
         Console.WriteLine("V9_DEV_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL");
+    }
+
+    public static void ReportFailure(Exception error)
+    {
+        // Only fixed stage/type and numeric SQL diagnostic. The exception's
+        // arbitrary message/stack may contain synthetic attributes or connection data.
+        var code = error is SqlException sql
+            ? FormattableString.Invariant($"SQL_{sql.Number}_{sql.State}")
+            : error.GetType().Name;
+        var prefix = System.Text.RegularExpressions.Regex.Match(error.Message,
+            @"^(?:RUNNER_V9_[A-Z0-9_]{1,120}|V9_E2E_[A-Z0-9_]{1,120})(?=[:. ]|$)",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        Console.Error.WriteLine($"V9_DEV_E2E_FAILURE stage={stage} type={code} code={(prefix.Success ? prefix.Value : "UNCLASSIFIED")}");
     }
 
     private static async Task<string> ReadPrivateAsync(string root, string name)
