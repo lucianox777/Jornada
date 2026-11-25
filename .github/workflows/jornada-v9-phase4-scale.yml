@@ -282,3 +282,19 @@ jobs:
           if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
             rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
           fi
+
+  parity-1k:
+    needs: scale-dev-nonpublish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Compare normalized full publication and decision graph digests
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/v9-publication-scale-parity.py

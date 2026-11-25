@@ -299,6 +299,8 @@ public static class V9DevE2EFullCommand
             var scalar = await V9DevE2EScalarOracle.VerifyLedgerAsync(connection, summary.RunId,
                 membership.ExpectedRanks, CancellationToken.None);
             await WriteNewAsync(root, "scalar-receipt.json", JsonSerializer.Serialize(scalar));
+            if (scale)
+                await WriteNewAsync(root, "scale-rank-private.json", JsonSerializer.Serialize(membership.ExpectedRanks));
             stage = "post-full-census";
             var query = await ReadPrivateAsync(root, "census.sql");
             if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(

@@ -534,26 +534,49 @@ BEGIN
  WHERE s.pessoa_uuid IS NULL;
 END;
 GO
+-- Version 8 is a transaction-local published-envelope regression fixture,
+-- not a V8 scorer run or a new scientific campaign. Use the same real SQL
+-- inputs and frozen decisions; do not modify the V9 run or activate a model.
 BEGIN TRANSACTION;
-DECLARE @run uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE modelo_versao=9 AND status=N'PUBLICADO');
-SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,
- estado_concordancia,estado_identidade,completude_nucleo
- INTO #gold_original FROM gold.pessoa WHERE 1=0;
--- Table variable holds the reference through rollback to the savepoint.
+DECLARE @run9 uniqueidentifier=(SELECT linkage_run_id FROM identidade.linkage_run WHERE modelo_versao=9 AND status=N'PUBLICADO');
+DECLARE @run8 uniqueidentifier=NEWID(),@model8 uniqueidentifier=NEWID(),@now datetimeoffset(7)=SYSDATETIMEOFFSET();
+IF EXISTS(SELECT 1 FROM identidade.modelo_linkage WHERE versao=8) THROW 52996,'V8 fixture model already exists.',1;
+INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,gerado_em)
+ VALUES(@model8,8,N'RASCUNHO',N'REGRESSION_PUBLICATION_ONLY',N'IDENTITY_NORMALIZATION_V1',N'FIXTURE',N'SYNTHETIC',@now);
+INSERT identidade.linkage_run(linkage_run_id,modelo_id,modelo_versao,tipo_run,status,registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,iniciado_em,finalizado_em,publicado_em)
+ SELECT @run8,@model8,8,tipo_run,N'PUBLICADO',registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,@now,@now,@now
+ FROM identidade.linkage_run WHERE linkage_run_id=@run9;
+INSERT identidade.linkage_resultado(linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+ resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,pessoa_origem_id_publicado,progressiva_versao,politica_publicacao_versao,universo_referencia,publicado_em)
+ SELECT @run8,@model8,8,pessoa_observacao_id,pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+ resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,pessoa_origem_id_publicado,progressiva_versao,politica_publicacao_versao,universo_referencia,@now
+ FROM identidade.linkage_resultado WHERE linkage_run_id=@run9;
 DECLARE @expected TABLE(pessoa_uuid uniqueidentifier PRIMARY KEY,cpf char(11),status_cpf nvarchar(120),
  nome_completo nvarchar(max),data_nascimento date,nome_mae nvarchar(max),fontes_distintas int,
- estado_concordancia nvarchar(30),estado_identidade nvarchar(20),completude_nucleo nvarchar(20));
-SAVE TRANSACTION original_gold;
-EXEC identidade.sp_scale_regression_gold_original @run_id=@run;
-INSERT @expected SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,
- estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa;
-ROLLBACK TRANSACTION original_gold;
-EXEC identidade.sp_scale_regression_gold_optimized @run_id=@run;
-IF EXISTS(SELECT * FROM @expected EXCEPT SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa)
- OR EXISTS(SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa EXCEPT SELECT * FROM @expected)
- THROW 52998,'Gold recomposition V9 differs.',1;
+ estado_concordancia nvarchar(40),estado_identidade nvarchar(20),completude_nucleo nvarchar(20));
+DECLARE @version int=8,@run uniqueidentifier;
+WHILE @version<=9
+BEGIN
+ SET @run=CASE WHEN @version=8 THEN @run8 ELSE @run9 END;
+ DELETE FROM @expected;
+ SAVE TRANSACTION original_gold;
+ EXEC identidade.sp_scale_regression_gold_original @run_id=@run;
+ INSERT @expected SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,
+  estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa;
+ ROLLBACK TRANSACTION original_gold;
+ SAVE TRANSACTION optimized_gold;
+ IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.LinkagePublicationScale')
+  EXEC identidade.sp_recompor_gold_linkage_lote @run_id=@run;
+ ELSE
+  EXEC identidade.sp_scale_regression_gold_optimized @run_id=@run;
+ IF EXISTS(SELECT * FROM @expected EXCEPT SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa)
+  OR EXISTS(SELECT pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,estado_identidade,completude_nucleo FROM gold.pessoa EXCEPT SELECT * FROM @expected)
+  THROW 52998,'Gold recomposition differs.',1;
+ ROLLBACK TRANSACTION optimized_gold;
+ PRINT CONCAT('PUBLICATION_GOLD_V',@version,'_REGRESSION_PASS');
+ SET @version+=1;
+END;
 ROLLBACK TRANSACTION;
 DROP PROCEDURE identidade.sp_scale_regression_gold_original;
 DROP PROCEDURE identidade.sp_scale_regression_gold_optimized;
-PRINT 'PUBLICATION_GOLD_V9_REGRESSION_PASS';
 GO

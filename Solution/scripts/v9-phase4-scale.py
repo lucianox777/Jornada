@@ -312,7 +312,13 @@ def diagnostic_receipt(root):
     # Compare independent runs without depending on randomly allocated SQL
     # UUIDs or observation IDs. Canonical destination = exact set of source
     # version keys attached to that UUID; preserve every publication state.
-    version_key=lambda x:I.version_key(x["manager"],x["package"],x["opaque"])
+    # The generator uses a fresh HMAC pseudonymization key for each attempt.
+    # Align independent synthetic runs by the sealed truth's stable base,
+    # manager and wave, only AFTER the independent physical checks.
+    def version_key(x):
+        t=truth[x["observationId"]]
+        return (t["base"],t["manager"],t["wave"])
+    require(len({version_key(x) for x in census})==len(census),"SCALE_PARITY_KEY")
     groups=defaultdict(list)
     for row in census:
         if row["currentUuid"]:groups[row["currentUuid"]].append(version_key(row))
@@ -329,11 +335,33 @@ def diagnostic_receipt(root):
             result=row["runResult"],reason=row["publicationReason"]))
     normalized.sort(key=lambda x:x["key"])
     parity_digest=hashlib.sha256(json.dumps(normalized,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    byid={x["observationId"]:x for x in census}
+    key_byid={k:version_key(x) for k,x in byid.items()}
+    ranks=read(root/"scale-rank-private.json")
+    graphs=read(root/"fn-private.json")
+    # Group IDs are arbitrary; compare exact member sets by stable keys.
+    group_members=defaultdict(list)
+    for x in graphs:group_members[x["groupRoot"]].append(key_byid[x["observationId"]])
+    graph_rows=[dict(key=key_byid[x["observationId"]],group=sorted(group_members[x["groupRoot"]]),
+        candidates=sorted(target(u.lower()) for u in x["candidates"]),
+        neighbors=sorted(key_byid[k] for k in x["silverNeighbors"]),minimum=x["groupMinPosterior"],
+        reason=x["rankReason"]) for x in graphs]
+    rank_rows=[]
+    for x in ranks:
+        row=dict(x)
+        row["Id"]=key_byid[x["Id"]]
+        for field in ("Best","Second","Resolved"):
+            row[field]=target(x[field].lower()) if x[field] else None
+        rank_rows.append(row)
+    require(len(ranks)==len(graphs)==runner["evaluated"],"SCALE_PARITY_UNIVERSE")
+    decision_digest=hashlib.sha256(json.dumps(dict(
+        graph=sorted(graph_rows,key=lambda x:x["key"]),ranks=sorted(rank_rows,key=lambda x:x["Id"])),
+        sort_keys=True,separators=(",",":")).encode()).hexdigest()
     write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",
         profile=label,population=n,versions=len(census),eligible=runner["eligible"],
         commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
         fullCompleted=True,independentMembershipVerified=True,identityCensusStatus=identity["status"],
-        pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,
+        pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,normalizedDecisionGraphSha256=decision_digest,
         matrixExecuted=False,scientificTest=False,activation=False))
 def main():
     p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
