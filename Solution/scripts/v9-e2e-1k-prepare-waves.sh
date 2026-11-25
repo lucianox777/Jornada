@@ -9,18 +9,24 @@ umask 077
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$1"
 mkdir -m 700 -- "$OUT"
+# The evolving generator is outside Jornada.sln; restore its pinned dependencies explicitly.
+canonical_project="$ROOT/src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj"
+dotnet restore "$canonical_project" --locked-mode >/dev/null
+dotnet build "$canonical_project" --configuration Release --no-restore -warnaserror >/dev/null
+
 # Two HTTP delivery waves in the eventual E2E, followed by ONE FULL.
 # Keep the existing seed/profile; do not reveal CPF in the second wave.
 # Recover the already-generated truth's nominal attributes so some CPF
 # origins acquire distinct factual versions without inventing a new person.
 if ! JORNADA_SYNTH_PSEUDONYMIZATION_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
   dotnet run --no-build --configuration Release \
-    --project "$ROOT/src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj" -- \
+    --project "$ROOT/src/Jornada.Linkage.SyntheticCorpus.Parametrized/Jornada.Linkage.SyntheticCorpus.Parametrized.csproj" -- \
     generate-ingestion-waves \
     --reference-root "$ROOT/data/reference/ibge-nomes-2022" \
     --population-profile demographic-primary \
     --birth-daily-source "$ROOT/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
     --people 1000 --seed 355 --error-profile clean --gestores 4 \
+    --train-percent 60 --validation-percent 20 --test-percent 20 \
     --wave-count 2 --wave-delayed-arrival-rate 0 --wave-cpf-reveal-rate 0 \
     --wave-name-correction-rate 1 --wave-mother-correction-rate 1 --wave-birth-recovery-rate 1 \
     --data-referencia 2026-11-22T00:00:00+00:00 \
