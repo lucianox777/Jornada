@@ -1,5 +1,6 @@
 using System.Data;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
@@ -31,6 +32,12 @@ internal sealed partial class SqlProcessorRepository
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
         {
+            // Authenticate existing coverage before changing any Gold in
+            // this delivery, holding the maintenance writer lock to commit.
+            if (v9Maintenance is { } plan)
+                await BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(
+                    connection, tx, plan.EffectiveEnvironment, plan.Enabled, plan.AttemptId,
+                    plan.MaximumPrefixLength, plan.ProjectionFingerprintSha256, ct);
             var peopleByDeliveryId = new Dictionary<string, ProcessedPerson>(StringComparer.Ordinal);
 
             foreach (var person in package.Pessoas)
@@ -72,6 +79,13 @@ internal sealed partial class SqlProcessorRepository
                 finish.Parameters.AddWithValue("@entrega_id", batch.EntregaId);
                 await finish.ExecuteNonQueryAsync(ct);
             }
+            // Reconcile the complete isolated projection after all real
+            // Gold/history updates and before the delivery transaction commits.
+            if (v9Maintenance is { } maintenance)
+                await BlockingProjectionPersistence.RefreshPinnedV9Async(
+                    connection, tx, maintenance.EffectiveEnvironment, maintenance.Enabled,
+                    maintenance.AttemptId, maintenance.MaximumPrefixLength,
+                    maintenance.ProjectionFingerprintSha256, ct);
             await tx.CommitAsync(ct);
         }
         catch

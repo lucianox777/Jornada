@@ -168,7 +168,7 @@ class V9PhysicalRunAsyncGraphGuardTests(unittest.TestCase):
 
     def test_v9_file_selection_is_separate_from_legacy_sql_parameters(self):
         program = (ROOT / "Program.cs").read_text(encoding="utf-8")
-        loader = (ROOT / "V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
+        loader = (ROOT.parent / "Jornada.Linkage.Core/V9ConfiguredArtifactLoader.cs").read_text(encoding="utf-8")
         self.assertIn("V9ConfiguredArtifactLoader.LoadCohortRuntimeAsync(v9SelectionFile)", program)
         self.assertIn("RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED", program)
         self.assertIn("RUNNER_V9_SELECTION_MISSING", program)
