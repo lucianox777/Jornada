@@ -82,6 +82,12 @@ public sealed class V9OperationalPinnedCohortRuntime
             winner, frozenDev, completeOperationalSqlEdges);
     }
 
+    public V9FrozenSourceReplayResult ScoreControlledDevCohort(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> frozenDev,
+        IReadOnlyList<(int A, int B)> completeOperationalSqlEdges,
+        Action<IReadOnlyList<V9DevDirectionalScore>> observe)
+        => V9FrozenSourceResolveReplay.ReplayDev(winner, frozenDev, completeOperationalSqlEdges, observe);
+
     /// <summary>
     /// Diagnostic-only replay of the complete operational graph. The independently
     /// observed physical SQL graph is mandatory; no edge repair or fallback.

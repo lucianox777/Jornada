@@ -26,6 +26,11 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         ProbabilisticLinkageDecision Decision)>? prepared;
     private Guid preparedRunId;
 
+    // Explicitly installed only by the disposable 1k command, after C07 verification.
+    internal Action<Guid, IReadOnlyList<long>, string, IReadOnlyDictionary<int, Guid>,
+        IReadOnlyList<V9DevDirectionalScore>,
+        IReadOnlyDictionary<long, IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>>>? DiagnosticObserver { get; set; }
+
     public string WinnerSha256 => winner.WinnerSha256;
     internal const string DiagnosticFixtureSetting = "Linkage:V9BlockingMaintenance:DiagnosticLegacyFixture";
     internal V9ControlledDevBlockingMaintenance? Maintenance { get; private init; }
@@ -142,7 +147,10 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 verified.ManagerByObservation[x.PessoaObservacaoId],
                 x.Observation.NomeCompleto, x.Observation.NomeMae,
                 x.Observation.DataNascimento)).ToArray();
-        var grouped = winner.ScoreControlledDevCohort(cohort, physical.Edges);
+        IReadOnlyList<V9DevDirectionalScore>? directions = null;
+        var grouped = DiagnosticObserver is null
+            ? winner.ScoreControlledDevCohort(cohort, physical.Edges)
+            : winner.ScoreControlledDevCohort(cohort, physical.Edges, values => directions = values);
         if (grouped.SnapshotSha256 != winner.WinnerSha256
             || grouped.IdentityByObservation.Count != frozenRows.Count
             || grouped.Decisions.Count != frozenRows.Count)
@@ -234,6 +242,11 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         }
         if (ready.Count != frozenRows.Count)
             throw new InvalidDataException("RUNNER_V9_DEV_RAW_DECISIONS_INCOMPLETE");
+        if (DiagnosticObserver is { } observer)
+            observer(runId, Array.AsReadOnly(frozenRows.Select(x => x.PessoaObservacaoId).ToArray()),
+                physical.CanonicalEdgesSha256, grouped.IdentityByObservation,
+                directions ?? throw new InvalidDataException("RUNNER_V9_E2E_DIAGNOSTIC_MISSING"),
+                verified.CandidatesByObservation);
         prepared = new ReadOnlyDictionary<long,
             (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>(ready);
     }

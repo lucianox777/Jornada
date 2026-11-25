@@ -27,6 +27,8 @@ public static class V9DevE2EFirstFullMembershipOracle
         public IReadOnlyList<V9DevE2EScalarOracle.Rank> ExpectedRanks { get; init; } = [];
         [System.Text.Json.Serialization.JsonIgnore]
         public IReadOnlyList<int> ExpectedGroupRoots { get; init; } = [];
+        [System.Text.Json.Serialization.JsonIgnore]
+        public IReadOnlyList<long> ExpectedObservationIds { get; init; } = [];
         public int IndependentGroupCount { get; init; }
         public string? IndependentGroupSha256 { get; init; }
         public bool FrozenGroupReplayEqual { get; init; }
@@ -137,6 +139,7 @@ public static class V9DevE2EFirstFullMembershipOracle
             Convert.ToHexStringLower(aggregate.GetHashAndReset()), edges.Count,
             Convert.ToHexStringLower(graph.GetHashAndReset()), false)
         {
+            ExpectedObservationIds = pending.Select(x => x.Id).ToArray(),
             ExpectedRanks = grouping.Decisions,
             ExpectedGroupRoots = grouping.RootByIndex,
             IndependentGroupCount = grouping.GroupCount,

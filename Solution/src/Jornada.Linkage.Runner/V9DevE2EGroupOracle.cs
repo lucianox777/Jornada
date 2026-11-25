@@ -123,7 +123,15 @@ public static class V9DevE2EGroupOracle
             Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalPartition))));
     }
 
-    public sealed record EdgeScoreReceipt(int DirectionsCompared, int ScoredDirections, int AbstainedDirections);
+    public sealed record EdgeScoreReceipt(int DirectionsCompared, int ScoredDirections, int AbstainedDirections,
+        string DirectionSha256);
+
+    public static string DirectionDigest(IEnumerable<V9DevDirectionalScore> rows)
+    {
+        var canonical = string.Concat(rows.OrderBy(x => x.Source).ThenBy(x => x.Target).Select(x =>
+            FormattableString.Invariant($"{x.Source}:{x.Target}:{x.Posterior?.ToString("F8",System.Globalization.CultureInfo.InvariantCulture) ?? "-"}:{x.LogOdds?.ToString("F8",System.Globalization.CultureInfo.InvariantCulture) ?? "-"}\n")));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
 
     public static void VerifyDirection(V9DevE2EScalarOracle.Pair? expected,
         V9DevE2EScalarOracle.Pair? actual)
@@ -146,6 +154,7 @@ public static class V9DevE2EGroupOracle
                 !neighbors[a].Add(b) || !neighbors[b].Add(a))
                 throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_EDGE_INVALID");
         int scored = 0, abstained = 0;
+        var expectedDirections = new List<V9DevDirectionalScore>();
         foreach (var (source, targets) in neighbors.OrderBy(x => x.Key))
         {
             var row = pending[source-1].Observation;
@@ -169,13 +178,15 @@ public static class V9DevE2EGroupOracle
             {
                 var actual = observed.GetValueOrDefault(id);
                 VerifyDirection(score, actual);
+                var target = ids.Single(x => V9FrozenSourceResolveReplay.ObservationGuid(x) == id);
+                expectedDirections.Add(new(source,target,score?.Posterior,score?.LogOdds));
                 if (actual is null) abstained++;
                 else scored++;
             }
         }
         if (scored + abstained != checked(2 * edges.Count))
             throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_CENSUS");
-        return new(scored + abstained, scored, abstained);
+        return new(scored + abstained, scored, abstained, DirectionDigest(expectedDirections));
     }
 
     // A separate replay, not the actual live scorer's ephemeral groups.

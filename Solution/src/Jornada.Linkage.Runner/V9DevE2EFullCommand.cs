@@ -150,6 +150,29 @@ public static class V9DevE2EFullCommand
         await WriteNewAsync(root, "membership-expected.json", JsonSerializer.Serialize(membership));
 
         stage = "runner-composition";
+        object? privateDiagnostic = null;
+        Guid observedRun = Guid.Empty;
+        scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, candidates) =>
+        {
+            if (privateDiagnostic is not null || !ids.SequenceEqual(membership.ExpectedObservationIds)
+                || edgesSha != membership.SilverEdgesSha256
+                || directions.Count != 2 * membership.SilverEdges
+                || directions.Select(x => (x.Source,x.Target)).Distinct().Count() != directions.Count
+                || V9DevE2EGroupOracle.DirectionDigest(directions) != membership.SilverDirectionalReplay!.DirectionSha256)
+                throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_SCORE_DIVERGENCE");
+            var roots = groups.GroupBy(x => x.Value).SelectMany(g =>
+                g.Select(x => (Index:x.Key-1,Root:g.Min(y => y.Key)-1)))
+                .OrderBy(x => x.Index).Select(x => x.Root).ToArray();
+            if (!roots.SequenceEqual(membership.ExpectedGroupRoots))
+                throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_PARTITION_DIVERGENCE");
+            var sizes = roots.GroupBy(x => x).ToDictionary(x => x.Key,x => x.Count());
+            observedRun = runId;
+            privateDiagnostic = ids.Select((id,i) => new {
+                observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
+                candidates = candidates[id].Select(x => x.PessoaUuid).OrderBy(x => x).ToArray(),
+                rankReason = membership.ExpectedRanks[i].Reason
+            }).ToArray();
+        };
         var storeRoot = Path.Combine(root, "runner-storage");
         if (Directory.Exists(storeRoot))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
@@ -171,6 +194,17 @@ public static class V9DevE2EFullCommand
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
 
+        if (privateDiagnostic is null || observedRun != summary.RunId)
+            throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_MISSING");
+        await WriteNewAsync(root, "fn-private.json", JsonSerializer.Serialize(privateDiagnostic));
+        await WriteNewAsync(root, "actual-graph-receipt.json", JsonSerializer.Serialize(new {
+            runId = observedRun, edges = membership.SilverEdges, edgesSha256 = membership.SilverEdgesSha256,
+            directions = membership.SilverDirectionalReplay!.DirectionsCompared,
+            directionSha256 = membership.SilverDirectionalReplay.DirectionSha256,
+            groups = membership.IndependentGroupCount, groupSha256 = membership.IndependentGroupSha256,
+            actualConsumedSilverEdgesVerified = true, actualConsumedScoresVerified = true,
+            actualConsumedGroupsVerified = true
+        }));
         stage = "post-full-census";
         // Only the independent oracle sees the private census; the scorer never reads truth.
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
