@@ -98,6 +98,20 @@ class IdentityCensusTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "PUBLISHED_CURRENT_UUID_DIVERGENCE"):
             CENSUS.compare(w, s, r, 2)
 
+    def test_cross_origin_requires_exact_destination_in_other_origin(self):
+        first, second = ("SEHAB", "A"), ("SMADS", "B")
+        bases = {first: "BASE1", second: "BASE1"}
+        self.assertFalse(CENSUS.has_cross_origin_cpf_reference(
+            first, "BASE1", U1, bases, {first: {U1}, second: {U2}}))
+        self.assertTrue(CENSUS.has_cross_origin_cpf_reference(
+            first, "BASE1", U1, bases, {first: {U1}, second: {U1}}))
+
+    def test_cpf_versions_of_same_origin_cannot_split(self):
+        w, s, r = fixture()
+        s[3]["currentUuid"] = U2
+        with self.assertRaisesRegex(ValueError, "CPF_ORIGIN_UUID_DRIFT"):
+            CENSUS.compare(w, s, r, 2)
+
     def test_no_cross_origin_match_is_not_pass(self):
         w, s, r = fixture()
         s[1].update(currentUuid=U2, publishedUuid=U2)

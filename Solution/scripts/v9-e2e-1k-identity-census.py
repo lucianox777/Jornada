@@ -74,6 +74,11 @@ def canonical_uuid(value):
     return str(parsed)
 
 
+def has_cross_origin_cpf_reference(origin, base, destination, source_bases, cpf_refs):
+    return any(other != origin and source_bases[other] == base and destination in refs
+               for other, refs in cpf_refs.items())
+
+
 def compare(waves, observed, runner, required_identities=1000):
     # A version is identified by manager + ZIP basename + opaque source ID.
     # A persistent origin is manager + opaque ID across the sealed waves.
@@ -159,7 +164,7 @@ def compare(waves, observed, runner, required_identities=1000):
             require(status == "RESOLVIDO" and method == "CPF_DETERMINISTICO",
                     "CPF_DETERMINISTIC_REFERENCE_REQUIRED")
             cpf_origins[origin] += 1
-            cpf_refs[expected[key]].add(current)
+            cpf_refs[origin].add(current)
         else:
             eligible += 1
             require(canonical_uuid(row.get("resultRunId")) == run_id
@@ -183,10 +188,10 @@ def compare(waves, observed, runner, required_identities=1000):
             "FULL_ELIGIBLE_CENSUS_MISMATCH")
     # Cross-origin matches to CPF references are publication evidence, not
     # proof of candidate membership or a score oracle.
-    cpf_cross = sum(any(k != (key[0], key[2]) and source_bases[k] == expected[key]
-                        for k in cpf_origins)
-                    and dest in cpf_refs[expected[key]]
-                    for key, dest in noncpf_associations)
+    cpf_cross = sum(has_cross_origin_cpf_reference(
+        (key[0], key[2]), expected[key], dest, source_bases, cpf_refs)
+        for key, dest in noncpf_associations)
+    require(all(len(refs) == 1 for refs in cpf_refs.values()), "CPF_ORIGIN_UUID_DRIFT")
     multi = sum(n > 1 for n in cpf_origins.values())
     true_sizes = Counter(expected.values())
     predicted_sizes = Counter(v for v in actual.values() if v is not None)
