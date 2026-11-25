@@ -178,8 +178,11 @@ public static class V9DevE2EFullCommand
                 """, connection);
             if (Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_AUTOMATIC_INDEX_MISSING");
-            await using var census = new SqlCommand(await File.ReadAllTextAsync(
-                Path.Combine("scripts", "v9-e2e-1k-identity-census.sql")), connection)
+            var query = await ReadPrivateAsync(root, "census.sql");
+            if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(query))) != "28cacd8133014137b3c331cf58c66cfa06abbc266663b58ed2022ca93ea99034")
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
+            await using var census = new SqlCommand(query, connection)
                 { CommandTimeout = 120 };
             census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
             census.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;

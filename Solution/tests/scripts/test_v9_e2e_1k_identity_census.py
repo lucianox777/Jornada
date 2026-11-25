@@ -46,6 +46,10 @@ def fixture():
 
 
 class IdentityCensusTests(unittest.TestCase):
+    def test_census_query_bytes_are_pinned_for_private_handoff(self):
+        query = SOURCE.with_name("v9-e2e-1k-identity-census.sql")
+        self.assertEqual(hashlib.sha256(query.read_bytes()).hexdigest(), "28cacd8133014137b3c331cf58c66cfa06abbc266663b58ed2022ca93ea99034")
+
     def test_cpf_versions_and_runner_universe(self):
         x = CENSUS.compare(*fixture(), required_identities=2)
         self.assertEqual(x["status"], "PASS")

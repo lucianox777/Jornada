@@ -128,6 +128,7 @@ jobs:
           bash scripts/v9-e2e-1k-prepare-waves.sh "$root/fixture"
           python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
           cp "$root/fixture/wave-preflight-receipt.json" "$root/wave-preflight-receipt.json"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
       - name: Launch isolated SQL Server
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
       - name: Fresh schema with C07 resident identity
