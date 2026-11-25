@@ -16,13 +16,13 @@ class Phase4PlanTests(unittest.TestCase):
     def test_complete_factorial_and_independent_trajectories(self):
         plan = P.build_plan(BASE, ATTEMPT)
         cells = plan["cells"]
-        self.assertEqual(len(cells), 24)
-        self.assertEqual(len({c["cell"] for c in cells}), 24)
+        self.assertEqual(len(cells), 48)
+        self.assertEqual(len({c["cell"] for c in cells}), 48)
         self.assertEqual(sum(c["officialBaseline"] for c in cells), 1)
         trajectories = [t for c in cells for t in c["trajectories"]]
-        self.assertEqual(len({t["trajectoryId"] for t in trajectories}), 48)
+        self.assertEqual(len({t["trajectoryId"] for t in trajectories}), 96)
         states = [s for t in trajectories for s in t["rounds"]]
-        self.assertEqual(len({s["stateId"] for s in states}), 72)
+        self.assertEqual(len({s["stateId"] for s in states}), 144)
         for t in trajectories:
             self.assertIsNone(t["rounds"][0]["previousStateId"])
             if len(t["rounds"]) == 2:
@@ -33,7 +33,7 @@ class Phase4PlanTests(unittest.TestCase):
         self.assertTrue(plan["firstContrast"]["beforeFactorial"])
         self.assertFalse(plan["publication"])
         self.assertFalse(plan["executionAuthorizedByThisPlan"])
-        self.assertTrue(plan["r2RulesPendingSpecification"])
+        self.assertFalse(plan["r2RulesPendingSpecification"])
 
     def test_shared_input_binding_and_drift(self):
         fixture = {"counts": P.COUNTS.copy(), "waveCount": 2,

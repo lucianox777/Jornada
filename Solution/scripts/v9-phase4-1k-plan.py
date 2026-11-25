@@ -16,11 +16,11 @@ BASE_ZIP_SHA = "155de4c59181146e565f6d3c20c2ac2a17138863a830542b1ebd04854487b94c
 WINNER = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee"
 COUNTS = {"baseIdentities": 1000, "sourceVersions": 2349,
           "persistentOrigins": 1957, "cpfVersions": 315}
-FACTORS = (("evidence", ("b1", "b2", "summary")),
+FACTORS = (("s4b", ("i", "ii")), ("evidence", ("b1", "b2", "summary")),
            ("prior", ("records", "people")),
            ("policy", ("r1", "r2")),
            ("blocking", ("broad", "secure")))
-BASELINE = ("b1", "records", "r1", "broad")
+BASELINE = ("i", "b1", "records", "r1", "broad")
 METRICS = (
     "pair_tp_fp_fn_recall_fdr", "false_merges_splits_by_true_person",
     "indefinite_by_raw_and_effective_reason", "b2_exclusive_correct_incorrect_by_score_band",
@@ -142,7 +142,7 @@ def build_plan(baseline, attempt, fixture=None):
             "factorialRequiresS4bReceipt":True,
             "population": 1000, "seed": 355, "scientificTest": False,
             "publication": False, "activation": False, "executedCells": 0,
-            "r2RulesPendingSpecification": True,
+            "r2RulesPendingSpecification": False,
             "executionAuthorizedByThisPlan": False,
             "officialBaselineParityRequiredBeforeContrasts": True}
 
@@ -162,7 +162,7 @@ def main():
             json.dump(result, out, sort_keys=True, indent=2)
     except (ValueError, OSError, KeyError, TypeError, AttributeError, zipfile.BadZipFile):
         raise SystemExit("V9_PHASE4_PLAN_REJECTED") from None
-    print("V9_PHASE4_PLAN_ONLY_24_CELLS_ZERO_EXECUTED")
+    print("V9_PHASE4_PLAN_ONLY_48_CELLS_ZERO_EXECUTED")
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ public static class V9DevE2EFullCommand
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full")
+        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full" or "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000"
@@ -90,6 +90,12 @@ public static class V9DevE2EFullCommand
 
         stage = "scorer";
         var loaded = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
+        if (args[1] == "matrix")
+        {
+            stage = "matrix";
+            await V9Phase4Matrix.ExecuteAsync(root, sql, loaded.Snapshot, attempt, CancellationToken.None);
+            return;
+        }
         var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
             CancellationToken.None, effectiveEnvironment: "Development");
         stage = "pre-full-sql";
@@ -144,6 +150,11 @@ public static class V9DevE2EFullCommand
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
         }
 
+        if (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true")
+        {
+            stage = "matrix-frame";
+            await V9Phase4Matrix.CaptureAsync(root, sql, attempt, CancellationToken.None);
+        }
         stage = "pre-full-membership";
         var membership = await V9DevE2EFirstFullMembershipOracle.ReadAsync(
             sql, loaded.Snapshot, attempt, total, eligible, CancellationToken.None);

@@ -8,6 +8,8 @@ on:
       - 'Solution/scripts/v9-phase4-s4b-1k.py'
       - 'Solution/scripts/v9-phase4-1k-plan.py'
       - 'Solution/scripts/v9-phase4-1k-gate.py'
+      - 'Solution/scripts/v9-phase4-matrix-oracle.py'
+      - 'Solution/src/Jornada.Linkage.Runner/V9Phase4Matrix.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs'
 
 permissions:
@@ -198,6 +200,7 @@ jobs:
           [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
           python3 scripts/v9-e2e-1k-http.py ingest --root "$root/fixture"
           cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
+          export JORNADA_V9_PHASE4_MATRIX=true
           run_cli full
           python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
           echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
@@ -214,10 +217,12 @@ jobs:
           python3 scripts/v9-e2e-1k-acceptance.py "$root"
           python3 scripts/v9-phase4-s4b-1k.py --root "$root"
           python3 scripts/v9-phase4-1k-gate.py --root "$root"
+          run_cli matrix
+          python3 scripts/v9-phase4-matrix-oracle.py --root "$root"
           # Explicit allowlist of aggregate files only. Never upload the private root.
           out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
           mkdir -m 700 "$out"
-          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/fixture/person-census-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/fn-receipt.json" "$root/nucleus-receipt.json" "$root/s4b-receipt.json" "$root/phase4-matrix-bound-plan.json" "$out/"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/fixture/person-census-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/fn-receipt.json" "$root/nucleus-receipt.json" "$root/s4b-receipt.json" "$root/phase4-matrix-bound-plan.json" "$root/matrix-receipt.json" "$out/"
           printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
           echo 'V9_E2E_1K_PHYSICAL_NUCLEUS_PASS_NOT_INTEGRAL'
       - name: Publish only aggregate evidence of completed physical path

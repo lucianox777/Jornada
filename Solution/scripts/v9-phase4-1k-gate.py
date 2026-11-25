@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind the 24-cell plan to a verified S4b measurement in the same private attempt.
+"""Bind the 48-cell plan to a verified S4b measurement in the same private attempt.
 
 No scorer, SQL or publication here. The resulting plan is NOT an executor.
 """
@@ -128,5 +128,5 @@ def main():
             json.dump(plan,f,sort_keys=True,indent=2)
     except (OSError,ValueError,KeyError,TypeError,AttributeError):
         raise SystemExit("V9_PHASE4_MATRIX_GATE_REJECTED") from None
-    print("V9_PHASE4_S4B_GATE_PASS_24_CELLS_PLANNED_ZERO_EXECUTED")
+    print("V9_PHASE4_S4B_GATE_PASS_48_CELLS_PLANNED_ZERO_EXECUTED")
 if __name__=="__main__": main()
