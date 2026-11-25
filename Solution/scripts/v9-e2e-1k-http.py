@@ -80,7 +80,7 @@ def sql_scalar(query, attempt):
 
 
 def ingest(root, attempt):
-    preflight_path = root / "wave-preflight-receipt.json"
+    preflight_path = root / "delivery-preflight-receipt.json"
     pre = get_json(preflight_path)
     require(pre["schema"] == "V9_E2E_1K_WAVE_PREFLIGHT_V1" and pre["status"] == "PASS"
             and pre["baseIdentities"] == 1000 and pre["waveCount"] == 2,

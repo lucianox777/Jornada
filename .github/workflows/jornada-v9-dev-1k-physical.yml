@@ -130,7 +130,8 @@ jobs:
           root="$JORNADA_V9_E2E_PRIVATE_ROOT"
           bash scripts/v9-e2e-1k-prepare-waves.sh "$root/fixture"
           python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
-          cp "$root/fixture/wave-preflight-receipt.json" "$root/wave-preflight-receipt.json"
+          python3 scripts/v9-e2e-1k-factual.py prepare --root "$root/fixture"
+          cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
           cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
       - name: Launch isolated SQL Server
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -200,15 +201,16 @@ jobs:
           python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
           echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
           python3 scripts/v9-e2e-1k-identity-census.py \
-            --wave "$root/fixture/ingestion/wave-01/bridge-manifest.json" "$root/fixture/ingestion/wave-01/bridge-truth.jsonl" \
-            --wave "$root/fixture/ingestion/wave-02/bridge-manifest.json" "$root/fixture/ingestion/wave-02/bridge-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-01/delivery-manifest.json" "$root/fixture/ingestion/wave-01/delivery-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-02/delivery-manifest.json" "$root/fixture/ingestion/wave-02/delivery-truth.jsonl" \
             --sql "$root/sql-census.json" --runner "$root/runner-receipt.json" --receipt "$root/identity-receipt.json"
           cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/fixture/"
           python3 scripts/v9-e2e-1k-http.py api --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-factual.py verify --root "$root/fixture"
           # Explicit allowlist of aggregate files only. Never upload the private root.
           out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
           mkdir -m 700 "$out"
-          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$out/"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$out/"
           printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
           echo 'V9_E2E_1K_PHYSICAL_IDENTITY_PATH_PASS_NOT_FULL_ORACLE_OR_INTEGRAL'
       - name: Publish only aggregate evidence of completed physical path
