@@ -1,3 +1,5 @@
+> **GOV-V9-PLANO-PO-V6-20261124 — DECIDIDO pelo PO após avaliação, integração/validação pendentes:** [plano consolidado v6](Decisao_GOV_V9_Plano_PO_V6_20261124.md) prevalece sobre v4/v5 e mensagens anteriores. b1 integrada #1935 na master c569ca24; 2b #1937: Runner sincroniza índice V9 sob C07 antes do scoring no snapshot consistente e após publicação, Processor sem Linkage.Core; C10 fail-closed, busca ampla e paridade; FULL inicial/repetido para merge, #1936 aberta até INCREMENTAL. Fase 3 1k com vencedor #38, fase 4 1k contrafactual, parada antes de 10k; fase 5 só propostas. Preservar ciência/legado/gates, sem ativação. GOV-DOC-01. #1851.
+
 # GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122 — Plano de ação aprovado para E2E do sistema inteiro
 
 **Data:** 22/11/2026. **Autoridade:** Product Owner. **Estado:** DECIDIDO / PLANO APROVADO COM AJUSTES; implementação, validação, certificação e ativação NÃO presumidas. **Política:** GOV-DOC-01.

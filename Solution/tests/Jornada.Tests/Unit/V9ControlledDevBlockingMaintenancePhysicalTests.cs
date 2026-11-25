@@ -344,7 +344,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             }
             async Task ExecuteScriptAsync(string relative)
             {
-                var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "database", relative));
+                var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "rf1936-sql", relative));
                 var batch = string.Join("\n", script.Split('\n').Where(line =>
                     !string.Equals(line.Trim(), "GO", StringComparison.OrdinalIgnoreCase)));
                 await using var command = new SqlCommand(batch, db);

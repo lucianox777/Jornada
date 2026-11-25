@@ -47,16 +47,6 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'identidade.b
         normalizacao_versao,projection_schema_version,projection_fingerprint_sha256,
         atributo,valor_normalizado,vigencia_fim,pessoa_uuid);
 
-IF OBJECT_ID(N'identidade.blocking_chave_v9_cobertura',N'U') IS NULL
-BEGIN
-    CREATE TABLE identidade.blocking_chave_v9_cobertura(
-        projection_fingerprint_sha256 char(64) COLLATE Latin1_General_100_BIN2 NOT NULL PRIMARY KEY,
-        inicializado_em datetimeoffset(7) NOT NULL,
-        CONSTRAINT CK_blocking_chave_v9_cobertura_sha CHECK(LEN(projection_fingerprint_sha256)=64
-            AND projection_fingerprint_sha256 NOT LIKE '%[^0-9a-f]%')
-    );
-END;
-
 -- Distinguish never initialized from a corrupted/incomplete index. A receipt
 -- is written only inside the same transaction as a complete reconciliation.
 IF OBJECT_ID(N'identidade.blocking_chave_v9_cobertura',N'U') IS NULL
