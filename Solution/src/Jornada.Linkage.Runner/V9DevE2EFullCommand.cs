@@ -1,0 +1,198 @@
+using System.Data;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using Jornada.Bronze.Storage;
+using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
+using Jornada.Operational.Sql;
+using Jornada.Pipeline.Coordination;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Jornada.Linkage.Runner;
+
+/// <summary>Only the explicitly admitted, fresh DEV 1k attempt. No productive dispatch.</summary>
+public static class V9DevE2EFullCommand
+{
+    public const string Flag = "--v9-dev-full-1k";
+    private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
+
+    public static async Task RunAsync(string[] args)
+    {
+        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full")
+            || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
+            || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
+            || Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000"
+            || Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development"
+            || !Guid.TryParseExact(Environment.GetEnvironmentVariable("JORNADA_V9_DEV_ATTEMPT"),
+                "D", out var attempt) || attempt == Guid.Empty)
+            throw new InvalidOperationException("RUNNER_V9_DEV_E2E_FULL_1K_EXPLICIT_ADMISSION_REQUIRED");
+
+        var config = Host.CreateApplicationBuilder(Array.Empty<string>()).Configuration;
+        var sql = new OperationalSqlAdapter(config.GetConnectionString("Jornada")
+            ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING"));
+        if (!config.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting)
+            || config[V9BlockingMaintenanceGate.AttemptSetting] != attempt.ToString("D")
+            || config.GetValue<bool>(V9ControlledDevCohortScorer.DiagnosticFixtureSetting)
+            || config.GetValue("LinkageReplay:CaptureBronzeSources", false))
+            throw new InvalidOperationException(V9BlockingMaintenanceGate.ProductiveNotCertified);
+        var boundary = await V9ControlledDevSelection.VerifyAsync(config, sql, attempt, CancellationToken.None);
+        if (boundary.Runtime.WinnerSha256 != Winner)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_WINNER_MISMATCH");
+        var root = Environment.GetEnvironmentVariable("JORNADA_V9_E2E_PRIVATE_ROOT");
+        if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root)
+            || !Directory.Exists(root) || new DirectoryInfo(root).LinkTarget is not null)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_PRIVATE_ROOT_REQUIRED");
+
+        if (args[1] == "catalog")
+        {
+            // Catalog batch was derived by the fixed source-pin script. The
+            // batch repeats the exact attempt and empty-state verification.
+            await using var connection = await sql.OpenAsync(CancellationToken.None);
+            await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(connection, attempt, CancellationToken.None);
+            await using var command = new SqlCommand(await ReadPrivateAsync(root, "catalog.sql"), connection);
+            command.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
+            await command.ExecuteNonQueryAsync();
+            Console.WriteLine("V9_E2E_CATALOG_EXECUTED");
+            return;
+        }
+
+        using var pre = JsonDocument.Parse(await ReadPrivateAsync(root, "wave-preflight-receipt.json"));
+        using var lineage = JsonDocument.Parse(await ReadPrivateAsync(root, "http-lineage.json"));
+        var p = pre.RootElement;
+        var l = lineage.RootElement;
+        var total = p.GetProperty("sourceVersions").GetInt32();
+        var eligible = p.GetProperty("nonCpfVersions").GetInt32();
+        if (p.GetProperty("schema").GetString() != "V9_E2E_1K_WAVE_PREFLIGHT_V1"
+            || p.GetProperty("status").GetString() != "PASS"
+            || p.GetProperty("baseIdentities").GetInt32() != 1000
+            || total <= eligible || eligible <= 0
+            || l.GetProperty("schema").GetString() != "V9_E2E_1K_HTTP_LINEAGE_V1"
+            || l.GetProperty("status").GetString() != "PASS"
+            || l.GetProperty("sourceVersions").GetInt32() != total
+            || l.GetProperty("attempt").GetString() != attempt.ToString("D")
+            || l.GetProperty("preflightSha256").GetString() !=
+               Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                   await File.ReadAllBytesAsync(Path.Combine(root, "wave-preflight-receipt.json")))).ToLowerInvariant())
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_LINEAGE_INVALID");
+
+        var loaded = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
+        var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
+            CancellationToken.None, effectiveEnvironment: "Development");
+        await using (var connection = await sql.OpenAsync(CancellationToken.None))
+        {
+            await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(connection, attempt, CancellationToken.None);
+            await using var admission = new SqlCommand("""
+                SELECT CASE WHEN
+                    NOT EXISTS(SELECT 1 FROM identidade.modelo_linkage_v9_operacional)
+                    AND NOT EXISTS(SELECT 1 FROM identidade.modelo_linkage WHERE versao=9)
+                    AND NOT EXISTS(SELECT 1 FROM identidade.linkage_run)
+                    AND NOT EXISTS(SELECT 1 FROM identidade.blocking_chave_v9)
+                    AND NOT EXISTS(SELECT 1 FROM identidade.blocking_chave_v9_cobertura)
+                    AND (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao)=@total
+                    AND (SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE cpf IS NULL)=@eligible
+                    AND NOT EXISTS(SELECT 1 FROM silver.pessoa_observacao
+                        WHERE pessoa_origem_id IS NULL OR codigo_pessoa_origem NOT LIKE N'SYNTH-%')
+                    AND NOT EXISTS(SELECT 1 FROM ingestao.lote WHERE status<>N'PROCESSADO')
+                    AND NOT EXISTS(SELECT 1 FROM ingestao.entrega WHERE status<>N'PROCESSADA')
+                  THEN 1 ELSE 0 END;
+                """, connection);
+            admission.Parameters.Add("@total", SqlDbType.BigInt).Value = total;
+            admission.Parameters.Add("@eligible", SqlDbType.BigInt).Value = eligible;
+            if (Convert.ToInt32(await admission.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_PROCESSOR_CENSUS_INVALID");
+
+            await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable))
+            {
+                await V9BlockingMaintenanceGate.RequireAsync("Development", true, attempt,
+                    connection, tx, CancellationToken.None);
+                await tx.CommitAsync();
+            }
+            var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
+            if (model.ModelId != boundary.Runtime.ModelId || model.Active || model.Published)
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
+            await using var anchor = new SqlCommand("""
+                INSERT identidade.modelo_linkage(
+                    modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
+                    deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
+                VALUES(@id,9,N'RASCUNHO',@algo,@normalization,
+                    N'V9_DEV_E2E_DISPOSABLE',N'IBGE_1K_DEV_AFTER_PROCESSOR',
+                    @sha,SYSDATETIMEOFFSET());
+                SELECT @@ROWCOUNT;
+                """, connection);
+            anchor.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = model.ModelId;
+            anchor.Parameters.Add("@algo", SqlDbType.NVarChar, 120).Value =
+                LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion;
+            anchor.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
+            anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = Winner;
+            if (Convert.ToInt32(await anchor.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
+        }
+
+        var storeRoot = Path.Combine(root, "runner-storage");
+        if (Directory.Exists(storeRoot))
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
+        Directory.CreateDirectory(storeRoot);
+        var runner = new ProbabilisticLinkageBatchRunner(config, sql, scorer,
+            new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
+            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
+            new Dt05CandidateStateSnapshotPublisher(sql, storeRoot),
+            new Dt05BlockingProjectionSnapshotPublisher(sql, storeRoot),
+            new Dt05HistoricalCandidateStateVerifier(storeRoot),
+            new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
+            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
+        var summary = await runner.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
+            LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
+            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true),
+            attempt, CancellationToken.None);
+        if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Elegiveis != eligible
+            || summary.Avaliados != eligible)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
+
+        // Only the independent oracle sees the private census; the scorer never reads truth.
+        await using (var connection = await sql.OpenAsync(CancellationToken.None))
+        {
+            await V9ControlledDevSelection.VerifyDisposableAttemptDatabaseAsync(connection, attempt, CancellationToken.None);
+            await using var count = new SqlCommand("""
+                SELECT CASE WHEN EXISTS(SELECT 1 FROM identidade.blocking_chave_v9)
+                  AND (SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9_cobertura)=1
+                  THEN 1 ELSE 0 END;
+                """, connection);
+            if (Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_AUTOMATIC_INDEX_MISSING");
+            await using var census = new SqlCommand(await File.ReadAllTextAsync(
+                Path.Combine("scripts", "v9-e2e-1k-identity-census.sql")), connection)
+                { CommandTimeout = 120 };
+            census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
+            census.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
+            var json = new StringBuilder();
+            await using (var reader = await census.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) json.Append(reader.GetString(0));
+            await WriteNewAsync(root, "sql-census.json", json.ToString());
+        }
+        await WriteNewAsync(root, "runner-receipt.json", JsonSerializer.Serialize(new {
+            mode = "FULL", status = "PUBLICADO", winnerSha256 = Winner, scientificTest = false,
+            activated = false, eligible = summary.Elegiveis, evaluated = summary.Avaliados,
+            runId = summary.RunId, automaticV9Index = true
+        }));
+        Console.WriteLine("V9_DEV_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL");
+    }
+
+    private static async Task<string> ReadPrivateAsync(string root, string name)
+    {
+        var file = new FileInfo(Path.Combine(root, name));
+        if (!file.Exists || file.LinkTarget is not null || file.Length is <= 0 or > 1048576)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_PRIVATE_RECEIPT_INVALID");
+        return await File.ReadAllTextAsync(file.FullName);
+    }
+
+    private static async Task WriteNewAsync(string root, string name, string json)
+    {
+        await using var stream = new FileStream(Path.Combine(root, name), FileMode.CreateNew, FileAccess.Write);
+        await using var writer = new StreamWriter(stream);
+        await writer.WriteAsync(json);
+    }
+}

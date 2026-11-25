@@ -5,6 +5,21 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+// Explicit disposable 1k DEV harness only; productive V9 dispatch remains denied.
+if (args.FirstOrDefault() == V9DevE2EFullCommand.Flag)
+{
+    try
+    {
+        await V9DevE2EFullCommand.RunAsync(args);
+    }
+    catch (Exception)
+    {
+        Console.Error.WriteLine("V9_DEV_E2E_COMMAND_FAILED");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 // Read-only proof that the real derived V3 is executable by the actual V9
 // multipass SQL query builder and frozen TF+joint scorer; NO DB or publication.
 if (args.FirstOrDefault() == V9FrozenGoldRuntimeProbeCli.Flag)
