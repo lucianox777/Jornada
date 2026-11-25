@@ -57,6 +57,23 @@ BEGIN
     );
 END;
 
+-- Distinguish never initialized from a corrupted/incomplete index. A receipt
+-- is written only inside the same transaction as a complete reconciliation.
+IF OBJECT_ID(N'identidade.blocking_chave_v9_cobertura',N'U') IS NULL
+BEGIN
+    CREATE TABLE identidade.blocking_chave_v9_cobertura(
+        normalizacao_versao nvarchar(80) NOT NULL,
+        projection_schema_version nvarchar(120) NOT NULL,
+        projection_fingerprint_sha256 char(64) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        inicializado_em datetimeoffset(7) NOT NULL CONSTRAINT DF_blocking_chave_v9_cobertura_inicio DEFAULT(SYSDATETIMEOFFSET()),
+        CONSTRAINT PK_blocking_chave_v9_cobertura PRIMARY KEY(
+            normalizacao_versao,projection_schema_version,projection_fingerprint_sha256),
+        CONSTRAINT CK_blocking_chave_v9_cobertura_schema CHECK(projection_schema_version=N'V9_CALIBRATION_BLOCKING_PROJECTION_V1'),
+        CONSTRAINT CK_blocking_chave_v9_cobertura_fingerprint CHECK(LEN(projection_fingerprint_sha256)=64
+            AND projection_fingerprint_sha256 NOT LIKE '%[^0-9a-f]%')
+    );
+END;
+
 -- Schema availability only: no writes to projection rows, no backfill, no authorization.
 IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.V9.BlockingSchemaEnabled')
     EXEC sys.sp_updateextendedproperty @name=N'Jornada.V9.BlockingSchemaEnabled',@value=N'1';

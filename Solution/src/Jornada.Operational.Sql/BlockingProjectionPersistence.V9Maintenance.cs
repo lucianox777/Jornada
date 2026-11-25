@@ -5,225 +5,246 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Operational.Sql;
 
-/// <summary>RF #1936: shared projection writer. No writes to the legacy index.</summary>
+/// <summary>
+/// Reuses the existing Gold/history projector for RF #1936. The isolated
+/// table is not identity evidence. No legacy index write or fallback here.
+/// A complete census is intentionally used in this bounded DEV phase;
+/// no capacity truncation or claim of production-scale performance.
+/// </summary>
 public static partial class BlockingProjectionPersistence
 {
-    // The plan carries only the projection identity of the already validated
-    // file-pinned winner. It does not confer write authority.
-    public sealed record V9MaintenancePlan(string EffectiveEnvironment, bool Enabled,
-        Guid AttemptId, string ProjectionFingerprintSha256);
+    private sealed record V9ProjectionEntry(Guid PersonUuid, BlockingProjectionRow Key);
 
-    private static int VerifyMaintenanceProjection(string fingerprint) =>
-        V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
-            V9CalibrationBlockingProjection.SchemaVersion, fingerprint);
-
-    private static async Task RequireV9MaintenanceWriterAsync(SqlConnection db,
-        SqlTransaction tx, V9MaintenancePlan plan, CancellationToken ct)
+    /// <summary>Called before Gold changes, in the same serializable write
+    /// transaction. Bootstrap only a never initialized, empty projection.
+    /// An existing incomplete projection is an error, not an empty search.</summary>
+    public static async Task InitializeOrVerifyPinnedV9Async(SqlConnection connection,
+        SqlTransaction transaction, string? effectiveEnvironment, bool enabled,
+        Guid attemptId, int maximumPrefixLength, string fingerprint, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(plan);
-        await V9BlockingMaintenanceGate.RequireAsync(plan.EffectiveEnvironment, plan.Enabled,
-            plan.AttemptId, db, tx, ct);
-        if (tx.IsolationLevel != IsolationLevel.Serializable)
-            throw new InvalidOperationException("RUNNER_V9_BLOCKING_SERIALIZABLE_REQUIRED");
-        // Serialize initialization and refresh, including concurrent Processor
-        // batches. This lock is held until the caller's publication commits.
-        await using var cmd = new SqlCommand("""
-            DECLARE @r int;
-            EXEC @r=sys.sp_getapplock @Resource=N'Jornada.V9.BlockingMaintenance',
-                @LockMode=N'Exclusive',@LockOwner=N'Transaction',@LockTimeout=10000;
-            SELECT @r;
-            """, db, tx);
-        if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) < 0)
-            throw new InvalidOperationException("RUNNER_V9_BLOCKING_MAINTENANCE_LOCK");
+        await RequireV9WriterAsync(connection, transaction, effectiveEnvironment, enabled,
+            attemptId, maximumPrefixLength, fingerprint, ct);
+        var initialized = await IsV9InitializedAsync(connection, transaction, fingerprint, ct);
+        var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
+        if (initialized)
+        {
+            if (!expected.SetEquals(actual.Keys))
+                throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE");
+            return;
+        }
+        if (actual.Count != 0)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_UNINITIALIZED_WITH_ROWS");
+
+        await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
+        await using var mark = new SqlCommand("""
+            INSERT identidade.blocking_chave_v9_cobertura(
+                normalizacao_versao,projection_schema_version,projection_fingerprint_sha256)
+            VALUES(@normalization,@schema,@fingerprint);
+            """, connection, transaction);
+        AddV9ProjectionParameters(mark, fingerprint);
+        if (await mark.ExecuteNonQueryAsync(ct) != 1)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
+        await VerifyPinnedV9ProjectionAsync(connection, transaction, attemptId,
+            maximumPrefixLength, fingerprint, ct);
     }
 
-    private static async Task<List<Guid>> ReadV9ReferenceIdsAsync(
-        SqlConnection db, SqlTransaction tx, CancellationToken ct)
+    /// <summary>Called after real Gold recomposition and before publication
+    /// commit. Same C07 gate, transaction and projection. Reconcile additions
+    /// and invalidations, retaining unchanged physical rows and timestamps.</summary>
+    public static async Task RefreshPinnedV9Async(SqlConnection connection,
+        SqlTransaction transaction, string? effectiveEnvironment, bool enabled,
+        Guid attemptId, int maximumPrefixLength, string fingerprint, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
-            SELECT g.pessoa_uuid FROM gold.pessoa g
-            JOIN identidade.pessoa p ON p.pessoa_uuid=g.pessoa_uuid
-            WHERE g.estado_identidade=N'REFERENCIA' AND p.status=N'ATIVO'
-            ORDER BY g.pessoa_uuid;
-            """, db, tx);
-        var ids = new List<Guid>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            ids.Add(reader.GetGuid(0));
-        return ids;
+        await RequireV9WriterAsync(connection, transaction, effectiveEnvironment, enabled,
+            attemptId, maximumPrefixLength, fingerprint, ct);
+        if (!await IsV9InitializedAsync(connection, transaction, fingerprint, ct))
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
+        var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
+        await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
+        await VerifyPinnedV9ProjectionAsync(connection, transaction, attemptId,
+            maximumPrefixLength, fingerprint, ct);
     }
 
-    private static async Task<bool> HasV9CoverageAsync(SqlConnection db, SqlTransaction tx,
+    /// <summary>Read-only exact coverage/freshness proof, in the same snapshot
+    /// used to retrieve candidates. Missing, stale or extra keys fail closed.</summary>
+    public static async Task VerifyPinnedV9ProjectionAsync(SqlConnection connection,
+        SqlTransaction transaction, Guid attemptId, int maximumPrefixLength,
         string fingerprint, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (transaction.IsolationLevel is not (IsolationLevel.Snapshot or IsolationLevel.Serializable))
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_CONSISTENT_TRANSACTION_REQUIRED");
+        ValidateV9Projection(maximumPrefixLength, fingerprint);
+        await V9DisposableAttemptDatabase.VerifyAsync(connection, attemptId, ct, transaction);
+        if (!await IsV9InitializedAsync(connection, transaction, fingerprint, ct))
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
+        var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
+        var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        if (!expected.SetEquals(actual.Keys))
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE");
+    }
+
+    private static void ValidateV9Projection(int maximumPrefixLength, string fingerprint)
+    {
+        V9CalibrationBlockingProjection.ValidateMaximumPrefixLength(maximumPrefixLength);
+        if (!string.Equals(V9CalibrationBlockingProjection.ComputeSchemaFingerprint(maximumPrefixLength),
+                fingerprint, StringComparison.Ordinal))
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH");
+    }
+
+    private static async Task RequireV9WriterAsync(SqlConnection connection, SqlTransaction transaction,
+        string? effectiveEnvironment, bool enabled, Guid attemptId, int maximumPrefixLength,
+        string fingerprint, CancellationToken ct)
+    {
+        // C07 precedes all writes, including coverage initialization.
+        await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, enabled, attemptId,
+            connection, transaction, ct);
+        if (transaction.IsolationLevel != IsolationLevel.Serializable)
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_SERIALIZABLE_REQUIRED");
+        ValidateV9Projection(maximumPrefixLength, fingerprint);
+        // Serialize cooperating writers BEFORE they mutate Gold. The schema
+        // lock from C07 remains shared until the enclosing transaction ends.
+        await using var acquire = new SqlCommand("""
+            DECLARE @lock_result int;
+            EXEC @lock_result=sys.sp_getapplock @Resource=N'Jornada.V9.BlockingMaintenance',
+                @LockMode=N'Exclusive', @LockOwner=N'Transaction', @LockTimeout=60000;
+            SELECT @lock_result;
+            """, connection, transaction) { CommandTimeout = 65 };
+        if (Convert.ToInt32(await acquire.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) < 0)
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_WRITER_LOCK_UNAVAILABLE");
+    }
+
+    private static void AddV9ProjectionParameters(SqlCommand command, string fingerprint)
+    {
+        command.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
+        command.Parameters.Add("@schema", SqlDbType.NVarChar, 120).Value = V9CalibrationBlockingProjection.SchemaVersion;
+        command.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = fingerprint;
+    }
+
+    private static async Task<bool> IsV9InitializedAsync(SqlConnection connection,
+        SqlTransaction transaction, string fingerprint, CancellationToken ct)
+    {
+        await using (var schema = new SqlCommand("""
+            SELECT CASE WHEN OBJECT_ID(N'identidade.blocking_chave_v9',N'U') IS NOT NULL
+               AND OBJECT_ID(N'identidade.blocking_chave_v9_cobertura',N'U') IS NOT NULL
+               AND EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0
+                   AND name=N'Jornada.V9.BlockingSchemaEnabled'
+                   AND CONVERT(nvarchar(10),value)=N'1') THEN 1 ELSE 0 END;
+            """, connection, transaction))
+        {
+            if (Convert.ToInt32(await schema.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) != 1)
+                throw new InvalidOperationException("RUNNER_V9_BLOCKING_SCHEMA_NOT_AVAILABLE");
+        }
+        await using var query = new SqlCommand("""
             SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9_cobertura
-             WHERE projection_fingerprint_sha256=@fingerprint;
-            """, db, tx);
-        cmd.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = fingerprint;
-        return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) == 1;
+             WHERE normalizacao_versao=@normalization AND projection_schema_version=@schema
+               AND projection_fingerprint_sha256=@fingerprint;
+            """, connection, transaction);
+        AddV9ProjectionParameters(query, fingerprint);
+        return Convert.ToInt64(await query.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) == 1;
     }
 
-    /// <summary>
-    /// Initialize exactly once per projection, inside the producer transaction.
-    /// Existing incomplete indexes are NOT silently repaired on a read.
-    /// </summary>
-    public static async Task EnsureV9CoverageInitializedAsync(SqlConnection db, SqlTransaction tx,
-        V9MaintenancePlan plan, CancellationToken ct)
+    private static async Task<HashSet<V9ProjectionEntry>> ReadExpectedV9EntriesAsync(
+        SqlConnection connection, SqlTransaction transaction, int maximumPrefixLength, CancellationToken ct)
     {
-        await RequireV9MaintenanceWriterAsync(db, tx, plan, ct);
-        var prefix = VerifyMaintenanceProjection(plan.ProjectionFingerprintSha256);
-        if (await HasV9CoverageAsync(db, tx, plan.ProjectionFingerprintSha256, ct))
-            return;
-        // A nonempty, unregistered index is an inconsistency, not permission
-        // to discard data or to pretend that initialization was successful.
-        await using (var census = new SqlCommand("""
-            SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9
-             WHERE projection_fingerprint_sha256=@fingerprint;
-            """, db, tx))
+        var people = new List<Guid>();
+        await using (var query = new SqlCommand("""
+            SELECT g.pessoa_uuid,p.status FROM gold.pessoa g
+            JOIN identidade.pessoa p ON p.pessoa_uuid=g.pessoa_uuid
+            WHERE g.estado_identidade=N'REFERENCIA' ORDER BY g.pessoa_uuid;
+            """, connection, transaction))
         {
-            census.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = plan.ProjectionFingerprintSha256;
-            if (Convert.ToInt64(await census.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) != 0)
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_UNREGISTERED_ROWS");
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                if (!string.Equals(reader.GetString(1), "ATIVO", StringComparison.Ordinal))
+                    throw new InvalidDataException("RUNNER_V9_BLOCKING_INACTIVE_GOLD_REFERENCE");
+                people.Add(reader.GetGuid(0));
+            }
         }
-        foreach (var id in await ReadV9ReferenceIdsAsync(db, tx, ct))
-            await ReplaceV9ReferenceAsync(db, tx, id, prefix, plan.ProjectionFingerprintSha256, ct);
-        await using var marker = new SqlCommand("""
-            INSERT identidade.blocking_chave_v9_cobertura(projection_fingerprint_sha256,inicializado_em)
-            VALUES(@fingerprint,SYSDATETIMEOFFSET());
-            """, db, tx);
-        marker.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = plan.ProjectionFingerprintSha256;
-        if (await marker.ExecuteNonQueryAsync(ct) != 1)
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_WRITE_FAILED");
-    }
-
-    public static async Task RefreshV9ReferencesAsync(SqlConnection db, SqlTransaction tx,
-        V9MaintenancePlan plan, IReadOnlyCollection<Guid> affected, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(affected);
-        await RequireV9MaintenanceWriterAsync(db, tx, plan, ct);
-        var prefix = VerifyMaintenanceProjection(plan.ProjectionFingerprintSha256);
-        if (!await HasV9CoverageAsync(db, tx, plan.ProjectionFingerprintSha256, ct))
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_MISSING");
-        foreach (var id in affected.Distinct().OrderBy(x => x))
+        var expected = new HashSet<V9ProjectionEntry>();
+        var supported = V9CalibrationBlockingProjection.SupportedFeatures(maximumPrefixLength)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var person in people)
         {
-            if (id == Guid.Empty)
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_REFERENCE_INVALID");
-            await ReplaceV9ReferenceAsync(db, tx, id, prefix, plan.ProjectionFingerprintSha256, ct);
+            ct.ThrowIfCancellationRequested();
+            // Canonical projector and historical alias semantics, including
+            // CPF-bearing references; no scoring or Gold summary authority.
+            var snapshot = await LoadSqlServerSnapshotAsync(connection, transaction,
+                person, ct, maximumPrefixLength);
+            foreach (var row in snapshot.Rows)
+            {
+                if (!supported.Contains(row.Feature) || string.IsNullOrWhiteSpace(row.Value)
+                    || row.Value.Length > 500 || row.Feature.Length > 80
+                    || (row.ValidTo is { } end && end < row.ValidFrom)
+                    || !expected.Add(new V9ProjectionEntry(person, row)))
+                    throw new InvalidDataException("RUNNER_V9_BLOCKING_EXPECTED_KEY_INVALID");
+            }
         }
+        return expected;
     }
 
-    private static async Task<BlockingProjectionSnapshot> LoadV9EligibleSnapshotAsync(
-        SqlConnection db, SqlTransaction tx, Guid id, int prefix, CancellationToken ct)
+    private static async Task<Dictionary<V9ProjectionEntry, long>> ReadV9EntriesAsync(
+        SqlConnection connection, SqlTransaction transaction, string fingerprint, CancellationToken ct)
     {
-        await using var check = new SqlCommand("""
-            SELECT COUNT_BIG(*) FROM identidade.pessoa WHERE pessoa_uuid=@id AND status=N'ATIVO';
-            """, db, tx);
-        check.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = id;
-        if (Convert.ToInt64(await check.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) != 1)
-            return BlockingProjectionSnapshot.Empty;
-        return await LoadSqlServerSnapshotAsync(db, tx, id, ct, prefix);
-    }
-
-    private static async Task<List<BlockingProjectionRow>> ReadV9RowsAsync(SqlConnection db,
-        SqlTransaction tx, Guid id, string fingerprint, CancellationToken ct)
-    {
-        await using var cmd = new SqlCommand("""
-            SELECT atributo,valor_normalizado,semantica_temporal,vigencia_inicio,vigencia_fim,
-                   normalizacao_versao,projection_schema_version
+        await using var query = new SqlCommand("""
+            SELECT blocking_chave_id,pessoa_uuid,atributo,valor_normalizado,semantica_temporal,
+                   vigencia_inicio,vigencia_fim
               FROM identidade.blocking_chave_v9
-             WHERE pessoa_uuid=@id AND projection_fingerprint_sha256=@fingerprint;
-            """, db, tx);
-        cmd.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = id;
-        cmd.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = fingerprint;
-        var rows = new List<BlockingProjectionRow>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+             WHERE normalizacao_versao=@normalization AND projection_schema_version=@schema
+               AND projection_fingerprint_sha256=@fingerprint;
+            """, connection, transaction) { CommandTimeout = 120 };
+        AddV9ProjectionParameters(query, fingerprint);
+        var actual = new Dictionary<V9ProjectionEntry, long>();
+        await using var reader = await query.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            if (reader.GetString(5) != IdentityComparison.NormalizationVersion
-                || reader.GetString(6) != V9CalibrationBlockingProjection.SchemaVersion)
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_CONTRACT_MISMATCH");
-            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2),
-                reader.GetDateTimeOffset(3), reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4)));
+            var entry = new V9ProjectionEntry(reader.GetGuid(1), new BlockingProjectionRow(
+                reader.GetString(2), reader.GetString(3), reader.GetString(4),
+                reader.GetDateTimeOffset(5), reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6)));
+            if (!actual.TryAdd(entry, reader.GetInt64(0)))
+                throw new InvalidDataException("RUNNER_V9_BLOCKING_DUPLICATE_KEY");
         }
-        return rows;
+        return actual;
     }
 
-    private static bool SameV9Rows(IReadOnlyCollection<BlockingProjectionRow> expected,
-        IReadOnlyCollection<BlockingProjectionRow> actual) =>
-        expected.Count == actual.Count && expected.ToHashSet().SetEquals(actual);
-
-    private static async Task ReplaceV9ReferenceAsync(SqlConnection db, SqlTransaction tx,
-        Guid id, int prefix, string fingerprint, CancellationToken ct)
+    private static async Task ReconcileV9EntriesAsync(SqlConnection connection,
+        SqlTransaction transaction, string fingerprint, HashSet<V9ProjectionEntry> expected,
+        Dictionary<V9ProjectionEntry, long> actual, CancellationToken ct)
     {
-        var expected = await LoadV9EligibleSnapshotAsync(db, tx, id, prefix, ct);
-        var actual = await ReadV9RowsAsync(db, tx, id, fingerprint, ct);
-        if (SameV9Rows(expected.Rows, actual))
-            return; // identical reprocessing must not rewrite physical rows
-        await using (var delete = new SqlCommand("""
-            DELETE FROM identidade.blocking_chave_v9
-             WHERE pessoa_uuid=@id AND projection_fingerprint_sha256=@fingerprint;
-            """, db, tx))
+        foreach (var pair in actual.Where(pair => !expected.Contains(pair.Key)))
         {
-            delete.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = id;
-            delete.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = fingerprint;
-            await delete.ExecuteNonQueryAsync(ct);
+            await using var remove = new SqlCommand("""
+                DELETE FROM identidade.blocking_chave_v9
+                 WHERE blocking_chave_id=@id AND normalizacao_versao=@normalization
+                   AND projection_schema_version=@schema AND projection_fingerprint_sha256=@fingerprint;
+                """, connection, transaction);
+            AddV9ProjectionParameters(remove, fingerprint);
+            remove.Parameters.Add("@id", SqlDbType.BigInt).Value = pair.Value;
+            if (await remove.ExecuteNonQueryAsync(ct) != 1)
+                throw new InvalidDataException("RUNNER_V9_BLOCKING_INVALIDATION_MISMATCH");
         }
-        foreach (var row in expected.Rows)
+        foreach (var entry in expected.Where(entry => !actual.ContainsKey(entry)))
         {
+            var row = entry.Key;
             await using var insert = new SqlCommand("""
-                INSERT identidade.blocking_chave_v9(pessoa_uuid,normalizacao_versao,
-                    projection_schema_version,projection_fingerprint_sha256,atributo,
-                    valor_normalizado,semantica_temporal,vigencia_inicio,vigencia_fim)
-                VALUES(@id,@normalization,@schema,@fingerprint,@feature,@value,@temporal,@from,@to);
-                """, db, tx);
-            insert.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = id;
-            insert.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
-            insert.Parameters.Add("@schema", SqlDbType.NVarChar, 120).Value = V9CalibrationBlockingProjection.SchemaVersion;
-            insert.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = fingerprint;
+                INSERT identidade.blocking_chave_v9(
+                    pessoa_uuid,normalizacao_versao,projection_schema_version,
+                    projection_fingerprint_sha256,atributo,valor_normalizado,
+                    semantica_temporal,vigencia_inicio,vigencia_fim)
+                VALUES(@person,@normalization,@schema,@fingerprint,@feature,@value,@temporal,@from,@to);
+                """, connection, transaction);
+            AddV9ProjectionParameters(insert, fingerprint);
+            insert.Parameters.Add("@person", SqlDbType.UniqueIdentifier).Value = entry.PersonUuid;
             insert.Parameters.Add("@feature", SqlDbType.NVarChar, 80).Value = row.Feature;
             insert.Parameters.Add("@value", SqlDbType.NVarChar, 500).Value = row.Value;
             insert.Parameters.Add("@temporal", SqlDbType.NVarChar, 30).Value = row.TemporalSemantics;
             insert.Parameters.Add("@from", SqlDbType.DateTimeOffset).Value = row.ValidFrom;
             insert.Parameters.Add("@to", SqlDbType.DateTimeOffset).Value = (object?)row.ValidTo ?? DBNull.Value;
             if (await insert.ExecuteNonQueryAsync(ct) != 1)
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_WRITE_FAILED");
+                throw new InvalidDataException("RUNNER_V9_BLOCKING_INSERT_MISMATCH");
         }
-        if (!SameV9Rows(expected.Rows, await ReadV9RowsAsync(db, tx, id, fingerprint, ct)))
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_WRITE_MISMATCH");
-    }
-
-    /// <summary>
-    /// Before using the isolated index, authenticate coverage AND all physical
-    /// rows against the existing projector in the very same read SNAPSHOT.
-    /// Expensive correctness-first baseline; no truncation, no automatic repair.
-    /// </summary>
-    public static async Task VerifyV9CoverageAsync(SqlConnection db, SqlTransaction snapshot,
-        V9MaintenancePlan plan, CancellationToken ct)
-    {
-        if (snapshot.IsolationLevel != IsolationLevel.Snapshot)
-            throw new InvalidOperationException("RUNNER_V9_BLOCKING_SNAPSHOT_REQUIRED");
-        await V9BlockingMaintenanceGate.RequireAsync(plan.EffectiveEnvironment, plan.Enabled,
-            plan.AttemptId, db, snapshot, ct);
-        var prefix = VerifyMaintenanceProjection(plan.ProjectionFingerprintSha256);
-        if (!await HasV9CoverageAsync(db, snapshot, plan.ProjectionFingerprintSha256, ct))
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_MISSING");
-        var ids = await ReadV9ReferenceIdsAsync(db, snapshot, ct);
-        long expectedCount = 0;
-        foreach (var id in ids)
-        {
-            var expected = await LoadV9EligibleSnapshotAsync(db, snapshot, id, prefix, ct);
-            var actual = await ReadV9RowsAsync(db, snapshot, id, plan.ProjectionFingerprintSha256, ct);
-            if (!SameV9Rows(expected.Rows, actual))
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE");
-            expectedCount = checked(expectedCount + expected.Rows.Count);
-        }
-        await using var census = new SqlCommand("""
-            SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9
-             WHERE projection_fingerprint_sha256=@fingerprint;
-            """, db, snapshot);
-        census.Parameters.Add("@fingerprint", SqlDbType.Char, 64).Value = plan.ProjectionFingerprintSha256;
-        if (Convert.ToInt64(await census.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) != expectedCount)
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_EXTRA_ROWS");
     }
 }
