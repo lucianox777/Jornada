@@ -92,6 +92,7 @@ def ingest(root, attempt):
     keys = credentials()
     observed = 0
     deliveries = 0
+    delivery_rows = []
     for group in pre["packagesByWave"]:
         wave = group["wave"]
         for item in group["packages"]:
@@ -108,10 +109,10 @@ def ingest(root, attempt):
                     "PACKAGE_SIZE_DRIFT")
             raw = path.read_bytes()
             require(hashlib.sha256(raw).hexdigest().upper() == sha, "PACKAGE_BYTES_DRIFT")
-            status, response = http(ROUTES + "/ingestao/entregas", manager, keys[manager], raw,
-                {"Idempotency-Key": "v9-1k-" + str(wave) + "-" + manager + "-" + sha[:18],
-                 "Content-Type": "application/zip",
-                 "Content-Disposition": "attachment; filename=" + name})
+            upload_headers = {"Idempotency-Key": "v9-1k-" + str(wave) + "-" + manager + "-" + sha[:18],
+                              "Content-Type": "application/zip",
+                              "Content-Disposition": "attachment; filename=" + name}
+            status, response = http(ROUTES + "/ingestao/entregas", manager, keys[manager], raw, upload_headers)
             require(status == 202 and response, "HTTP_INGESTION_NOT_ACCEPTED")
             delivery = str(uuid.UUID(response["entregaId"]))
             for _ in range(120):
@@ -144,15 +145,32 @@ def ingest(root, attempt):
                 AND MIN(l.lote_seq)=1 AND MAX(l.lote_seq)=MAX(l.lote_total)
                 AND SUM(CASE WHEN l.status=N'PROCESSADO' THEN 1 ELSE 0 END)=COUNT_BIG(*));"""
             require(sql_scalar(sql, attempt) == "1", "BRONZE_LINEAGE_DIVERGENCE")
+            # Same key and exact bytes must not create a second delivery or version.
+            for _ in range(30):
+                status, replay = http(ROUTES + "/ingestao/entregas", manager, keys[manager], raw, upload_headers)
+                if status != 429:
+                    break
+                time.sleep(2)
+            require(status == 202 and replay and str(uuid.UUID(replay["entregaId"])) == delivery,
+                    "HTTP_IDEMPOTENCY_DIVERGENCE")
+            with zipfile.ZipFile(path) as archive:
+                facts = len(archive.read("registros.jsonl").splitlines())
+            delivery_rows.append({**item, "deliveryId": delivery, "facts": facts})
             observed += expected
             deliveries += 1
             # Rate-limit bucket is scoped per credential. No raw response is logged.
     require(observed == pre["sourceVersions"]
             and int(sql_scalar("SELECT COUNT_BIG(*) FROM silver.pessoa_observacao;", attempt)) == observed,
             "SILVER_COMPLETE_CENSUS_DIVERGENCE")
+    require(len({x["deliveryId"] for x in delivery_rows}) == deliveries
+            and int(sql_scalar("SELECT COUNT_BIG(*) FROM ingestao.entrega;", attempt)) == deliveries,
+            "HTTP_DELIVERY_IDEMPOTENCY_CENSUS")
+    with (root / "deliveries-private.json").open("x", encoding="utf-8") as output:
+        json.dump(delivery_rows, output)
     with (root / "http-lineage.json").open("x", encoding="utf-8") as output:
         json.dump({"schema": "V9_E2E_1K_HTTP_LINEAGE_V1", "status": "PASS",
                    "attempt": str(attempt), "sourceVersions": observed, "deliveries": deliveries,
+                   "sameKeyReplayDeliveries": deliveries,
                    "preflightSha256": hashlib.sha256(preflight_path.read_bytes()).hexdigest()}, output)
     print(f"V9_E2E_HTTP_PROCESSOR_LINEAGE_PASS deliveries={deliveries} versions={observed}")
 

@@ -188,13 +188,20 @@ jobs:
           export SemiblindIdentitySearch__Enabled=false
           dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Api >"$root/api.log" 2>&1 & api=$!
           dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Processor.Worker >"$root/processor.log" 2>&1 & worker=$!
-          trap 'kill "$worker" "$api" 2>/dev/null || true; wait "$worker" "$api" 2>/dev/null || true' EXIT
+          ASPNETCORE_URLS=http://127.0.0.1:5089 JornadaApiBaseUrl=http://127.0.0.1:5088 dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Resultado.Api >"$root/resultado.log" 2>&1 & resultado=$!
+          trap 'kill "$worker" "$api" "$resultado" 2>/dev/null || true; wait "$worker" "$api" "$resultado" 2>/dev/null || true' EXIT
           ready=0
           for _ in $(seq 1 120); do
             if curl --silent --fail --output "$root/ready.json" http://127.0.0.1:5088/health/ready; then ready=1; break; fi
             sleep 1
           done
           [[ "$ready" == 1 ]] || { echo 'V9_E2E_API_READINESS_FAILED'; exit 1; }
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --output "$root/resultado-ready.json" http://127.0.0.1:5089/health; then ready=1; break; fi
+            sleep 1
+          done
+          [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
           python3 scripts/v9-e2e-1k-http.py ingest --root "$root/fixture"
           cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
           run_cli full
@@ -204,13 +211,14 @@ jobs:
             --wave "$root/fixture/ingestion/wave-01/delivery-manifest.json" "$root/fixture/ingestion/wave-01/delivery-truth.jsonl" \
             --wave "$root/fixture/ingestion/wave-02/delivery-manifest.json" "$root/fixture/ingestion/wave-02/delivery-truth.jsonl" \
             --sql "$root/sql-census.json" --runner "$root/runner-receipt.json" --receipt "$root/identity-receipt.json"
-          cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/fixture/"
+          cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/runner-receipt.json" "$root/fixture/"
           python3 scripts/v9-e2e-1k-http.py api --root "$root/fixture"
           python3 scripts/v9-e2e-1k-factual.py verify --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-system-api.py --root "$root/fixture"
           # Explicit allowlist of aggregate files only. Never upload the private root.
           out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
           mkdir -m 700 "$out"
-          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$out/"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$out/"
           printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
           echo 'V9_E2E_1K_PHYSICAL_IDENTITY_PATH_PASS_NOT_FULL_ORACLE_OR_INTEGRAL'
       - name: Publish only aggregate evidence of completed physical path
