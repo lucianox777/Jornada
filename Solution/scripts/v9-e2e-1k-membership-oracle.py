@@ -72,7 +72,20 @@ def main():
         receipt["frozenGroupReplayEqual"] = True
         receipt["independentGroupCount"] = expected["IndependentGroupCount"]
         receipt["independentGroupSha256"] = expected["IndependentGroupSha256"]
-        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_SEPARATE_SILVER_DIRECTION_GROUP_REPLAY"
+        actual = json.loads(read("actual-graph-receipt.json"))
+        require(actual["runId"] == runner["runId"]
+                and actual["actualConsumedSilverEdgesVerified"] is True
+                and actual["actualConsumedScoresVerified"] is True
+                and actual["actualConsumedGroupsVerified"] is True
+                and actual["edges"] == expected["SilverEdges"]
+                and actual["edgesSha256"] == expected["SilverEdgesSha256"]
+                and actual["directions"] == expected["SilverDirectionalReplay"]["DirectionsCompared"]
+                and actual["directionSha256"] == expected["SilverDirectionalReplay"]["DirectionSha256"]
+                and actual["groups"] == expected["IndependentGroupCount"]
+                and actual["groupSha256"] == expected["IndependentGroupSha256"])
+        receipt.update(actualConsumedSilverEdgesVerified=True,actualConsumedScoresVerified=True,
+                       actualConsumedGroupsVerified=True)
+        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_CONSUMED_SILVER_EDGE_SCORE_GROUP"
         with (a.root / "membership-receipt.json").open("x", encoding="utf-8") as f:
             json.dump(receipt, f, sort_keys=True)
         print("V9_E2E_1K_ACTUAL_B1_RANK_R1_AND_SEPARATE_GRAPH_GROUP_REPLAY_PASS")
