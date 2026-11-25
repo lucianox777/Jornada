@@ -4,7 +4,7 @@ import unittest
 spec=importlib.util.spec_from_file_location("matrix",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-matrix-oracle.py")
 M=importlib.util.module_from_spec(spec);spec.loader.exec_module(M)
 def row(k,p,method="FS_ASSOCIATION"):
-    return dict(Id=k,Person=p,RawReason="X",EffectiveReason=method,Method=method,Score=.999,Fs=1,Candidates=1,PriorCardinality=1,OnlyViaNonsecure=0)
+    return dict(Id=k,Person=p,RawStatus="RESOLVIDO" if p else "NAO_RESOLVIDO",RawReason="X",EffectiveReason=method,Method=method,Score=.999,AssociationScore=.999 if p else None,Fs=1,Candidates=1,PriorCardinality=1,OnlyViaNonsecure=0)
 class MatrixOracleTests(unittest.TestCase):
     def test_pair_and_round_reconciliation(self):
         truth={1:dict(base="A",origin=1,manager="M",cpf=False),2:dict(base="A",origin=2,manager="N",cpf=False),3:dict(base="B",origin=3,manager="N",cpf=False)}

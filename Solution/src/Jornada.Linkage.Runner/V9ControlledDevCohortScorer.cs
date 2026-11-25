@@ -32,6 +32,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         IReadOnlyList<V9DevDirectionalScore>, IReadOnlyList<GoldScore>,
         IReadOnlyDictionary<long, IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>>>? DiagnosticObserver { get; set; }
 
+    // Timing-only diagnostic; not consulted by the scorer or publication.
+    internal Action<double,double,double,double,double>? DiagnosticTimingObserver { get; set; }
     public string WinnerSha256 => winner.WinnerSha256;
     internal const string DiagnosticFixtureSetting = "Linkage:V9BlockingMaintenance:DiagnosticLegacyFixture";
     internal V9ControlledDevBlockingMaintenance? Maintenance { get; private init; }
@@ -130,9 +132,12 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         // A failed preparation is never retried under the same mutable run.
         preparedRunId = runId;
         await using var connection = await sql.OpenAsync(ct);
+        var phaseClock = System.Diagnostics.Stopwatch.StartNew();
         var verified = await V9ControlledDevOperationalCandidateSource.ReadAsync(
             connection, winner, attemptId, runId, frozenRows,
             maximumGoldCandidates, ct, Maintenance is not null, Maintenance?.EffectiveEnvironment);
+        var readMs = phaseClock.Elapsed.TotalMilliseconds;
+        phaseClock.Restart();
         if (Maintenance is not null && verified.IsolatedBlockingManifest is null)
             throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_MISSING");
         var physical = verified.SilverGraph
@@ -166,6 +171,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 throw new InvalidDataException("RUNNER_V9_DEV_GROUP_INVALID");
         }
 
+        var groupMs = phaseClock.Elapsed.TotalMilliseconds;
+        phaseClock.Restart();
         // b1: the Gold UUID universe is unchanged. The score is based only
         // on the physically authenticated persistent-origin records, never
         // the recomposed Gold summary or a synthetic group UUID.
@@ -217,6 +224,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 evidenceMembershipSha256 = Convert.ToHexString(digest.GetHashAndReset()).ToLowerInvariant()
             }));
         }
+        var scoreMs = phaseClock.Elapsed.TotalMilliseconds;
+        phaseClock.Restart();
         // A singleton in the FINAL complete-link partition can still have a
         // weak/incompatible SILVER blocking candidate. It is never an empty
         // candidate search for NEW identity publication.
@@ -246,6 +255,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         }
         if (ready.Count != frozenRows.Count)
             throw new InvalidDataException("RUNNER_V9_DEV_RAW_DECISIONS_INCOMPLETE");
+        DiagnosticTimingObserver?.Invoke(readMs,verified.SnapshotElapsedMilliseconds,groupMs,scoreMs,phaseClock.Elapsed.TotalMilliseconds);
         if (DiagnosticObserver is { } observer)
             observer(runId, Array.AsReadOnly(frozenRows.Select(x => x.PessoaObservacaoId).ToArray()),
                 physical.CanonicalEdgesSha256, grouped.IdentityByObservation,

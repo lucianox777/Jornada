@@ -217,10 +217,19 @@ public static class V9DevE2EFullCommand
             new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
             NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
         stage = "full-run";
-        var summary = await runner.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
+        var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
-            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true),
-            attempt, CancellationToken.None);
+            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
+        var matrixEnabled = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true";
+        double[]? physicalTiming = null;
+        if (matrixEnabled)
+            scorer.DiagnosticTimingObserver = (read,snapshot,group,score,translate) =>
+                physicalTiming = [read,snapshot,group,score,translate];
+        var summary = matrixEnabled
+            ? await V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
+                () => runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None),
+                () => physicalTiming,CancellationToken.None)
+            : await runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
         if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Elegiveis != eligible
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");

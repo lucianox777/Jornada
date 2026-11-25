@@ -40,7 +40,7 @@ def assess(rows,truth,prior=None):
     before_duplicates={b for b,ids in oldtrue.items() if len({old[k] for k in ids if old[k] is not None})>1}
     duplicates={b for b,ids in true.items() if len({actual[k] for k in ids if actual[k] is not None})>1}
     methods=Counter(x["Method"] for x in rows)
-    raw=Counter(x["RawReason"] for x in rows if x["Person"] is None)
+    raw=Counter(x["RawReason"] for x in rows if x["RawStatus"] in ("NAO_RESOLVIDO","CONFLITO"))
     effective=Counter(x["EffectiveReason"] for x in rows if x["Person"] is None)
     fused=sum(len({truth[k]["base"] for k in ids})>1 for ids in pred.values())
     fused_people={truth[k]["base"] for ids in pred.values() if len({truth[j]["base"] for j in ids})>1 for k in ids}
@@ -54,7 +54,7 @@ def assess(rows,truth,prior=None):
              fnSameManager=sum(map(same,fn)),fnCrossManager=sum(not same(p) for p in fn),
              fpThisRound=len(fp-oldfp),fpCumulative=len(fp),unresolvedVersions=sum(v is None for v in actual.values()),
              unresolvedOrigins=len({truth[k]["origin"] for k,v in actual.items() if v is None}),
-             unresolvedRaw=dict(raw),unresolvedEffective=dict(effective),methods=dict(methods),
+             unresolvedRaw=dict(raw),unresolvedEffective=dict(effective),rawStatuses=dict(Counter(x["RawStatus"] for x in rows)),methods=dict(methods),
              resolvedLater=sum(old[k] is None and actual[k] is not None for k in old),
              previousNewIdentityNowDuplicate=0,
              newIdentityCount=sum(any(byid[k]["Method"] in ("SINGLETON_FOUNDER","S4B_HYPOTHETICAL_FOUNDER") for k in ids) for ids in pred.values()),
@@ -69,6 +69,7 @@ def assess(rows,truth,prior=None):
     return out,dict(actual=actual,fp=fp,pred=pred,true=true,byid=byid)
 
 def scoreband(x):
+    if x is None:return "NO_DIRECT_FS_APPROVAL"
     if x<.9:return "LT_0.9"
     if x<.99:return "0.9_TO_0.99"
     if x<.999:return "0.99_TO_0.999"
@@ -85,7 +86,7 @@ def compare_exclusive(a,b,truth):
         others=[j for j in b["pred"][v] if truth[j]["origin"]!=truth[k]["origin"]]
         label=("unconfirmed_no_other_origin" if not others else
                "correct" if all(truth[j]["base"]==truth[k]["base"] for j in others) else "incorrect")
-        counts[scoreband(row["Score"])][label]+=1
+        counts[scoreband(row["AssociationScore"])][label]+=1
     return {k:dict(v) for k,v in counts.items()}
 
 def partition(s):
@@ -153,7 +154,7 @@ def run(root):
             other=bykey[(name,schedule,rnd)]
             require(partition(states[sid])==partition(states[other])
                     and all(all(states[sid]["byid"][k][a]==states[other]["byid"][k][a]
-                                for a in ("RawReason","EffectiveReason","Method","Score","Fs","Candidates","SecureCandidates","OnlyViaNonsecure"))
+                                for a in ("RawStatus","RawReason","EffectiveReason","Method","Score","AssociationScore","Fs","Candidates","SecureCandidates","OnlyViaNonsecure"))
                             for k in states[sid]["byid"]),"MATRIX_FROZEN_PRIOR_DRIFT")
         if f["evidence"]=="b2":
             other=bykey[(x["cell"].replace("-b2-","-b1-"),schedule,rnd)]

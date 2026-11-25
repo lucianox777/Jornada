@@ -27,10 +27,10 @@ internal static class V9Phase4Matrix
     private sealed record CellGraph(Row[] Pending,Dictionary<long,HashSet<BlockingProjectionKey>> Keys,
         Dictionary<long,Guid> Groups,HashSet<long> Incident,HashSet<long> NoPass,
         int Edges,double Milliseconds,string DirectionSha256);
-    private sealed record Link(Guid Person,bool Secure,string Method);
+    private sealed record Link(Guid Person,bool Secure,string Method,decimal? AssociationScore=null);
     private sealed record IndexEntry(Ref Summary,HashSet<BlockingProjectionKey> Keys,Row[] All,Row[] Secure);
-    private sealed record Projection(long Id,Guid? Person,string RawReason,string EffectiveReason,
-        string Method,decimal Score,int Fs,int Candidates,int SecureCandidates,int PriorCardinality,
+    private sealed record Projection(long Id,Guid? Person,string RawStatus,string RawReason,string EffectiveReason,
+        string Method,decimal Score,decimal? AssociationScore,int Fs,int Candidates,int SecureCandidates,int PriorCardinality,
         Guid? Best,int OnlyViaNonsecure);
     private sealed record RoundResult(Projection[] Rows,object Resources);
     private static void Require(bool ok,string reason)
@@ -54,6 +54,43 @@ internal static class V9Phase4Matrix
     {
         await using var c=new SqlCommand("SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_tran_version_store_space_usage WHERE database_id=DB_ID();",conn,tx);
         return Convert.ToInt64(await c.ExecuteScalarAsync(ct),CultureInfo.InvariantCulture);
+    }
+    internal static async Task<ProbabilisticLinkageRunSummary> MeasurePhysicalFullAsync(string root,
+        IOperationalSqlAdapter sql,Guid attempt,Func<Task<ProbabilisticLinkageRunSummary>> run,
+        Func<double[]?> timing,CancellationToken ct)
+    {
+        Admit();
+        await using var conn=await sql.OpenAsync(ct);
+        await V9DisposableAttemptDatabase.VerifyAsync(conn,attempt,ct);
+        var sw=Stopwatch.StartNew();
+        var samples=new List<object>();
+        long peakStore=0,peakMemory=0;
+        async Task Sample()
+        {
+            var bytes=await VersionStore(conn,null,ct);
+            var memory=Environment.WorkingSet;
+            peakStore=Math.Max(peakStore,bytes);peakMemory=Math.Max(peakMemory,memory);
+            samples.Add(new {ms=sw.Elapsed.TotalMilliseconds,versionStoreBytes=bytes,workingSetBytes=memory});
+        }
+        await Sample();
+        var task=run();
+        while(!task.IsCompleted)
+        {
+            await Task.WhenAny(task,Task.Delay(1000,ct));
+            await Sample();
+        }
+        var result=await task;sw.Stop();
+        var t=timing();
+        Require(t is {Length:5}&&t.All(x=>double.IsFinite(x)&&x>=0)&&t[0]>=t[1],"PHYSICAL_TIMING");
+        var v=t!;
+        await WriteAsync(root,"matrix-full-physical-resource.json",new {
+            fullElapsedMs=sw.Elapsed.TotalMilliseconds,physicalReadMs=v[0],physicalSnapshotMs=v[1],
+            silverGroupingMs=v[2],goldScoringMs=v[3],translationMs=v[4],
+            remainingFullLifecycleMs=Math.Max(0,sw.Elapsed.TotalMilliseconds-v[0]-v[2]-v[3]-v[4]),
+            sampledPeakVersionStoreBytes=peakStore,sampledPeakWorkingSetBytes=peakMemory,
+            processPeakWorkingSetBytes=Process.GetCurrentProcess().PeakWorkingSet64,
+            samplingPeriodMs=1000,samples});
+        return result;
     }
     internal static async Task CaptureAsync(string root,IOperationalSqlAdapter sql,Guid attempt,CancellationToken ct)
     {
@@ -169,6 +206,38 @@ internal static class V9Phase4Matrix
         }
         return index;
     }
+    // Equivalent union-of-passes, intersection-of-fields lookup. No changes
+    // to passes, feature values or temporal semantics; independent physical
+    // candidate membership is rechecked for every baseline source below.
+    private static Func<HashSet<BlockingProjectionKey>,Guid[]> Lookup(
+        Dictionary<Guid,IndexEntry> index,IReadOnlyList<LinkageBlockingPass> passes)
+    {
+        var byKey=new Dictionary<BlockingProjectionKey,HashSet<Guid>>();
+        foreach(var (person,entry) in index)
+        foreach(var key in entry.Keys)
+        {
+            if(!byKey.TryGetValue(key,out var people))byKey.Add(key,people=new HashSet<Guid>());
+            people.Add(person);
+        }
+        return source=>
+        {
+            var result=new HashSet<Guid>();
+            foreach(var pass in passes)
+            {
+                HashSet<Guid>? hits=null;
+                foreach(var field in pass.Fields)
+                {
+                    var fieldHits=new HashSet<Guid>();
+                    foreach(var key in source.Where(k=>k.Feature==field))
+                        if(byKey.TryGetValue(key,out var values))fieldHits.UnionWith(values);
+                    if(hits is null)hits=fieldHits;else hits.IntersectWith(fieldHits);
+                    if(hits.Count==0)break;
+                }
+                if(hits is not null)result.UnionWith(hits);
+            }
+            return result.OrderBy(x=>x).ToArray();
+        };
+    }
     private static CellGraph Graph(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible)
     {
         var sw=Stopwatch.StartNew();
@@ -211,6 +280,8 @@ internal static class V9Phase4Matrix
         var allIndex=Index(visible,links,planner,false);
         var secureIndex=Index(visible,links,planner,true);
         var chosen=blocking=="secure"?secureIndex:allIndex;
+        var broadLookup=Lookup(allIndex,winner.Payload.BlockingPasses);
+        var secureLookup=Lookup(secureIndex,winner.Payload.BlockingPasses);
         Sample("index");
         var model=V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256);
         var raw=new Dictionary<long,ProbabilisticLinkageDecision>();
@@ -221,9 +292,7 @@ internal static class V9Phase4Matrix
         foreach(var row in graph.Pending)
         {
             var key=graph.Keys[row.Id];
-            Guid[] Find(Dictionary<Guid,IndexEntry> idx)=>idx.Where(x=>V9DevE2EFirstFullMembershipOracle.MatchesAnyPass(key,x.Value.Keys,winner.Payload.BlockingPasses))
-                .Select(x=>x.Key).OrderBy(x=>x).ToArray();
-            var broad=Find(allIndex);var restricted=Find(secureIndex);
+            var broad=broadLookup(key);var restricted=secureLookup(key);
             var people=blocking=="secure"?restricted:broad;
             candidates.Add(row.Id,people.Select(x=>new V9ControlledDevOperationalCandidateSource.GoldCandidate(x,chosen[x].Summary.Name,chosen[x].Summary.Birth,chosen[x].Summary.Mother)).ToArray());
             var records=new List<V9ControlledDevSecureEvidenceScore.Evidence>();
@@ -277,7 +346,7 @@ internal static class V9Phase4Matrix
             foreach(var x in ids)
             {
                 var t=translated[x];
-                if(t.Status==ResolutionStatus.RESOLVIDO)proposed[x]=new(t.PessoaUuidResolvido!.Value,false,"FS_ASSOCIATION");
+                if(t.Status==ResolutionStatus.RESOLVIDO)proposed[x]=new(t.PessoaUuidResolvido!.Value,false,"FS_ASSOCIATION",t.MelhorScore);
                 else if(policy=="r2"&&targets.Length==1&&t.Status==ResolutionStatus.NAO_RESOLVIDO&&t.Motivo==Ind&&!established.ContainsKey(x))
                     proposed[x]=new(targets[0],false,"R2_INHERITANCE");
             }
@@ -312,8 +381,8 @@ internal static class V9Phase4Matrix
             var leaderScore=x.HasCpf?0m:translated[leaderByOrigin[x.Origin]].MelhorScore;
             var effective=link is null?translated[leaderByOrigin[x.Origin]].Motivo??"SEM_MOTIVO":
                 link.Method;
-            return new Projection(x.Id,link?.Person,rawReason,effective,link?.Method??"INDEFINIDA",
-                leaderScore,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only);
+            return new Projection(x.Id,link?.Person,t?.Status.ToString()??"CPF",rawReason,effective,link?.Method??"INDEFINIDA",
+                leaderScore,link?.AssociationScore,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only);
         }).ToArray();
         if(physical.HasValue)
         {
@@ -354,9 +423,10 @@ internal static class V9Phase4Matrix
         await using(var q=new SqlCommand("SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_db_partition_stats WHERE object_id=OBJECT_ID(N'identidade.blocking_chave_v9');",conn))
             indexBytes=Convert.ToInt64(await q.ExecuteScalarAsync(ct),CultureInfo.InvariantCulture);
         var store=await VersionStore(conn,null,ct);
-        await WriteAsync(root,"matrix-physical-resource.json",new {frame.SnapshotMs,frame.VersionStoreStartBytes,frame.VersionStoreEndBytes,
+        using var fullResource=Read(root,"matrix-full-physical-resource.json");
+        await WriteAsync(root,"matrix-physical-resource.json",new {physicalFull=fullResource.RootElement,frame.SnapshotMs,frame.VersionStoreStartBytes,frame.VersionStoreEndBytes,
             postFullVersionStoreBytes=store,physicalBaselineIndexReservedBytes=indexBytes,frame.ProcessMemoryBytes,
-            resourceScope="PHYSICAL_CAPTURE_AND_POST_FULL_BASELINE_ONLY"});
+            resourceScope="PHYSICAL_FULL_BASELINE_AND_CAPTURE_POST_FULL"});
         await using var output=new StreamWriter(new FileStream(Path.Combine(root,"matrix-private.jsonl"),FileMode.CreateNew,FileAccess.Write));
         var baselineDone=false;var total=0;
         foreach(var cell in p.GetProperty("cells").EnumerateArray())

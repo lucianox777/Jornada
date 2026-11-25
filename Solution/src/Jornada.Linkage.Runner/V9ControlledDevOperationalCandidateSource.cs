@@ -54,6 +54,8 @@ public static class V9ControlledDevOperationalCandidateSource
         public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
         public V9OperationalBlockingManifest.Receipt? IsolatedBlockingManifest { get; init; }
         public IReadOnlySet<long>? NoEligibleBlockingPassObservationIds { get; init; }
+        // Observation only: elapsed physical read SNAPSHOT, never a decision input.
+        public double SnapshotElapsedMilliseconds { get; init; }
         internal IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>>? SecureOriginFactsByPerson { get; init; }
     }
 
@@ -231,6 +233,7 @@ public static class V9ControlledDevOperationalCandidateSource
         // One consistent operational snapshot for header, run_item,
         // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
         // must fail closed; never fall back to independent READ COMMITTED pages.
+        var snapshotClock = System.Diagnostics.Stopwatch.StartNew();
         await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Snapshot, cancellationToken);
 
@@ -486,6 +489,7 @@ public static class V9ControlledDevOperationalCandidateSource
         var silverGraph = await V9ControlledDevSilverGraph.ReadAsync(
             connection, snapshot, winner, frozenRows, managers, cancellationToken);
         await snapshot.CommitAsync(cancellationToken);
+        snapshotClock.Stop();
         return new VerifiedRunCandidates(
             new ReadOnlyDictionary<long, string>(managers),
             new ReadOnlyDictionary<long, IReadOnlyList<GoldCandidate>>(result),
@@ -496,6 +500,7 @@ public static class V9ControlledDevOperationalCandidateSource
             SilverGraph = silverGraph,
             IsolatedBlockingManifest = blockingManifest,
             NoEligibleBlockingPassObservationIds = noEligiblePass,
+            SnapshotElapsedMilliseconds = snapshotClock.Elapsed.TotalMilliseconds,
             SecureOriginFactsByPerson = secureOriginFacts
         };
     }
