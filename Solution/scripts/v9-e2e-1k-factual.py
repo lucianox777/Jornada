@@ -63,6 +63,71 @@ def select_facts(people, manager, wave):
     return result
 
 
+def delivery_wave(manifest, raw_truth, original_group, delivery_group):
+    """Build a manifest and truth that describe the actual delivered packages."""
+    require(original_group["wave"] == delivery_group["wave"]
+            and sha(raw_truth) == manifest["truthSidecar"]["sha256"]
+            and manifest["truthSidecar"]["path"] == "bridge-truth.jsonl",
+            "FACT_IDENTITY_SEAL_DRIFT")
+    original = {x["manager"]: x for x in original_group["packages"]}
+    delivered = {x["manager"]: x for x in delivery_group["packages"]}
+    require(len(original) == len(original_group["packages"])
+            and len(delivered) == len(delivery_group["packages"])
+            and original.keys() == delivered.keys(), "FACT_DELIVERY_MANAGER_DRIFT")
+    result = json.loads(encoded(manifest))
+    seen = set()
+    mapped = {}
+    for package in result["packages"]:
+        manager = package["GestorCodigo"]
+        a, b = original[manager], delivered[manager]
+        require(manager not in seen and package["FileName"] == a["fileName"]
+                and package["sha256"].upper() == a["zipSha256"]
+                and package["PeopleCount"] == a["versions"]
+                and {k: v for k, v in a.items() if k not in ("fileName", "zipSha256", "zipBytes")}
+                == {k: v for k, v in b.items() if k not in ("fileName", "zipSha256", "zipBytes")},
+                "FACT_DELIVERY_PACKAGE_DRIFT")
+        seen.add(manager)
+        mapped[(manager, a["fileName"])] = b["fileName"]
+        package.update(FileName=b["fileName"], sha256=b["zipSha256"])
+    require(seen == set(original), "FACT_DELIVERY_MANIFEST_CENSUS")
+    rows = [json.loads(line) for line in raw_truth.splitlines()]
+    for row in rows:
+        row["PackageFileName"] = mapped[(row["GestorCodigo"], row["PackageFileName"])]
+    truth = b"".join(encoded(row) + b"\n" for row in rows)
+    result["truthSidecar"]["sha256"] = sha(truth)
+    return result, truth
+
+
+def verify_delivery_seals(root):
+    original_path = root / "wave-preflight-receipt.json"
+    original = HTTP.get_json(original_path)
+    delivered = HTTP.get_json(root / "delivery-preflight-receipt.json")
+    require(delivered["originalPreflightSha256"] == sha(original_path.read_bytes())
+            and len(original["packagesByWave"]) == len(delivered["packagesByWave"]) == 2,
+            "FACT_DELIVERY_PREFLIGHT_DRIFT")
+    for a, b in zip(original["packagesByWave"], delivered["packagesByWave"]):
+        directory = root / "ingestion" / f"wave-{a['wave']:02}"
+        source = HTTP.get_json(directory / "bridge-manifest.json")
+        truth = (directory / "bridge-truth.jsonl").read_bytes()
+        manifest, expected = delivery_wave(source, truth, a, b)
+        target = directory / "delivery"
+        require(HTTP.get_json(target / "bridge-manifest.json") == manifest
+                and (target / "bridge-truth.jsonl").read_bytes() == expected,
+                "FACT_DELIVERY_TRUTH_MAPPING_DRIFT")
+        by_manager = {x["manager"]: x for x in b["packages"]}
+        for item in a["packages"]:
+            new = by_manager[item["manager"]]
+            old_raw = (directory / item["fileName"]).read_bytes()
+            new_raw = (directory / new["fileName"]).read_bytes()
+            require(len(old_raw) == item["zipBytes"] and sha(old_raw) == item["zipSha256"]
+                    and len(new_raw) == new["zipBytes"] and sha(new_raw) == new["zipSha256"],
+                    "FACT_DELIVERY_PACKAGE_SEAL_DRIFT")
+            with zipfile.ZipFile(io.BytesIO(old_raw)) as old_zip, zipfile.ZipFile(io.BytesIO(new_raw)) as new_zip:
+                require(old_zip.read("pessoas.jsonl") == new_zip.read("pessoas.jsonl")
+                        and new_zip.namelist() == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],
+                        "FACT_DELIVERY_PEOPLE_BYTES_DRIFT")
+
+
 def prepare(root):
     prepath = root / "wave-preflight-receipt.json"
     original = HTTP.get_json(prepath)
@@ -70,14 +135,13 @@ def prepare(root):
             and original["baseIdentities"] == 1000, "FACT_FIXTURE_PREFLIGHT_REQUIRED")
     delivery_pre = json.loads(encoded(original))
     facts = []
-    for group in delivery_pre["packagesByWave"]:
+    for original_group, group in zip(original["packagesByWave"], delivery_pre["packagesByWave"]):
         wave = group["wave"]
         directory = root / "ingestion" / f"wave-{wave:02}"
         truth = directory / "bridge-truth.jsonl"
         manifest = HTTP.get_json(directory / "bridge-manifest.json")
         raw_truth = truth.read_bytes()
         require(sha(raw_truth) == manifest["truthSidecar"]["sha256"], "FACT_IDENTITY_SEAL_DRIFT")
-        mapped = {}
         for item in group["packages"]:
             manager, old = item["manager"], item["fileName"]
             if manager not in KINDS:
@@ -108,21 +172,17 @@ def prepare(root):
                 require(archive.read("pessoas.jsonl") == people_bytes
                         and archive.read("registros.jsonl") == payload, "FACT_ZIP_SERIALIZATION_DRIFT")
             write_new(directory / new, data)
-            mapped[old] = new
             item.update(fileName=new, zipSha256=digest, zipBytes=len(data))
             for fact in batch:
                 fact.update(package=new, wave=wave, zipSha256=digest)
                 facts.append(fact)
-        # Reseal only the delivery filenames, without changing any identity label.
-        rows = [json.loads(line) for line in raw_truth.splitlines()]
-        for row in rows:
-            row["PackageFileName"] = mapped.get(row["PackageFileName"], row["PackageFileName"])
-        delivered = b"".join(encoded(row) + b"\n" for row in rows)
-        manifest["truthSidecar"]["sha256"] = sha(delivered)
-        # The existing census expects this canonical name in the logical descriptor.
-        # The file itself has a distinct delivery-specific name.
-        write_new(directory / "delivery-truth.jsonl", delivered)
-        write_new(directory / "delivery-manifest.json", encoded(manifest))
+        # Preserve the original pair; the derived pair has its own directory
+        # and canonical filenames, including a correct relative sidecar path.
+        manifest, delivered = delivery_wave(manifest, raw_truth, original_group, group)
+        target = directory / "delivery"
+        target.mkdir(mode=0o700)
+        write_new(target / "bridge-truth.jsonl", delivered)
+        write_new(target / "bridge-manifest.json", encoded(manifest))
     require(len(facts) == 16 and len({x["payload"]["codigoRegistroOrigem"] for x in facts}) == 16,
             "FACT_CENSUS_INVALID")
     sealed = encoded(facts)
@@ -130,10 +190,12 @@ def prepare(root):
     delivery_pre["factualTruthSha256"] = sha(sealed)
     delivery_pre["originalPreflightSha256"] = sha(prepath.read_bytes())
     write_new(root / "delivery-preflight-receipt.json", encoded(delivery_pre))
+    verify_delivery_seals(root)
     print("V9_E2E_FACTUAL_FIXTURE_PREPARED facts=16")
 
 
 def checked_facts(root):
+    verify_delivery_seals(root)
     pre = HTTP.get_json(root / "delivery-preflight-receipt.json")
     raw = (root / "factual-truth.json").read_bytes()
     require(pre["factualTruthSha256"] == sha(raw)

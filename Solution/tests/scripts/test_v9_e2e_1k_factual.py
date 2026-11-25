@@ -1,4 +1,6 @@
 import importlib.util
+import copy
+import json
 from pathlib import Path
 import unittest
 
@@ -23,6 +25,27 @@ class FactualTests(unittest.TestCase):
             self.assertTrue(all("cpf" not in x["payload"] for x in facts))
             self.assertTrue(set(x["payload"]["codigoRegistroOrigem"] for x in facts).isdisjoint(
                 x["payload"]["codigoRegistroOrigem"] for x in m.select_facts(self.rows, manager, 2)))
+
+    def test_delivery_manifest_and_truth_match_actual_package(self):
+        raw = m.encoded({"GestorCodigo": "SEHAB", "PackageFileName": "old.zip",
+                         "BasePersonId": "base", "OpaquePersonId": "opaque"}) + b"\n"
+        manifest = {"truthSidecar": {"path": "bridge-truth.jsonl", "sha256": m.sha(raw)},
+                    "packages": [{"GestorCodigo": "SEHAB", "FileName": "old.zip",
+                                  "sha256": "A" * 64, "PeopleCount": 1}]}
+        original = {"wave": 1, "packages": [{"manager": "SEHAB", "fileName": "old.zip",
+                    "zipSha256": "A" * 64, "zipBytes": 5, "versions": 1}]}
+        delivered = copy.deepcopy(original)
+        delivered["packages"][0].update(fileName="new.zip", zipSha256="B" * 64, zipBytes=9)
+        result, truth = m.delivery_wave(manifest, raw, original, delivered)
+        self.assertEqual(result["truthSidecar"]["path"], "bridge-truth.jsonl")
+        self.assertEqual(result["truthSidecar"]["sha256"], m.sha(truth))
+        self.assertEqual(result["packages"][0]["FileName"], "new.zip")
+        self.assertEqual(result["packages"][0]["sha256"], "B" * 64)
+        self.assertEqual(json.loads(truth), {**json.loads(raw), "PackageFileName": "new.zip"})
+        self.assertEqual(manifest["packages"][0]["FileName"], "old.zip")
+        delivered["packages"][0]["versions"] = 2
+        with self.assertRaises(ValueError):
+            m.delivery_wave(manifest, raw, original, delivered)
 
     def test_missing_cpf_classes_fails(self):
         with self.assertRaises(ValueError):

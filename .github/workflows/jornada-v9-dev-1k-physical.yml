@@ -208,8 +208,8 @@ jobs:
           python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
           echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
           python3 scripts/v9-e2e-1k-identity-census.py \
-            --wave "$root/fixture/ingestion/wave-01/delivery-manifest.json" "$root/fixture/ingestion/wave-01/delivery-truth.jsonl" \
-            --wave "$root/fixture/ingestion/wave-02/delivery-manifest.json" "$root/fixture/ingestion/wave-02/delivery-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-01/delivery/bridge-manifest.json" "$root/fixture/ingestion/wave-01/delivery/bridge-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-02/delivery/bridge-manifest.json" "$root/fixture/ingestion/wave-02/delivery/bridge-truth.jsonl" \
             --sql "$root/sql-census.json" --runner "$root/runner-receipt.json" --receipt "$root/identity-receipt.json"
           cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/runner-receipt.json" "$root/fixture/"
           python3 scripts/v9-e2e-1k-http.py api --root "$root/fixture"
