@@ -194,6 +194,17 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 StringComparison.Ordinal))
             throw new InvalidOperationException("RUNNER_V9_DEV_SCORER_WINNER_MISMATCH");
 
+        // Explicit operational maintenance or explicit historical fixture,
+        // never a silent legacy fallback when isolated coverage is missing.
+        var enabled = configuration.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting);
+        var diagnostic = configuration.GetValue<bool>(V9ControlledDevCohortScorer.DiagnosticFixtureSetting);
+        var maintenance = (devScorer as V9ControlledDevCohortScorer)?.Maintenance;
+        if (enabled == diagnostic || (enabled != (maintenance is not null))
+            || (maintenance is not null && maintenance.AttemptId != disposableAttemptId))
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_EXPLICIT_PATH_REQUIRED");
+        if (enabled && configuration.GetValue("LinkageReplay:CaptureBronzeSources", false))
+            throw new InvalidOperationException("RUNNER_V9_BLOCKING_ISOLATED_REPLAY_MANIFEST_PENDING");
+
         return await RunCoreAsync(request, controlledDev: true, ct);
     }
 
@@ -261,6 +272,17 @@ public sealed class ProbabilisticLinkageBatchRunner(
             ct);
         using var workCts = CancellationTokenSource.CreateLinkedTokenSource(ct, pipelineLease.LostToken);
         var workCt = workCts.Token;
+
+        var maintenance = controlledDev ? (linkage as V9ControlledDevCohortScorer)?.Maintenance : null;
+        if (maintenance is not null)
+        {
+            // Initial coverage is created/verified only under the existing
+            // exclusive pipeline lease, before freezing or creating a run.
+            await using var db = await operationalSql.OpenAsync(workCt);
+            await using var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable, workCt);
+            await maintenance.InitializeOrVerifyAsync(db, tx, workCt);
+            await tx.CommitAsync(workCt);
+        }
 
         var started = DateTimeOffset.UtcNow;
         Dt05HistoricalRunIdentity? replayIdentity = null;
@@ -460,7 +482,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
 
             var finished = DateTimeOffset.UtcNow;
             var status = request.Publish
-                ? await PublishAsync(runId, eligible, evaluated, finished, workCt)
+                ? await PublishAsync(runId, eligible, evaluated, finished, workCt, maintenance)
                 : await CompleteWithoutPublicationAsync(runId, eligible, evaluated, finished, workCt);
 
             var publishedAt = status == LinkageRunStatus.PUBLICADO ? finished : (DateTimeOffset?)null;
@@ -1131,13 +1153,16 @@ public sealed class ProbabilisticLinkageBatchRunner(
     }
 
     private async Task<LinkageRunStatus> PublishAsync(
-        Guid runId, long eligible, long evaluated, DateTimeOffset finished, CancellationToken ct)
+        Guid runId, long eligible, long evaluated, DateTimeOffset finished, CancellationToken ct,
+        V9ControlledDevBlockingMaintenance? maintenance = null)
     {
         await using var connection = await operationalSql.OpenAsync(ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var commandTimeoutSeconds = Math.Max(1, configuration.GetValue("ProbabilisticLinkage:CommandTimeoutSeconds", 900));
         try
         {
+            if (maintenance is not null)
+                await maintenance.InitializeOrVerifyAsync(connection, transaction, ct);
             logger.LogInformation(
                 "Publicação linkage {RunId}: fase 1/4 - aplicando decisão progressiva e ledger semântico.",
                 runId);
@@ -1244,6 +1269,8 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 runId, newReferences.Count);
             await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
                 connection, transaction, newReferences, ct);
+            if (maintenance is not null)
+                await maintenance.RefreshAsync(connection, transaction, ct);
 
             await transaction.CommitAsync(ct);
             logger.LogInformation(

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Data;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
@@ -189,7 +190,8 @@ public static class V9ControlledDevOperationalCandidateSource
         Guid runId,
         IReadOnlyList<V9FrozenRunObservation> frozenRows,
         int maximumCandidatesPerObservation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool useIsolatedProjection = false,
+        string? effectiveEnvironment = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(pinnedWinner);
@@ -397,6 +399,16 @@ public static class V9ControlledDevOperationalCandidateSource
         var planner = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), pinnedWinner.WinnerSha256);
 
+        if (useIsolatedProjection)
+        {
+            await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, true, attemptId,
+                connection, snapshot, cancellationToken);
+            await BlockingProjectionPersistence.VerifyPinnedV9ProjectionAsync(connection, snapshot,
+                attemptId, planner.MaximumPrefixLength
+                    ?? throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH"),
+                planner.ProjectionFingerprintSha256, cancellationToken);
+        }
+
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
         var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>(frozenRows.Count);
         var noEligiblePass = new HashSet<long>();
@@ -412,14 +424,16 @@ public static class V9ControlledDevOperationalCandidateSource
             // full Gold-reference UUID union and verifies its SQL cardinality
             // inside this SAME SNAPSHOT. It is not a new candidate oracle.
             var authenticated = await V9OperationalCandidateRead.ReadAsync(
-                connection, snapshot, planner, row.Observation, cancellationToken);
+                connection, snapshot, planner, row.Observation, cancellationToken, useIsolatedProjection);
             if (authenticated.CandidateCount > maximumCandidatesPerObservation)
                 throw new InvalidDataException("RUNNER_V9_DEV_CANDIDATE_GRAPH_TRUNCATED");
             if (!evidence.TryAdd(row.PessoaObservacaoId, authenticated))
                 throw new InvalidDataException("RUNNER_V9_DEV_FROZEN_UNIVERSE_INVALID");
-            var candidateSql = planner.BuildCandidateUuidQuery(command,
-                row.Observation, planner.ProjectionSchemaVersion,
-                planner.ProjectionFingerprintSha256);
+            var candidateSql = useIsolatedProjection
+                ? planner.BuildIsolatedCandidateUuidQuery(command, row.Observation)
+                : planner.BuildCandidateUuidQuery(command,
+                    row.Observation, planner.ProjectionSchemaVersion,
+                    planner.ProjectionFingerprintSha256);
             command.CommandText = """
                 SELECT c.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae,
                        g.estado_identidade

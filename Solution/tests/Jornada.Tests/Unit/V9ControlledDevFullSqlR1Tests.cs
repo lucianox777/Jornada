@@ -204,6 +204,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 new Dictionary<string, string?>
                 {
                     ["Linkage:SelectedModelVersion"] = "9",
+                    [V9ControlledDevCohortScorer.DiagnosticFixtureSetting] = "true",
                     ["Linkage:V9SelectionFile"] = selected,
                     ["LinkageReplay:CaptureBronzeSources"] = "false"
                 }).Build();
