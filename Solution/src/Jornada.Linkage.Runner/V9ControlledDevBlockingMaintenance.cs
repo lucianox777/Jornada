@@ -7,9 +7,16 @@ namespace Jornada.Linkage.Runner;
 internal sealed record V9ControlledDevBlockingMaintenance(string EffectiveEnvironment,
     Guid AttemptId, int MaximumPrefixLength, string ProjectionFingerprintSha256)
 {
-    internal Task InitializeOrVerifyAsync(SqlConnection db, SqlTransaction tx, CancellationToken ct) =>
-        BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, tx,
+    internal Task VerifyIntegrityAsync(SqlConnection db, SqlTransaction tx, CancellationToken ct) =>
+        BlockingProjectionPersistence.VerifyPinnedV9IndexIntegrityAsync(db, tx,
             EffectiveEnvironment, true, AttemptId, MaximumPrefixLength, ProjectionFingerprintSha256, ct);
+
+    internal async Task VerifyCoverageAsync(SqlConnection db, SqlTransaction tx, CancellationToken ct)
+    {
+        await V9BlockingMaintenanceGate.RequireAsync(EffectiveEnvironment, true, AttemptId, db, tx, ct);
+        await BlockingProjectionPersistence.VerifyPinnedV9ProjectionAsync(db, tx,
+            AttemptId, MaximumPrefixLength, ProjectionFingerprintSha256, ct);
+    }
 
     internal Task RefreshAsync(SqlConnection db, SqlTransaction tx, CancellationToken ct) =>
         BlockingProjectionPersistence.RefreshPinnedV9Async(db, tx,

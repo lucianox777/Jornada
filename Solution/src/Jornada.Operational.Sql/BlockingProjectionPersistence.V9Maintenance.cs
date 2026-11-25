@@ -15,10 +15,32 @@ public static partial class BlockingProjectionPersistence
 {
     private sealed record V9ProjectionEntry(Guid PersonUuid, BlockingProjectionRow Key);
 
-    /// <summary>Called before Gold changes, in the same serializable write
-    /// transaction. Bootstrap only a never initialized, empty projection.
-    /// An existing incomplete projection is an error, not an empty search.</summary>
+    /// <summary>Synchronize a pinned V9 projection before scoring in the
+    /// caller's SNAPSHOT. The previous receipt authenticates the stored rows
+    /// independently of legitimate changes in Gold since the last projection.</summary>
     public static async Task InitializeOrVerifyPinnedV9Async(SqlConnection connection,
+        SqlTransaction transaction, string? effectiveEnvironment, bool enabled,
+        Guid attemptId, int maximumPrefixLength, string fingerprint, CancellationToken ct)
+    {
+        await RequireV9WriterAsync(connection, transaction, effectiveEnvironment, enabled,
+            attemptId, maximumPrefixLength, fingerprint, ct, allowSnapshot: true);
+        var initialized = await IsV9InitializedAsync(connection, transaction, fingerprint, ct);
+        var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        await VerifyV9StoredReceiptAsync(connection, transaction, fingerprint, initialized, actual.Count, ct);
+        var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
+        if (initialized && expected.SetEquals(actual.Keys))
+            return;
+
+        await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
+        await WriteV9StoredReceiptAsync(connection, transaction, fingerprint, initialized, ct);
+        await VerifyPinnedV9ProjectionAsync(connection, transaction, attemptId,
+            maximumPrefixLength, fingerprint, ct);
+    }
+
+    /// <summary>Preflight under the existing pipeline lease, before creating
+    /// a run. Detect an incomplete/corrupted previous index without treating
+    /// legitimate Gold changes as corruption. Never writes projection rows.</summary>
+    public static async Task VerifyPinnedV9IndexIntegrityAsync(SqlConnection connection,
         SqlTransaction transaction, string? effectiveEnvironment, bool enabled,
         Guid attemptId, int maximumPrefixLength, string fingerprint, CancellationToken ct)
     {
@@ -26,27 +48,7 @@ public static partial class BlockingProjectionPersistence
             attemptId, maximumPrefixLength, fingerprint, ct);
         var initialized = await IsV9InitializedAsync(connection, transaction, fingerprint, ct);
         var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
-        var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
-        if (initialized)
-        {
-            if (!expected.SetEquals(actual.Keys))
-                throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE");
-            return;
-        }
-        if (actual.Count != 0)
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_UNINITIALIZED_WITH_ROWS");
-
-        await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
-        await using var mark = new SqlCommand("""
-            INSERT identidade.blocking_chave_v9_cobertura(
-                normalizacao_versao,projection_schema_version,projection_fingerprint_sha256)
-            VALUES(@normalization,@schema,@fingerprint);
-            """, connection, transaction);
-        AddV9ProjectionParameters(mark, fingerprint);
-        if (await mark.ExecuteNonQueryAsync(ct) != 1)
-            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
-        await VerifyPinnedV9ProjectionAsync(connection, transaction, attemptId,
-            maximumPrefixLength, fingerprint, ct);
+        await VerifyV9StoredReceiptAsync(connection, transaction, fingerprint, initialized, actual.Count, ct);
     }
 
     /// <summary>Called after real Gold recomposition and before publication
@@ -61,8 +63,13 @@ public static partial class BlockingProjectionPersistence
         if (!await IsV9InitializedAsync(connection, transaction, fingerprint, ct))
             throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
         var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        await VerifyV9StoredReceiptAsync(connection, transaction, fingerprint, true, actual.Count, ct);
         var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
-        await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
+        if (!expected.SetEquals(actual.Keys))
+        {
+            await ReconcileV9EntriesAsync(connection, transaction, fingerprint, expected, actual, ct);
+            await WriteV9StoredReceiptAsync(connection, transaction, fingerprint, true, ct);
+        }
         await VerifyPinnedV9ProjectionAsync(connection, transaction, attemptId,
             maximumPrefixLength, fingerprint, ct);
     }
@@ -82,6 +89,7 @@ public static partial class BlockingProjectionPersistence
             throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
         var expected = await ReadExpectedV9EntriesAsync(connection, transaction, maximumPrefixLength, ct);
         var actual = await ReadV9EntriesAsync(connection, transaction, fingerprint, ct);
+        await VerifyV9StoredReceiptAsync(connection, transaction, fingerprint, true, actual.Count, ct);
         if (!expected.SetEquals(actual.Keys))
             throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE");
     }
@@ -96,12 +104,13 @@ public static partial class BlockingProjectionPersistence
 
     private static async Task RequireV9WriterAsync(SqlConnection connection, SqlTransaction transaction,
         string? effectiveEnvironment, bool enabled, Guid attemptId, int maximumPrefixLength,
-        string fingerprint, CancellationToken ct)
+        string fingerprint, CancellationToken ct, bool allowSnapshot = false)
     {
         // C07 precedes all writes, including coverage initialization.
         await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, enabled, attemptId,
             connection, transaction, ct);
-        if (transaction.IsolationLevel != IsolationLevel.Serializable)
+        if (transaction.IsolationLevel != IsolationLevel.Serializable
+            && !(allowSnapshot && transaction.IsolationLevel == IsolationLevel.Snapshot))
             throw new InvalidOperationException("RUNNER_V9_BLOCKING_SERIALIZABLE_REQUIRED");
         ValidateV9Projection(maximumPrefixLength, fingerprint);
         // Serialize cooperating writers BEFORE they mutate Gold. The schema
@@ -144,6 +153,74 @@ public static partial class BlockingProjectionPersistence
             """, connection, transaction);
         AddV9ProjectionParameters(query, fingerprint);
         return Convert.ToInt64(await query.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) == 1;
+    }
+
+    // Physical digest is an internal coverage receipt, not a scientific hash.
+    // Include every column and stable row ordering. Never emit nominal data.
+    private static async Task<string> ReadV9StoredDigestAsync(SqlConnection connection,
+        SqlTransaction transaction, string fingerprint, CancellationToken ct)
+    {
+        await using var query = new SqlCommand("""
+            SELECT CONVERT(char(64), HASHBYTES('SHA2_256', COALESCE((
+                SELECT blocking_chave_id,pessoa_uuid,normalizacao_versao,projection_schema_version,
+                       projection_fingerprint_sha256,atributo,valor_normalizado,semantica_temporal,
+                       vigencia_inicio,vigencia_fim,gerado_em
+                  FROM identidade.blocking_chave_v9
+                 WHERE normalizacao_versao=@normalization AND projection_schema_version=@schema
+                   AND projection_fingerprint_sha256=@fingerprint
+                 ORDER BY blocking_chave_id FOR JSON PATH, INCLUDE_NULL_VALUES),N'[]')),2);
+            """, connection, transaction) { CommandTimeout = 120 };
+        AddV9ProjectionParameters(query, fingerprint);
+        return (string?)await query.ExecuteScalarAsync(ct)
+            ?? throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
+    }
+
+    private static async Task VerifyV9StoredReceiptAsync(SqlConnection connection,
+        SqlTransaction transaction, string fingerprint, bool initialized, int rowCount, CancellationToken ct)
+    {
+        if (!initialized)
+        {
+            // A different pin or rows without an authenticated receipt must
+            // never be treated as a new, empty candidate search.
+            await using var other = new SqlCommand("""
+                SELECT CASE WHEN EXISTS(SELECT 1 FROM identidade.blocking_chave_v9)
+                    OR EXISTS(SELECT 1 FROM identidade.blocking_chave_v9_cobertura)
+                    THEN 1 ELSE 0 END;
+                """, connection, transaction);
+            if (rowCount != 0 || Convert.ToInt32(await other.ExecuteScalarAsync(ct),
+                    CultureInfo.InvariantCulture) != 0)
+                throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_UNINITIALIZED_WITH_ROWS");
+            return;
+        }
+        await using var receipt = new SqlCommand("""
+            SELECT conteudo_sha256 FROM identidade.blocking_chave_v9_cobertura
+             WHERE normalizacao_versao=@normalization AND projection_schema_version=@schema
+               AND projection_fingerprint_sha256=@fingerprint;
+            """, connection, transaction);
+        AddV9ProjectionParameters(receipt, fingerprint);
+        var stored = (string?)await receipt.ExecuteScalarAsync(ct);
+        var actual = await ReadV9StoredDigestAsync(connection, transaction, fingerprint, ct);
+        if (!string.Equals(stored, actual, StringComparison.Ordinal))
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_STALE_OR_INCOMPLETE");
+    }
+
+    private static async Task WriteV9StoredReceiptAsync(SqlConnection connection,
+        SqlTransaction transaction, string fingerprint, bool initialized, CancellationToken ct)
+    {
+        var digest = await ReadV9StoredDigestAsync(connection, transaction, fingerprint, ct);
+        await using var mark = new SqlCommand(initialized ? """
+            UPDATE identidade.blocking_chave_v9_cobertura SET conteudo_sha256=@digest
+             WHERE normalizacao_versao=@normalization AND projection_schema_version=@schema
+               AND projection_fingerprint_sha256=@fingerprint;
+            """ : """
+            INSERT identidade.blocking_chave_v9_cobertura(
+                normalizacao_versao,projection_schema_version,projection_fingerprint_sha256,conteudo_sha256)
+            VALUES(@normalization,@schema,@fingerprint,@digest);
+            """, connection, transaction);
+        AddV9ProjectionParameters(mark, fingerprint);
+        mark.Parameters.Add("@digest", SqlDbType.Char, 64).Value = digest;
+        if (await mark.ExecuteNonQueryAsync(ct) != 1)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_COVERAGE_RECEIPT_MISSING");
     }
 
     private static async Task<HashSet<V9ProjectionEntry>> ReadExpectedV9EntriesAsync(

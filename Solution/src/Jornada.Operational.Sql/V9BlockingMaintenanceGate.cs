@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 namespace Jornada.Operational.Sql;
 
 /// <summary>
-/// RF #1936 C07: shared write admission for future Processor and Runner
+/// RF #1936 C07: write admission for the controlled Runner
 /// V9 bootstrap/refresh. No productive activation; no DML in this class.
 /// Call with effective host environment and explicit configuration, on the
 /// actual write transaction, before ANY V9 projection mutation.

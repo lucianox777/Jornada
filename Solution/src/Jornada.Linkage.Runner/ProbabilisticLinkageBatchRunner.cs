@@ -276,11 +276,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
         var maintenance = controlledDev ? (linkage as V9ControlledDevCohortScorer)?.Maintenance : null;
         if (maintenance is not null)
         {
-            // Initial coverage is created/verified only under the existing
-            // exclusive pipeline lease, before freezing or creating a run.
+            // Verify the previous receipt under the existing exclusive lease.
+            // Synchronization itself occurs inside the scoring SNAPSHOT.
             await using var db = await operationalSql.OpenAsync(workCt);
             await using var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable, workCt);
-            await maintenance.InitializeOrVerifyAsync(db, tx, workCt);
+            await maintenance.VerifyIntegrityAsync(db, tx, workCt);
             await tx.CommitAsync(workCt);
         }
 
@@ -1162,7 +1162,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         try
         {
             if (maintenance is not null)
-                await maintenance.InitializeOrVerifyAsync(connection, transaction, ct);
+                await maintenance.VerifyCoverageAsync(connection, transaction, ct);
             logger.LogInformation(
                 "Publicação linkage {RunId}: fase 1/4 - aplicando decisão progressiva e ledger semântico.",
                 runId);

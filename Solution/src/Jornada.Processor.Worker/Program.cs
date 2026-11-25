@@ -3,7 +3,6 @@ using Jornada.Bronze.Storage;
 using Jornada.Pipeline.Coordination;
 using Jornada.Contracts;
 using Jornada.Processor.Worker;
-using Jornada.Linkage.Runner;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -109,27 +108,7 @@ if (string.Equals(operationalDatabase.Provider, OperationalDatabaseProviders.Sql
     builder.Services.AddSingleton<IProcessorPipelineCoordinator>(
         new SqlProcessorPipelineCoordinatorAdapter(pipelineCoordinator));
     builder.Services.AddSingleton<IIdentityMapRepository, SqlIdentityMapRepository>();
-    // File-pinned selection is shared with Runner. Opt-in does not activate
-    // a productive model. Default-off keeps the legacy publication path.
-    SqlProcessorRepository.V9MaintenanceSettings? v9Maintenance = null;
-    if (builder.Configuration.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting))
-    {
-        var attempt = Guid.TryParseExact(builder.Configuration[V9BlockingMaintenanceGate.AttemptSetting],
-            "D", out var parsedAttempt) ? parsedAttempt : Guid.Empty;
-        if (!V9BlockingMaintenanceGate.IsExplicitDevOptIn(builder.Environment.EnvironmentName, true, attempt)
-            || builder.Configuration.GetValue<int?>("Linkage:SelectedModelVersion") != 9)
-            throw new InvalidOperationException(V9BlockingMaintenanceGate.ProductiveNotCertified);
-        var loaded = await V9ConfiguredArtifactLoader.LoadAsync(
-            builder.Configuration["Linkage:V9SelectionFile"] ?? string.Empty);
-        var payload = loaded.Snapshot.Payload;
-        var prefix = V9CalibrationBlockingProjection.ResolveFrozenPrefixLength(
-            payload.ProjectionSchemaVersion, payload.ProjectionFingerprintSha256);
-        v9Maintenance = new(builder.Environment.EnvironmentName, true, attempt,
-            prefix, payload.ProjectionFingerprintSha256);
-    }
-    builder.Services.AddSingleton(sp => new SqlProcessorRepository(
-        sp.GetRequiredService<IOperationalSqlAdapter>(),
-        sp.GetRequiredService<RegistryQualityEngine>(), v9Maintenance));
+    builder.Services.AddSingleton<SqlProcessorRepository>();
     builder.Services.AddSingleton<IProcessorRepository>(sp =>
         new SqlProcessorRepositoryAdapter(sp.GetRequiredService<SqlProcessorRepository>()));
 }

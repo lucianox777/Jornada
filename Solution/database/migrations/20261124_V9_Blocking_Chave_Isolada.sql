@@ -55,6 +55,7 @@ BEGIN
         normalizacao_versao nvarchar(80) NOT NULL,
         projection_schema_version nvarchar(120) NOT NULL,
         projection_fingerprint_sha256 char(64) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        conteudo_sha256 char(64) COLLATE Latin1_General_100_BIN2 NOT NULL,
         inicializado_em datetimeoffset(7) NOT NULL CONSTRAINT DF_blocking_chave_v9_cobertura_inicio DEFAULT(SYSDATETIMEOFFSET()),
         CONSTRAINT PK_blocking_chave_v9_cobertura PRIMARY KEY(
             normalizacao_versao,projection_schema_version,projection_fingerprint_sha256),

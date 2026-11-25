@@ -107,8 +107,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             var planner = V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(), winner.ContentSha256);
             var prefix = planner.MaximumPrefixLength!.Value;
             var fingerprint = planner.ProjectionFingerprintSha256;
-            var plan = new SqlProcessorRepository.V9MaintenanceSettings("Development", true, attempt, prefix, fingerprint);
-            var processor = new SqlProcessorRepository(sql, new RegistryQualityEngine([]), plan);
+            var processor = new SqlProcessorRepository(sql, new RegistryQualityEngine([]));
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
                 ["Linkage:SelectedModelVersion"] = "9",
                 ["Linkage:V9SelectionFile"] = selection,
@@ -176,15 +175,22 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             var cpfUuid = (Guid)cpf!;
             var expectedKeys = V9CalibrationBlockingProjection.Project("MARIA SILVA", "ANA COSTA",
                 new DateOnly(1980,5,6), prefix).Select(k => (k.Feature,k.Value)).ToHashSet();
-            var keyRows = await ReadPr1RowsAsync(db, """
-                SELECT atributo,valor_normalizado FROM identidade.blocking_chave_v9;
-                """);
-            Assert.That(keyRows.Select(r => ((string)r[0]!, (string)r[1]!)).ToHashSet().SetEquals(expectedKeys), Is.True);
-            Assert.That(keyRows.Count, Is.EqualTo(expectedKeys.Count));
+            Assert.That(await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9;"), Is.Zero,
+                "The Processor must not write V9, even for a CPF reference");
             Assert.That(await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.blocking_chave;"), Is.GreaterThan(0));
+            var first = await FullAsync(2);
+            await using (var keys = new SqlCommand("""
+                SELECT atributo,valor_normalizado FROM identidade.blocking_chave_v9 WHERE pessoa_uuid=@person;
+                """, db))
+            {
+                keys.Parameters.Add("@person", SqlDbType.UniqueIdentifier).Value = cpfUuid;
+                var actual = new HashSet<(string,string)>();
+                await using var rows = await keys.ExecuteReaderAsync();
+                while (await rows.ReadAsync()) actual.Add((rows.GetString(0),rows.GetString(1)));
+                Assert.That(actual.SetEquals(expectedKeys), Is.True);
+            }
             await AssertCandidateAsync(new IdentityObservation(null,"SEM_CPF","MARIA SILVA",
                 new DateOnly(1980,5,6),"ANA COSTA"), cpfUuid);
-            var first = await FullAsync(2);
             var firstRows = await ReadPr1RowsAsync(db, Pr1Decisions, first);
             var target = firstRows.Single(r => Equals(r[0],"RF1936_FIRST"));
             Assert.That(target[2], Is.EqualTo("RESOLVIDO"));
@@ -198,9 +204,18 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 
             // The second FULL finds the Runner-founded reference without
             // replacing or manually materializing a single key.
+            var beforeProcessorDelta = await Rf1936DigestAsync(db);
+            await PersistAsync(processor, "V9TEST",
+                Rf1936Person("RF1936_CPF_ALIAS", "52998224725", "ZETA9107 SILVA", "ANA COSTA"));
             await PersistAsync(processor, "V9TEST2",
                 Rf1936Person("RF1936_SECOND", null, "ALFA0003 SILVA", "CARLA0003 COSTA"));
+            Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(beforeProcessorDelta),
+                "Legitimate Gold/history changes by Processor must not write the V9 index");
             var second = await FullAsync(3);
+            Assert.That(await Rf1936DigestAsync(db), Is.Not.EqualTo(beforeProcessorDelta),
+                "Runner must synchronize the legitimate delta");
+            await AssertCandidateAsync(new IdentityObservation(null,"SEM_CPF","ZETA9107 SILVA",
+                new DateOnly(1980,5,6),"ANA COSTA"), cpfUuid);
             var secondRows = await ReadPr1RowsAsync(db, Pr1Decisions, second);
             var secondTarget = secondRows.Single(r => Equals(r[0],"RF1936_SECOND"));
             Assert.That(secondTarget[2], Is.EqualTo("RESOLVIDO"));
@@ -237,11 +252,18 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 await tripwire.ExecuteNonQueryAsync();
             foreach (var environment in new[] { "HML", "Production", "Homologation", "PROD", "", "Unknown" })
             {
-                var deniedProcessor = new SqlProcessorRepository(sql, new RegistryQualityEngine([]),
-                    plan with { EffectiveEnvironment = environment });
-                var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() => PersistAsync(deniedProcessor,
-                    "V9TEST", Rf1936Person("RF1936_DENIED_" + environment, null,"MARIA SILVA","ANA COSTA"))));
-                Assert.That(error!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
+                await using (var deniedTx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
+                {
+                    var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                        BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, deniedTx, environment, true,
+                            attempt, prefix, fingerprint, CancellationToken.None)));
+                    Assert.That(error!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
+                    var refreshError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                        BlockingProjectionPersistence.RefreshPinnedV9Async(db, deniedTx, environment, true,
+                            attempt, prefix, fingerprint, CancellationToken.None)));
+                    Assert.That(refreshError!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
+                    await deniedTx.RollbackAsync();
+                }
                 var runnerError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
                     V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt, CancellationToken.None, environment)));
                 Assert.That(runnerError!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
@@ -263,19 +285,13 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
 
             Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBefore));
 
-            // Actual producer admissions with populated projection and both
+            // Runner producer admissions with populated projection and both
             // DML tripwires armed. Wrong/missing resident metadata is tested
             // in this disposable DEV DB only; restore it even on failure.
             var negativeIndex = 0;
             async Task AssertWrongDatabaseAsync(Guid requestedAttempt)
             {
-                var denied = new SqlProcessorRepository(sql, new RegistryQualityEngine([]),
-                    plan with { AttemptId = requestedAttempt });
-                var processorError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
-                    PersistAsync(denied, "V9TEST", Rf1936Person(
-                        "RF1936_BAD_DB_" + (++negativeIndex).ToString(CultureInfo.InvariantCulture),
-                        null, "MARIA SILVA", "ANA COSTA"))));
-                Assert.That(processorError!.Message, Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+                negativeIndex++;
                 var runnerError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
                     V9ControlledDevCohortScorer.CreateAsync(config, sql, requestedAttempt,
                         CancellationToken.None, "Development")));
@@ -330,7 +346,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 }
                 await V9DisposableAttemptDatabase.VerifyAsync(db, attempt, CancellationToken.None);
             }
-            TestContext.WriteLine("V9_RF1936_C07_DB_NAME_RESIDENT_PROPERTIES_AND_PRODUCERS_PASS");
+            TestContext.WriteLine("V9_RF1936_C07_DB_NAME_RESIDENT_PROPERTIES_AND_RUNNER_PASS");
 
             // Physical negative for wrong attempt, and actual versioned
             // reversal script against already populated V9/legacy tables.
@@ -391,7 +407,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(await CountSqlAsync(db,"SELECT COUNT_BIG(*) FROM identidade.linkage_run;"), Is.EqualTo(runsBefore));
             await File.WriteAllTextAsync(Path.Combine(Pr1Directory(),"rf1936-repository-full.json"),
                 JsonSerializer.Serialize(new { winner = winner.ContentSha256, fingerprint, first, second, third,
-                    processorRepository = true, httpAdmission = false, isolatedIndex = true,
+                    processorRepository = true, processorWritesV9 = false, runnerSynchronizesGoldDelta = true,
+                    httpAdmission = false, isolatedIndex = true,
                     physicalReplayDigest = before, c07NonemptyNegative = true,
                     c07ResidentDatabaseNegatives = negativeIndex, staleRejected = true,
                     reversalPreserved = true, scientificTest = false, certified = false }));

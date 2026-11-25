@@ -226,7 +226,7 @@ public static class V9ControlledDevOperationalCandidateSource
         await V9ControlledDevSilverGraph.PrepareTempTableAsync(
             connection, cancellationToken);
 
-        // One consistent operational READ snapshot for header, run_item,
+        // One consistent operational snapshot for header, run_item,
         // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
         // must fail closed; never fall back to independent READ COMMITTED pages.
         await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(
@@ -403,8 +403,8 @@ public static class V9ControlledDevOperationalCandidateSource
         {
             await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, true, attemptId,
                 connection, snapshot, cancellationToken);
-            await BlockingProjectionPersistence.VerifyPinnedV9ProjectionAsync(connection, snapshot,
-                attemptId, planner.MaximumPrefixLength
+            await BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(connection, snapshot,
+                effectiveEnvironment, true, attemptId, planner.MaximumPrefixLength
                     ?? throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH"),
                 planner.ProjectionFingerprintSha256, cancellationToken);
         }

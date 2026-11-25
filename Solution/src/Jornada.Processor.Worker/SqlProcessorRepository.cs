@@ -321,16 +321,10 @@ internal sealed partial class SqlProcessorRepository
 {
     private readonly IOperationalSqlAdapter connections;
     private readonly RegistryQualityEngine quality;
-    private readonly V9MaintenanceSettings? v9Maintenance;
 
-    internal sealed record V9MaintenanceSettings(string? EffectiveEnvironment, bool Enabled,
-        Guid AttemptId, int MaximumPrefixLength, string ProjectionFingerprintSha256);
-
-    public SqlProcessorRepository(IOperationalSqlAdapter connections, RegistryQualityEngine quality,
-        V9MaintenanceSettings? v9Maintenance = null)
+    public SqlProcessorRepository(IOperationalSqlAdapter connections, RegistryQualityEngine quality)
     {
         this.connections = connections;
         this.quality = quality;
-        this.v9Maintenance = v9Maintenance;
     }
 }

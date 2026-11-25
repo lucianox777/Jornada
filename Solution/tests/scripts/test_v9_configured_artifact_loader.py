@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-LOADER = ROOT / "src/Jornada.Linkage.Core/V9ConfiguredArtifactLoader.cs"
+LOADER = ROOT / "src/Jornada.Linkage.Runner/V9ConfiguredArtifactLoader.cs"
 
 class V9FileSelectionContractTests(unittest.TestCase):
     def test_v9_without_selection_never_falls_back_to_sql(self):
