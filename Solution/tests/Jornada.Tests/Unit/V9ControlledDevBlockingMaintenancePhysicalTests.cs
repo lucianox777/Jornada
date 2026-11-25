@@ -230,7 +230,12 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 AFTER INSERT,UPDATE,DELETE AS THROW 52990,'Unexpected V9 DML in denied scenario.',1;
                 """, db))
                 await tripwire.ExecuteNonQueryAsync();
-            foreach (var environment in new[] { "HML", "Production", "Homologation", "PROD" })
+            await using (var tripwire = new SqlCommand("""
+                CREATE TRIGGER identidade.tr_rf1936_coverage_no_dml ON identidade.blocking_chave_v9_cobertura
+                AFTER INSERT,UPDATE,DELETE AS THROW 52991,'Unexpected V9 coverage DML in denied scenario.',1;
+                """, db))
+                await tripwire.ExecuteNonQueryAsync();
+            foreach (var environment in new[] { "HML", "Production", "Homologation", "PROD", "", "Unknown" })
             {
                 var deniedProcessor = new SqlProcessorRepository(sql, new RegistryQualityEngine([]),
                     plan with { EffectiveEnvironment = environment });
@@ -255,6 +260,77 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             Assert.That(Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
                 V9ControlledDevCohortScorer.CreateAsync(defaultConfig, sql, attempt, CancellationToken.None, "Development")))!
                 .Message, Is.EqualTo("RUNNER_V9_BLOCKING_EXPLICIT_PATH_REQUIRED"));
+
+            Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBefore));
+
+            // Actual producer admissions with populated projection and both
+            // DML tripwires armed. Wrong/missing resident metadata is tested
+            // in this disposable DEV DB only; restore it even on failure.
+            var negativeIndex = 0;
+            async Task AssertWrongDatabaseAsync(Guid requestedAttempt)
+            {
+                var denied = new SqlProcessorRepository(sql, new RegistryQualityEngine([]),
+                    plan with { AttemptId = requestedAttempt });
+                var processorError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                    PersistAsync(denied, "V9TEST", Rf1936Person(
+                        "RF1936_BAD_DB_" + (++negativeIndex).ToString(CultureInfo.InvariantCulture),
+                        null, "MARIA SILVA", "ANA COSTA"))));
+                Assert.That(processorError!.Message, Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+                var runnerError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                    V9ControlledDevCohortScorer.CreateAsync(config, sql, requestedAttempt,
+                        CancellationToken.None, "Development")));
+                Assert.That(runnerError!.Message, Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+                await using (var deniedTx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
+                {
+                    var refreshError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                        BlockingProjectionPersistence.RefreshPinnedV9Async(db, deniedTx, "Development", true,
+                            requestedAttempt, prefix, fingerprint, CancellationToken.None)));
+                    Assert.That(refreshError!.Message, Is.EqualTo("RUNNER_V9_DEV_DISPOSABLE_SQL_NOT_VERIFIED"));
+                    await deniedTx.RollbackAsync();
+                }
+                Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(before));
+                Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBefore));
+            }
+
+            async Task SetResidentAsync(string name, string? value)
+            {
+                await using var change = new SqlCommand("""
+                    IF @value IS NULL
+                    BEGIN
+                        IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=@name)
+                            EXEC sys.sp_dropextendedproperty @name=@name;
+                    END
+                    ELSE IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=@name)
+                        EXEC sys.sp_updateextendedproperty @name=@name,@value=@value;
+                    ELSE
+                        EXEC sys.sp_addextendedproperty @name=@name,@value=@value;
+                    """, db);
+                change.Parameters.Add("@name", SqlDbType.NVarChar, 128).Value = name;
+                change.Parameters.Add("@value", SqlDbType.NVarChar, 200).Value = (object?)value ?? DBNull.Value;
+                await change.ExecuteNonQueryAsync();
+            }
+
+            await AssertWrongDatabaseAsync(Guid.NewGuid()); // wrong physical database name for attempt
+            foreach (var mismatch in new (string Name, string? Wrong, string Correct)[]
+            {
+                ("Jornada.EnvironmentProfile", null, "Development"),
+                ("Jornada.EnvironmentProfile", "Production", "Development"),
+                ("Jornada.V9.DevAttempt", null, attempt.ToString("D")),
+                ("Jornada.V9.DevAttempt", Guid.NewGuid().ToString("D"), attempt.ToString("D"))
+            })
+            {
+                try
+                {
+                    await SetResidentAsync(mismatch.Name, mismatch.Wrong);
+                    await AssertWrongDatabaseAsync(attempt);
+                }
+                finally
+                {
+                    await SetResidentAsync(mismatch.Name, mismatch.Correct);
+                }
+                await V9DisposableAttemptDatabase.VerifyAsync(db, attempt, CancellationToken.None);
+            }
+            TestContext.WriteLine("V9_RF1936_C07_DB_NAME_RESIDENT_PROPERTIES_AND_PRODUCERS_PASS");
 
             // Physical negative for wrong attempt, and actual versioned
             // reversal script against already populated V9/legacy tables.
@@ -289,7 +365,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             await ExecuteScriptAsync("migrations/20261124_V9_Blocking_Chave_Isolada.sql");
             Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(before));
             Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBeforeReversal));
-            await using (var drop = new SqlCommand("DROP TRIGGER identidade.tr_rf1936_no_dml;", db))
+            await using (var drop = new SqlCommand("""
+                DROP TRIGGER identidade.tr_rf1936_no_dml;
+                DROP TRIGGER identidade.tr_rf1936_coverage_no_dml;
+                """, db))
                 await drop.ExecuteNonQueryAsync();
             await AssertCandidateAsync(new IdentityObservation(null,"SEM_CPF","MARIA SILVA",
                 new DateOnly(1980,5,6),"ANA COSTA"), cpfUuid);
@@ -313,7 +392,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             await File.WriteAllTextAsync(Path.Combine(Pr1Directory(),"rf1936-repository-full.json"),
                 JsonSerializer.Serialize(new { winner = winner.ContentSha256, fingerprint, first, second, third,
                     processorRepository = true, httpAdmission = false, isolatedIndex = true,
-                    physicalReplayDigest = before, c07NonemptyNegative = true, staleRejected = true,
+                    physicalReplayDigest = before, c07NonemptyNegative = true,
+                    c07ResidentDatabaseNegatives = negativeIndex, staleRejected = true,
                     reversalPreserved = true, scientificTest = false, certified = false }));
             TestContext.WriteLine("V9_RF1936_REPOSITORY_FIRST_AND_REPEATED_FULL_C07_PASS_NOT_HTTP_OR_SCALE");
         }
