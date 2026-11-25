@@ -34,6 +34,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
 
     // Timing-only diagnostic; not consulted by the scorer or publication.
     internal Action<double,double,double,double,double>? DiagnosticTimingObserver { get; set; }
+    internal Action<string>? DiagnosticPhaseObserver { get; set; }
     public string WinnerSha256 => winner.WinnerSha256;
     internal const string DiagnosticFixtureSetting = "Linkage:V9BlockingMaintenance:DiagnosticLegacyFixture";
     internal V9ControlledDevBlockingMaintenance? Maintenance { get; private init; }
@@ -135,7 +136,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         var phaseClock = System.Diagnostics.Stopwatch.StartNew();
         var verified = await V9ControlledDevOperationalCandidateSource.ReadAsync(
             connection, winner, attemptId, runId, frozenRows,
-            maximumGoldCandidates, ct, Maintenance is not null, Maintenance?.EffectiveEnvironment);
+            maximumGoldCandidates, ct, Maintenance is not null, Maintenance?.EffectiveEnvironment,
+            DiagnosticPhaseObserver);
         var readMs = phaseClock.Elapsed.TotalMilliseconds;
         phaseClock.Restart();
         if (Maintenance is not null && verified.IsolatedBlockingManifest is null)
@@ -153,6 +155,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
                 verified.ManagerByObservation[x.PessoaObservacaoId],
                 x.Observation.NomeCompleto, x.Observation.NomeMae,
                 x.Observation.DataNascimento)).ToArray();
+        DiagnosticPhaseObserver?.Invoke("full-grouping");
         IReadOnlyList<V9DevDirectionalScore>? directions = null;
         var grouped = DiagnosticObserver is null
             ? winner.ScoreControlledDevCohort(cohort, physical.Edges)
@@ -182,6 +185,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             .SelectMany(x => x).Select(x => x.PessoaUuid).ToHashSet();
         if (!expectedPeople.SetEquals(originFacts.Keys))
             throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_INVALID");
+        DiagnosticPhaseObserver?.Invoke("full-gold-scoring");
         var goldScores = DiagnosticObserver is null ? null : new List<GoldScore>();
         var raw = new Dictionary<long, ProbabilisticLinkageDecision>(frozenRows.Count);
         var receipts = new Dictionary<long, V9ControlledDevSecureEvidenceScore.Receipt>(frozenRows.Count);
@@ -237,6 +241,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             silverWithCandidates.Add(frozenRows[a - 1].PessoaObservacaoId);
             silverWithCandidates.Add(frozenRows[b - 1].PessoaObservacaoId);
         }
+        DiagnosticPhaseObserver?.Invoke("full-translation");
         var translation = V9ControlledDevGroupGoldR1.Translate(
             groups, raw, verified.CandidatesByObservation,
             verified.ExistingResolvedGoldLinksByObservation

@@ -5,7 +5,7 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/jornada-v9-phase4-scale.yml'
-      - 'Solution/src/Jornada.Linkage.Runner/V9DevCensusDiagnostics.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevFullDiagnostics.cs'
 
 permissions:
   contents: read
@@ -30,6 +30,7 @@ jobs:
             error: clean
     env:
       JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
+      JORNADA_V9_FULL_DIAGNOSTIC: 'true'
       JORNADA_RUNTIME_MODE: DEV
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
@@ -45,10 +46,9 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
-      - name: Stop all scale runs pending verified census correction
+      - name: Admit diagnostic-only comparable; family and quality evaluation remain blocked
         run: |
-          echo 'V9_SCALE_BLOCKED: awaiting existing diagnostic run 45648488128 and verified SQL correction; challenge coverage still pending'
-          exit 1
+          [[ '${{ matrix.profile }}' == comparable && "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]] || exit 1
       - name: Admit only owner-controlled exact repository commit
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -199,6 +199,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-phase4-scale-execute.sh
+      - name: Publish sanitized FULL diagnostic even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-full-diagnostic-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-full-diagnostic.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Publish sanitized census diagnostic even on failure
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

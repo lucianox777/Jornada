@@ -6,7 +6,7 @@
   "maximumBasePeoplePerFamily": 4,
   "maximumSourceVersionsPerBasePerson": 8,
   "maximumSourceVersionsPerFamily": 32,
-  "capPolicy": "Reject before execution if any family exceeds cap; no post-hoc splitting or cap tuning; no generation until full profile manifest and preflight are ready.",
+  "capPolicy": "Reject before execution if any family exceeds cap; no post-hoc splitting or cap tuning; no generation until full profile manifest and preflight are ready. No generation until comparable 10k completes and all family preflight requirements are met.",
   "profiles": [
     "REPRESENTATIVE",
     "STRESS"
@@ -15,5 +15,7 @@
   "generatorImplemented": false,
   "profileQuotasLocked": false,
   "scientificCampaignLocked": false,
-  "generationAuthorized": false
+  "generationAuthorized": false,
+  "scientificCampaignAuthorized": false,
+  "newTrainTestAuthorized": false
 }

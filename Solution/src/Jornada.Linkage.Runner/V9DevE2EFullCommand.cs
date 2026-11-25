@@ -234,11 +234,21 @@ public static class V9DevE2EFullCommand
         if (matrixEnabled)
             scorer.DiagnosticTimingObserver = (read,snapshot,group,score,translate) =>
                 physicalTiming = [read,snapshot,group,score,translate];
-        var summary = matrixEnabled
-            ? await V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
+        Task<ProbabilisticLinkageRunSummary> ExecuteFull() => matrixEnabled
+            ? V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
                 () => runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None),
                 () => physicalTiming,CancellationToken.None)
-            : await runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
+            : runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
+        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
+        ProbabilisticLinkageRunSummary summary;
+        if (fullDiagnostic)
+        {
+            var diagnostics = new V9DevFullDiagnostics();
+            runner.DevPhaseObserver = diagnostics.Phase;
+            scorer.DiagnosticPhaseObserver = diagnostics.Phase;
+            summary = await diagnostics.RunAsync(sql, attempt, ExecuteFull);
+        }
+        else summary = await ExecuteFull();
         if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Elegiveis != eligible
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
