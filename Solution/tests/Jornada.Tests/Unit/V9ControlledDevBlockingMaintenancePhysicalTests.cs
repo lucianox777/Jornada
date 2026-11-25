@@ -610,7 +610,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 """, db))
                 // The actual reversal/migration leaves session NOCOUNT ON:
                 // verify SQL's affected-row count, not ExecuteNonQuery's -1.
-                Assert.That(Convert.ToInt32(await damage.ExecuteScalarAsync()), Is.EqualTo(1));
+                Assert.That(Convert.ToInt32(await damage.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1));
             var runsBefore = await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
             var corrupt = await RunnerAsync();
             var stale = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() =>
