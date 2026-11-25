@@ -1,0 +1,246 @@
+name: Jornada V9 phase 4 S4b 1k contrast
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/jornada-v9-phase4-s4b-1k.yml'
+      - 'Solution/scripts/v9-phase4-s4b-1k.py'
+      - 'Solution/scripts/v9-phase4-1k-plan.py'
+      - 'Solution/scripts/v9-phase4-1k-gate.py'
+      - 'Solution/scripts/v9-phase4-matrix-oracle.py'
+      - 'Solution/src/Jornada.Linkage.Runner/V9Phase4Matrix.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jornada-v9-phase4-s4b-1k-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  s4b-1k-nonpublish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      JORNADA_E2E_V9_DEV_FULL: 'true'
+      JORNADA_E2E_HTTP_VOLUME_COUNT: '1000'
+      JORNADA_E2E_IBGE_1K: 'true'
+      Linkage__SelectedModelVersion: '9'
+      Linkage__V9BlockingMaintenance__Enabled: 'true'
+      Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
+      LinkageReplay__CaptureBronzeSources: 'false'
+    steps:
+      - name: Admit only owner-controlled exact repository commit
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == lucianox777/Jornada ]]
+          [[ "$GITHUB_ACTOR" == "$GITHUB_REPOSITORY_OWNER" && "$GITHUB_TRIGGERING_ACTOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            [[ "$PR_REPO" == "$GITHUB_REPOSITORY" && "$PR_AUTHOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+            [[ "$PR_SHA" =~ ^[0-9a-f]{40}$ ]]
+          else
+            [[ "$EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/master && "$GITHUB_REF_PROTECTED" == true ]]
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checked-out SHA and private root
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          git diff --quiet HEAD --
+          umask 077
+          attempt="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          private="$RUNNER_TEMP/jornada-v9-e2e-$attempt"
+          [[ ! -e "$private" && ! -L "$private" ]]
+          mkdir -m 700 "$private"
+          {
+            echo "JORNADA_V9_E2E_PRIVATE_ROOT=$private"
+            echo "JORNADA_V9_DEV_ATTEMPT=$attempt"
+            echo "JORNADA_V9_DEV_ATTEMPT_DB=JornadaV9Dev_${attempt//-/}"
+            echo "Linkage__V9BlockingMaintenance__DevAttempt=$attempt"
+            echo "Linkage__V9SelectionFile=$private/selection/selection.json"
+            echo "JORNADA_E2E_EXACT_SHA=$EXPECTED"
+          } >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Download and verify only the approved campaign #38 artifact
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import importlib.util, os
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location("preserved", "scripts/v9-preserve-campaign38-artifacts.py")
+          p = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(p)
+          root = Path(os.environ["JORNADA_V9_E2E_PRIVATE_ROOT"])
+          token = os.environ["GH_TOKEN"]
+          run = p.api_json(f"https://api.github.com/repos/{p.REPO}/actions/runs/{p.RUN_ID}", token)
+          if (run.get("id") != p.RUN_ID or run.get("head_sha") != p.CODE_SHA
+              or run.get("run_attempt") != p.RUN_ATTEMPT or run.get("conclusion") != "success"
+              or run.get("workflow_id") != p.WORKFLOW_ID or run.get("path") != p.WORKFLOW_PATH
+              or run.get("event") != p.WORKFLOW_EVENT or run.get("head_branch") != p.WORKFLOW_BRANCH):
+              raise SystemExit("V9_E2E_WINNER_RUN_PROVENANCE_REJECTED")
+          remote = p.api_json(f"https://api.github.com/repos/{p.REPO}/actions/runs/{p.RUN_ID}/artifacts?per_page=100", token)
+          found = [x for x in remote.get("artifacts", []) if x["id"] == 14742452561 and not x["expired"]]
+          sha = "24a890243dff4d988515ac17532ee3720bff0c0b01261aa36c9e0d74426d5de7"
+          if len(found) != 1 or found[0].get("digest") != "sha256:" + sha:
+              raise SystemExit("V9_E2E_WINNER_ARTIFACT_REJECTED")
+          try:
+              tmp, _ = p.download_verified(14742452561, sha, root, token)
+              Path(tmp).rename(root / "winner.zip")
+          except Exception:
+              raise SystemExit("V9_E2E_WINNER_DOWNLOAD_REJECTED") from None
+          PY
+          python3 scripts/v9-e2e-1k-winner-pin.py "$JORNADA_V9_E2E_PRIVATE_ROOT/winner.zip" "$JORNADA_V9_E2E_PRIVATE_ROOT/selection"
+      - name: Restore and build exact commit
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          ./scripts/nuget-lock-bootstrap.sh
+          dotnet build Jornada.sln --no-restore -c Release -warnaserror
+      - name: Prepare private waves and catalog-only seed
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          bash scripts/v9-e2e-1k-prepare-waves.sh "$root/fixture"
+          python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
+          python3 scripts/v9-e2e-1k-factual.py prepare --root "$root/fixture"
+          cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+      - name: Launch isolated SQL Server
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Fresh schema with C07 resident identity
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          db="$JORNADA_V9_DEV_ATTEMPT_DB"
+          [[ "$db" =~ ^JornadaV9Dev_[0-9a-f]{32}$ ]]
+          [[ "$db" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}" ]]
+          docker exec -u 0 "$sql_name" sh -c 'mkdir -p /work/Solution && chmod 755 /work /work/Solution'
+          docker cp database "$sql_name":/work/Solution/
+          sql() {
+            docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' sh "$1" "$2"
+          }
+          run_sql() {
+            docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$1" "$2"
+          }
+          {
+            sql master "IF DB_ID(N'$db') IS NOT NULL THROW 52990,'V9_E2E_ATTEMPT_REUSE',1; CREATE DATABASE [$db];"
+            sql master "ALTER DATABASE [$db] SET ALLOW_SNAPSHOT_ISOLATION ON;"
+            run_sql "$db" database/Jornada_Fase1_v3.70.sql
+            run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+            run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql
+            sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';"
+          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
+          [[ "$ConnectionStrings__Jornada" == *'Database=JornadaHarness;'* ]]
+          conn="${ConnectionStrings__Jornada/Database=JornadaHarness;/Database=$db;}"
+          printf '::add-mask::%s\n' "$conn"
+          printf 'ConnectionStrings__Jornada=%s\n' "$conn" >> "$GITHUB_ENV"
+      - name: Execute HTTP to Processor to FULL to Gold to oracle to API
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          run_cli() {
+            dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Linkage.Runner -- --v9-dev-full-1k "$1" >"$root/runner-$1.log" 2>&1 || {
+              grep -E '^V9_DEV_E2E_FAILURE stage=[a-z-]+ type=[A-Za-z0-9_-]+ code=[A-Z0-9_]+$' "$root/runner-$1.log" || true
+              echo "V9_E2E_RUNNER_STAGE_FAILED_$1"; exit 1;
+            }
+          }
+          run_cli catalog
+          echo 'V9_E2E_CATALOG_EXECUTED'
+          contracts="$PWD/config/contracts/gestores/SEHAB"
+          support="$PWD/tests/fixtures/external-contracts/gestores/SEHAB"
+          if [[ -e "$contracts" ]]; then diff -qr "$support" "$contracts" >/dev/null; else cp -R "$support" "$contracts"; fi
+          export ASPNETCORE_URLS=http://127.0.0.1:5088
+          export BronzeStorage__Provider=FileSystem
+          export BronzeStorage__RootPath="$root/bronze"
+          export IngestionStaging__RootPath="$root/staging"
+          export Processor__PollingMilliseconds=100
+          export SemiblindIdentitySearch__Enabled=false
+          dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Api >"$root/api.log" 2>&1 & api=$!
+          dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Processor.Worker >"$root/processor.log" 2>&1 & worker=$!
+          ASPNETCORE_URLS=http://127.0.0.1:5089 JornadaApiBaseUrl=http://127.0.0.1:5088 dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Resultado.Api >"$root/resultado.log" 2>&1 & resultado=$!
+          trap 'kill "$worker" "$api" "$resultado" 2>/dev/null || true; wait "$worker" "$api" "$resultado" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 120); do
+            if curl --silent --fail --output "$root/ready.json" http://127.0.0.1:5088/health/ready; then ready=1; break; fi
+            sleep 1
+          done
+          [[ "$ready" == 1 ]] || { echo 'V9_E2E_API_READINESS_FAILED'; exit 1; }
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --output "$root/resultado-ready.json" http://127.0.0.1:5089/health; then ready=1; break; fi
+            sleep 1
+          done
+          [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
+          python3 scripts/v9-e2e-1k-http.py ingest --root "$root/fixture"
+          cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
+          export JORNADA_V9_PHASE4_MATRIX=true
+          run_cli full
+          python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
+          echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
+          python3 scripts/v9-e2e-1k-identity-census.py \
+            --wave "$root/fixture/ingestion/wave-01/delivery/bridge-manifest.json" "$root/fixture/ingestion/wave-01/delivery/bridge-truth.jsonl" \
+            --wave "$root/fixture/ingestion/wave-02/delivery/bridge-manifest.json" "$root/fixture/ingestion/wave-02/delivery/bridge-truth.jsonl" \
+            --sql "$root/sql-census.json" --runner "$root/runner-receipt.json" --receipt "$root/identity-receipt.json"
+          python3 scripts/v9-e2e-1k-fn-oracle.py --root "$root"
+          cp "$root/sql-census.json" "$root/identity-receipt.json" "$root/runner-receipt.json" "$root/fixture/"
+          python3 scripts/v9-e2e-1k-http.py api --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-factual.py verify --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-system-api.py --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-person-census.py --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-acceptance.py "$root"
+          python3 scripts/v9-phase4-s4b-1k.py --root "$root"
+          python3 scripts/v9-phase4-1k-gate.py --root "$root"
+          run_cli matrix
+          python3 scripts/v9-phase4-matrix-oracle.py --root "$root"
+          # Explicit allowlist of aggregate files only. Never upload the private root.
+          out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
+          mkdir -m 700 "$out"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/fixture/factual-receipt.json" "$root/fixture/system-api-receipt.json" "$root/fixture/person-census-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/fn-receipt.json" "$root/nucleus-receipt.json" "$root/s4b-receipt.json" "$root/phase4-matrix-bound-plan.json" "$root/matrix-receipt.json" "$out/"
+          printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
+          echo 'V9_E2E_1K_PHYSICAL_NUCLEUS_PASS_NOT_INTEGRAL'
+      - name: Publish only aggregate evidence of completed physical path
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-phase4-s4b-1k-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/v9-e2e-1k-aggregate/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dispose attempt resources
+        if: always()
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [[ "$(docker ps -aq --filter "name=^/$sql_name$")" != "" ]]; then
+            docker stop "$sql_name" >/dev/null
+          fi
+          if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
+            rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          fi

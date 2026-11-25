@@ -23,7 +23,7 @@ public static class V9DevE2EFullCommand
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full")
+        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full" or "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000"
@@ -90,6 +90,12 @@ public static class V9DevE2EFullCommand
 
         stage = "scorer";
         var loaded = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
+        if (args[1] == "matrix")
+        {
+            stage = "matrix";
+            await V9Phase4Matrix.ExecuteAsync(root, sql, loaded.Snapshot, attempt, CancellationToken.None);
+            return;
+        }
         var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
             CancellationToken.None, effectiveEnvironment: "Development");
         stage = "pre-full-sql";
@@ -144,6 +150,11 @@ public static class V9DevE2EFullCommand
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
         }
 
+        if (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true")
+        {
+            stage = "matrix-frame";
+            await V9Phase4Matrix.CaptureAsync(root, sql, attempt, CancellationToken.None);
+        }
         stage = "pre-full-membership";
         var membership = await V9DevE2EFirstFullMembershipOracle.ReadAsync(
             sql, loaded.Snapshot, attempt, total, eligible, CancellationToken.None);
@@ -172,11 +183,24 @@ public static class V9DevE2EFullCommand
             var sizes = roots.GroupBy(x => x).ToDictionary(x => x.Key,x => x.Count());
             var neighbors = directions.GroupBy(x=>x.Source).ToDictionary(x=>x.Key,
                 x=>x.Select(y=>ids[y.Target-1]).OrderBy(y=>y).ToArray());
+            // Private diagnostic only: the weakest *actual* directional
+            // posterior inside each complete-link group, not a group probability.
+            var internalScores = directions.Where(x=>roots[x.Source-1]==roots[x.Target-1])
+                .GroupBy(x=>roots[x.Source-1]).ToDictionary(x=>x.Key,x=>x.ToArray());
+            var groupMinimum = new Dictionary<int,decimal?>();
+            foreach (var (groupRoot,size) in sizes)
+            {
+                var scores = internalScores.GetValueOrDefault(groupRoot) ?? Array.Empty<V9DevDirectionalScore>();
+                if (scores.Length != size*(size-1) || scores.Any(x=>!x.Posterior.HasValue))
+                    throw new InvalidDataException("RUNNER_V9_E2E_GROUP_INTERNAL_SCORE_DIVERGENCE");
+                groupMinimum.Add(groupRoot, size==1 ? null : scores.Min(x=>x.Posterior));
+            }
             observedRun = runId;
             privateDiagnostic = ids.Select((id,i) => new {
                 observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
                 candidates = candidates[id].Select(x => x.PessoaUuid).OrderBy(x => x).ToArray(),
                 silverNeighbors = neighbors.GetValueOrDefault(i+1) ?? Array.Empty<long>(),
+                groupMinPosterior = groupMinimum[roots[i]],
                 rankReason = membership.ExpectedRanks[i].Reason
             }).ToArray();
         };
@@ -193,10 +217,19 @@ public static class V9DevE2EFullCommand
             new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
             NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
         stage = "full-run";
-        var summary = await runner.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
+        var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
-            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true),
-            attempt, CancellationToken.None);
+            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
+        var matrixEnabled = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true";
+        double[]? physicalTiming = null;
+        if (matrixEnabled)
+            scorer.DiagnosticTimingObserver = (read,snapshot,group,score,translate) =>
+                physicalTiming = [read,snapshot,group,score,translate];
+        var summary = matrixEnabled
+            ? await V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
+                () => runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None),
+                () => physicalTiming,CancellationToken.None)
+            : await runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
         if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Elegiveis != eligible
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
