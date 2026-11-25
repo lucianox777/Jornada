@@ -35,6 +35,16 @@ class MembershipTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 m.compare(self.e, {**self.o, field: value}, self.r)
 
+    def test_directional_replay_requires_all_directions_and_abstentions(self):
+        self.e["SilverDirectionalReplay"] = dict(DirectionsCompared=400,
+            ScoredDirections=360, AbstainedDirections=40)
+        self.assertEqual(m.verify_directional_replay(self.e)["silverDirectionsCompared"], 400)
+        for field, value in (("DirectionsCompared", 399), ("ScoredDirections", 359),
+                             ("AbstainedDirections", True), ("AbstainedDirections", -1)):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                m.verify_directional_replay({**self.e, "SilverDirectionalReplay":
+                    {**self.e["SilverDirectionalReplay"], field: value}})
+
     def test_graph_replay_required(self):
         self.e["SilverSqlReplayEqual"] = False
         with self.assertRaises(ValueError):

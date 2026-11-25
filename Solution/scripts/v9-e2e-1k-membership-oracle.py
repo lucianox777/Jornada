@@ -31,6 +31,16 @@ def compare(expected, observed, runner):
             "silverSqlReplayEqual": True, "actualConsumedSilverEdgesVerified": False,
             "independentScoreOracleVerified": False, "e2eSystemCertified": False}
 
+def verify_directional_replay(expected):
+    row = expected["SilverDirectionalReplay"]
+    compared, scored, abstained = (row[k] for k in
+        ("DirectionsCompared", "ScoredDirections", "AbstainedDirections"))
+    require(all(type(x) is int and x >= 0 for x in (compared, scored, abstained))
+            and compared == 2 * expected["SilverEdges"] == scored + abstained
+            and scored > 0)
+    return {"silverDirectionalReplayVerified": True, "silverDirectionsCompared": compared,
+            "silverScoredDirections": scored, "silverAbstainedDirections": abstained}
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--root", type=Path, required=True)
@@ -56,12 +66,13 @@ def main():
                 and scalar["Observations"] == scalar["RankRowsEqual"] == runner["evaluated"]
                 and scalar["ScoreableRecords"] == observed["scoreableRecords"]
                 and scalar["PeopleWithoutScoreableEvidence"] == observed["peopleWithoutScoreableEvidence"])
+        receipt.update(verify_directional_replay(expected))
         receipt["independentScoreOracleVerified"] = True
         receipt["independentR1DecisionVerified"] = True
         receipt["frozenGroupReplayEqual"] = True
         receipt["independentGroupCount"] = expected["IndependentGroupCount"]
         receipt["independentGroupSha256"] = expected["IndependentGroupSha256"]
-        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_SEPARATE_SILVER_GROUP_REPLAY"
+        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_SEPARATE_SILVER_DIRECTION_GROUP_REPLAY"
         with (a.root / "membership-receipt.json").open("x", encoding="utf-8") as f:
             json.dump(receipt, f, sort_keys=True)
         print("V9_E2E_1K_ACTUAL_B1_RANK_R1_AND_SEPARATE_GRAPH_GROUP_REPLAY_PASS")

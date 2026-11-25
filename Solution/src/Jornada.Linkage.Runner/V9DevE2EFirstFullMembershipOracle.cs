@@ -30,6 +30,7 @@ public static class V9DevE2EFirstFullMembershipOracle
         public int IndependentGroupCount { get; init; }
         public string? IndependentGroupSha256 { get; init; }
         public bool FrozenGroupReplayEqual { get; init; }
+        public V9DevE2EGroupOracle.EdgeScoreReceipt? SilverDirectionalReplay { get; init; }
     }
 
     private const string Policy = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_RECORD_RANK_V1";
@@ -203,8 +204,10 @@ public static class V9DevE2EFirstFullMembershipOracle
         if (expected.SilverEdges != observed.Edges.Count ||
             expected.SilverEdgesSha256 != observed.CanonicalEdgesSha256)
             throw new InvalidDataException("RUNNER_V9_E2E_MEMBERSHIP_SILVER_EDGE_DIVERGENCE");
+        var directional = V9DevE2EGroupOracle.VerifyDirectionalReplay(winner,pending,observed.Edges);
         V9DevE2EGroupOracle.VerifyFrozenReplay(winner,pending,observed.Edges,expected.ExpectedGroupRoots);
         await snapshot.CommitAsync(ct);
-        return expected with { SilverSqlReplayEqual = true, FrozenGroupReplayEqual = true };
+        return expected with { SilverSqlReplayEqual = true, FrozenGroupReplayEqual = true,
+            SilverDirectionalReplay = directional };
     }
 }

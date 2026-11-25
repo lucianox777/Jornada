@@ -123,6 +123,61 @@ public static class V9DevE2EGroupOracle
             Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalPartition))));
     }
 
+    public sealed record EdgeScoreReceipt(int DirectionsCompared, int ScoredDirections, int AbstainedDirections);
+
+    public static void VerifyDirection(V9DevE2EScalarOracle.Pair? expected,
+        V9DevE2EScalarOracle.Pair? actual)
+    {
+        if (expected != actual)
+            throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_SCORE_DIVERGENCE");
+    }
+
+    // All SQL edges, including those rejected by the grouping guard.
+    // The observed side uses the same frozen ranking entry as ReplayDev,
+    // with the complete neighbor list, not singleton calls or top-k.
+    public static EdgeScoreReceipt VerifyDirectionalReplay(V9FittedSnapshot winner,
+        IReadOnlyList<V9DevE2EFirstFullMembershipOracle.Source> pending,
+        IReadOnlyList<(int A,int B)> edges)
+    {
+        var neighbors = Enumerable.Range(1, pending.Count).ToDictionary(x => x, _ => new HashSet<int>());
+        foreach (var (a,b) in edges)
+            if (a < 1 || b > pending.Count || a >= b ||
+                pending[a-1].Manager == pending[b-1].Manager ||
+                !neighbors[a].Add(b) || !neighbors[b].Add(a))
+                throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_EDGE_INVALID");
+        int scored = 0, abstained = 0;
+        foreach (var (source, targets) in neighbors.OrderBy(x => x.Key))
+        {
+            var row = pending[source-1].Observation;
+            var ids = targets.OrderBy(x => x).ToArray();
+            var expected = ids.ToDictionary(id => V9FrozenSourceResolveReplay.ObservationGuid(id),
+                id => V9DevE2EScalarOracle.Score(winner.Payload, row, pending[id-1].Observation));
+            var ranked = winner.RankPreview(new IdentityObservation(null, "SEM_CPF",
+                row.NomeCompleto, row.DataNascimento, row.NomeMae),
+                ids.Select(id =>
+                {
+                    var target = pending[id-1].Observation;
+                    return new V9SnapshotCandidate(V9FrozenSourceResolveReplay.ObservationGuid(id),
+                        target.NomeCompleto, target.DataNascimento, target.NomeMae);
+                }).ToArray());
+            if (ranked.Select(x => x.PessoaUuid).Distinct().Count() != ranked.Count ||
+                ranked.Any(x => !expected.ContainsKey(x.PessoaUuid)))
+                throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_RANK_CENSUS");
+            var observed = ranked.ToDictionary(x => x.PessoaUuid,
+                x => new V9DevE2EScalarOracle.Pair(x.Score, x.LogOdds));
+            foreach (var (id, score) in expected)
+            {
+                var actual = observed.GetValueOrDefault(id);
+                VerifyDirection(score, actual);
+                if (actual is null) abstained++;
+                else scored++;
+            }
+        }
+        if (scored + abstained != checked(2 * edges.Count))
+            throw new InvalidDataException("RUNNER_V9_E2E_SILVER_DIRECTION_CENSUS");
+        return new(scored + abstained, scored, abstained);
+    }
+
     // A separate replay, not the actual live scorer's ephemeral groups.
     // Compare partitions by member sets, independent of transient GUID labels.
     public static void VerifyFrozenReplay(V9FittedSnapshot winner,

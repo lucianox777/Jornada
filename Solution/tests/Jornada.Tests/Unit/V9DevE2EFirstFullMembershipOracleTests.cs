@@ -20,6 +20,23 @@ public sealed class V9DevE2EFirstFullMembershipOracleTests
     }
 
     [Test]
+    public void Every_direction_requires_exact_posterior_log_odds_and_abstention()
+    {
+        var expected = new V9DevE2EScalarOracle.Pair(.75m, 1.09861229m);
+        V9DevE2EGroupOracle.VerifyDirection(expected, expected with { });
+        V9DevE2EGroupOracle.VerifyDirection(null, null);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(
+                expected, expected with { Posterior = .74m }));
+            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(
+                expected, expected with { LogOdds = 1.09861228m }));
+            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(expected, null));
+            Assert.Throws<InvalidDataException>(() => V9DevE2EGroupOracle.VerifyDirection(null, expected));
+        }));
+    }
+
+    [Test]
     public void Pass_intersection_and_union_are_not_single_feature_or_missing_wildcards()
     {
         LinkageBlockingPass[] passes =
