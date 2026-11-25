@@ -49,15 +49,22 @@ def main():
         receipt = compare(expected, observed, runner)
         scalar = json.loads(read("scalar-receipt.json"))
         require(scalar["IndependentRankVerified"] is True
-                and scalar["IndependentR1DecisionVerified"] is False
+                and scalar["IndependentR1DecisionVerified"] is True
+                and expected["FrozenGroupReplayEqual"] is True
+                and 0 < expected["IndependentGroupCount"] <= runner["evaluated"]
+                and re.fullmatch("[0-9a-f]{64}", expected["IndependentGroupSha256"])
                 and scalar["Observations"] == scalar["RankRowsEqual"] == runner["evaluated"]
                 and scalar["ScoreableRecords"] == observed["scoreableRecords"]
                 and scalar["PeopleWithoutScoreableEvidence"] == observed["peopleWithoutScoreableEvidence"])
         receipt["independentScoreOracleVerified"] = True
-        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_LEDGER_AND_SEPARATE_SILVER_SQL_REPLAY"
+        receipt["independentR1DecisionVerified"] = True
+        receipt["frozenGroupReplayEqual"] = True
+        receipt["independentGroupCount"] = expected["IndependentGroupCount"]
+        receipt["independentGroupSha256"] = expected["IndependentGroupSha256"]
+        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_SEPARATE_SILVER_GROUP_REPLAY"
         with (a.root / "membership-receipt.json").open("x", encoding="utf-8") as f:
             json.dump(receipt, f, sort_keys=True)
-        print("V9_E2E_1K_ACTUAL_B1_MEMBERSHIP_AND_SILVER_REPLAY_PASS_NOT_SCORE_ORACLE")
+        print("V9_E2E_1K_ACTUAL_B1_RANK_R1_AND_SEPARATE_GRAPH_GROUP_REPLAY_PASS")
     except (ValueError, KeyError, TypeError, OSError, AttributeError):
         raise SystemExit("V9_E2E_1K_MEMBERSHIP_ORACLE_REJECTED") from None
 

@@ -15,7 +15,8 @@ public static class V9DevE2EScalarOracle
     public sealed record Pair(decimal Posterior, decimal LogOdds);
     public sealed record Rank(long Id, Guid? Best, decimal BestScore,
         Guid? Second, decimal? SecondScore, decimal? Margin, int ScoreableRecords,
-        int PeopleWithoutScoreableEvidence);
+        int PeopleWithoutScoreableEvidence, int CandidateCount = 0, bool HasPass = false,
+        string Status = "NAO_RESOLVIDO", Guid? Resolved = null, string? Reason = null);
     public sealed record LedgerReceipt(int Observations, long ScoreableRecords,
         long PeopleWithoutScoreableEvidence, int RankRowsEqual,
         bool IndependentRankVerified, bool IndependentR1DecisionVerified = false);
@@ -106,7 +107,7 @@ public static class V9DevE2EScalarOracle
 
     public static Rank ComputeRank(V9FittedSnapshotPayload winner,
         V9DevE2EFirstFullMembershipOracle.Source source, IReadOnlyList<Guid> people,
-        IReadOnlyDictionary<Guid, List<V9DevE2EFirstFullMembershipOracle.Source>> records)
+        IReadOnlyDictionary<Guid, List<V9DevE2EFirstFullMembershipOracle.Source>> records, bool hasPass)
     {
         var rankedPeople = new List<(Guid Person, Pair Score)>();
         var scoreable = 0;
@@ -120,13 +121,28 @@ public static class V9DevE2EScalarOracle
             if (perRecord.Length > 0) rankedPeople.Add((person, perRecord[0].Score!));
         }
         var ranked = rankedPeople.OrderByDescending(x => x.Score.LogOdds).ThenBy(x => x.Person).ToArray();
-        return ranked.Length == 0
-            ? new(source.Id,null,0m,null,null,null,scoreable,people.Count)
-            : new(source.Id,ranked[0].Person,ranked[0].Score.Posterior,
+        var rank = ranked.Length == 0
+            ? new Rank(source.Id,null,0m,null,null,null,scoreable,people.Count,people.Count,hasPass,
+                Reason:people.Count == 0 ? "SEM_CANDIDATO_NO_RULESET_BLOCKING" : "V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA")
+            : new Rank(source.Id,ranked[0].Person,ranked[0].Score.Posterior,
                 ranked.Length > 1 ? ranked[1].Person : null,
                 ranked.Length > 1 ? ranked[1].Score.Posterior : null,
                 ranked.Length > 1 ? ranked[0].Score.LogOdds - ranked[1].Score.LogOdds : null,
-                scoreable,people.Count-ranked.Length);
+                scoreable,people.Count-ranked.Length,people.Count,hasPass);
+        // This winner has no enabled collision/dual-threshold guards. Refuse
+        // an unrecognized model rather than silently implement another policy.
+        if (winner.Parameters.GetValueOrDefault(LinkageParameterCatalog.NonUniqueDemographicExactGuard) >= 1m ||
+            winner.Parameters.GetValueOrDefault(LinkageParameterCatalog.DualThresholdConflictGuard) >= 1m)
+            throw new InvalidDataException("RUNNER_V9_E2E_SCALAR_UNSUPPORTED_RESOLVER");
+        if (rank.Best is null) return rank;
+        if (rank.BestScore < winner.Threshold)
+            return rank with { Reason=rank.PeopleWithoutScoreableEvidence > 0
+                ? "V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA" : "ABAIXO_T_LINKAGE" };
+        if (rank.Margin is decimal gap && gap < winner.ConflictMargin)
+            return rank with { Status="CONFLITO", Reason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE" };
+        return rank.PeopleWithoutScoreableEvidence > 0
+            ? rank with { Reason="V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA" }
+            : rank with { Status="RESOLVIDO", Resolved=rank.Best };
     }
 
     // r1 may veto a decision but never changes its raw ranking/score.
@@ -138,7 +154,7 @@ public static class V9DevE2EScalarOracle
         var count = 0;
         await using var command = new SqlCommand("""
             SELECT pessoa_observacao_id,melhor_candidato_uuid,score_melhor,
-                   segundo_candidato_uuid,score_segundo,margem
+                   segundo_candidato_uuid,score_segundo,margem,status,pessoa_uuid_resolvido,motivo
             FROM identidade.linkage_resultado WHERE linkage_run_id=@run
             ORDER BY pessoa_observacao_id;
             """, connection);
@@ -155,11 +171,15 @@ public static class V9DevE2EScalarOracle
             if (best != row.Best || reader.GetDecimal(2) != row.BestScore ||
                 second != row.Second || secondScore != row.SecondScore || margin != row.Margin)
                 throw new InvalidDataException("RUNNER_V9_E2E_SCALAR_LEDGER_RANK_DIVERGENCE");
+            if (reader.GetString(6) != row.Status ||
+                (reader.IsDBNull(7) ? (Guid?)null : reader.GetGuid(7)) != row.Resolved ||
+                (reader.IsDBNull(8) ? null : reader.GetString(8)) != row.Reason)
+                throw new InvalidDataException("RUNNER_V9_E2E_SCALAR_LEDGER_DECISION_DIVERGENCE");
             count++;
         }
         if (remaining.Count != 0 || count != expected.Count)
             throw new InvalidDataException("RUNNER_V9_E2E_SCALAR_LEDGER_CENSUS_MISMATCH");
         return new(count,expected.Sum(x => (long)x.ScoreableRecords),
-            expected.Sum(x => (long)x.PeopleWithoutScoreableEvidence),count,true);
+            expected.Sum(x => (long)x.PeopleWithoutScoreableEvidence),count,true,true);
     }
 }

@@ -9,6 +9,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFirstFullMembershipOracle.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EScalarOracle.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EGroupOracle.cs'
       - 'Solution/src/Jornada.Linkage.Runner/Program.cs'
   push:
     branches: [master]

@@ -25,6 +25,11 @@ public static class V9DevE2EFirstFullMembershipOracle
     {
         [System.Text.Json.Serialization.JsonIgnore]
         public IReadOnlyList<V9DevE2EScalarOracle.Rank> ExpectedRanks { get; init; } = [];
+        [System.Text.Json.Serialization.JsonIgnore]
+        public IReadOnlyList<int> ExpectedGroupRoots { get; init; } = [];
+        public int IndependentGroupCount { get; init; }
+        public string? IndependentGroupSha256 { get; init; }
+        public bool FrozenGroupReplayEqual { get; init; }
     }
 
     private const string Policy = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_RECORD_RANK_V1";
@@ -102,7 +107,8 @@ public static class V9DevE2EFirstFullMembershipOracle
             var candidates = keys.Where(x => MatchesAnyPass(pendingKeys[i], x.Value, p.BlockingPasses))
                 .Select(x => x.Key).OrderBy(x => x).ToArray();
             peopleCount += candidates.Length;
-            ranks.Add(V9DevE2EScalarOracle.ComputeRank(p, pending[i], candidates, evidence));
+            ranks.Add(V9DevE2EScalarOracle.ComputeRank(p, pending[i], candidates, evidence,
+                p.BlockingPasses.Any(pass => pass.Fields.All(field => pendingKeys[i].Any(key => key.Feature == field)))));
             using var local = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             Append(local, Policy + "\n");
             foreach (var person in candidates) Append(local, $"P:{person:D}\n");
@@ -115,19 +121,26 @@ public static class V9DevE2EFirstFullMembershipOracle
             Append(aggregate, FormattableString.Invariant(
                 $"{pending[i].Id}:{Convert.ToHexStringLower(local.GetHashAndReset())}\n"));
         }
-        var edges = 0;
+        var edges = new List<(int A,int B)>();
         using var graph = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         for (var i = 0; i < pending.Length; i++)
         for (var j = i + 1; j < pending.Length; j++)
             if (pending[i].Manager != pending[j].Manager &&
                 MatchesAnyPass(pendingKeys[i], pendingKeys[j], p.BlockingPasses))
             {
-                edges++;
+                edges.Add((i+1,j+1));
                 Append(graph, FormattableString.Invariant($"{i + 1}:{j + 1}\n"));
             }
+        var grouping = V9DevE2EGroupOracle.Compute(p,pending,edges,ranks);
         return new(pending.Length, peopleCount, recordCount,
-            Convert.ToHexStringLower(aggregate.GetHashAndReset()), edges,
-            Convert.ToHexStringLower(graph.GetHashAndReset()), false) { ExpectedRanks = ranks.AsReadOnly() };
+            Convert.ToHexStringLower(aggregate.GetHashAndReset()), edges.Count,
+            Convert.ToHexStringLower(graph.GetHashAndReset()), false)
+        {
+            ExpectedRanks = grouping.Decisions,
+            ExpectedGroupRoots = grouping.RootByIndex,
+            IndependentGroupCount = grouping.GroupCount,
+            IndependentGroupSha256 = grouping.PartitionSha256
+        };
     }
 
     public static async Task<Receipt> ReadAsync(IOperationalSqlAdapter sql,
@@ -190,7 +203,8 @@ public static class V9DevE2EFirstFullMembershipOracle
         if (expected.SilverEdges != observed.Edges.Count ||
             expected.SilverEdgesSha256 != observed.CanonicalEdgesSha256)
             throw new InvalidDataException("RUNNER_V9_E2E_MEMBERSHIP_SILVER_EDGE_DIVERGENCE");
+        V9DevE2EGroupOracle.VerifyFrozenReplay(winner,pending,observed.Edges,expected.ExpectedGroupRoots);
         await snapshot.CommitAsync(ct);
-        return expected with { SilverSqlReplayEqual = true };
+        return expected with { SilverSqlReplayEqual = true, FrozenGroupReplayEqual = true };
     }
 }
