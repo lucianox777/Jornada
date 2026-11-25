@@ -1,11 +1,10 @@
 -- Fase 3, plano PO v6: censo privado de versões físicas; somente leitura.
 -- Caller: conexão autenticada do banco DEV efêmero, depois do FULL único.
--- SQLCMD variables are the non-secret attempt/run GUIDs, canonical D format.
+-- Execute with typed SqlCommand parameters @attempt and @run (uniqueidentifier).
+-- No interpolation of shell or SQLCMD variables.
 -- Do not send this per-version JSON to logs or upload it as an artifact.
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
-DECLARE @attempt uniqueidentifier=TRY_CONVERT(uniqueidentifier,N'$(DevAttempt)');
-DECLARE @run uniqueidentifier=TRY_CONVERT(uniqueidentifier,N'$(RunId)');
 IF @attempt IS NULL OR @run IS NULL
    OR @attempt='00000000-0000-0000-0000-000000000000'
    OR @run='00000000-0000-0000-0000-000000000000'
