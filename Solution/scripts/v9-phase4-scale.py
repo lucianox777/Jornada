@@ -300,6 +300,22 @@ def measure(root):
         states=list(results.values()),contrasts=contrasts,caseAuditSha256=P.sha((root/"case-audit.jsonl").read_bytes()),
         comparableZeroFusions=all(x["metrics"]["falseFusedIdentities"]==0 for x in results.values()) if label=="comparable" else None,
         officialPolicyUnchanged=True,alternativePublication=False,scientificTest=False,activation=False))
+def decision_field_digests(graph_rows,rank_rows):
+    # Aggregate hashes only, keyed by the same stable version keys as the
+    # strict combined digest. Never export individual rows or identifiers.
+    result={}
+    for prefix,rows,key,fields in (
+        ("graph",graph_rows,"key",("group","candidates","neighbors","minimum","reason")),
+        ("rank",rank_rows,"Id",("Best","BestScore","Second","SecondScore","Margin","ScoreableRecords",
+            "PeopleWithoutScoreableEvidence","CandidateCount","HasPass","Status","Resolved","Reason"))):
+        require(all(set(row)==set(fields)|{key} for row in rows),"SCALE_PARITY_DIAGNOSTIC_SCHEMA")
+        ordered=sorted(rows,key=lambda row:row[key])
+        for field in fields:
+            payload=[(row[key],row[field]) for row in ordered]
+            result[prefix+"."+field]=hashlib.sha256(json.dumps(payload,sort_keys=True,
+                separators=(",",":"),allow_nan=False).encode()).hexdigest()
+    return result
+
 def diagnostic_receipt(root):
     label,(n,_,_)=profile()
     require(label in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
@@ -362,6 +378,7 @@ def diagnostic_receipt(root):
         commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
         fullCompleted=True,independentMembershipVerified=True,identityCensusStatus=identity["status"],
         pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,normalizedDecisionGraphSha256=decision_digest,
+        decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),
         matrixExecuted=False,scientificTest=False,activation=False))
 def main():
     p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()

@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/jornada-v9-phase4-scale.yml'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevFullDiagnostics.cs'
+      - 'Solution/scripts/v9-phase4-scale.py'
+      - 'Solution/scripts/v9-publication-scale-parity.py'
+      - 'Solution/tests/scripts/test_v9_phase4_scale.py'
       - 'Solution/database/migrations/20261125_Linkage_Publication_Scale.sql'
       - 'Solution/database/rollback/20261125_Linkage_Publication_Scale_Restore.sql'
       - 'Solution/database/tests/20261125_Linkage_Publication_Scale_Regression.sql'

@@ -19,6 +19,22 @@ class ScaleTests(unittest.TestCase):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 with self.assertRaises(ValueError):S.profile()
+    def test_decision_component_digests_detect_exact_field_changes(self):
+        key=("base-a","SMS",1)
+        graph=dict(key=key,group=[key],candidates=[],neighbors=[],minimum=None,reason="X")
+        rank=dict(Id=key,Best=None,BestScore=0,Second=None,SecondScore=None,Margin=None,
+                  ScoreableRecords=0,PeopleWithoutScoreableEvidence=0,CandidateCount=0,HasPass=False,
+                  Status="NAO_RESOLVIDO",Resolved=None,Reason="X")
+        a=S.decision_field_digests([graph],[rank])
+        b=S.decision_field_digests([dict(graph,reason="Y")],[dict(rank,BestScore=1)])
+        self.assertEqual({k for k in a if a[k]!=b[k]},{"graph.reason","rank.BestScore"})
+        self.assertEqual(len(a),17)
+        key2=("base-b","SMS",1)
+        g2=dict(graph,key=key2,group=[key2])
+        r2=dict(rank,Id=key2)
+        self.assertEqual(S.decision_field_digests([graph,g2],[rank,r2]),
+                         S.decision_field_digests([g2,graph],[r2,rank]))
+        with self.assertRaises(ValueError):S.decision_field_digests([dict(graph,unexpected=1)],[rank])
     def test_conditional_bound_and_cap(self):
         b=S.bound(10000,0,20000,0,1)
         self.assertAlmostEqual(b["cpUpper"],1-.025**(1/10000),places=12)
