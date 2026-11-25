@@ -5,10 +5,7 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/jornada-v9-phase4-scale.yml'
-      - 'Solution/scripts/v9-phase4-scale*.py'
-      - 'Solution/scripts/v9-phase4-scale-execute.sh'
-      - 'Solution/src/Jornada.Linkage.Runner/V9Phase4Matrix.cs'
-      - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevCensusDiagnostics.cs'
 
 permissions:
   contents: read
@@ -27,15 +24,12 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - profile: audit1k
-            people: '1000'
-            seed: '355'
-            error: clean
           - profile: comparable
             people: '10000'
             seed: '355'
             error: clean
     env:
+      JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
       JORNADA_RUNTIME_MODE: DEV
       DOTNET_ENVIRONMENT: Development
       ASPNETCORE_ENVIRONMENT: Development
@@ -51,10 +45,9 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
-      - name: Stop pending comparable census diagnosis and challenge coverage
+      - name: Admit only the comparable census diagnostic, challenge remains blocked
         run: |
-          echo 'V9_SCALE_BLOCKED: comparable post-FULL census timeout unresolved; challenge requires explicit family truth and homonym census (GOV-V9-10K-DESAFIO-SUSPENSO-20261125)'
-          exit 1
+          [[ '${{ matrix.profile }}' == comparable ]] || exit 1
       - name: Admit only owner-controlled exact repository commit
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -205,6 +198,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-phase4-scale-execute.sh
+      - name: Publish sanitized census diagnostic even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-census-diagnostic-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-census-diagnostic.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Publish safe resource receipt even on failure
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

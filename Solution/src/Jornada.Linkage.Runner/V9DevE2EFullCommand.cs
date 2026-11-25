@@ -282,6 +282,12 @@ public static class V9DevE2EFullCommand
             census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
             census.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
             var json = new StringBuilder();
+            if (scale && Environment.GetEnvironmentVariable("JORNADA_V9_CENSUS_DIAGNOSTIC") == "true")
+            {
+                await V9DevCensusDiagnostics.ReadAsync(sql, connection, census, json, attempt);
+                // Diagnostic-only attempt: no matrix or quality PASS on this SHA.
+                throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_DIAGNOSTIC_ONLY");
+            }
             await using (var reader = await census.ExecuteReaderAsync())
                 while (await reader.ReadAsync()) json.Append(reader.GetString(0));
             await WriteNewAsync(root, "sql-census.json", json.ToString());

@@ -1,0 +1,37 @@
+# V9 — relatório único do ensaio funcional 10k (25/11/2026)
+
+**Estado: EM EXECUÇÃO POR ETAPAS; NÃO CONCLUÍDO.** Autoridade: PO, instrução geral de 25/11/2026, GOV-DOC-01. PR #1940; #1851/#1926/#1931/#1228. Nenhuma mudança no vencedor #38, S4b(i), parâmetros, algoritmo, DT-15, ativação, HML/PROD. Nova ciência somente workflow manual com manifesto LOCKED.
+
+## Decisão e precedência
+
+O comparável 10k e o desafio 10k são **funcionais**, não certificação estatística; 0,1446% deixa de ser gate de aprovação deles, permanece referência descritiva da VALIDATION #38. Preservar zero fusões erradas como objetivo/critério funcional e r1 sem herança; trade-off recall/splits não implica mudança de política. Autorização PO para correções automáticas, testes e integração após gates no SHA exato; não dispensa CI, proveniência, proteção da master ou os pré-requisitos da massa familiar. Prevalece sobre o limite anterior do [plano 10k](Plano_V9_Fase4_10k_20261125.md). Suspensão do desafio continua vigente até censo e validação positivos. O plano v6 continua válido nos demais pontos.
+
+## 1. Timeout do censo
+
+**MEDIDO:** [run 45632711583](https://github.com/lucianox777/Jornada/actions/runs/45632711583), SHA b565fee07b08d6230851f2708d16ff7d5fe269ef. Audit1k SUCCESS; comparável ingeriu 23.204 versões, oito entregas, depois `stage=post-full-census type=SQL_-2_0` no [job 139269898925](https://github.com/lucianox777/Jornada/actions/runs/45632711583/job/139269898925); desafio cancelado sem medir. O banco efêmero foi descartado; nenhum plano real foi arquivado. O timeout de 120 s não demonstra por si só causa raiz.
+
+**Hipótese estática:** o censo junta o universo Silver a `identidade.v_vinculo_corrente` e ao resultado do run; a view publicada usa ROW_NUMBER, anti-joins e UNION ALL (migração 20260919_Linkage_Publicacao_Progressiva.sql). Índices existentes incluem unicidade (run, observação), índice corrente (observação, run) e índice filtrado de vínculos ativos. A expansão repetida da view, estimativas incorretas ou nested loops são hipóteses, não fatos medidos. Esperas/bloqueio e materialização JSON também devem ser distinguidos. Não elevar timeout nem alterar view produtiva por hipótese.
+
+**Implementação inicial:** coleta de plano vivo no SPID do censo, amostras de operadores/estimativa/linhas/execuções/índices e espera/CPU/leituras, sem XML bruto, literais ou identificadores de pessoas; diagnóstico físico restrito a comparável 10k na PR, sem desafio. O SQL original e 120 s permanecem congelados até evidência. O recibo diagnóstico é publicado inclusive em falha. Próxima correção precisa demonstrar paridade de linhas/duplicatas e precedência com censo original, regressão física 10k, tempo/leituras e extrapolação 100k explicitamente projetada; não inventar plano, causa ou PASS. Não repetir automaticamente por alterações documentais; desafio continua ausente. O workflow de escala ainda não está na master; a integração da trava e a restrição a disparo manual continuam pendentes, sem bypass.
+
+## 2. Contrato de métricas (funcional)
+
+Por estado, A = número de versões sem CPF atribuídas a destino multi-origem (ou impuro), contadas uma vez; F = número dessas versões em destino impuro. k = número de pessoas-base com ao menos uma dessas fontes erradas. Reportar também pessoas afetadas por fusão, incluindo as não elegíveis para F, e quantidade de destinos/identidades contaminados. Para um destino com t versões atribuídas, há t(t-1)/2 pares aceitos não ordenados; TP = soma dessa combinação por pessoa verdadeira dentro do destino, FP = diferença; pares de mesma origem e com CPF entram no censo de pares, mas não necessariamente em A. Por exemplo, destino de duas versões nãoCPF de origens distintas: A=2, pares=1. Destino de três versões: até A=3, pares=3; quatro: até A=4, pares=6. Portanto A pode superar ou ser menor que pares, não há conversão fixa. Não confundir com decisões FS individuais. Reportar versões por pessoa observadas, sensibilidade C=8 e cap menor somente diagnóstico quando todas as versões observadas respeitam esse cap; gate mantém C=8. O UCB condicional por fonte com m=1 e m=216 é descritivo, não critério de 0,1446%. Fórmula no plano 10k; sem UCB por pares assumindo independência fictícia.
+
+**MEDIDO:** apenas os resultados 1k e ingestão acima. **PROJETADO:** tabela anterior do plano 10k, sem substituir medições. A, pares, k, destinos contaminados, UCB m=1/216: **NÃO MEDIDOS em 10k**.
+
+## 3. Gerador familiar — critérios de desbloqueio
+
+Implementar perfil DEV isolado, gabarito independente e selado, sem contaminar comparável/ciência: homônimos; homônimos com mesma data; irmãos de mesma mãe verdadeira; gêmeos mesma mãe e evento de nascimento/data, prenomes diferentes e mesmo sobrenome; coincidência materna de mães diferentes; corrupção/ausência sobre todos os estratos. Incluir pares de irmãos e gêmeos sem CPF em todas as versões pertinentes, sem revelação posterior. Censo pré-execução: grupos, pessoas, pares, interseções, ausência CPF, integridade e hashes; cobertura positiva de cada estrato obrigatória, não construir verdade a partir de observações degradadas. Representativo: fontes demográficas congeladas e citadas, distinguir prevalências observadas de hipóteses; estresse: quotas declaradas antes da geração no manifesto, não estimativa populacional. Sem seleção pós-resultado. As frequências familiares ainda não foram pesquisadas/validadas para o universo-alvo; não declarar perfil representativo pronto.
+
+**NÃO IMPLEMENTADO/NÃO MEDIDO:** gerador familiar, censo e execução desafio 10k. Bloqueio GOV-V9-10K-DESAFIO-SUSPENSO-20261125 permanece.
+
+## 4. Segurança e 100k
+
+O 100k é escala solicitada para futuro desafio de estresse, não garantia de 0,1446%. Manifesto LOCKED deve vincular fonte/versão do gerador, quotas, seeds independentes, hashes dos insumos, vencedor #38, configuração, universo, unidades, gates e código imutável. Somente disparo manual pelo PO após 10k desafio e preflight verdes; nenhum disparo científico realizado. Workflow de 100k desafio específico ainda NÃO IMPLEMENTADO; não fornecer link para workflow científico de outra finalidade.
+
+Dependência familiar: propor amostra independente por família materna (solteiros como famílias unitárias), n_F famílias, A_F soma de aceites por família, k_F famílias com >=1 erro, cap C_F=8*B com B tamanho máximo de família **pré-especificado**, não calibrado após resultado. Aplicar CP+Hoeffding com n_F, k_F, C_F, mesmos alfa/m, publicar lado a lado com limite nominal por pessoa. Isso só sustenta inferência condicional se famílias forem iid, inclusive efeitos de seleção, homônimos e erros compartilhados; desafio estratificado com quotas exige estimando/desenho por estrato ou declarar não suportado. Fusões entre famílias podem induzir dependência adicional. Não afirmar certificação nem representatividade por tamanho.
+
+## 5. Entrega e pendências
+
+Atualizar este relatório único por recibo e SHA; #1228 apenas evidência material. Falha anterior preservada, sem publicação/ativação. Pendentes: diagnóstico real, correção, regressão e CI, merge autorizado da trava, métricas medidas comparável, gerador e censo familiar, desafio 10k, manifesto LOCKED/manual 100k e limites familiares. Nenhuma dessas pendências é PASS por registro documental.

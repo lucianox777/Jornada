@@ -18,7 +18,7 @@ CAP=8
 LIMIT=.001446
 def profile():
     label=os.environ["JORNADA_V9_PHASE4_SCALE"]
-    require(label in PROFILES and os.environ.get("GITHUB_ACTIONS")=="true"
+    require(label in ("audit1k","comparable") and label in PROFILES and os.environ.get("GITHUB_ACTIONS")=="true"
             and os.environ.get("GITHUB_REPOSITORY")=="lucianox777/Jornada"
             and os.environ.get("GITHUB_EVENT_NAME")=="pull_request"
             and os.environ.get("JORNADA_RUNTIME_MODE")=="DEV"
@@ -123,13 +123,13 @@ def cp_upper(n,k,alpha):
         if logcdf(mid)>math.log(alpha):lo=mid
         else:hi=mid
     return hi
-def bound(n,errors,accepted,false_accepts,comparisons):
+def bound(n,errors,accepted,false_accepts,comparisons,cap=CAP):
     a=.05/(2*comparisons)
-    cp=cp_upper(n,errors,a);den=accepted/n-CAP*math.sqrt(math.log(1/a)/(2*n))
-    upper=min(1.,CAP*cp/den) if den>0 else None
+    cp=cp_upper(n,errors,a);den=accepted/n-cap*math.sqrt(math.log(1/a)/(2*n))
+    upper=min(1.,cap*cp/den) if den>0 else None
     return dict(groups=n,errorGroups=errors,acceptedSources=accepted,falseAcceptedSources=false_accepts,
-                cap=CAP,comparisons=comparisons,alpha=.05,cpUpper=cp,acceptedMeanLower=max(0,den),
-                conditionalFdrUpper=upper,criterion=LIMIT,meetsReference=upper is not None and upper<=LIMIT,
+                cap=cap,comparisons=comparisons,alpha=.05,cpUpper=cp,acceptedMeanLower=max(0,den),
+                conditionalFdrUpper=upper,criterion=LIMIT,referenceOnly=True,meetsReference=upper is not None and upper<=LIMIT,
                 assumptionIidIndependentlyVerified=False,certified=False)
 def quality(state,truth,comparisons):
     pred=state["pred"];actual=state["actual"];true=state["true"]
@@ -148,7 +148,14 @@ def quality(state,truth,comparisons):
                 if dest_bases[p]!={base}:wrong[base]+=1
     require(integral+partial+unassigned==len(true) and all(v<=CAP for v in accepted.values()),"SCALE_INTEGRAL_CENSUS")
     a=sum(accepted.values());f=sum(wrong.values());e=len(wrong)
+    counts=Counter(len(ids) for ids in true.values())
+    require(max(counts)<=CAP,"SCALE_VERSION_CAP")
+    pairs=sum(len(ids)*(len(ids)-1)//2 for ids in pred.values())
     return dict(fullyIntactTruePeople=integral,assignedButNotIntactTruePeople=partial,unassignedTruePeople=unassigned,
+        acceptedPairs=pairs,acceptedSources=a,errorSourcePeople=e,contaminatedDestinations=sum(len(b)>1 for b in dest_bases.values()),
+        versionsPerPersonHistogram=dict(sorted(counts.items())),
+        sourceCapSensitivity=[dict(cap=cap,diagnosticOnly=cap!=CAP,nominal=bound(len(true),e,a,f,1,cap),
+            simultaneous=bound(len(true),e,a,f,comparisons,cap)) for cap in range(max(counts),CAP+1)],
         sourceFdr=f/a if a else None,sourceFdr95Conditional=bound(len(true),e,a,f,1),
         sourceFdr95FamilyConditional=bound(len(true),e,a,f,comparisons))
 def audit_cases(state,truth,prior,ordinals):
