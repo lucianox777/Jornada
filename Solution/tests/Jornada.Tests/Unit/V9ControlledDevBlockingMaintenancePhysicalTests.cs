@@ -521,8 +521,11 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             await using (var damage = new SqlCommand("""
                 DELETE FROM identidade.blocking_chave_v9
                 WHERE blocking_chave_id=(SELECT MIN(blocking_chave_id) FROM identidade.blocking_chave_v9);
+                SELECT @@ROWCOUNT;
                 """, db))
-                Assert.That(await damage.ExecuteNonQueryAsync(), Is.EqualTo(1));
+                // The actual reversal/migration leaves session NOCOUNT ON:
+                // verify SQL's affected-row count, not ExecuteNonQuery's -1.
+                Assert.That(Convert.ToInt32(await damage.ExecuteScalarAsync()), Is.EqualTo(1));
             var runsBefore = await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.linkage_run;");
             var corrupt = await RunnerAsync();
             var stale = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(() =>
