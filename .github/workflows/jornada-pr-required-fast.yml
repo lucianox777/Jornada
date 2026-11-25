@@ -249,6 +249,7 @@ jobs:
           fixture_root="$(mktemp -d)"
           trap 'rm -rf -- "$fixture_root"' EXIT
           bash scripts/v9-e2e-1k-prepare-waves.sh "$fixture_root/fixture"
+          bash scripts/v9-canonical-generator-parity.sh
           python3 - "$fixture_root/fixture/wave-preflight-receipt.json" <<'PY'
           import json, sys
           with open(sys.argv[1], encoding="utf-8") as stream:
