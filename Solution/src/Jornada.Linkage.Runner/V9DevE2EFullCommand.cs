@@ -172,11 +172,24 @@ public static class V9DevE2EFullCommand
             var sizes = roots.GroupBy(x => x).ToDictionary(x => x.Key,x => x.Count());
             var neighbors = directions.GroupBy(x=>x.Source).ToDictionary(x=>x.Key,
                 x=>x.Select(y=>ids[y.Target-1]).OrderBy(y=>y).ToArray());
+            // Private diagnostic only: the weakest *actual* directional
+            // posterior inside each complete-link group, not a group probability.
+            var internalScores = directions.Where(x=>roots[x.Source-1]==roots[x.Target-1])
+                .GroupBy(x=>roots[x.Source-1]).ToDictionary(x=>x.Key,x=>x.ToArray());
+            var groupMinimum = new Dictionary<int,decimal?>();
+            foreach (var (groupRoot,size) in sizes)
+            {
+                var scores = internalScores.GetValueOrDefault(groupRoot) ?? Array.Empty<V9DevDirectionalScore>();
+                if (scores.Length != size*(size-1) || scores.Any(x=>!x.Posterior.HasValue))
+                    throw new InvalidDataException("RUNNER_V9_E2E_GROUP_INTERNAL_SCORE_DIVERGENCE");
+                groupMinimum.Add(groupRoot, size==1 ? null : scores.Min(x=>x.Posterior));
+            }
             observedRun = runId;
             privateDiagnostic = ids.Select((id,i) => new {
                 observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
                 candidates = candidates[id].Select(x => x.PessoaUuid).OrderBy(x => x).ToArray(),
                 silverNeighbors = neighbors.GetValueOrDefault(i+1) ?? Array.Empty<long>(),
+                groupMinPosterior = groupMinimum[roots[i]],
                 rankReason = membership.ExpectedRanks[i].Reason
             }).ToArray();
         };

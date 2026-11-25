@@ -28,6 +28,9 @@ class Phase4PlanTests(unittest.TestCase):
             if len(t["rounds"]) == 2:
                 self.assertEqual(t["rounds"][1]["previousStateId"], t["rounds"][0]["stateId"])
         self.assertEqual(plan["executedCells"], 0)
+        self.assertTrue(plan["factorialRequiresS4bReceipt"])
+        self.assertEqual(plan["firstContrast"]["variants"],["official_indefinite","one_new_per_group","one_new_per_record"])
+        self.assertTrue(plan["firstContrast"]["beforeFactorial"])
         self.assertFalse(plan["publication"])
         self.assertFalse(plan["executionAuthorizedByThisPlan"])
         self.assertTrue(plan["r2RulesPendingSpecification"])
