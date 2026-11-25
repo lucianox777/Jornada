@@ -13,12 +13,17 @@ I=M.I;P=M.G.P;S=module("s4b","v9-phase4-s4b-1k.py")
 W=module("wave","v9-e2e-1k-wave-preflight.py")
 H=module("http","v9-e2e-1k-http.py")
 require=I.require
-PROFILES={"audit1k":(1000,355,"clean"),"comparable":(10000,355,"clean"),"challenge":(10000,7311026,"field")}
+PROFILES={"audit1k":(1000,355,"clean"),"diagnostic1k":(1000,355,"clean"),
+          "diagnostic2k":(2000,355,"clean"),"diagnostic4k":(4000,355,"clean"),
+          "comparable":(10000,355,"clean"),"challenge":(10000,7311026,"field")}
+DIAGNOSTIC_PROFILES=("diagnostic1k","diagnostic2k","diagnostic4k")
 CAP=8
 LIMIT=.001446
 def profile():
     label=os.environ["JORNADA_V9_PHASE4_SCALE"]
-    require(label in ("audit1k","comparable") and label in PROFILES and os.environ.get("GITHUB_ACTIONS")=="true"
+    require((label=="audit1k" or (label in DIAGNOSTIC_PROFILES and
+                os.environ.get("JORNADA_V9_FULL_DIAGNOSTIC")=="true"))
+            and label in PROFILES and os.environ.get("GITHUB_ACTIONS")=="true"
             and os.environ.get("GITHUB_REPOSITORY")=="lucianox777/Jornada"
             and os.environ.get("GITHUB_EVENT_NAME")=="pull_request"
             and os.environ.get("JORNADA_RUNTIME_MODE")=="DEV"
@@ -72,6 +77,7 @@ def truth_frame(root,n):
     return census,identity,truth
 def plan(root):
     label,(n,seed,error)=profile()
+    require(label not in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
     I.MAX_BYTES=128*1024*1024
     pre=read(root/"wave-preflight-receipt.json");lineage=read(root/"http-lineage.json")
     graph=read(root/"actual-graph-receipt.json");member=read(root/"membership-receipt.json")
@@ -222,6 +228,7 @@ def audit_cases(state,truth,prior,ordinals):
     return dict(fusions=fusions,splits=splits)
 def measure(root):
     label,(n,_,_)=profile();I.MAX_BYTES=128*1024*1024
+    require(label not in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
     census,identity,truth=truth_frame(root,n)
     require(identity==read(root/"identity-receipt.json"),"SCALE_BASELINE_RECHECK")
     p=read(root/"phase4-matrix-bound-plan.json");s4b=read(root/"s4b-receipt.json")
@@ -293,13 +300,29 @@ def measure(root):
         states=list(results.values()),contrasts=contrasts,caseAuditSha256=P.sha((root/"case-audit.jsonl").read_bytes()),
         comparableZeroFusions=all(x["metrics"]["falseFusedIdentities"]==0 for x in results.values()) if label=="comparable" else None,
         officialPolicyUnchanged=True,alternativePublication=False,scientificTest=False,activation=False))
+def diagnostic_receipt(root):
+    label,(n,_,_)=profile()
+    require(label in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
+    I.MAX_BYTES=128*1024*1024
+    census,identity,truth=truth_frame(root,n)
+    member=read(root/"membership-receipt.json");runner=read(root/"runner-receipt.json")
+    full=read(root/"matrix-full-physical-resource.json")
+    require(member["status"]=="PASS" and runner["status"]=="PUBLICADO"
+            and runner["eligible"]==runner["evaluated"] and full["fullElapsedMs"]>0,"SCALE_DIAGNOSTIC_GATE")
+    write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",
+        profile=label,population=n,versions=len(census),eligible=runner["eligible"],
+        commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
+        fullCompleted=True,independentMembershipVerified=True,identityCensusStatus=identity["status"],
+        pairMetrics=identity["pairMetrics"],physicalFull=full,
+        matrixExecuted=False,scientificTest=False,activation=False))
 def main():
-    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
     try:
         label,(n,_,_)=profile()
         if a.mode=="preflight":preflight(a.root)
         elif a.mode=="ingest":H.ingest(a.root,uuid.UUID(os.environ["JORNADA_V9_DEV_ATTEMPT"]),population=n)
         elif a.mode=="plan":plan(a.root)
+        elif a.mode=="diagnostic":diagnostic_receipt(a.root)
         else:measure(a.root)
     except (ValueError,OSError,KeyError,TypeError,AttributeError,ArithmeticError) as e:
         # Fixed internal code only; never arbitrary input or stack.

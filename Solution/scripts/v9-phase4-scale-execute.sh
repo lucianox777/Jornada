@@ -43,6 +43,15 @@ export JORNADA_V9_PHASE4_MATRIX=true
 run_cli full
 python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
 echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
+if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* ]]; then
+  python3 scripts/v9-phase4-scale.py diagnostic --root "$root"
+  out="$RUNNER_TEMP/v9-scale-aggregate"
+  mkdir -m 700 "$out"
+  cp "$root/diagnostic-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$out/"
+  printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
+  echo 'V9_FULL_SCALE_DIAGNOSTIC_MEASURED_NOT_MATRIX'
+  exit 0
+fi
 python3 scripts/v9-phase4-scale.py plan --root "$root"
 run_cli matrix
 python3 scripts/v9-phase4-scale.py measure --root "$root"

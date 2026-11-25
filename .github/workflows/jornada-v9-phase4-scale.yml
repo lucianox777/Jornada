@@ -13,19 +13,27 @@ permissions:
 
 concurrency:
   group: jornada-v9-phase4-scale-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   scale-dev-nonpublish:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
-      fail-fast: true
+      fail-fast: false
       max-parallel: 1
       matrix:
         include:
-          - profile: comparable
-            people: '10000'
+          - profile: diagnostic1k
+            people: '1000'
+            seed: '355'
+            error: clean
+          - profile: diagnostic2k
+            people: '2000'
+            seed: '355'
+            error: clean
+          - profile: diagnostic4k
+            people: '4000'
             seed: '355'
             error: clean
     env:
@@ -46,9 +54,14 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
-      - name: Admit diagnostic-only comparable; family and quality evaluation remain blocked
+      - name: Admit only progressive FULL diagnostics; 10k and family stay blocked
         run: |
-          [[ '${{ matrix.profile }}' == comparable && "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]] || exit 1
+          set -euo pipefail
+          [[ "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]]
+          case "$JORNADA_V9_PHASE4_SCALE:$JORNADA_E2E_HTTP_VOLUME_COUNT" in
+            diagnostic1k:1000|diagnostic2k:2000|diagnostic4k:4000) ;;
+            *) exit 1 ;;
+          esac
       - name: Admit only owner-controlled exact repository commit
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -203,15 +216,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-full-diagnostic-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/v9-full-diagnostic.json
+          name: v9-full-diagnostic-${{ matrix.profile }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/v9-full-diagnostic.json
+            ${{ runner.temp }}/v9-full-diagnostic.jsonl
+            ${{ runner.temp }}/v9-full-completed-resource.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Publish sanitized census diagnostic even on failure
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-census-diagnostic-${{ github.event.pull_request.head.sha }}
+          name: v9-census-diagnostic-${{ matrix.profile }}-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/v9-census-diagnostic.json
           if-no-files-found: ignore
           retention-days: 30

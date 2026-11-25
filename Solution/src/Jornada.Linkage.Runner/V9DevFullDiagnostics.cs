@@ -15,12 +15,31 @@ internal sealed class V9DevFullDiagnostics
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly ConcurrentQueue<object> phases = new();
     private string current = "full-start";
+    private readonly object journalGate = new();
+    private FileStream? journal;
+
+    // Each event is a complete JSONL record, written and flushed before
+    // continuing. A killed process can leave at most its final partial line;
+    // prior evidence does not depend on a successful FULL or finally.
+    private void Record(string kind, object value)
+    {
+        lock (journalGate)
+        {
+            if (journal is null) return;
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(new { kind, value });
+            journal.Write(bytes);
+            journal.WriteByte((byte)'\n');
+            journal.Flush(flushToDisk: true);
+        }
+    }
     private static readonly XNamespace Ns = "http://schemas.microsoft.com/sqlserver/2004/07/showplan";
 
     internal void Phase(string phase)
     {
         Volatile.Write(ref current, phase);
-        phases.Enqueue(new { phase, elapsedMs = clock.ElapsedMilliseconds });
+        var entry = new { phase, elapsedMs = clock.ElapsedMilliseconds };
+        phases.Enqueue(entry);
+        Record("phase", entry);
     }
 
     private static string? Identifier(string? value) =>
@@ -62,6 +81,14 @@ internal sealed class V9DevFullDiagnostics
         var samples = new List<object>();
         string status = "FAILED";
         clock.Restart();
+        using var stream = new FileStream(Path.Combine(output, "v9-full-diagnostic.jsonl"),
+            FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+        journal = stream;
+        Record("start", new { schema = "V9_DEV_FULL_DIAGNOSTIC_JOURNAL_V1",
+            profile = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE"),
+            people = V9DevE2EFullCommand.DiagnosticPopulation,
+            commit = Environment.GetEnvironmentVariable("JORNADA_E2E_EXACT_SHA"),
+            elapsedMs = 0 });
         var sampler = SampleAsync();
         try
         {
@@ -79,6 +106,8 @@ internal sealed class V9DevFullDiagnostics
             var elapsedMs = clock.ElapsedMilliseconds;
             await stop.CancelAsync();
             await sampler;
+            Record("terminal", new { status, elapsedMs, finalPhase = Volatile.Read(ref current) });
+            lock (journalGate) journal = null;
             await using var file = new FileStream(Path.Combine(output, "v9-full-diagnostic.json"),
                 FileMode.CreateNew, FileAccess.Write);
             await JsonSerializer.SerializeAsync(file, new {
@@ -98,6 +127,8 @@ internal sealed class V9DevFullDiagnostics
                 while (!stop.IsCancellationRequested && samples.Count < 900)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(2), stop.Token);
+                    Record("heartbeat", new { phase = Volatile.Read(ref current),
+                        elapsedMs = clock.ElapsedMilliseconds, workingSetBytes = Environment.WorkingSet });
                     await using var cmd = new SqlCommand("""
                         SELECT TOP (8) r.session_id,r.status,r.wait_type,r.cpu_time,r.total_elapsed_time,
                                r.logical_reads,r.reads,r.blocking_session_id,
@@ -123,23 +154,25 @@ internal sealed class V9DevFullDiagnostics
                         {
                             try { ops = Operators(reader.GetString(10)); }
                             catch (Exception e) when (e is System.Xml.XmlException or FormatException or OverflowException)
-                            { samples.Add(new { probeError = e.GetType().Name }); }
+                            { var error = new { probeError = e.GetType().Name }; samples.Add(error); Record("probe-error", error); }
                             if (ops.Length > 0) knownPlans.Add(key);
                         }
-                        samples.Add(new {
+                        var sample = new {
                             phase, elapsedMs = clock.ElapsedMilliseconds, session = reader.GetInt16(0),
                             requestStatus = Identifier(reader.GetString(1)), wait = reader.IsDBNull(2) ? null : Identifier(reader.GetString(2)),
                             cpuMs = reader.GetInt32(3), sqlElapsedMs = reader.GetInt32(4),
                             logicalReads = reader.GetInt64(5), reads = reader.GetInt64(6),
                             blockingSession = reader.GetInt16(7), queryHash = hash, planHash = plan, operators = ops
-                        });
+                        };
+                        samples.Add(sample);
+                        Record("sql", sample);
                     }
                 }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
-            catch (SqlException e) { samples.Add(new { probeError = FormattableString.Invariant($"SQL_{e.Number}_{e.State}") }); }
+            catch (SqlException e) { var error = new { probeError = FormattableString.Invariant($"SQL_{e.Number}_{e.State}") }; samples.Add(error); Record("probe-error", error); }
             catch (Exception e) when (e is InvalidOperationException or InvalidCastException or System.Xml.XmlException or FormatException)
-            { samples.Add(new { probeError = e.GetType().Name }); }
+            { var error = new { probeError = e.GetType().Name }; samples.Add(error); Record("probe-error", error); }
         }
     }
 }

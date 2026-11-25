@@ -19,13 +19,22 @@ public static class V9DevE2EFullCommand
 {
     public const string Flag = "--v9-dev-full-1k";
     public const string ScaleFlag = "--v9-dev-full-10k";
+    internal static int DiagnosticPopulation =>
+        (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE"),
+         Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")) switch
+        {
+            ("diagnostic1k", "1000") => 1000,
+            ("diagnostic2k", "2000") => 2000,
+            ("diagnostic4k", "4000") => 4000,
+            _ => 0
+        };
     internal static bool ScaleAdmitted =>
         Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
         Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == "lucianox777/Jornada" &&
         Environment.GetEnvironmentVariable("GITHUB_EVENT_NAME") == "pull_request" &&
         Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true" &&
-        Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE") is "comparable" or "challenge" &&
-        Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") == "10000";
+        Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true" &&
+        DiagnosticPopulation > 0;
     private static string stage = "admission";
     private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
 
@@ -33,6 +42,7 @@ public static class V9DevE2EFullCommand
     {
         var scale = args.Length == 2 && args[0] == ScaleFlag && ScaleAdmitted;
         if (args.Length != 2 || (!scale && args[0] != Flag) || args[1] is not ("catalog" or "full" or "matrix")
+            || (scale && args[1] == "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
             || (!scale && Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000")
@@ -86,7 +96,7 @@ public static class V9DevE2EFullCommand
         var eligible = p.GetProperty("nonCpfVersions").GetInt32();
         if (p.GetProperty("schema").GetString() != "V9_E2E_1K_WAVE_PREFLIGHT_V1"
             || p.GetProperty("status").GetString() != "PASS"
-            || p.GetProperty("baseIdentities").GetInt32() != (scale ? 10000 : 1000)
+            || p.GetProperty("baseIdentities").GetInt32() != (scale ? DiagnosticPopulation : 1000)
             || total <= eligible || eligible <= 0
             || l.GetProperty("schema").GetString() != "V9_E2E_1K_HTTP_LINEAGE_V1"
             || l.GetProperty("status").GetString() != "PASS"
@@ -228,7 +238,7 @@ public static class V9DevE2EFullCommand
         stage = "full-run";
         var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
-            scale ? "V9_DEV_E2E_FULL_10K" : "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
+            scale ? "V9_DEV_E2E_FULL_DIAGNOSTIC" : "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
         var matrixEnabled = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true";
         double[]? physicalTiming = null;
         if (matrixEnabled)
@@ -253,6 +263,12 @@ public static class V9DevE2EFullCommand
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
 
+        if (fullDiagnostic)
+        {
+            var destination = Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,
+                "v9-full-completed-resource.json");
+            File.Copy(Path.Combine(root, "matrix-full-physical-resource.json"), destination, overwrite: false);
+        }
         if (privateDiagnostic is null || observedRun != summary.RunId)
             throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_MISSING");
         await WriteNewAsync(root, "fn-private.json", JsonSerializer.Serialize(privateDiagnostic));
@@ -295,11 +311,12 @@ public static class V9DevE2EFullCommand
             if (scale && Environment.GetEnvironmentVariable("JORNADA_V9_CENSUS_DIAGNOSTIC") == "true")
             {
                 await V9DevCensusDiagnostics.ReadAsync(sql, connection, census, json, attempt);
-                // Diagnostic-only attempt: no matrix or quality PASS on this SHA.
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_DIAGNOSTIC_ONLY");
             }
-            await using (var reader = await census.ExecuteReaderAsync())
+            else
+            {
+                await using var reader = await census.ExecuteReaderAsync();
                 while (await reader.ReadAsync()) json.Append(reader.GetString(0));
+            }
             await WriteNewAsync(root, "sql-census.json", json.ToString());
         }
         if (!scale)

@@ -1,9 +1,24 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_progressive_diagnostic_admission(self):
+        env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
+                 GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
+                 JORNADA_V9_FULL_DIAGNOSTIC="true")
+        for label,n in (("diagnostic1k",1000),("diagnostic2k",2000),("diagnostic4k",4000)):
+            with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
+                           JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
+                self.assertEqual(S.profile()[1][0],n)
+                with self.assertRaises(ValueError):S.plan(Path("."))
+        for label,n in (("comparable",10000),("challenge",10000),("diagnostic4k",2000)):
+            with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
+                           JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
+                with self.assertRaises(ValueError):S.profile()
     def test_conditional_bound_and_cap(self):
         b=S.bound(10000,0,20000,0,1)
         self.assertAlmostEqual(b["cpUpper"],1-.025**(1/10000),places=12)
