@@ -127,6 +127,8 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
         var verified = await V9ControlledDevOperationalCandidateSource.ReadAsync(
             connection, winner, attemptId, runId, frozenRows,
             maximumGoldCandidates, ct, Maintenance is not null, Maintenance?.EffectiveEnvironment);
+        if (Maintenance is not null && verified.IsolatedBlockingManifest is null)
+            throw new InvalidDataException("RUNNER_V9_BLOCKING_MANIFEST_MISSING");
         var physical = verified.SilverGraph
             ?? throw new InvalidDataException("RUNNER_V9_DEV_SILVER_GRAPH_MISSING");
         if (physical.CanonicalEdgesSha256.Length != 64)

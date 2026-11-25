@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-PLANO-PO-V6-20261124:** [plano consolidado do PO v6, fases 2b a 5, decisões b1/índice, gates, aceite e pontos de parada](Decisao_GOV_V9_Plano_PO_V6_20261124.md). Prevalece sobre v4/v5, registro na #1937 pendente de integração; sem certificação/ativação. GOV-DOC-01.
+
 > **CI documental e entrega E2E (mandato de 22/11/2026).** Consultar o contrato de classificação, autorização de integração e os dois momentos de aceite. [Protocolo e lista fechada](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md#ci-de-alterações-documentais-e-autorização-de-integração-po-22112026) · [Entrega do Work e prova física](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md#entrega-do-work-e-disparo-pelo-product-owner).
 
 > **ACERVO GOV-DEV-E2E-INTEGRAL-V9-PLANO-20261122:** [plano original do E2E do sistema inteiro aprovado pelo PO com ajustes obrigatórios, caminho crítico 0–9, frentes paralelas, gates DEV e marcos de aceite](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md). Detalhamento da P0-B; não representa certificação nem ativação. GOV-DOC-01.

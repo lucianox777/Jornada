@@ -8,10 +8,11 @@ using Microsoft.Data.SqlClient;
 namespace Jornada.Linkage.Runner;
 
 /// <summary>
-/// A read-only DEV candidate source, NOT a second scorer. Executes the original
+/// A DEV candidate source, NOT a second scorer. Executes the original
 /// production BlockingProjectionCandidateQueryBuilder against real Gold UUIDs.
 /// No synthetic TEST UUID, direct signature-join fallback, model refit or Gold
-/// mutation is possible here. The DEV scorer still has to reconcile complete-link
+/// mutation is possible here. Only the isolated derived index may be synchronized
+/// under C07 in the same snapshot. The DEV scorer still has to reconcile complete-link
 /// groups with real identities before publication is permitted.
 /// </summary>
 public static class V9ControlledDevOperationalCandidateSource
@@ -51,6 +52,7 @@ public static class V9ControlledDevOperationalCandidateSource
     {
         /// <summary>Physically authenticated Silver-to-Silver graph for this SNAPSHOT.</summary>
         public V9ControlledDevSilverGraph.Receipt? SilverGraph { get; init; }
+        public V9OperationalBlockingManifest.Receipt? IsolatedBlockingManifest { get; init; }
         public IReadOnlySet<long>? NoEligibleBlockingPassObservationIds { get; init; }
         internal IReadOnlyDictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>>? SecureOriginFactsByPerson { get; init; }
     }
@@ -222,7 +224,7 @@ public static class V9ControlledDevOperationalCandidateSource
             connection, attemptId, cancellationToken);
 
         // SQL Server error 3964: session-local temp-table DDL must precede
-        // SNAPSHOT. No operational table DDL/DML is performed here.
+        // SNAPSHOT. The temp-table preparation itself performs no operational DDL/DML.
         await V9ControlledDevSilverGraph.PrepareTempTableAsync(
             connection, cancellationToken);
 
@@ -399,6 +401,7 @@ public static class V9ControlledDevOperationalCandidateSource
         var planner = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), pinnedWinner.WinnerSha256);
 
+        V9OperationalBlockingManifest.Receipt? blockingManifest = null;
         if (useIsolatedProjection)
         {
             await V9BlockingMaintenanceGate.RequireAsync(effectiveEnvironment, true, attemptId,
@@ -407,6 +410,8 @@ public static class V9ControlledDevOperationalCandidateSource
                 effectiveEnvironment, true, attemptId, planner.MaximumPrefixLength
                     ?? throw new InvalidDataException("RUNNER_V9_BLOCKING_PROJECTION_PIN_MISMATCH"),
                 planner.ProjectionFingerprintSha256, cancellationToken);
+            blockingManifest = await V9OperationalBlockingManifest.ReadIsolatedAsync(
+                connection, snapshot, planner, cancellationToken);
         }
 
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
@@ -489,6 +494,7 @@ public static class V9ControlledDevOperationalCandidateSource
             new ReadOnlyDictionary<long, Guid>(existingResolvedGold))
         {
             SilverGraph = silverGraph,
+            IsolatedBlockingManifest = blockingManifest,
             NoEligibleBlockingPassObservationIds = noEligiblePass,
             SecureOriginFactsByPerson = secureOriginFacts
         };

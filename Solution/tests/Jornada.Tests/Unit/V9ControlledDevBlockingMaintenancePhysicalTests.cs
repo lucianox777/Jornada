@@ -1,5 +1,4 @@
 using System.Data;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -89,6 +88,91 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                  FOR JSON PATH, INCLUDE_NULL_VALUES)),2);
             """, db);
         return (string)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    // Independent read-only rederivation of all temporal keys from the
+    // same Gold and linked Silver history. It uses the frozen pure projector,
+    // not the new persistence writer or its coverage receipt.
+    private static async Task VerifyRf1936ProjectionParityAsync(SqlConnection db, Guid attempt,
+        V9FittedSnapshotExecutionRuntime planner)
+    {
+        var ct = CancellationToken.None;
+        var prefix = planner.MaximumPrefixLength!.Value;
+        var fingerprint = planner.ProjectionFingerprintSha256;
+        await using var tx = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Snapshot);
+        await V9BlockingMaintenanceGate.RequireAsync("Development", true, attempt, db, tx, ct);
+        var expected = new HashSet<(Guid Person, string Feature, string Value, string Temporal,
+            DateTimeOffset From, DateTimeOffset? To)>();
+        var people = new List<(Guid Id,string? Name,string? Mother,DateOnly? Birth,DateTimeOffset AsOf)>();
+        await using (var gold = new SqlCommand("""
+            SELECT pessoa_uuid,nome_completo,nome_mae,data_nascimento,atualizado_em
+              FROM gold.pessoa WHERE estado_identidade=N'REFERENCIA';
+            """, db, tx))
+        await using (var rows = await gold.ExecuteReaderAsync(ct))
+            while (await rows.ReadAsync(ct))
+                people.Add((rows.GetGuid(0), rows.IsDBNull(1) ? null : rows.GetString(1),
+                    rows.IsDBNull(2) ? null : rows.GetString(2),
+                    rows.IsDBNull(3) ? null : DateOnly.FromDateTime(rows.GetDateTime(3)),
+                    rows.GetDateTimeOffset(4)));
+
+        static bool IsAlias(string feature) =>
+            feature.StartsWith("name_prefix_", StringComparison.Ordinal)
+            || feature.StartsWith("mother_name_prefix_", StringComparison.Ordinal)
+            || BlockingFeatureTemporalCatalog.Get(feature) == BlockingFeatureTemporalSemantics.VersionedAlias;
+
+        foreach (var person in people)
+        {
+            var current = V9CalibrationBlockingProjection.Project(person.Name, person.Mother, person.Birth, prefix);
+            foreach (var key in current.Where(k => !IsAlias(k.Feature)))
+                expected.Add((person.Id,key.Feature,key.Value,"STABLE_IDENTITY_DATUM",person.AsOf,null));
+            var occurrences = current.Where(k => IsAlias(k.Feature))
+                .Select(k => (k.Feature,k.Value,AsOf:person.AsOf,Current:true)).ToList();
+            await using (var history = new SqlCommand("""
+                SELECT po.nome_completo,po.nome_mae,po.source_as_of
+                  FROM silver.pessoa_observacao po JOIN identidade.v_vinculo_corrente vc
+                    ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+                 WHERE vc.pessoa_uuid=@person AND vc.status=N'RESOLVIDO';
+                """, db, tx))
+            {
+                history.Parameters.Add("@person", SqlDbType.UniqueIdentifier).Value = person.Id;
+                await using var rows = await history.ExecuteReaderAsync(ct);
+                while (await rows.ReadAsync(ct))
+                {
+                    var at = rows.GetDateTimeOffset(2);
+                    foreach (var k in V9CalibrationBlockingProjection.Project(
+                        rows.IsDBNull(0) ? null : rows.GetString(0),
+                        rows.IsDBNull(1) ? null : rows.GetString(1), person.Birth, prefix)
+                        .Where(k => IsAlias(k.Feature)))
+                        occurrences.Add((k.Feature,k.Value,at,false));
+                }
+            }
+            foreach (var alias in occurrences.GroupBy(x => (x.Feature,x.Value)))
+                expected.Add((person.Id,alias.Key.Feature,alias.Key.Value,"VERSIONED_ALIAS",
+                    alias.Min(x => x.AsOf),alias.Any(x => x.Current) ? null : alias.Max(x => x.AsOf)));
+        }
+
+        var actual = new HashSet<(Guid Person, string Feature, string Value, string Temporal,
+            DateTimeOffset From, DateTimeOffset? To)>();
+        await using (var keys = new SqlCommand("""
+            SELECT pessoa_uuid,atributo,valor_normalizado,semantica_temporal,vigencia_inicio,vigencia_fim,
+                   normalizacao_versao,projection_schema_version,projection_fingerprint_sha256
+              FROM identidade.blocking_chave_v9;
+            """, db, tx))
+        await using (var rows = await keys.ExecuteReaderAsync(ct))
+            while (await rows.ReadAsync(ct))
+            {
+                Assert.That(rows.GetString(6), Is.EqualTo(IdentityComparison.NormalizationVersion));
+                Assert.That(rows.GetString(7), Is.EqualTo(planner.ProjectionSchemaVersion));
+                Assert.That(rows.GetString(8), Is.EqualTo(fingerprint));
+                Assert.That(actual.Add((rows.GetGuid(0),rows.GetString(1),rows.GetString(2),rows.GetString(3),
+                    rows.GetDateTimeOffset(4),rows.IsDBNull(5) ? null : rows.GetDateTimeOffset(5))), Is.True);
+            }
+        Assert.That(actual.Count, Is.EqualTo(expected.Count));
+        Assert.That(actual.SetEquals(expected), Is.True, "Independent full temporal projection parity");
+        var manifest = await V9OperationalBlockingManifest.ReadIsolatedAsync(db, tx, planner, ct);
+        Assert.That(manifest.ActiveKeyRows, Is.EqualTo(expected.LongCount(k => k.To is null)));
+        Assert.That(manifest.CanonicalManifestSha256, Has.Length.EqualTo(64));
+        await tx.CommitAsync(ct);
     }
 
     private static async Task VerifyRf1936Async(SqlConnection db, IOperationalSqlAdapter sql,
@@ -191,6 +275,7 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             }
             await AssertCandidateAsync(new IdentityObservation(null,"SEM_CPF","MARIA SILVA",
                 new DateOnly(1980,5,6),"ANA COSTA"), cpfUuid);
+            await VerifyRf1936ProjectionParityAsync(db, attempt, planner);
             var firstRows = await ReadPr1RowsAsync(db, Pr1Decisions, first);
             var target = firstRows.Single(r => Equals(r[0],"RF1936_FIRST"));
             Assert.That(target[2], Is.EqualTo("RESOLVIDO"));
@@ -211,7 +296,35 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 Rf1936Person("RF1936_SECOND", null, "ALFA0003 SILVA", "CARLA0003 COSTA"));
             Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(beforeProcessorDelta),
                 "Legitimate Gold/history changes by Processor must not write the V9 index");
+            // Inject a bounded failure at the real DML boundary. No partial
+            // projection, new result or publication may survive the rollback.
+            var legacyAfterProcessorDelta = await Rf1936LegacyDigestAsync(db);
+            var resultsBeforeFailure = await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.linkage_resultado;");
+            await using (var fail = new SqlCommand("""
+                CREATE TRIGGER identidade.tr_rf1936_sync_fault ON identidade.blocking_chave_v9
+                AFTER INSERT,UPDATE,DELETE AS THROW 52992,'Synthetic V9 synchronization failure.',1;
+                """, db))
+                await fail.ExecuteNonQueryAsync();
+            try
+            {
+                var failingRunner = await RunnerAsync();
+                var fault = Assert.ThrowsAsync<SqlException>((Func<Task>)(() =>
+                    failingRunner.RunV9ControlledDevAsync(new ProbabilisticLinkageRunRequest(
+                        LinkageRunType.FULL,9,null,null,null,100,1,null,"RF1936","SYNTHETIC_SYNC_FAILURE",
+                        Guid.NewGuid(),true),attempt,CancellationToken.None)));
+                Assert.That(fault!.Number, Is.EqualTo(52992));
+                Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(beforeProcessorDelta));
+                Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyAfterProcessorDelta));
+                Assert.That(await CountSqlAsync(db,"SELECT COUNT_BIG(*) FROM identidade.linkage_resultado;"),
+                    Is.EqualTo(resultsBeforeFailure));
+            }
+            finally
+            {
+                await using var dropFault = new SqlCommand("DROP TRIGGER identidade.tr_rf1936_sync_fault;", db);
+                await dropFault.ExecuteNonQueryAsync();
+            }
             var second = await FullAsync(3);
+            await VerifyRf1936ProjectionParityAsync(db, attempt, planner);
             Assert.That(await Rf1936DigestAsync(db), Is.Not.EqualTo(beforeProcessorDelta),
                 "Runner must synchronize the legitimate delta");
             await AssertCandidateAsync(new IdentityObservation(null,"SEM_CPF","ZETA9107 SILVA",
@@ -283,6 +396,19 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 V9ControlledDevCohortScorer.CreateAsync(defaultConfig, sql, attempt, CancellationToken.None, "Development")))!
                 .Message, Is.EqualTo("RUNNER_V9_BLOCKING_EXPLICIT_PATH_REQUIRED"));
 
+            await using (var deniedDefault = (SqlTransaction)await db.BeginTransactionAsync(IsolationLevel.Serializable))
+            {
+                var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                    BlockingProjectionPersistence.InitializeOrVerifyPinnedV9Async(db, deniedDefault, "Development", false,
+                        attempt, prefix, fingerprint, CancellationToken.None)));
+                Assert.That(error!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
+                var refreshError = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(() =>
+                    BlockingProjectionPersistence.RefreshPinnedV9Async(db, deniedDefault, "Development", false,
+                        attempt, prefix, fingerprint, CancellationToken.None)));
+                Assert.That(refreshError!.Message, Does.StartWith(V9BlockingMaintenanceGate.ProductiveNotCertified));
+                await deniedDefault.RollbackAsync();
+            }
+            Assert.That(await Rf1936DigestAsync(db), Is.EqualTo(before));
             Assert.That(await Rf1936LegacyDigestAsync(db), Is.EqualTo(legacyBefore));
 
             // Runner producer admissions with populated projection and both
@@ -411,7 +537,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                     httpAdmission = false, isolatedIndex = true,
                     physicalReplayDigest = before, c07NonemptyNegative = true,
                     c07ResidentDatabaseNegatives = negativeIndex, staleRejected = true,
-                    reversalPreserved = true, scientificTest = false, certified = false }));
+                    reversalPreserved = true, fullTemporalParity = true, isolatedManifest = true,
+                    rollbackAndRecovery = true, scientificTest = false, certified = false }));
             TestContext.WriteLine("V9_RF1936_REPOSITORY_FIRST_AND_REPEATED_FULL_C07_PASS_NOT_HTTP_OR_SCALE");
         }
         finally
