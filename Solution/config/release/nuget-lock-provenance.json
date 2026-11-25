@@ -216,10 +216,10 @@
     "sourceCommit": "79bf142775828e8b148939dd06cee65c728c0d5e",
     "githubRunId": "38464250893",
     "sdk": "10.0.113",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece como host DEV independente, sem dependência de domínio; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente. Security patch 2026-10-13: CVE-2026-84008/CVE-2026-70162, PKCS 9.0.21; 22 lockfiles regenerated on GitHub-hosted .NET 10.0.112 runner with --force-evaluate, artifact actions/run/38464250893; 15 changed lockfiles, full manifest hash replaced; historical v4.05 attestation preserved. P0 recovery 2026-11-20: two previously missing project locks generated on GitHub Actions run 44839190646 with .NET 10.0.113, existing 22 locks unchanged; historical evidence retained. | Ajuste SHA de bytes efetivamente versionados confirmado pelo runner PR #1779 run 44841887095; locks inalterados no restore (git diff clean).",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece como host DEV independente, sem dependência de domínio; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente. Security patch 2026-10-13: CVE-2026-84008/CVE-2026-70162, PKCS 9.0.21; 22 lockfiles regenerated on GitHub-hosted .NET 10.0.112 runner with --force-evaluate, artifact actions/run/38464250893; 15 changed lockfiles, full manifest hash replaced; historical v4.05 attestation preserved. P0 recovery 2026-11-20: two previously missing project locks generated on GitHub Actions run 44839190646 with .NET 10.0.113, existing 22 locks unchanged; historical evidence retained. | Ajuste SHA de bytes efetivamente versionados confirmado pelo runner PR #1779 run 44841887095; locks inalterados no restore (git diff clean). | RF #1936: dependência Processor→Linkage.Core; três locks atualizados conforme diff force-evaluate do SDK no job 138906572176/run 45525017516. Revalidação do grafo pendente na CI do novo HEAD.",
     "lockCount": 24,
     "changedLockCount": 24,
-    "combinedSha256": "f392a29b52bd616edfeddb3b789733a9917f86d1d3569e8de0c186ef48477362",
+    "combinedSha256": "ac454f1712132738217c902b90a5b77a2e36ebd4ee5f44f9e28c6db8f3a07554",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -299,7 +299,7 @@
       },
       {
         "path": "src/Jornada.Processor.Worker/packages.lock.json",
-        "sha256": "6feaac48b2d476423e0f508348daa2c3be8092c343f79d2f1c656cc88e991eeb"
+        "sha256": "bcb97d17aa83ccbe476a488b0307dbd852df9f8c43355d353133e417d9e885e3"
       },
       {
         "path": "src/Jornada.Resultado.Api/packages.lock.json",
@@ -307,11 +307,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "6aaaa84c35c7fa44c56f34c2a20d46dde10de746e3448ff832228bcf496121b5"
+        "sha256": "0fcbb550b5c935c88709df58ade270e8c1efc4b57ff8dcfc5b1cbc1a97616333"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "0b393ed4ca0a34bb2d2c4d646237cda9f38ecfcbbd8a50293dcbed3f0fa3aba0"
+        "sha256": "fd0b8ad7a479b6f390dd7477851c4ddac0eab6dbedcbc9c8a664e943999491e5"
       },
       {
         "path": "tests/PartitionIntegritySmoke/packages.lock.json",
@@ -327,6 +327,12 @@
       ],
       "githubCiApproval": false,
       "note": "Current csproj NUnit 4.6.1; single PKCS 9.0.21 reference. Historical attestation unchanged."
+    },
+    "rf1936LockPatch": {
+      "sourceCommit": "33e11927ce2440e50cebdfa748657ba03ca61ddc",
+      "githubRunId": "45525017516",
+      "githubJobId": "138906572176",
+      "status": "SDK_DIFF_APPLIED_REVALIDATION_PENDING"
     }
   }
 }
