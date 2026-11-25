@@ -144,6 +144,11 @@ public static class V9DevE2EFullCommand
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
         }
 
+        stage = "pre-full-membership";
+        var membership = await V9DevE2EFirstFullMembershipOracle.ReadAsync(
+            sql, loaded.Snapshot, attempt, total, eligible, CancellationToken.None);
+        await WriteNewAsync(root, "membership-expected.json", JsonSerializer.Serialize(membership));
+
         stage = "runner-composition";
         var storeRoot = Path.Combine(root, "runner-storage");
         if (Directory.Exists(storeRoot))
