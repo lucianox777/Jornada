@@ -238,6 +238,25 @@ jobs:
             --logger "trx;LogFileName=$PWD/.local/test-evidence/v9-r1-indication/unit.trx"
           python3 scripts/test-evidence-gate.py .local/test-evidence/v9-r1-indication/unit.trx \
             --forbid-skipped --minimum-tests 18 --summary .local/test-evidence/v9-r1-indication/summary.json
+      - if: needs.classify-impact.outputs.docs_only != 'true'
+        name: Verify DEV 1k CPF multiversion synthetic fixture (no SQL or model fit)
+        working-directory: Solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          fixture_root="$(mktemp -d)"
+          trap 'rm -rf -- "$fixture_root"' EXIT
+          bash scripts/v9-e2e-1k-prepare-waves.sh "$fixture_root/fixture"
+          python3 - "$fixture_root/fixture/wave-preflight-receipt.json" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              r = json.load(stream)
+          for k in ("baseIdentities", "sourceVersions", "persistentOrigins",
+                    "cpfMultiversionOrigins", "nonCpfOriginsWithOtherCpfOrigin",
+                    "cpfVersions", "nonCpfVersions", "waveCount"):
+              print(f"{k}={r[k]}")
+          PY
       - if: needs.classify-impact.outputs.docs_only != 'true' && needs.classify-impact.outputs.run_unit_full != 'false'
         name: Full C# unit suite before merge (canonical master filter, no SQL)
         working-directory: Solution

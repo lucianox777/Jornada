@@ -202,6 +202,12 @@ def verify(root):
         versions.append(rows)
         packages.append({"wave": i, "packages": items})
     result = characterize(versions, people)
+    actual_sources = {(base, manager) for wave in versions
+                      for manager, _, base, _, _, _ in wave}
+    expected_sources = {(base, ROUTES[gestor]) for base, _, gestor in source_rows.values()}
+    require(actual_sources == expected_sources, "Original corpus origin set mismatch")
+    require(header["baselineSourcesWithCpf"] + header["baselineSourcesWithoutCpf"]
+            == len(expected_sources), "Baseline origin census mismatch")
     return {"schema": "V9_E2E_1K_WAVE_PREFLIGHT_V1", "status": "PASS",
             "scope": "SYNTHETIC_FIXTURE_ONLY_BEFORE_SINGLE_FULL",
             "waveCount": len(versions), "packagesByWave": packages,
