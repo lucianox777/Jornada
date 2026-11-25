@@ -29,10 +29,19 @@ public static class V9DevE2EFirstFullMembershipOracle
         public IReadOnlyList<int> ExpectedGroupRoots { get; init; } = [];
         [System.Text.Json.Serialization.JsonIgnore]
         public IReadOnlyList<long> ExpectedObservationIds { get; init; } = [];
+        public string? GoldRecordScoreSha256 { get; init; }
+        public int GoldRecordScoreCount { get; init; }
         public int IndependentGroupCount { get; init; }
         public string? IndependentGroupSha256 { get; init; }
         public bool FrozenGroupReplayEqual { get; init; }
         public V9DevE2EGroupOracle.EdgeScoreReceipt? SilverDirectionalReplay { get; init; }
+    }
+
+    internal static string GoldScoreDigest(IEnumerable<V9ControlledDevCohortScorer.GoldScore> rows)
+    {
+        var canonical = string.Concat(rows.OrderBy(x=>x.Source).ThenBy(x=>x.Person).ThenBy(x=>x.Record).Select(x=>
+            FormattableString.Invariant($"{x.Source}:{x.Person:D}:{x.Record}:{x.Posterior?.ToString("F8",CultureInfo.InvariantCulture) ?? "-"}:{x.LogOdds?.ToString("F8",CultureInfo.InvariantCulture) ?? "-"}\n")));
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
     private const string Policy = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_RECORD_RANK_V1";
@@ -103,6 +112,7 @@ public static class V9DevE2EFirstFullMembershipOracle
             x.Observation.NomeMae, x.Observation.DataNascimento)).ToArray();
         long peopleCount = 0, recordCount = 0;
         var ranks = new List<V9DevE2EScalarOracle.Rank>(pending.Length);
+        var goldScores = new List<V9ControlledDevCohortScorer.GoldScore>();
         using var aggregate = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         void Append(IncrementalHash hash, string line) => hash.AppendData(Encoding.UTF8.GetBytes(line));
         for (var i = 0; i < pending.Length; i++)
@@ -119,6 +129,8 @@ public static class V9DevE2EFirstFullMembershipOracle
             foreach (var record in evidence[person].OrderBy(x => x.Origin).ThenBy(x => x.Id))
             {
                 recordCount++;
+                var pair = V9DevE2EScalarOracle.Score(p,pending[i].Observation,record.Observation);
+                goldScores.Add(new(pending[i].Id,record.Id,person,pair?.Posterior,pair?.LogOdds));
                 Append(local, FormattableString.Invariant($"E:{person:D}:{record.Origin}:{record.Id}\n"));
             }
             Append(aggregate, FormattableString.Invariant(
@@ -139,6 +151,8 @@ public static class V9DevE2EFirstFullMembershipOracle
             Convert.ToHexStringLower(aggregate.GetHashAndReset()), edges.Count,
             Convert.ToHexStringLower(graph.GetHashAndReset()), false)
         {
+            GoldRecordScoreCount = goldScores.Count,
+            GoldRecordScoreSha256 = GoldScoreDigest(goldScores),
             ExpectedObservationIds = pending.Select(x => x.Id).ToArray(),
             ExpectedRanks = grouping.Decisions,
             ExpectedGroupRoots = grouping.RootByIndex,

@@ -152,7 +152,7 @@ public static class V9DevE2EFullCommand
         stage = "runner-composition";
         object? privateDiagnostic = null;
         Guid observedRun = Guid.Empty;
-        scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, candidates) =>
+        scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, goldScores, candidates) =>
         {
             if (privateDiagnostic is not null || !ids.SequenceEqual(membership.ExpectedObservationIds)
                 || edgesSha != membership.SilverEdgesSha256
@@ -160,6 +160,10 @@ public static class V9DevE2EFullCommand
                 || directions.Select(x => (x.Source,x.Target)).Distinct().Count() != directions.Count
                 || V9DevE2EGroupOracle.DirectionDigest(directions) != membership.SilverDirectionalReplay!.DirectionSha256)
                 throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_SCORE_DIVERGENCE");
+            if (goldScores.Count != membership.GoldRecordScoreCount || goldScores.Count != membership.SecureRecords
+                || goldScores.Select(x=>(x.Source,x.Person,x.Record)).Distinct().Count()!=goldScores.Count
+                || V9DevE2EFirstFullMembershipOracle.GoldScoreDigest(goldScores)!=membership.GoldRecordScoreSha256)
+                throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GOLD_RECORD_SCORE_DIVERGENCE");
             var roots = groups.GroupBy(x => x.Value).SelectMany(g =>
                 g.Select(x => (Index:x.Key-1,Root:g.Min(y => y.Key)-1)))
                 .OrderBy(x => x.Index).Select(x => x.Root).ToArray();
@@ -203,7 +207,9 @@ public static class V9DevE2EFullCommand
             directionSha256 = membership.SilverDirectionalReplay.DirectionSha256,
             groups = membership.IndependentGroupCount, groupSha256 = membership.IndependentGroupSha256,
             actualConsumedSilverEdgesVerified = true, actualConsumedScoresVerified = true,
-            actualConsumedGroupsVerified = true
+            actualConsumedGroupsVerified = true,
+            goldRecordScores = membership.GoldRecordScoreCount, goldRecordScoreSha256 = membership.GoldRecordScoreSha256,
+            actualGoldRecordScoresVerified = true
         }));
         stage = "post-full-census";
         // Only the independent oracle sees the private census; the scorer never reads truth.

@@ -55,6 +55,21 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
     }
 
     [Test]
+    public void B1_diagnostic_capture_preserves_decision_and_all_record_scores()
+    {
+        var evidence = new V9ControlledDevSecureEvidenceScore.Evidence[] {
+            new(1,1,Weak(X)), new(2,1,Exact(X)), new(3,2,Weak(Y))
+        };
+        var baseline=V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[]{X,Y},evidence);
+        IReadOnlyList<V9ControlledDevSecureEvidenceScore.RecordScore>? captured=null;
+        var observed=V9ControlledDevSecureEvidenceScore.Score(Winner,Model,Source,new[]{X,Y},evidence,observe:x=>captured=x);
+        Assert.That(observed,Is.EqualTo(baseline));
+        Assert.That(captured,Is.Not.Null);
+        Assert.That(captured!.Select(x=>x.ObservationId),Is.EqualTo(new long[]{1,2,3}));
+        Assert.That(captured!.Count(x=>x.Posterior.HasValue),Is.EqualTo(baseline.EvidenceReceipt.ScoreableRecords));
+    }
+
+    [Test]
     public void B1_origin_census_without_independent_authority_abstains_without_summary()
     {
         var census = new Dictionary<Guid, IReadOnlyList<V9ControlledDevSecureOriginReader.OriginFacts>>

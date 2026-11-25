@@ -77,6 +77,9 @@ def main():
                 and actual["actualConsumedSilverEdgesVerified"] is True
                 and actual["actualConsumedScoresVerified"] is True
                 and actual["actualConsumedGroupsVerified"] is True
+                and actual["actualGoldRecordScoresVerified"] is True
+                and actual["goldRecordScores"] == expected["GoldRecordScoreCount"] == expected["SecureRecords"]
+                and actual["goldRecordScoreSha256"] == expected["GoldRecordScoreSha256"]
                 and actual["edges"] == expected["SilverEdges"]
                 and actual["edgesSha256"] == expected["SilverEdgesSha256"]
                 and actual["directions"] == expected["SilverDirectionalReplay"]["DirectionsCompared"]
@@ -84,7 +87,8 @@ def main():
                 and actual["groups"] == expected["IndependentGroupCount"]
                 and actual["groupSha256"] == expected["IndependentGroupSha256"])
         receipt.update(actualConsumedSilverEdgesVerified=True,actualConsumedScoresVerified=True,
-                       actualConsumedGroupsVerified=True)
+                       actualConsumedGroupsVerified=True,actualGoldRecordScoresVerified=True,
+                       goldRecordScores=actual["goldRecordScores"])
         receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_CONSUMED_SILVER_EDGE_SCORE_GROUP"
         with (a.root / "membership-receipt.json").open("x", encoding="utf-8") as f:
             json.dump(receipt, f, sort_keys=True)

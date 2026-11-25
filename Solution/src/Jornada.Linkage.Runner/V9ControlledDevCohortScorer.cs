@@ -27,8 +27,9 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
     private Guid preparedRunId;
 
     // Explicitly installed only by the disposable 1k command, after C07 verification.
+    internal sealed record GoldScore(long Source, long Record, Guid Person, decimal? Posterior, decimal? LogOdds);
     internal Action<Guid, IReadOnlyList<long>, string, IReadOnlyDictionary<int, Guid>,
-        IReadOnlyList<V9DevDirectionalScore>,
+        IReadOnlyList<V9DevDirectionalScore>, IReadOnlyList<GoldScore>,
         IReadOnlyDictionary<long, IReadOnlyList<V9ControlledDevOperationalCandidateSource.GoldCandidate>>>? DiagnosticObserver { get; set; }
 
     public string WinnerSha256 => winner.WinnerSha256;
@@ -174,6 +175,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             .SelectMany(x => x).Select(x => x.PessoaUuid).ToHashSet();
         if (!expectedPeople.SetEquals(originFacts.Keys))
             throw new InvalidDataException("RUNNER_V9_DEV_B1_ORIGIN_CENSUS_INVALID");
+        var goldScores = DiagnosticObserver is null ? null : new List<GoldScore>();
         var raw = new Dictionary<long, ProbabilisticLinkageDecision>(frozenRows.Count);
         var receipts = new Dictionary<long, V9ControlledDevSecureEvidenceScore.Receipt>(frozenRows.Count);
         foreach (var row in frozenRows)
@@ -188,7 +190,9 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             V9ControlledDevOperationalCandidateSource.VerifyCanonicalCandidateMembership(
                 candidateReceipt.CandidateUuids, candidates);
             var scored = V9ControlledDevSecureEvidenceScore.ScoreFromOrigins(
-                winner.FrozenWinner, winner.ModelId, source, candidateReceipt.CandidateUuids, originFacts);
+                winner.FrozenWinner, winner.ModelId, source, candidateReceipt.CandidateUuids, originFacts,
+                observe: goldScores is null ? null : values => goldScores.AddRange(values.Select(v =>
+                    new GoldScore(row.PessoaObservacaoId,v.ObservationId,v.Person,v.Posterior,v.LogOdds))));
             if (!raw.TryAdd(row.PessoaObservacaoId, scored.Decision)
                 || !receipts.TryAdd(row.PessoaObservacaoId, scored.EvidenceReceipt))
                 throw new InvalidDataException("RUNNER_V9_DEV_B1_DUPLICATE_SOURCE");
@@ -246,7 +250,7 @@ public sealed class V9ControlledDevCohortScorer : IV9ControlledDevCohortScorer
             observer(runId, Array.AsReadOnly(frozenRows.Select(x => x.PessoaObservacaoId).ToArray()),
                 physical.CanonicalEdgesSha256, grouped.IdentityByObservation,
                 directions ?? throw new InvalidDataException("RUNNER_V9_E2E_DIAGNOSTIC_MISSING"),
-                verified.CandidatesByObservation);
+                goldScores!.AsReadOnly(), verified.CandidatesByObservation);
         prepared = new ReadOnlyDictionary<long,
             (IdentityObservation Observation, ProbabilisticLinkageDecision Decision)>(ready);
     }
