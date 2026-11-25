@@ -35,10 +35,6 @@ jobs:
             people: '10000'
             seed: '355'
             error: clean
-          - profile: challenge
-            people: '10000'
-            seed: '7311026'
-            error: field
     env:
       JORNADA_RUNTIME_MODE: DEV
       DOTNET_ENVIRONMENT: Development
@@ -55,6 +51,10 @@ jobs:
       Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
       LinkageReplay__CaptureBronzeSources: 'false'
     steps:
+      - name: Stop pending comparable census diagnosis and challenge coverage
+        run: |
+          echo 'V9_SCALE_BLOCKED: comparable post-FULL census timeout unresolved; challenge requires explicit family truth and homonym census (GOV-V9-10K-DESAFIO-SUSPENSO-20261125)'
+          exit 1
       - name: Admit only owner-controlled exact repository commit
         env:
           EVENT_NAME: ${{ github.event_name }}
