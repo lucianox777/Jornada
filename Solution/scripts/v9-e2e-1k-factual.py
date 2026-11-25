@@ -118,7 +118,7 @@ def verify_delivery_seals(root):
         for item in a["packages"]:
             new = by_manager[item["manager"]]
             old_raw = (directory / item["fileName"]).read_bytes()
-            new_raw = (directory / new["fileName"]).read_bytes()
+            new_raw = (target / new["fileName"]).read_bytes()
             require(len(old_raw) == item["zipBytes"] and sha(old_raw) == item["zipSha256"]
                     and len(new_raw) == new["zipBytes"] and sha(new_raw) == new["zipSha256"],
                     "FACT_DELIVERY_PACKAGE_SEAL_DRIFT")
@@ -142,12 +142,15 @@ def prepare(root):
         manifest = HTTP.get_json(directory / "bridge-manifest.json")
         raw_truth = truth.read_bytes()
         require(sha(raw_truth) == manifest["truthSidecar"]["sha256"], "FACT_IDENTITY_SEAL_DRIFT")
+        target = directory / "delivery"
+        target.mkdir(mode=0o700)
         for item in group["packages"]:
             manager, old = item["manager"], item["fileName"]
-            if manager not in KINDS:
-                continue
             raw = (directory / old).read_bytes()
             require(sha(raw) == item["zipSha256"] and len(raw) == item["zipBytes"], "FACT_SOURCE_ZIP_DRIFT")
+            if manager not in KINDS:
+                write_new(target / old, raw)
+                continue
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
                 header = json.loads(archive.read("manifest.json"))
                 people_bytes = archive.read("pessoas.jsonl")
@@ -171,7 +174,7 @@ def prepare(root):
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 require(archive.read("pessoas.jsonl") == people_bytes
                         and archive.read("registros.jsonl") == payload, "FACT_ZIP_SERIALIZATION_DRIFT")
-            write_new(directory / new, data)
+            write_new(target / new, data)
             item.update(fileName=new, zipSha256=digest, zipBytes=len(data))
             for fact in batch:
                 fact.update(package=new, wave=wave, zipSha256=digest)
@@ -179,8 +182,6 @@ def prepare(root):
         # Preserve the original pair; the derived pair has its own directory
         # and canonical filenames, including a correct relative sidecar path.
         manifest, delivered = delivery_wave(manifest, raw_truth, original_group, group)
-        target = directory / "delivery"
-        target.mkdir(mode=0o700)
         write_new(target / "bridge-truth.jsonl", delivered)
         write_new(target / "bridge-manifest.json", encoded(manifest))
     require(len(facts) == 16 and len({x["payload"]["codigoRegistroOrigem"] for x in facts}) == 16,
@@ -208,7 +209,7 @@ def checked_facts(root):
     for fact in facts:
         by_package.setdefault((fact["wave"], fact["package"]), []).append(fact)
     for (wave, package), rows in by_package.items():
-        data = (root / "ingestion" / f"wave-{wave:02}" / package).read_bytes()
+        data = (root / "ingestion" / f"wave-{wave:02}" / "delivery" / package).read_bytes()
         require(all(x["zipSha256"] == sha(data) for x in rows), "FACT_DELIVERED_ZIP_DRIFT")
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             require(archive.namelist() == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],

@@ -104,7 +104,7 @@ def ingest(root, attempt):
                     and DIGEST.fullmatch(sha) and DIGEST.fullmatch(source_sha)
                     and type(expected) is int and 0 < expected <= 1000,
                     "PACKAGE_RECEIPT_INVALID")
-            path = root / "ingestion" / f"wave-{wave:02}" / name
+            path = root / "ingestion" / f"wave-{wave:02}" / "delivery" / name
             require(path.is_file() and not path.is_symlink() and path.stat().st_size == item["zipBytes"],
                     "PACKAGE_SIZE_DRIFT")
             raw = path.read_bytes()
@@ -192,7 +192,7 @@ def api(root):
     require(matched is not None, "API_ASSOCIATED_PERSON_MISSING")
     reference = cpf_by_uuid[matched["currentUuid"]]
     cpf = None
-    for package in root.glob("ingestion/wave-*/" + reference["package"]):
+    for package in root.glob("ingestion/wave-*/delivery/" + reference["package"]):
         with zipfile.ZipFile(package) as archive:
             for line in archive.read("pessoas.jsonl").splitlines():
                 row = json.loads(line)
