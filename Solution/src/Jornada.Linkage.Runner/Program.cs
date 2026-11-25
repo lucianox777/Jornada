@@ -6,7 +6,7 @@ using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
 // Explicit disposable 1k DEV harness only; productive V9 dispatch remains denied.
-if (args.FirstOrDefault() == V9DevE2EFullCommand.Flag)
+if (args.FirstOrDefault() is V9DevE2EFullCommand.Flag or V9DevE2EFullCommand.ScaleFlag)
 {
     try
     {

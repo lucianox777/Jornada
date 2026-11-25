@@ -18,15 +18,24 @@ namespace Jornada.Linkage.Runner;
 public static class V9DevE2EFullCommand
 {
     public const string Flag = "--v9-dev-full-1k";
+    public const string ScaleFlag = "--v9-dev-full-10k";
+    internal static bool ScaleAdmitted =>
+        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == "lucianox777/Jornada" &&
+        Environment.GetEnvironmentVariable("GITHUB_EVENT_NAME") == "pull_request" &&
+        Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true" &&
+        Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE") is "comparable" or "challenge" &&
+        Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") == "10000";
     private static string stage = "admission";
     private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full" or "matrix")
+        var scale = args.Length == 2 && args[0] == ScaleFlag && ScaleAdmitted;
+        if (args.Length != 2 || (!scale && args[0] != Flag) || args[1] is not ("catalog" or "full" or "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
-            || Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000"
+            || (!scale && Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000")
             || Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development"
             || !Guid.TryParseExact(Environment.GetEnvironmentVariable("JORNADA_V9_DEV_ATTEMPT"),
                 "D", out var attempt) || attempt == Guid.Empty)
@@ -77,7 +86,7 @@ public static class V9DevE2EFullCommand
         var eligible = p.GetProperty("nonCpfVersions").GetInt32();
         if (p.GetProperty("schema").GetString() != "V9_E2E_1K_WAVE_PREFLIGHT_V1"
             || p.GetProperty("status").GetString() != "PASS"
-            || p.GetProperty("baseIdentities").GetInt32() != 1000
+            || p.GetProperty("baseIdentities").GetInt32() != (scale ? 10000 : 1000)
             || total <= eligible || eligible <= 0
             || l.GetProperty("schema").GetString() != "V9_E2E_1K_HTTP_LINEAGE_V1"
             || l.GetProperty("status").GetString() != "PASS"
@@ -219,7 +228,7 @@ public static class V9DevE2EFullCommand
         stage = "full-run";
         var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
-            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
+            scale ? "V9_DEV_E2E_FULL_10K" : "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
         var matrixEnabled = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true";
         double[]? physicalTiming = null;
         if (matrixEnabled)
@@ -277,9 +286,12 @@ public static class V9DevE2EFullCommand
                 while (await reader.ReadAsync()) json.Append(reader.GetString(0));
             await WriteNewAsync(root, "sql-census.json", json.ToString());
         }
-        stage = "retry-preview";
-        var preview = await V9DevE2ERetryPreview.ReadAsync(sql,loaded.Snapshot,attempt,summary.RunId,CancellationToken.None);
-        await WriteNewAsync(root, "retry-private.json", JsonSerializer.Serialize(preview));
+        if (!scale)
+        {
+            stage = "retry-preview";
+            var preview = await V9DevE2ERetryPreview.ReadAsync(sql,loaded.Snapshot,attempt,summary.RunId,CancellationToken.None);
+            await WriteNewAsync(root, "retry-private.json", JsonSerializer.Serialize(preview));
+        }
         stage = "receipt";
         await WriteNewAsync(root, "runner-receipt.json", JsonSerializer.Serialize(new {
             mode = "FULL", status = "PUBLICADO", winnerSha256 = Winner, scientificTest = false,

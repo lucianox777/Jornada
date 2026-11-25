@@ -79,11 +79,15 @@ def sql_scalar(query, attempt):
     return lines[0]
 
 
-def ingest(root, attempt):
+def ingest(root, attempt, population=1000):
+    require(population == 1000 or (population == 10000 and os.environ.get('GITHUB_ACTIONS') == 'true'
+            and os.environ.get('GITHUB_REPOSITORY') == 'lucianox777/Jornada'
+            and os.environ.get('JORNADA_V9_PHASE4_SCALE') in ('comparable','challenge')
+            and os.environ.get('JORNADA_E2E_HTTP_VOLUME_COUNT') == '10000'), 'VOLUME_ADMISSION')
     preflight_path = root / "delivery-preflight-receipt.json"
     pre = get_json(preflight_path)
     require(pre["schema"] == "V9_E2E_1K_WAVE_PREFLIGHT_V1" and pre["status"] == "PASS"
-            and pre["baseIdentities"] == 1000 and pre["waveCount"] == 2,
+            and pre["baseIdentities"] == population and pre["waveCount"] == 2,
             "WAVE_PREFLIGHT_REQUIRED")
     require(sql_scalar("SELECT COUNT_BIG(*) FROM silver.pessoa_observacao;", attempt) == "0",
             "DIRTY_SILVER_ATTEMPT")
@@ -102,7 +106,7 @@ def ingest(root, attempt):
             source_sha = item["sourceSetSha256Utf16le"]
             require(manager in MANAGERS and name == Path(name).name and name.endswith(".zip")
                     and DIGEST.fullmatch(sha) and DIGEST.fullmatch(source_sha)
-                    and type(expected) is int and 0 < expected <= 1000,
+                    and type(expected) is int and 0 < expected <= population,
                     "PACKAGE_RECEIPT_INVALID")
             path = root / "ingestion" / f"wave-{wave:02}" / "delivery" / name
             require(path.is_file() and not path.is_symlink() and path.stat().st_size == item["zipBytes"],
@@ -115,7 +119,7 @@ def ingest(root, attempt):
             status, response = http(ROUTES + "/ingestao/entregas", manager, keys[manager], raw, upload_headers)
             require(status == 202 and response, "HTTP_INGESTION_NOT_ACCEPTED")
             delivery = str(uuid.UUID(response["entregaId"]))
-            for _ in range(120):
+            for _ in range(120 if population==1000 else 1800):
                 status, receipt = http(ROUTES + "/ingestao/entregas/" + delivery, manager, keys[manager])
                 if status == 429:
                     time.sleep(4)
