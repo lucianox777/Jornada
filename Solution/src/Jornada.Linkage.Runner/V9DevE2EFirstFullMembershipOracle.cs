@@ -21,7 +21,11 @@ public static class V9DevE2EFirstFullMembershipOracle
     public sealed record Reference(Guid Id, string? Name, string? Mother, DateOnly? Birth);
     public sealed record Receipt(int Observations, long CandidatePeople, long SecureRecords,
         string EvidenceMembershipSha256, int SilverEdges, string SilverEdgesSha256,
-        bool SilverSqlReplayEqual, bool ActualConsumedSilverEdgesVerified = false);
+        bool SilverSqlReplayEqual, bool ActualConsumedSilverEdgesVerified = false)
+    {
+        [System.Text.Json.Serialization.JsonIgnore]
+        public IReadOnlyList<V9DevE2EScalarOracle.Rank> ExpectedRanks { get; init; } = [];
+    }
 
     private const string Policy = "V9_DEV_B1_SECURE_PERSISTENT_ORIGIN_RECORD_RANK_V1";
 
@@ -90,6 +94,7 @@ public static class V9DevE2EFirstFullMembershipOracle
         var pendingKeys = pending.Select(x => Project(x.Observation.NomeCompleto,
             x.Observation.NomeMae, x.Observation.DataNascimento)).ToArray();
         long peopleCount = 0, recordCount = 0;
+        var ranks = new List<V9DevE2EScalarOracle.Rank>(pending.Length);
         using var aggregate = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         void Append(IncrementalHash hash, string line) => hash.AppendData(Encoding.UTF8.GetBytes(line));
         for (var i = 0; i < pending.Length; i++)
@@ -97,6 +102,7 @@ public static class V9DevE2EFirstFullMembershipOracle
             var candidates = keys.Where(x => MatchesAnyPass(pendingKeys[i], x.Value, p.BlockingPasses))
                 .Select(x => x.Key).OrderBy(x => x).ToArray();
             peopleCount += candidates.Length;
+            ranks.Add(V9DevE2EScalarOracle.ComputeRank(p, pending[i], candidates, evidence));
             using var local = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             Append(local, Policy + "\n");
             foreach (var person in candidates) Append(local, $"P:{person:D}\n");
@@ -121,7 +127,7 @@ public static class V9DevE2EFirstFullMembershipOracle
             }
         return new(pending.Length, peopleCount, recordCount,
             Convert.ToHexStringLower(aggregate.GetHashAndReset()), edges,
-            Convert.ToHexStringLower(graph.GetHashAndReset()), false);
+            Convert.ToHexStringLower(graph.GetHashAndReset()), false) { ExpectedRanks = ranks.AsReadOnly() };
     }
 
     public static async Task<Receipt> ReadAsync(IOperationalSqlAdapter sql,

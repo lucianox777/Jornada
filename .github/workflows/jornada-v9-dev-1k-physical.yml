@@ -8,6 +8,7 @@ on:
       - 'Solution/scripts/v9-e2e-1k-*'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EFirstFullMembershipOracle.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevE2EScalarOracle.cs'
       - 'Solution/src/Jornada.Linkage.Runner/Program.cs'
   push:
     branches: [master]
@@ -206,7 +207,7 @@ jobs:
           # Explicit allowlist of aggregate files only. Never upload the private root.
           out="$RUNNER_TEMP/v9-e2e-1k-aggregate"
           mkdir -m 700 "$out"
-          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/membership-receipt.json" "$out/"
+          cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/fixture/api-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$out/"
           printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
           echo 'V9_E2E_1K_PHYSICAL_IDENTITY_PATH_PASS_NOT_FULL_ORACLE_OR_INTEGRAL'
       - name: Publish only aggregate evidence of completed physical path

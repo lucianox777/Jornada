@@ -7,6 +7,19 @@ namespace Jornada.Tests.Unit;
 public sealed class V9DevE2EFirstFullMembershipOracleTests
 {
     [Test]
+    public void Independent_odds_publish_posterior_and_log_odds_at_frozen_precision()
+    {
+        var score = V9DevE2EScalarOracle.EvaluateOdds(3d);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(score.Posterior, Is.EqualTo(.75m));
+            Assert.That(score.LogOdds, Is.EqualTo(1.09861229m));
+            Assert.That(V9DevE2EScalarOracle.EvaluateOdds(1d).Posterior, Is.EqualTo(.5m));
+            Assert.Throws<InvalidDataException>(() => V9DevE2EScalarOracle.EvaluateOdds(0d));
+        }));
+    }
+
+    [Test]
     public void Pass_intersection_and_union_are_not_single_feature_or_missing_wildcards()
     {
         LinkageBlockingPass[] passes =

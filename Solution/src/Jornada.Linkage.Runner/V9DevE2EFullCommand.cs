@@ -183,6 +183,11 @@ public static class V9DevE2EFullCommand
                 """, connection);
             if (Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
                 throw new InvalidDataException("RUNNER_V9_DEV_E2E_AUTOMATIC_INDEX_MISSING");
+            stage = "scalar-ledger";
+            var scalar = await V9DevE2EScalarOracle.VerifyLedgerAsync(connection, summary.RunId,
+                membership.ExpectedRanks, CancellationToken.None);
+            await WriteNewAsync(root, "scalar-receipt.json", JsonSerializer.Serialize(scalar));
+            stage = "post-full-census";
             var query = await ReadPrivateAsync(root, "census.sql");
             if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
                 Encoding.UTF8.GetBytes(query))) != "28cacd8133014137b3c331cf58c66cfa06abbc266663b58ed2022ca93ea99034")

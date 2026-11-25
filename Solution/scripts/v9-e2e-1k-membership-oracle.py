@@ -45,7 +45,16 @@ def main():
         lines = [x[len("V9_DEV_B1_EVIDENCE "):] for x in read("runner-full.log").splitlines()
                  if x.startswith("V9_DEV_B1_EVIDENCE ")]
         require(len(lines) == 1)
-        receipt = compare(expected, json.loads(lines[0]), runner)
+        observed = json.loads(lines[0])
+        receipt = compare(expected, observed, runner)
+        scalar = json.loads(read("scalar-receipt.json"))
+        require(scalar["IndependentRankVerified"] is True
+                and scalar["IndependentR1DecisionVerified"] is False
+                and scalar["Observations"] == scalar["RankRowsEqual"] == runner["evaluated"]
+                and scalar["ScoreableRecords"] == observed["scoreableRecords"]
+                and scalar["PeopleWithoutScoreableEvidence"] == observed["peopleWithoutScoreableEvidence"])
+        receipt["independentScoreOracleVerified"] = True
+        receipt["scope"] = "ACTUAL_B1_MEMBERSHIP_RANK_LEDGER_AND_SEPARATE_SILVER_SQL_REPLAY"
         with (a.root / "membership-receipt.json").open("x", encoding="utf-8") as f:
             json.dump(receipt, f, sort_keys=True)
         print("V9_E2E_1K_ACTUAL_B1_MEMBERSHIP_AND_SILVER_REPLAY_PASS_NOT_SCORE_ORACLE")
