@@ -15,7 +15,7 @@ public sealed class V9DevE2EFirstFullMembershipOracleTests
             Assert.That(score.Posterior, Is.EqualTo(.75m));
             Assert.That(score.LogOdds, Is.EqualTo(1.09861229m));
             Assert.That(V9DevE2EScalarOracle.EvaluateOdds(1d).Posterior, Is.EqualTo(.5m));
-            Assert.Throws<InvalidDataException>(() => V9DevE2EScalarOracle.EvaluateOdds(0d));
+            Assert.Throws<InvalidDataException>((Action)(() => _ = V9DevE2EScalarOracle.EvaluateOdds(0d)));
         }));
     }
 
