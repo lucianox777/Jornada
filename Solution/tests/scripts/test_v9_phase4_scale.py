@@ -20,6 +20,33 @@ class ScaleTests(unittest.TestCase):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 with self.assertRaises(ValueError):S.profile()
+    def test_http_ingest_admits_exact_optimized_volumes_and_preserves_negative_scope(self):
+        env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
+                 GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
+                 JORNADA_V9_FULL_DIAGNOSTIC="true")
+        # Stop at the first fixture read: no HTTP, SQL or real data access.
+        for n in (2000,4000):
+            for prefix in ("diagnostic","optimized"):
+                with self.subTest(population=n,prefix=prefix):
+                    with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=f"{prefix}{n//1000}k",
+                                     JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
+                        with patch.object(S.H,"get_json",side_effect=RuntimeError("fixture read reached")) as read:
+                            with self.assertRaisesRegex(RuntimeError,"fixture read reached"):
+                                S.H.ingest(Path("."),None,population=n)
+                            read.assert_called_once()
+        valid=dict(env,JORNADA_V9_PHASE4_SCALE="optimized2k",JORNADA_E2E_HTTP_VOLUME_COUNT="2000")
+        for changes,n in (({"GITHUB_ACTIONS":"false"},2000),({"GITHUB_REPOSITORY":"other/repo"},2000),
+                          ({"GITHUB_EVENT_NAME":"push"},2000),({"JORNADA_V9_FULL_DIAGNOSTIC":"false"},2000),
+                          ({"JORNADA_V9_PHASE4_SCALE":"optimized4k"},2000),
+                          ({"JORNADA_E2E_HTTP_VOLUME_COUNT":"4000"},2000),
+                          ({"JORNADA_V9_PHASE4_SCALE":"comparable","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000),
+                          ({"JORNADA_V9_PHASE4_SCALE":"challenge","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000)):
+            with self.subTest(changes=changes,population=n):
+                with patch.dict(os.environ,dict(valid,**changes),clear=True):
+                    with patch.object(S.H,"get_json") as read:
+                        with self.assertRaisesRegex(ValueError,"^VOLUME_ADMISSION$"):
+                            S.H.ingest(Path("."),None,population=n)
+                        read.assert_not_called()
     def test_decision_component_digests_detect_exact_field_changes(self):
         key=("base-a","SMS",1)
         graph=dict(key=key,group=[key],candidates=[],neighbors=[],minimum=None,reason="X")
