@@ -244,6 +244,7 @@ try
 {
     CheckFamilyPlan();
     FamilyMaterializationSmoke.Run();
+    await FamilySamplingSmoke.RunAsync();
     await ExpectValidMaterialization();
     await ExpectInvalidOptions();
     await ExpectZeroPopulationRejected();

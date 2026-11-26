@@ -189,11 +189,11 @@ public static class SyntheticFamilyAttributeMaterializer
         return name.FirstNames.Trim() + " " + name.Surnames.Trim();
     }
 
-    private static string Key(string? value) =>
+    internal static string Key(string? value) =>
         PersonNameBasicNormalization.Project(value)?.WithoutPortugueseParticles
         ?? throw new InvalidDataException("FAMILY_ATTRIBUTE_EMPTY_NAME");
 
-    private static int EditDistance(string left, string right)
+    internal static int EditDistance(string left, string right)
     {
         var previous = Enumerable.Range(0, right.Length + 1).ToArray();
         var current = new int[right.Length + 1];
