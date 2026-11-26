@@ -14,6 +14,16 @@ O §3.f veda disparar TRAIN, VALIDATION, TEST e calibração nesta missão. A [c
 
 Aplica-se a parada do §9.i. O procedimento de squash e validação exige decisão do PO sobre os jobs automáticos incompatíveis com o escopo DEV autorizado. O registro documental pode seguir a classificação docs-only existente, pois o diff contém somente os índices e esta decisão. [Checkpoint de retomada e evidências](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198120173).
 
+## Esclarecimento do PO de 26/11/2026 — CI automática vigente e retomada da Fase A
+
+**Autoridade e estado.** O Product Owner esclareceu expressamente o GOV-V9-MANDATO-E2E-CONTINUO-20261126 para resolver a parada do §9.i. **DECIDIDO.** O esclarecimento autoriza a retomada imediata da Fase A na #1940 e prevalece sobre a interpretação registrada na parada histórica acima. O mandato original permanece no anexo.
+
+Workflows de CI já existentes acionados automaticamente por push, PR ou merge seguem normalmente, incluindo a matriz S4b 1k (#1939), `v9-v3-broad-train-regression` e o gate técnico Seed42 pós-merge. Para o mandato, esses jobs são regressões da CI vigente. Seus resultados temporários não produzem nem substituem modelo oficial, não consomem TEST/holdout e não alteram o vencedor #38. A execução automática prevista não abre as Fases B/C nem constitui nova campanha, TRAIN ou calibração proibida pelo mandato.
+
+As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam aplicáveis a disparos manuais, workflows novos e mudanças de gatilho. Os gatilhos vigentes permanecem em operação e são preservados, sem desativação ou contorno. Falhas da CI vigente seguem o ciclo normal de diagnóstico, correção e validação, com M/U, TF, limiares, política oficial e vencedor #38 preservados. Continuam aplicáveis os gates de evidência da Fase A, os controles de segurança e os demais pontos de parada.
+
+**Rastreabilidade.** [Parada histórica na #1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198240514), [Fase A na #1940](https://github.com/lucianox777/Jornada/pull/1940), [regressão S4b 1k integrada na #1939](https://github.com/lucianox777/Jornada/pull/1939).
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL
