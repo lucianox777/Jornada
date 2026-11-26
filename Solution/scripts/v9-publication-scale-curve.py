@@ -108,7 +108,7 @@ def main():
     require(run["id"]==args.run and run["head_sha"]==args.sha
             and run["path"].split("@")[0]==".github/workflows/jornada-v9-phase4-scale.yml"
             and run["event"]=="pull_request" and run["status"]=="completed"
-            and run["conclusion"]=="success")
+            and run["conclusion"] in ("success","failure","cancelled","timed_out"))
     artifacts=module.api_json(f"{root}/runs/{args.run}/artifacts?per_page=100",token)
     require(artifacts["total_count"]==len(artifacts["artifacts"]))
     with tempfile.TemporaryDirectory() as folder:
@@ -133,7 +133,11 @@ def main():
             diag,=get("v9-full-diagnostic",label,("v9-full-diagnostic.json",))
             resource,=get("v9-scale-resource",label,("v9-scale-resource-receipt.json",))
             frames.append((receipt,member,diag,resource))
-        print(json.dumps(assess(frames,args.sha),sort_keys=True,allow_nan=False))
+        result=assess(frames,args.sha)
+        result["runConclusion"]=run["conclusion"]
+        # Timing evidence remains useful even if another gate fails. Never
+        # infer strict parity from timings or from a run-level conclusion.
+        print(json.dumps(result,sort_keys=True,allow_nan=False))
 
 if __name__=="__main__":
     try:main()
