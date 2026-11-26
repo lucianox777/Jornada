@@ -332,4 +332,3 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
         self.assertEqual(counts["tiedSecondRows"], 1)
         self.assertEqual(labels["Best"], destinations[candidates[2]])
         self.assertEqual(labels["Second"]["destinations"], [destinations[u] for u in candidates[:2]])
-
