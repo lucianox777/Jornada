@@ -176,8 +176,75 @@ async Task ExpectValidMaterialization()
     Console.WriteLine("PASS valid-materialization");
 }
 
+// Ordinal-only planning fixture: no demographic claims or corpus generation.
+void CheckFamilyPlan()
+{
+    var quotas = new SyntheticFamilyCaseQuota[]
+    {
+        new(SyntheticFamilyCaseKind.Twins, 1, 2),
+        new(SyntheticFamilyCaseKind.SimilarNameTwins, 1, 2),
+        new(SyntheticFamilyCaseKind.Siblings, 1, 2),
+        new(SyntheticFamilyCaseKind.SameNameMotherDaughter, 1, 2),
+        new(SyntheticFamilyCaseKind.UnrelatedHomonyms, 1, 2),
+        new(SyntheticFamilyCaseKind.UnrelatedSameBirthHomonyms, 1, 2),
+        new(SyntheticFamilyCaseKind.UnrelatedMotherNameCollision, 1, 2),
+        new(SyntheticFamilyCaseKind.LargerSiblingGroup, 1, 4)
+    };
+    var request = new SyntheticFamilyPlanRequest(20, 4, 8, 32, quotas);
+    var plan = SyntheticFamilyPlanner.Build(request);
+    if (plan.Members.Count != 20 || plan.Families != 13 || plan.SingletonFamilies != 8 ||
+        plan.CaseGroups.Count != 8 || plan.CaseGroups.Values.Any(v => v != 1) ||
+        !plan.Members.SequenceEqual(SyntheticFamilyPlanner.Build(
+            request with { Quotas = quotas.Reverse().ToArray() }).Members))
+        throw new InvalidOperationException("Family plan census or deterministic ordering mismatch");
+    foreach (var group in plan.Members.Where(m => m.CaseOrdinal.HasValue).GroupBy(m => m.CaseOrdinal))
+    {
+        var rows = group.ToArray();
+        var kind = rows[0].CaseKind;
+        var distinctFamilies = rows.Select(r => r.FamilyOrdinal).Distinct().Count();
+        var distinctMothers = rows.Select(r => r.MaternalTruthOrdinal).Distinct().Count();
+        var distinctBirths = rows.Select(r => r.BirthEventOrdinal).Distinct().Count();
+        if (kind is SyntheticFamilyCaseKind.Twins or SyntheticFamilyCaseKind.SimilarNameTwins)
+        {
+            if (distinctFamilies != 1 || distinctMothers != 1 || distinctBirths != 1)
+                throw new InvalidOperationException("Twin truth mismatch");
+        }
+        else if (kind is SyntheticFamilyCaseKind.Siblings or SyntheticFamilyCaseKind.LargerSiblingGroup)
+        {
+            if (distinctFamilies != 1 || distinctMothers != 1 || distinctBirths != rows.Length)
+                throw new InvalidOperationException("Sibling truth mismatch");
+        }
+        else if (kind == SyntheticFamilyCaseKind.SameNameMotherDaughter)
+        {
+            if (distinctFamilies != 1 || rows[1].IncludedMotherOrdinal != rows[0].PersonOrdinal ||
+                distinctMothers != 2 || distinctBirths != 2)
+                throw new InvalidOperationException("Mother daughter truth mismatch");
+        }
+        else if (distinctFamilies != rows.Length || distinctMothers != rows.Length ||
+            distinctBirths != rows.Length)
+            throw new InvalidOperationException("Unrelated cases acquired family truth");
+    }
+    void Reject(SyntheticFamilyPlanRequest invalid)
+    {
+        try { SyntheticFamilyPlanner.Build(invalid); }
+        catch (ArgumentException) { return; }
+        throw new InvalidOperationException("Invalid family plan accepted");
+    }
+    Reject(request with { Quotas = [] });
+    Reject(request with { MaximumVersionsPerFamily = 31 });
+    Reject(request with { Population = 17 });
+    Reject(request with { Quotas = [new(SyntheticFamilyCaseKind.LargerSiblingGroup, 1, 5)] });
+    Reject(request with { Quotas = [quotas[0], quotas[0]] });
+    Reject(request with { Quotas = [new(SyntheticFamilyCaseKind.Twins, 1, 3)] });
+    Reject(request with { Quotas = [new((SyntheticFamilyCaseKind)999, 1, 2)] });
+    Console.WriteLine("FAMILY_ORDINAL_PLAN_SMOKE_PASS");
+}
+
 try
 {
+    CheckFamilyPlan();
+    FamilyMaterializationSmoke.Run();
+    await FamilySamplingSmoke.RunAsync();
     await ExpectValidMaterialization();
     await ExpectInvalidOptions();
     await ExpectZeroPopulationRejected();
