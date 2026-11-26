@@ -6,6 +6,28 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_scale_failure_diagnostics_are_fixed_and_stage_specific(self):
+        for code in ("PROCESSOR_TIMEOUT","PROCESSOR_REJECTED","HTTP_STATUS_UNAVAILABLE",
+                     "SQL_LINEAGE_QUERY_FAILED","SILVER_SOURCE_SET_DIVERGENCE","VOLUME_ADMISSION"):
+            self.assertEqual(S.safe_failure_code("ingest",ValueError(code)),code)
+        self.assertEqual(S.safe_failure_code("ingest",ValueError("PROCESSOR_TIMEOUT private")), "UNCLASSIFIED")
+        self.assertEqual(S.safe_failure_code("ingest",ValueError("arbitrary private text")), "UNCLASSIFIED")
+        self.assertEqual(S.safe_failure_code("diagnostic",ValueError("PROCESSOR_TIMEOUT")), "UNCLASSIFIED")
+        self.assertEqual(S.safe_failure_code("diagnostic",ValueError("V9_E2E_ORACLE_X")), "V9_E2E_ORACLE_X")
+    def test_sql_failure_summary_retains_numbers_not_messages(self):
+        lines=["V9_SQL_REGRESSION_STAGE=BASELINE\n",
+               "PUBLICATION_GUARDS_SIX_CODES_PASS\n",
+               "V9_SQL_FIXTURE_STAGE=CURRENT_MULTISET\n",
+               "Msg 8622, Level 16, State 1, Server private, Line 42\n",
+               "arbitrary private message\n",
+               "V9_SQL_FIXTURE_STAGE=PRIVATE_VALUE\n",
+               "Msg 123, Level 16, State 1, Server private\n"]
+        self.assertEqual(S.sql_failure_summary(lines),
+                         ["V9_SQL_REGRESSION_STAGE=BASELINE",
+                          "V9_SQL_FIXTURE_STAGE=CURRENT_MULTISET",
+                          "V9_SQL_ERROR=8622_16_1","V9_SQL_ERROR=123_16_1"])
+        self.assertEqual(S.sql_failure_summary(["private\n"]),["V9_SQL_ERROR=UNCLASSIFIED"])
+
     def test_paired_prefull_frame_preserves_physical_identity_and_evidence(self):
         from copy import deepcopy
         import uuid
