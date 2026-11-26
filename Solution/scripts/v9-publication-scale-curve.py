@@ -69,6 +69,17 @@ def extra_metrics(extra):
                 and number(extra["runnerCpuMs"]) and number(extra["hostCpuBusyFraction"])
                 and extra["hostCpuBusyFraction"]<=1)
         result.update({k:extra[k] for k in EXTRA_COUNTS+("runnerCpuMs","hostCpuBusyFraction")})
+    else:
+        error=extra["probeError"]
+        allowed={"FULL_RESOURCE_NO_ROW","FULL_HOST_CPU","InvalidDataException",
+                 "InvalidOperationException","IOException","UnauthorizedAccessException",
+                 "FormatException","OverflowException","KeyNotFoundException"}
+        allowed|={"FULL_RESOURCE_"+k+"_"+suffix for k in (
+            "TEMPDB_USER","TEMPDB_INTERNAL","TEMPDB_VERSION","BLOCKING_INDEX","DATABASE_READ",
+            "DATABASE_WRITE","TEMPDB_READ","TEMPDB_WRITE","BATCH_REQUESTS") for suffix in ("NULL","NEGATIVE")}
+        result["probeError"]=("INCOMPLETE_WITHOUT_CODE" if error is None else error
+            if isinstance(error,str) and (error in allowed or re.fullmatch(r"SQL_-?[0-9]{1,10}_[0-9]{1,3}",error))
+            else "UNCLASSIFIED")
     return result
 
 def assess(frames, sha, extras=None):

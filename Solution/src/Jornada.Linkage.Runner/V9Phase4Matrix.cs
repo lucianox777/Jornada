@@ -65,6 +65,23 @@ internal static class V9Phase4Matrix
         long TempdbReadBytes,long TempdbWriteBytes,long InstanceBatchRequests,long HostMemoryUsedBytes,
         long HostCpuBusyTicks,long HostCpuTotalTicks,long FreeDiskBytes,double RunnerCpuMs);
 
+    private static readonly string[] FullResourceCounterNames = [
+        "TEMPDB_USER","TEMPDB_INTERNAL","TEMPDB_VERSION","BLOCKING_INDEX",
+        "DATABASE_READ","DATABASE_WRITE","TEMPDB_READ","TEMPDB_WRITE","BATCH_REQUESTS"];
+    private static string SafeFullResourceError(InvalidDataException e)
+    {
+        const string prefix="RUNNER_V9_PHASE4_";
+        if(e.Message.StartsWith(prefix,StringComparison.Ordinal))
+        {
+            var code=e.Message[prefix.Length..];
+            if(code is "FULL_RESOURCE_NO_ROW" or "FULL_HOST_CPU" ||
+                FullResourceCounterNames.Any(x=>code=="FULL_RESOURCE_"+x+"_NULL"||
+                    code=="FULL_RESOURCE_"+x+"_NEGATIVE"))
+                return code;
+        }
+        return nameof(InvalidDataException);
+    }
+
     private static async Task<FullResourceSample> ReadFullResourceAsync(SqlConnection conn,string root,CancellationToken ct)
     {
         await using var cmd=new SqlCommand("""
@@ -79,13 +96,18 @@ internal static class V9Phase4Matrix
               (SELECT COALESCE(SUM(num_of_bytes_read),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
               (SELECT COALESCE(SUM(num_of_bytes_written),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
               (SELECT MAX(cntr_value) FROM sys.dm_os_performance_counters
-                 WHERE object_name LIKE N'%:SQL Statistics' AND counter_name=N'Batch Requests/sec'
+                 WHERE RTRIM(object_name) LIKE N'%:SQL Statistics' AND RTRIM(counter_name)=N'Batch Requests/sec'
                    AND cntr_type=272696576);
             """,conn) {CommandTimeout=5};
         await using var rd=await cmd.ExecuteReaderAsync(ct);
-        Require(await rd.ReadAsync(ct)&&Enumerable.Range(0,9).All(i=>!rd.IsDBNull(i)),"FULL_RESOURCE_COUNTERS");
-        var v=Enumerable.Range(0,9).Select(i=>Convert.ToInt64(rd.GetValue(i),CultureInfo.InvariantCulture)).ToArray();
-        Require(v.All(x=>x>=0),"FULL_RESOURCE_COUNTERS");
+        Require(await rd.ReadAsync(ct),"FULL_RESOURCE_NO_ROW");
+        var v=new long[FullResourceCounterNames.Length];
+        for(var i=0;i<v.Length;i++)
+        {
+            Require(!rd.IsDBNull(i),"FULL_RESOURCE_"+FullResourceCounterNames[i]+"_NULL");
+            v[i]=Convert.ToInt64(rd.GetValue(i),CultureInfo.InvariantCulture);
+            Require(v[i]>=0,"FULL_RESOURCE_"+FullResourceCounterNames[i]+"_NEGATIVE");
+        }
         var memory=File.ReadLines("/proc/meminfo").Where(x=>x.StartsWith("MemTotal:",StringComparison.Ordinal)
             ||x.StartsWith("MemAvailable:",StringComparison.Ordinal)).ToDictionary(
             x=>x.Split(':')[0],x=>long.Parse(x.Split(':')[1].Trim().Split(' ',StringSplitOptions.RemoveEmptyEntries)[0],CultureInfo.InvariantCulture)*1024);
@@ -123,7 +145,8 @@ internal static class V9Phase4Matrix
             {
                 try {extra.Add(await ReadFullResourceAsync(conn,root,ct));}
                 catch(SqlException e){extraProbeError=FormattableString.Invariant($"SQL_{e.Number}_{e.State}");}
-                catch(Exception e) when(e is InvalidDataException or InvalidOperationException or IOException or
+                catch(InvalidDataException e){extraProbeError=SafeFullResourceError(e);}
+                catch(Exception e) when(e is InvalidOperationException or IOException or
                     UnauthorizedAccessException or FormatException or OverflowException or KeyNotFoundException)
                 {extraProbeError=e.GetType().Name;}
             }
