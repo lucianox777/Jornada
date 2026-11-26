@@ -135,7 +135,10 @@ internal static class V9Phase4Matrix
             await Task.WhenAny(task,Task.Delay(1000,ct));
             await Sample();
         }
-        var result=await task;sw.Stop();
+        var result=await task;
+        // Even a synchronously completed FULL needs a terminal sample.
+        if(expanded) await Sample();
+        sw.Stop();
         var t=timing();
         Require(t is {Length:5}&&t.All(x=>double.IsFinite(x)&&x>=0)&&t[0]>=t[1],"PHYSICAL_TIMING");
         var v=t!;
@@ -143,11 +146,15 @@ internal static class V9Phase4Matrix
         {
             var complete=extraProbeError is null&&extra.Count==samples.Count&&extra.Count>=2;
             var first=extra.FirstOrDefault();var last=extra.LastOrDefault();
-            var monotonic=complete&&last!.DatabaseReadBytes>=first!.DatabaseReadBytes
-                &&last.DatabaseWriteBytes>=first.DatabaseWriteBytes&&last.TempdbReadBytes>=first.TempdbReadBytes
-                &&last.TempdbWriteBytes>=first.TempdbWriteBytes&&last.InstanceBatchRequests>=first.InstanceBatchRequests
-                &&last.HostCpuBusyTicks>=first.HostCpuBusyTicks&&last.HostCpuTotalTicks>first.HostCpuTotalTicks
-                &&last.RunnerCpuMs>=first.RunnerCpuMs;
+            static bool Nondecreasing(FullResourceSample a,FullResourceSample b) =>
+                b.DatabaseReadBytes>=a.DatabaseReadBytes&&b.DatabaseWriteBytes>=a.DatabaseWriteBytes
+                &&b.TempdbReadBytes>=a.TempdbReadBytes&&b.TempdbWriteBytes>=a.TempdbWriteBytes
+                &&b.InstanceBatchRequests>=a.InstanceBatchRequests&&b.HostCpuBusyTicks>=a.HostCpuBusyTicks
+                &&b.HostCpuTotalTicks>=a.HostCpuTotalTicks&&b.RunnerCpuMs>=a.RunnerCpuMs
+                &&b.HostCpuBusyTicks-a.HostCpuBusyTicks<=b.HostCpuTotalTicks-a.HostCpuTotalTicks;
+            var monotonic=complete&&first is not null&&last is not null
+                &&last.HostCpuTotalTicks>first.HostCpuTotalTicks
+                &&extra.Zip(extra.Skip(1),Nondecreasing).All(x=>x);
             await WriteAsync(root,"scale-full-extra-resource.json",new {
                 schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status=monotonic?"MEASURED":"INCOMPLETE",
                 sampleCount=extra.Count,probeError=extraProbeError,
@@ -164,7 +171,7 @@ internal static class V9Phase4Matrix
                 tempdbWriteBytes=monotonic?last!.TempdbWriteBytes-first!.TempdbWriteBytes:(long?)null,
                 instanceBatchRequests=monotonic?last!.InstanceBatchRequests-first!.InstanceBatchRequests:(long?)null,
                 hostCpuBusyFraction=monotonic?(double)(last!.HostCpuBusyTicks-first!.HostCpuBusyTicks)/
-                    (last.HostCpuTotalTicks-first.HostCpuTotalTicks):(double?)null,
+                    (last!.HostCpuTotalTicks-first!.HostCpuTotalTicks):(double?)null,
                 runnerCpuMs=monotonic?last!.RunnerCpuMs-first!.RunnerCpuMs:(double?)null,
                 sampleScope="FULL_WITH_OBSERVER_OVERHEAD",sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
                 exactRunnerSqlStatementCount=false,rawSqlExported=false});
