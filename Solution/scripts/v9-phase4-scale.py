@@ -317,6 +317,51 @@ def decision_field_digests(graph_rows,rank_rows):
                 separators=(",",":"),allow_nan=False).encode()).hexdigest()
     return result
 
+def verify_paired_prefull_frames(left,right,left_attempt,right_attempt):
+    """Additional private input guard, never a substitute for strict FULL parity.
+
+    A future same-Processor backup/restore experiment must have two distinct
+    disposable attempts and exactly equal physical identities, observations and
+    reference rows. No truth, UUID relabeling, tolerance or raw data export.
+    The caller still has to authenticate the actual SQL backups and run each
+    arm through the existing physical admission and independent oracles.
+    """
+    def valid_uuid(x):
+        try:
+            return isinstance(x,str) and str(uuid.UUID(x))==x and uuid.UUID(x).int!=0
+        except (ValueError,TypeError,AttributeError):
+            return False
+    require(valid_uuid(left_attempt) and valid_uuid(right_attempt)
+            and left_attempt!=right_attempt,"SCALE_PAIRED_ATTEMPT")
+    frame_fields={"Attempt","Rows","InitialRefs","SnapshotMs","VersionStoreStartBytes",
+                  "VersionStoreEndBytes","ProcessMemoryBytes"}
+    row_fields={"Id","Origin","Version","Wave","Manager","Observation","HasCpf","Initial",
+                "Current","Canonical","Status","Method","State","AsOf","NameVerified",
+                "BirthVerified","MotherVerified"}
+    ref_fields={"Person","Name","Birth","Mother"}
+    def canonical(frame,attempt):
+        require(isinstance(frame,dict) and set(frame)==frame_fields
+                and frame["Attempt"]==attempt,"SCALE_PAIRED_FRAME")
+        rows,refs=frame["Rows"],frame["InitialRefs"]
+        require(isinstance(rows,list) and rows and isinstance(refs,list) and refs
+                and all(isinstance(r,dict) and set(r)==row_fields
+                    and type(r["Id"]) is int and r["Id"]>0
+                    and type(r["Origin"]) is int and r["Origin"]>0
+                    and valid_uuid(r["Initial"])
+                    and all(r[k] is None or valid_uuid(r[k]) for k in ("Current","Canonical"))
+                    for r in rows)
+                and all(isinstance(r,dict) and set(r)==ref_fields and valid_uuid(r["Person"])
+                        for r in refs),"SCALE_PAIRED_FRAME_ROWS")
+        require(len({r["Id"] for r in rows})==len(rows)
+                and len({r["Person"] for r in refs})==len(refs),"SCALE_PAIRED_FRAME_DUPLICATE")
+        # Only list ordering and the attempt-specific measurement envelope
+        # differ. No observation or reference field may be normalized away.
+        return json.dumps(dict(rows=sorted(rows,key=lambda r:r["Id"]),
+                               references=sorted(refs,key=lambda r:r["Person"])),
+                          sort_keys=True,separators=(",",":"),allow_nan=False)
+    require(canonical(left,left_attempt)==canonical(right,right_attempt),
+            "SCALE_PAIRED_PREFULL_INPUT_DIFFERENCE")
+
 def gold_rank_diagnostics(scores,ranks,graphs,key_byid,target,expected_count):
     """Check each raw UUID rank against actual per-record scores; emit aggregates only.
 
