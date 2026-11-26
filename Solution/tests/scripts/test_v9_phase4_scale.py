@@ -6,6 +6,26 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_sql_workflow_stops_on_first_failed_command(self):
+        # Execute the real workflow command groups with synthetic shell mocks.
+        # A failed migration or negative test must never be hidden by a later
+        # successful command (Bash disables errexit inside a group on ||).
+        import re
+        import subprocess
+        workflow=(Path(__file__).resolve().parents[3]/".github/workflows/jornada-v9-phase4-scale.yml").read_text()
+        for name,log in (("Fresh schema with C07 resident identity","schema.log"),
+                         ("SQL regression on the completed disposable FULL; reverse, verify and reapply","publication-regression.log")):
+            block=workflow.split("- name: "+name,1)[1].split("\n      - name:",1)[0]
+            match=re.search(r"(?ms)^          ([{(])\n(.*?)^          ([})]) >[^\n]*"+re.escape(log),block)
+            self.assertIsNotNone(match)
+            body=match[1]+"\n"+match[2]+match[3]
+            shell="set -euo pipefail\nJORNADA_V9_PHASE4_SCALE=optimized1k\ndb=mock\nJORNADA_V9_DEV_ATTEMPT=mock\n"
+            shell+="sql() { :; }\nrun_sql() { echo CALL; return 7; }\n"
+            result=subprocess.run(["bash","-c",shell+body+" || { echo FAILED; exit 1; }"],capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertEqual(result.stdout.splitlines().count("CALL"),1)
+            self.assertIn("FAILED",result.stdout)
+
     def test_scale_failure_diagnostics_are_fixed_and_stage_specific(self):
         for code in ("PROCESSOR_TIMEOUT","PROCESSOR_REJECTED","HTTP_STATUS_UNAVAILABLE",
                      "SQL_LINEAGE_QUERY_FAILED","SILVER_SOURCE_SET_DIVERGENCE","VOLUME_ADMISSION"):
