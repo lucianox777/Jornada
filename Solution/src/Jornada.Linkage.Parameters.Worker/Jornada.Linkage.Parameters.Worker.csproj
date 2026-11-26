@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Pipeline.Coordination\Jornada.Pipeline.Coordination.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.2" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\data\reference\ibge-nomes-2022\**\*"
