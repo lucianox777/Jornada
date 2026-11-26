@@ -1,0 +1,59 @@
+name: V9 winner 38 custody renewal only
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, reopened, synchronize]
+    paths: ['.github/workflows/jornada-v9-winner38-custody.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: jornada-v9-winner38-custody
+  cancel-in-progress: false
+jobs:
+  renew-winner:
+    if: github.repository == 'lucianox777/Jornada' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'work/v9-winner38-custody-renewal-20261125' && github.event.pull_request.user.login == github.repository_owner) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify original pinned ZIP and operational JSON
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          mkdir -m 700 "$RUNNER_TEMP/v9-winner38-custody"
+          [[ "$GITHUB_RETENTION_DAYS" =~ ^[0-9]+$ ]] && (( GITHUB_RETENTION_DAYS >= 1 && GITHUB_RETENTION_DAYS <= 90 ))
+          printf 'days=%s\n' "$GITHUB_RETENTION_DAYS" >> "$GITHUB_OUTPUT"
+          python3 Solution/scripts/v9-winner38-custody.py prepare
+      - name: Renew custody of the original ZIP bytes only
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-winner38-original-zip-custody-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-winner38-custody/winner-original.zip
+          compression-level: 0
+          retention-days: ${{ steps.prepare.outputs.days }}
+          if-no-files-found: error
+          overwrite: false
+      - name: Download new artifact and verify both original scientific hashes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          NEW_ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 Solution/scripts/v9-winner38-custody.py verify
+      - name: Remove private workspace
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/v9-winner38-custody"
