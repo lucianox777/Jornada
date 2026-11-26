@@ -182,20 +182,20 @@ jobs:
           run_sql() {
             docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$1" "$2"
           }
-          {
-            sql master "IF DB_ID(N'$db') IS NOT NULL THROW 52990,'V9_E2E_ATTEMPT_REUSE',1; CREATE DATABASE [$db];"
-            sql master "ALTER DATABASE [$db] SET ALLOW_SNAPSHOT_ISOLATION ON;"
-            run_sql "$db" database/Jornada_Fase1_v3.70.sql
-            run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
-            run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql
+          (
+            sql master "IF DB_ID(N'$db') IS NOT NULL THROW 52990,'V9_E2E_ATTEMPT_REUSE',1; CREATE DATABASE [$db];" || exit $?
+            sql master "ALTER DATABASE [$db] SET ALLOW_SNAPSHOT_ISOLATION ON;" || exit $?
+            run_sql "$db" database/Jornada_Fase1_v3.70.sql || exit $?
+            run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql || exit $?
+            run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql || exit $?
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
-              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
-              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
-              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql
-              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
             fi
-            sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';"
-          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
+            sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';" || exit $?
+          ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
           [[ "$ConnectionStrings__Jornada" == *'Database=JornadaHarness;'* ]]
           conn="${ConnectionStrings__Jornada/Database=JornadaHarness;/Database=$db;}"
           printf '::add-mask::%s\n' "$conn"
@@ -216,29 +216,29 @@ jobs:
           run_sql() {
             docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$db" "$1"
           }
-          {
+          (
             # Both original and migrated guards execute the same negative fixture.
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
-              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V2
-              run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql
+              run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
-              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V1
-              run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql
+              run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql || exit $?
             fi
             echo V9_SQL_REGRESSION_STAGE=BASELINE
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V1
-            run_sql database/migrations/20261125_Linkage_Publication_Scale.sql
+            run_sql database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V2
-            run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql
+            run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
-          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+          ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
             python3 scripts/v9-phase4-scale.py sql-failure --root "$JORNADA_V9_E2E_PRIVATE_ROOT" || true
             echo V9_PUBLICATION_SCALE_REGRESSION_FAILED
             exit 1

@@ -317,4 +317,4 @@ Decisão nova deve entrar na fonte canônica adequada; estado comprovado no Esta
 
 > **ACERVO — 10k autorizado PO (25/11):** [Plano 10k atualizado](Plano_V9_Fase4_10k_20261125.md) · [Plano v6](Decisao_GOV_V9_Plano_PO_V6_20261124.md). #1939 integrada, novo ensaio não publicante e não científico; relatório final pendente.
 
-> **V9 10k funcional, diagnóstico e segurança familiar:** [relatório único por SHA](Relatorio_V9_Ensaio_10k_20261125.md), decisão 25/11/2026. Preserva plano histórico, separa medido/projetado/pendente; GOV-DOC-01.
+> **V9 10k funcional, diagnóstico e segurança familiar (histórico cumulativo; roteiro vigente v8 e emendas):** [relatório único por SHA](Relatorio_V9_Ensaio_10k_20261125.md), decisão 25/11/2026. Preserva plano histórico, separa medido/projetado/pendente; GOV-DOC-01.
