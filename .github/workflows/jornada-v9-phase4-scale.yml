@@ -128,32 +128,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 - <<'PY'
-          import importlib.util, os
-          from pathlib import Path
-          spec = importlib.util.spec_from_file_location("preserved", "scripts/v9-preserve-campaign38-artifacts.py")
-          p = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(p)
-          root = Path(os.environ["JORNADA_V9_E2E_PRIVATE_ROOT"])
-          token = os.environ["GH_TOKEN"]
-          run = p.api_json(f"https://api.github.com/repos/{p.REPO}/actions/runs/{p.RUN_ID}", token)
-          if (run.get("id") != p.RUN_ID or run.get("head_sha") != p.CODE_SHA
-              or run.get("run_attempt") != p.RUN_ATTEMPT or run.get("conclusion") != "success"
-              or run.get("workflow_id") != p.WORKFLOW_ID or run.get("path") != p.WORKFLOW_PATH
-              or run.get("event") != p.WORKFLOW_EVENT or run.get("head_branch") != p.WORKFLOW_BRANCH):
-              raise SystemExit("V9_E2E_WINNER_RUN_PROVENANCE_REJECTED")
-          remote = p.api_json(f"https://api.github.com/repos/{p.REPO}/actions/runs/{p.RUN_ID}/artifacts?per_page=100", token)
-          found = [x for x in remote.get("artifacts", []) if x["id"] == 14742452561 and not x["expired"]]
-          sha = "24a890243dff4d988515ac17532ee3720bff0c0b01261aa36c9e0d74426d5de7"
-          if len(found) != 1 or found[0].get("digest") != "sha256:" + sha:
-              raise SystemExit("V9_E2E_WINNER_ARTIFACT_REJECTED")
-          try:
-              tmp, _ = p.download_verified(14742452561, sha, root, token)
-              Path(tmp).rename(root / "winner.zip")
-          except Exception:
-              raise SystemExit("V9_E2E_WINNER_DOWNLOAD_REJECTED") from None
-          PY
-          python3 scripts/v9-e2e-1k-winner-pin.py "$JORNADA_V9_E2E_PRIVATE_ROOT/winner.zip" "$JORNADA_V9_E2E_PRIVATE_ROOT/selection"
+          python3 scripts/v9-winner38-custody.py runner
       - name: Restore and build exact commit
         working-directory: Solution
         run: |

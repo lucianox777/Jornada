@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-CUSTODIA-VENCEDOR38-20261125:** [decisão e evidência de renovação](Decisao_GOV_V9_Custodia_Vencedor38_20261125.md), #1943/#1940/#1851, novo artefato, run, hashes, retenção e gates. GOV-DOC-01.
+
 > **ACERVO GOV-V9-PLANO-PO-V8-EMENDA-FAMILIA-20261125:** [emenda ao v8 aprovada pelo PO](Decisao_GOV_V9_Plano_PO_V8_Emenda_Familia_20261125.md), fontes públicas, hipóteses/sensibilidade, caps 8/8/64, matriz, estratos e limites de inferência, gates e precedência. #1940/#1941/#1942/#1851. GOV-DOC-01.
 
 > **ACERVO GOV-V9-PLANO-PO-V8-20261125:** [plano consolidado aprovado pelo PO](Decisao_GOV_V9_Plano_PO_V8_20261125.md), precedência, A–D, gates, métricas, família e paradas. #1940/#1851. GOV-DOC-01.
