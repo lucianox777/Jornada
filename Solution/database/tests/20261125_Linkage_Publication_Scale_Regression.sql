@@ -55,8 +55,30 @@ PRINT 'V9_SQL_FIXTURE_STAGE=CURRENT_MULTISET';
 SELECT pessoa_uuid,pessoa_observacao_id,status,COUNT_BIG(*) AS multiplicidade
 INTO #scale_current_original FROM identidade.v_vinculo_corrente
 GROUP BY pessoa_uuid,pessoa_observacao_id,status;
-SELECT pessoa_uuid,pessoa_observacao_id,status
-INTO #scale_current_materialized FROM identidade.v_vinculo_corrente;
+-- Materialize the latest published probabilistic row per observation
+-- once; the normative view remains the independent oracle above.
+;WITH ranked AS (
+ SELECT r.pessoa_observacao_id,r.pessoa_uuid_publicado AS pessoa_uuid,r.status_publicacao AS status,
+ ROW_NUMBER() OVER(PARTITION BY r.pessoa_observacao_id
+ ORDER BY lr.publicado_em DESC,lr.iniciado_em DESC,lr.linkage_run_id DESC) AS rn
+ FROM identidade.linkage_resultado r
+ JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id
+ WHERE lr.status=N'PUBLICADO' AND r.resultado_publicacao IS NOT NULL
+ AND r.status_publicacao IS NOT NULL AND r.publicado_em IS NOT NULL
+)
+SELECT pessoa_observacao_id,pessoa_uuid,status
+INTO #scale_prob_current FROM ranked WHERE rn=1;
+CREATE UNIQUE CLUSTERED INDEX IX_scale_prob_current ON #scale_prob_current(pessoa_observacao_id);
+SELECT b.pessoa_uuid,b.pessoa_observacao_id,b.status
+INTO #scale_current_materialized
+FROM identidade.vinculo_fonte b WHERE b.ativo=1
+AND (b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO')
+ OR NOT EXISTS(SELECT 1 FROM #scale_prob_current p WHERE p.pessoa_observacao_id=b.pessoa_observacao_id))
+UNION ALL
+SELECT p.pessoa_uuid,p.pessoa_observacao_id,p.status FROM #scale_prob_current p
+WHERE NOT EXISTS(SELECT 1 FROM identidade.vinculo_fonte b WHERE b.ativo=1
+ AND b.pessoa_observacao_id=p.pessoa_observacao_id
+ AND b.metodo_resolucao IN(N'CPF_DETERMINISTICO',N'UUID_JORNADA_RETROALIMENTACAO',N'CORRECAO_GOVERNADA',N'CONFLITO_GOVERNADO'));
 CREATE INDEX IX_scale_current_materialized ON #scale_current_materialized(pessoa_uuid,status,pessoa_observacao_id);
 SELECT pessoa_uuid,pessoa_observacao_id,status,COUNT_BIG(*) AS multiplicidade
 INTO #scale_current_staged FROM #scale_current_materialized
@@ -64,7 +86,7 @@ GROUP BY pessoa_uuid,pessoa_observacao_id,status;
 IF EXISTS(SELECT * FROM #scale_current_original EXCEPT SELECT * FROM #scale_current_staged)
  OR EXISTS(SELECT * FROM #scale_current_staged EXCEPT SELECT * FROM #scale_current_original)
  THROW 52998,'Current link multiset differs.',1;
-DROP TABLE #scale_current_original,#scale_current_materialized,#scale_current_staged;
+DROP TABLE #scale_current_original,#scale_current_materialized,#scale_current_staged,#scale_prob_current;
 PRINT 'PUBLICATION_CURRENT_LINK_MULTISET_PASS';
 
 -- Independent original scalar name selection, all actual Gold persons.
