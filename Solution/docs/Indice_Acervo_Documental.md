@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-PLANO-PO-V8-20261125:** [plano consolidado aprovado pelo PO](Decisao_GOV_V9_Plano_PO_V8_20261125.md), precedência, A–D, gates, métricas, família e paradas. #1940/#1851. GOV-DOC-01.
+
 > **GOV-V9-PLANO-PO-V6-20261124 — atualização de execução:** fase 2b #1937 integrada na master `ed65a227`, push 13/13 SUCCESS; #1936 aberta até INCREMENTAL. Fase 3 #1938 draft, #1928/#1929 fechadas sem merge como substituídas por ordem expressa do PO, port essencial e execução física em curso. Nenhum E2E PASS declarado; igualdade independente e aceites ainda pendentes. [Plano v6 e registro](Decisao_GOV_V9_Plano_PO_V6_20261124.md) · [#1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7152014758). GOV-DOC-01.
 
 > **ACERVO GOV-V9-PLANO-PO-V6-20261124:** [plano consolidado do PO v6, fases 2b a 5, decisões b1/índice, gates, aceite e pontos de parada](Decisao_GOV_V9_Plano_PO_V6_20261124.md). Prevalece sobre v4/v5, registro na #1937 pendente de integração; sem certificação/ativação. GOV-DOC-01.

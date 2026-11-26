@@ -75,3 +75,6 @@ PO autorizou squash #1939 com checks verdes e política oficial preservada; inte
 > **GOV-V9-DEV-ESCALA-FULL-20261125 — complemento PO:** diagnóstico progressivo FULL 1k/2k/4k, telemetria incremental por fase/SQL e recibos mesmo em falha; 10k só confirmação pós-correção e paridade 1k. Família/desafio bloqueados; nenhum 100k científico/TRAIN/TEST autorizado. [Relatório único](Relatorio_V9_Ensaio_10k_20261125.md) · #1931/#1940. GOV-DOC-01; CI e integração pendentes.
 
 > **GOV-V9-PUBLICACAO-MIGRACAO-20261125 — exceção PO ao plano v6:** otimizar gatilhos e Gold por migração aditiva comum V8/V9, reversão, mesmos códigos negativos, regressão V8/V9, paridade 1k, curva 1k/2k/4k antes de 10k; nenhuma DDL de gatilho pelo Runner ou substituição dinâmica. Se blocking quadrático, mesma disciplina. Supera 376d7203. [Relatório](Relatorio_V9_Ensaio_10k_20261125.md) · #1931/#1940. Sem autorização de deploy ou ciência; integração/validação pendentes.
+
+
+> **Precedência operacional — GOV-V9-PLANO-PO-V8-20261125:** PO aprovou a consolidação [v8](Decisao_GOV_V9_Plano_PO_V8_20261125.md) após avaliação v7. O roteiro A–D e seus gates/paradas prevalecem sobre instruções operacionais anteriores; requisitos substantivos não expressamente revogados permanecem. Não autoriza política S4b(ii), 100k ou nova ciência. GOV-DOC-01.
