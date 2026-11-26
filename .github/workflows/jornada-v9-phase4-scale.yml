@@ -219,17 +219,30 @@ jobs:
           {
             # Both original and migrated guards execute the same negative fixture.
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
               run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V2
               run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
               run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V1
               run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql
             fi
+            echo V9_SQL_REGRESSION_STAGE=BASELINE
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V1
             run_sql database/migrations/20261125_Linkage_Publication_Scale.sql
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V2
             run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
-          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || { echo V9_PUBLICATION_SCALE_REGRESSION_FAILED; exit 1; }
+          } >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
+            python3 scripts/v9-phase4-scale.py sql-failure --root "$JORNADA_V9_E2E_PRIVATE_ROOT" || true
+            echo V9_PUBLICATION_SCALE_REGRESSION_FAILED
+            exit 1
+          }
           echo V9_PUBLICATION_SCALE_REGRESSION_PASS
       - name: Publish sanitized FULL diagnostic even on failure
         if: always()

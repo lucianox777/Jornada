@@ -506,19 +506,58 @@ def diagnostic_receipt(root):
         pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,normalizedDecisionGraphSha256=decision_digest,
         decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),goldRankDiagnostics=gold,
         matrixExecuted=False,scientificTest=False,activation=False))
+# Explicit fixed diagnostic vocabulary. Never export exceptions or SQL text.
+INGEST_FAILURE_CODES=frozenset((
+    "VOLUME_ADMISSION","WAVE_PREFLIGHT_REQUIRED","DIRTY_SILVER_ATTEMPT","DIRTY_RUN_ATTEMPT",
+    "PACKAGE_RECEIPT_INVALID","PACKAGE_SIZE_DRIFT","PACKAGE_BYTES_DRIFT","HTTP_INGESTION_NOT_ACCEPTED",
+    "HTTP_STATUS_UNAVAILABLE","PROCESSOR_REJECTED","PROCESSOR_TIMEOUT","SILVER_SOURCE_SET_DIVERGENCE",
+    "BRONZE_LINEAGE_DIVERGENCE","HTTP_IDEMPOTENCY_DIVERGENCE","SILVER_COMPLETE_CENSUS_DIVERGENCE",
+    "HTTP_DELIVERY_IDEMPOTENCY_CENSUS","PRIVATE_JSON_INVALID","MANAGER_CREDENTIAL_REQUIRED",
+    "MANAGER_INVALID","HTTP_RESPONSE_BOUND","CI_CONTAINER_INVALID","SQL_LINEAGE_QUERY_FAILED",
+    "SQL_LINEAGE_SCALAR_INVALID"))
+def safe_failure_code(mode,error):
+    import re
+    value=str(error)
+    if mode=="ingest" and value in INGEST_FAILURE_CODES:return value
+    if re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]{1,96}",value):return value
+    return "UNCLASSIFIED"
+
+def sql_failure_summary(lines):
+    import re
+    stages={"BASELINE","MIGRATED_V1","MIGRATED_V2","ROLLBACK_V2","ROLLBACK_V1","REAPPLY_V1","REAPPLY_V2"}
+    fixtures={"NEGATIVE_GUARDS","CURRENT_MULTISET","CANONICAL_NAME","RECOMPOSITION"}
+    result=[];errors=0
+    for line in lines:
+        line=line.strip()
+        prefix,_,value=line.partition("=")
+        if ((prefix=="V9_SQL_REGRESSION_STAGE" and value in stages) or
+            (prefix=="V9_SQL_FIXTURE_STAGE" and value in fixtures)):
+            result.append(prefix+"="+value)
+        match=re.match(r"^Msg ([0-9]{1,6}), Level ([0-9]{1,2}), State ([0-9]{1,3})(?:,|$)",line)
+        if match:
+            result.append("V9_SQL_ERROR="+"_".join(match.groups()));errors+=1
+        if len(result)>=64:break
+    if not errors:result.append("V9_SQL_ERROR=UNCLASSIFIED")
+    return result
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic","sql-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
     try:
         label,(n,_,_)=profile()
         if a.mode=="preflight":preflight(a.root)
         elif a.mode=="ingest":H.ingest(a.root,uuid.UUID(os.environ["JORNADA_V9_DEV_ATTEMPT"]),population=n)
         elif a.mode=="plan":plan(a.root)
         elif a.mode=="diagnostic":diagnostic_receipt(a.root)
+        elif a.mode=="sql-failure":
+            path=a.root/"publication-regression.log"
+            require(path.is_file() and not path.is_symlink() and path.stat().st_size<=16*1024*1024,"SCALE_SQL_LOG_BOUND")
+            with path.open(encoding="utf-8",errors="replace") as f:
+                for line in sql_failure_summary(f):print(line)
+            return
         else:measure(a.root)
     except (ValueError,OSError,KeyError,TypeError,AttributeError,ArithmeticError) as e:
         # Fixed internal code only; never arbitrary input or stack.
-        import re
-        code=str(e) if (str(e) == "VOLUME_ADMISSION" or re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]+",str(e))) else "UNCLASSIFIED"
+        code=safe_failure_code(a.mode,e)
         raise SystemExit("V9_PHASE4_SCALE_REJECTED_"+code) from None
     print("V9_PHASE4_SCALE_"+a.mode.upper()+"_PASS")
 if __name__=="__main__":main()

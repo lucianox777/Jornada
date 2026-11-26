@@ -10,6 +10,7 @@ IF @run IS NULL THROW 52996,'Completed V9 fixture required.',1;
 
 -- Each negative executes against actual tables and their enabled triggers.
 -- Transaction rollback must preserve all durable fixture rows.
+PRINT 'V9_SQL_FIXTURE_STAGE=NEGATIVE_GUARDS';
 DECLARE @case int=1,@expected int,@actual int,@id bigint,@source bigint,@uuid uniqueidentifier;
 WHILE @case<=6
 BEGIN
@@ -50,20 +51,25 @@ PRINT 'PUBLICATION_GUARDS_SIX_CODES_PASS';
 
 -- Compare the exact current-link multiset with the candidate physical
 -- join plan. Never compare only counts or discard duplicates.
+PRINT 'V9_SQL_FIXTURE_STAGE=CURRENT_MULTISET';
 SELECT pessoa_uuid,pessoa_observacao_id,status,COUNT_BIG(*) AS multiplicidade
 INTO #scale_current_original FROM identidade.v_vinculo_corrente
 GROUP BY pessoa_uuid,pessoa_observacao_id,status;
+SELECT pessoa_uuid,pessoa_observacao_id,status
+INTO #scale_current_materialized FROM identidade.v_vinculo_corrente;
+CREATE INDEX IX_scale_current_materialized ON #scale_current_materialized(pessoa_uuid,status,pessoa_observacao_id);
 SELECT pessoa_uuid,pessoa_observacao_id,status,COUNT_BIG(*) AS multiplicidade
-INTO #scale_current_hash FROM identidade.v_vinculo_corrente
-GROUP BY pessoa_uuid,pessoa_observacao_id,status OPTION (HASH JOIN);
-IF EXISTS(SELECT * FROM #scale_current_original EXCEPT SELECT * FROM #scale_current_hash)
- OR EXISTS(SELECT * FROM #scale_current_hash EXCEPT SELECT * FROM #scale_current_original)
+INTO #scale_current_staged FROM #scale_current_materialized
+GROUP BY pessoa_uuid,pessoa_observacao_id,status;
+IF EXISTS(SELECT * FROM #scale_current_original EXCEPT SELECT * FROM #scale_current_staged)
+ OR EXISTS(SELECT * FROM #scale_current_staged EXCEPT SELECT * FROM #scale_current_original)
  THROW 52998,'Current link multiset differs.',1;
-DROP TABLE #scale_current_original,#scale_current_hash;
+DROP TABLE #scale_current_original,#scale_current_materialized,#scale_current_staged;
 PRINT 'PUBLICATION_CURRENT_LINK_MULTISET_PASS';
 
 -- Independent original scalar name selection, all actual Gold persons.
 -- Force drift through the enabled trigger, never insert Gold test persons.
+PRINT 'V9_SQL_FIXTURE_STAGE=CANONICAL_NAME';
 SELECT g.pessoa_uuid,
  LEFT(src.nome_cmp,CHARINDEX(N' ',src.nome_cmp+N' ')-1) AS chave
 INTO #scale_name_expected
@@ -599,6 +605,7 @@ INSERT identidade.linkage_resultado(linkage_run_id,modelo_id,modelo_versao,pesso
  SELECT @run8,@model8,8,pessoa_observacao_id,pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
  resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,pessoa_origem_id_publicado,progressiva_versao,politica_publicacao_versao,universo_referencia,@now
  FROM identidade.linkage_resultado WHERE linkage_run_id=@run9;
+PRINT 'V9_SQL_FIXTURE_STAGE=RECOMPOSITION';
 DECLARE @expected TABLE(pessoa_uuid uniqueidentifier PRIMARY KEY,cpf char(11),status_cpf nvarchar(120),
  nome_completo nvarchar(max),data_nascimento date,nome_mae nvarchar(max),fontes_distintas int,
  estado_concordancia nvarchar(40),estado_identidade nvarchar(20),completude_nucleo nvarchar(20),

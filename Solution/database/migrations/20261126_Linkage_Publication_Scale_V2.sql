@@ -25,7 +25,7 @@ BEGIN
  
  -- Preserve the full current-link view once, after publication header transition.
  SELECT pessoa_uuid,pessoa_observacao_id,status
- INTO #jrn_gold_current FROM identidade.v_vinculo_corrente OPTION (HASH JOIN);
+ INTO #jrn_gold_current FROM identidade.v_vinculo_corrente;
  CREATE INDEX IX_jrn_gold_current_uuid ON #jrn_gold_current(pessoa_uuid,status,pessoa_observacao_id);
  
  SELECT u.pessoa_uuid
@@ -273,8 +273,7 @@ BEGIN
     INTO #jrn_gold_name_current
     FROM identidade.v_vinculo_corrente vc
     JOIN inserted i ON i.pessoa_uuid=vc.pessoa_uuid
-    WHERE vc.status='RESOLVIDO'
-    OPTION (HASH JOIN);
+    WHERE vc.status='RESOLVIDO';
     CREATE INDEX IX_jrn_gold_name_current_uuid ON #jrn_gold_name_current(pessoa_uuid,pessoa_observacao_id);
 
     ;WITH chave AS(
