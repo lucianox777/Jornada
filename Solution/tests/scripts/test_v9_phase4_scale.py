@@ -109,6 +109,38 @@ class ScaleTests(unittest.TestCase):
                 dict(Person=second, Name="SYNTH", Birth=None, Mother=None)]),
                 attempt, first, second)
 
+    def test_independent_rank_drift_blocks_even_when_both_restored_pairs_match(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+
+        parity = S.module("parity", "v9-publication-scale-parity.py")
+        digest = "a" * 64
+        rank = dict(Id=1, Best=None, BestScore=0, Second=None, SecondScore=None, Margin=None,
+                    ScoreableRecords=0, PeopleWithoutScoreableEvidence=0, CandidateCount=0,
+                    HasPass=False, Status="INDEFINIDO", Resolved=None, Reason="SYNTH")
+        graph = dict(key=1, group=[1], candidates=[], neighbors=[], minimum=None, reason="SYNTH")
+        def row(profile, rank_row):
+            return dict(profile=profile, versions=1, eligible=1, winnerSha256=digest,
+                        pairMetrics={}, normalizedPublicationSha256=digest,
+                        normalizedDecisionGraphSha256=digest,
+                        decisionFieldSha256=S.decision_field_digests([graph], [rank_row]),
+                        goldRankDiagnostics=dict(normalizedGoldRecordScoreSha256=digest,
+                            normalizedGoldScoreTiersSha256=digest, rawUuidRankVerified=True,
+                            counts=dict(rows=1, scoreRecords=0, tiedBestRows=0, tiedSecondRows=0,
+                                        tiedBestOrSecondRows=0, tiedResolvedRows=0)))
+        baseline, optimized = "diagnostic1k", "optimized1k"
+        stable = [row(baseline, rank), row(optimized, rank)]
+        same = [row(optimized, rank), row(baseline, rank)]
+        with redirect_stdout(StringIO()):
+            parity.check_comparisons([stable, same])
+        changed_rank = dict(rank, Best=[7])
+        changed = [row(optimized, changed_rank), row(baseline, changed_rank)]
+        messages = StringIO()
+        with redirect_stdout(messages), self.assertRaises(SystemExit):
+            parity.check_comparisons([stable, changed])
+        self.assertIn("V9_PARITY_DIFFERENT_GRAPH_COMPONENTS=rank.Best", messages.getvalue())
+        self.assertNotIn("V9_PUBLICATION_SCALE_NORMALIZED_1K_PARITY_PASS", messages.getvalue())
+
     def test_progressive_diagnostic_admission(self):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",

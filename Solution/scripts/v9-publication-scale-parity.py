@@ -4,11 +4,9 @@ import importlib.util,json,os,re,tempfile,zipfile
 from pathlib import Path
 spec=importlib.util.spec_from_file_location("preserved",Path(__file__).with_name("v9-preserve-campaign38-artifacts.py"))
 p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
-token=os.environ["GH_TOKEN"];sha=os.environ["EXPECTED"];run=os.environ["GITHUB_RUN_ID"]
 def require(ok):
     if not ok:raise SystemExit("V9_PUBLICATION_SCALE_PARITY_FAILED")
-artifacts=p.api_json(f"https://api.github.com/repos/{p.REPO}/actions/runs/{run}/artifacts?per_page=100",token)["artifacts"]
-def read_pair(artifact, label, directory):
+def read_pair(artifact, label, directory, sha, token):
     require(artifact["digest"].startswith("sha256:"))
     tmp, _ = p.download_verified(artifact["id"], artifact["digest"][7:], directory, token)
     with zipfile.ZipFile(tmp) as archive:
@@ -59,18 +57,31 @@ def compare(receipts):
         print("V9_PARITY_GOLD_COUNTS_"+label+"="+json.dumps(g["counts"],sort_keys=True))
     return not different and not components and not gold_diff
 
-pairs = []
-with tempfile.TemporaryDirectory() as d:
-    for label in ("diagnostic1k", "optimized1k"):
-        rows = [a for a in artifacts if a["name"] == f"v9-phase4-scale-{label}-{sha}" and not a["expired"]]
-        require(len(rows) == 1)
-        pair = read_pair(rows[0], label, Path(d))
-        pairs.append(pair)
+def check_comparisons(pairs):
+    require(len(pairs) == 2)
+    for label, pair in zip(("diagnostic1k", "optimized1k"), pairs):
         print("V9_PARITY_RESTORED_PAIR=" + label)
         require(compare(pair))
+    print("V9_PARITY_INDEPENDENT_INPUT")
+    require(compare([pair[0] for pair in pairs]))
+    print("V9_PUBLICATION_SCALE_NORMALIZED_1K_PARITY_PASS")
 
-# Keep independent-ingestion diagnostics for historical comparison. Their
-# different UUIDs are intentionally outside the same-input migration gate.
-print("V9_PARITY_INDEPENDENT_INPUT_DIAGNOSTIC")
-print("V9_PARITY_INDEPENDENT_INPUT_EQUAL=" + str(compare([pair[0] for pair in pairs])).lower())
-print("V9_PUBLICATION_SCALE_NORMALIZED_1K_PARITY_PASS")
+def main():
+    token = os.environ["GH_TOKEN"]
+    sha = os.environ["EXPECTED"]
+    run = os.environ["GITHUB_RUN_ID"]
+    response = p.api_json(
+        f"https://api.github.com/repos/{p.REPO}/actions/runs/{run}/artifacts?per_page=100", token)
+    artifacts = response["artifacts"]
+    require(response["total_count"] == len(artifacts))
+    pairs = []
+    with tempfile.TemporaryDirectory() as directory:
+        for label in ("diagnostic1k", "optimized1k"):
+            name = f"v9-phase4-scale-{label}-{sha}"
+            rows = [a for a in artifacts if a["name"] == name and not a["expired"]]
+            require(len(rows) == 1)
+            pairs.append(read_pair(rows[0], label, Path(directory), sha, token))
+    check_comparisons(pairs)
+
+if __name__ == "__main__":
+    main()
