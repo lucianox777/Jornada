@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-MANDATO-E2E-CONTINUO-20261126:** [Mandato integral aprovado](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) para o caminho crítico do E2E integral DEV V9 pelo Codex local, com Fase A obrigatória, Fases B/C/D postergadas e regras de continuidade, custódia, parada e disparo final. #1851/#1940. GOV-DOC-01.
+
 > **GOV-V9-PLANO-PO-V6-20261124 — atualização de execução:** fase 2b #1937 integrada na master `ed65a227`, push 13/13 SUCCESS; #1936 aberta até INCREMENTAL. Fase 3 #1938 draft, #1928/#1929 fechadas sem merge como substituídas por ordem expressa do PO, port essencial e execução física em curso. Nenhum E2E PASS declarado; igualdade independente e aceites ainda pendentes. [Plano v6 e registro](Decisao_GOV_V9_Plano_PO_V6_20261124.md) · [#1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7152014758). GOV-DOC-01.
 
 > **ACERVO GOV-V9-PLANO-PO-V6-20261124:** [plano consolidado do PO v6, fases 2b a 5, decisões b1/índice, gates, aceite e pontos de parada](Decisao_GOV_V9_Plano_PO_V6_20261124.md). Prevalece sobre v4/v5, registro na #1937 pendente de integração; sem certificação/ativação. GOV-DOC-01.
