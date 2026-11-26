@@ -1,6 +1,6 @@
 > **ACERVO GOV-V9-MANDATO-E2E-CONTINUO-20261126:** [Mandato integral aprovado](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) para o caminho crítico do E2E integral DEV V9 pelo Codex local, com Fase A obrigatória, Fases B/C/D postergadas e regras de continuidade, custódia, parada e disparo final. #1851/#1940. GOV-DOC-01.
 
-> **Esclarecimento do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. GOV-DOC-01.
+> **Esclarecimento do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. GOV-DOC-01. [Retomadas na mesma sessão e acompanhamento da CI](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--retomadas-na-mesma-sessão-e-acompanhamento-da-ci).
 
 > **ACERVO GOV-V9-CUSTODIA-VENCEDOR38-20261125:** [decisão e evidência de renovação](Decisao_GOV_V9_Custodia_Vencedor38_20261125.md), #1943/#1940/#1851, novo artefato, run, hashes, retenção e gates. GOV-DOC-01.
 

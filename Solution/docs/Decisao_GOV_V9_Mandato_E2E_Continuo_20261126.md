@@ -24,6 +24,10 @@ As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam ap
 
 **Rastreabilidade.** [Parada histórica na #1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198240514), [Fase A na #1940](https://github.com/lucianox777/Jornada/pull/1940), [regressão S4b 1k integrada na #1939](https://github.com/lucianox777/Jornada/pull/1939).
 
+## Esclarecimento do PO de 26/11/2026 — retomadas na mesma sessão e acompanhamento da CI
+
+**DECIDIDO pelo PO.** Para reduzir leituras repetidas e consultas à CI, ler as fontes do mandato na abertura de cada sessão. Em retomadas dentro da mesma sessão, consultar o checkpoint da #1851 e os arquivos necessários à tarefa atual. Durante CI ativa, acompanhar a execução com `gh run watch` e consultar os jobs e recibos pertinentes ao concluir. O esclarecimento delimita o procedimento de leitura e espera nesta missão. Preserva a checagem do estado vivo, a reconciliação por SHA, a revisão de gates e as condições de publicação do mandato.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL
