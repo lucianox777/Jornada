@@ -86,13 +86,18 @@ def runner_sql_metrics(receipt):
     metrics = receipt.get("runnerSql")
     if metrics is None:
         return dict(status="ABSENT")
+    if metrics.get("schema") == "V9_DEV_FULL_SQL_OPERATIONS_V1":
+        return dict(status="ARCHIVE_UNRECONCILED")
     counters = ("completedRpc", "completedBatches", "completedSqlStatements",
-                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles")
-    require(metrics.get("schema") == "V9_DEV_FULL_SQL_OPERATIONS_V1"
+                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles",
+                "serverCompletedRpc", "serverCompletedBatches")
+    require(metrics.get("schema") == "V9_DEV_FULL_SQL_OPERATIONS_V2"
             and metrics.get("scope") == "TAGGED_RUNNER_AND_SCORER_SQL"
             and metrics.get("droppedEvents") == 0 and metrics.get("rawEventsExported") is False
             and all(type(metrics[k]) is int and metrics[k] >= 0 for k in counters)
-            and 1 <= metrics["eventFiles"] <= 3
+            and 1 <= metrics["eventFiles"] <= 4
+            and metrics["serverCompletedRpc"] == metrics["completedRpc"]
+            and metrics["serverCompletedBatches"] == metrics["completedBatches"]
             and metrics["completedRpc"] + metrics["completedBatches"] > 0
             and metrics["completedSqlStatements"] + metrics["completedProcedureStatements"] > 0)
     return dict(status="MEASURED", scope=metrics["scope"], **{k: metrics[k] for k in counters})

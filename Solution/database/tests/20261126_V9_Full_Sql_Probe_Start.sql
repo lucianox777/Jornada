@@ -1,14 +1,17 @@
 -- Executed administratively by the disposable Actions harness. The
 -- application name is assigned only to the DEV Runner/scorer SQL pool.
 SET NOCOUNT ON;
-IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = N'JornadaV9FullProbe')
+IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name IN (N'JornadaV9FullProbe',N'JornadaV9FullStatements'))
     THROW 52992, 'V9_FULL_PROBE_SESSION_REUSE', 1;
 GO
 CREATE EVENT SESSION JornadaV9FullProbe ON SERVER
     ADD EVENT sqlserver.rpc_completed(
+        SET collect_statement=0
         WHERE ([sqlserver].[client_app_name] = N'JornadaV9Phase4Runner')),
     ADD EVENT sqlserver.sql_batch_completed(
+        SET collect_batch_text=0
         WHERE ([sqlserver].[client_app_name] = N'JornadaV9Phase4Runner'))
+    ADD TARGET package0.event_counter,
     ADD TARGET package0.event_file(
         SET filename=N'/var/opt/mssql/data/$(ProbeFile).xel',
             max_file_size=64, max_rollover_files=4)

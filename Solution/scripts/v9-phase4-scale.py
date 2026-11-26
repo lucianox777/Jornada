@@ -256,13 +256,16 @@ def gold_rank_diagnostics(scores, ranks, graphs, key_byid, target, expected_coun
 def sql_probe_receipt(root):
     stats = read(root / "sql-probe-finish.json")
     counters = {"completedRpc", "completedBatches", "completedSqlStatements",
-                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles"}
+                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles",
+                "serverCompletedRpc", "serverCompletedBatches"}
     require(set(stats) == counters and all(type(v) is int and v >= 0 for v in stats.values())
             and stats["completedRpc"] + stats["completedBatches"] > 0
             and stats["completedSqlStatements"] + stats["completedProcedureStatements"] > 0
-            and 1 <= stats["eventFiles"] <= 3, "SCALE_FULL_SQL_PROBE_RECEIPT")
+            and 1 <= stats["eventFiles"] <= 4
+            and stats["serverCompletedRpc"] == stats["completedRpc"]
+            and stats["serverCompletedBatches"] == stats["completedBatches"], "SCALE_FULL_SQL_PROBE_RECEIPT")
     write(root / "full-sql-probe-receipt.json", dict(
-        schema="V9_DEV_FULL_SQL_OPERATIONS_V1", scope="TAGGED_RUNNER_AND_SCORER_SQL",
+        schema="V9_DEV_FULL_SQL_OPERATIONS_V2", scope="TAGGED_RUNNER_AND_SCORER_SQL",
         droppedEvents=0, rawEventsExported=False, **stats))
 
 def diagnostic_receipt(root):
