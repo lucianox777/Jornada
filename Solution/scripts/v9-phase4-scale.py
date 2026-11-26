@@ -483,6 +483,18 @@ def gold_rank_diagnostics(scores, ranks, graphs, key_byid, target, expected_coun
     return dict(normalizedGoldRecordScoreSha256=digest(normalized),
         normalizedGoldScoreTiersSha256=digest(bands),counts=counts,rawUuidRankVerified=True)
 
+def sql_probe_receipt(root):
+    stats = read(root / "sql-probe-finish.json")
+    counters = {"completedRpc", "completedBatches", "completedSqlStatements",
+                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles"}
+    require(set(stats) == counters and all(type(v) is int and v >= 0 for v in stats.values())
+            and stats["completedRpc"] + stats["completedBatches"] > 0
+            and stats["completedSqlStatements"] + stats["completedProcedureStatements"] > 0
+            and 1 <= stats["eventFiles"] <= 3, "SCALE_FULL_SQL_PROBE_RECEIPT")
+    write(root / "full-sql-probe-receipt.json", dict(
+        schema="V9_DEV_FULL_SQL_OPERATIONS_V1", scope="TAGGED_RUNNER_AND_SCORER_SQL",
+        droppedEvents=0, rawEventsExported=False, **stats))
+
 def diagnostic_receipt(root):
     label,(n,_,_)=profile()
     require(label in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
@@ -490,6 +502,13 @@ def diagnostic_receipt(root):
     census,identity,truth=truth_frame(root,n)
     member=read(root/"membership-receipt.json");runner=read(root/"runner-receipt.json")
     full=read(root/"matrix-full-physical-resource.json")
+    instrumentation = read(root / "full-sql-probe-receipt.json")
+    census_timing = read(Path(os.environ["RUNNER_TEMP"]) / "v9-census-diagnostic.json")
+    ingest_ms = float(I.read(root / "ingest-elapsed.txt")) * 1000
+    require(math.isfinite(ingest_ms) and ingest_ms > 0
+            and census_timing["status"] == "QUERY_COMPLETED"
+            and type(census_timing["elapsedMs"]) is int and census_timing["elapsedMs"] >= 0,
+            "SCALE_PIPELINE_TIMING")
     require(member["status"]=="PASS" and runner["status"]=="PUBLICADO"
             and runner["eligible"]==runner["evaluated"] and full["fullElapsedMs"]>0,"SCALE_DIAGNOSTIC_GATE")
     # Compare independent runs without depending on randomly allocated SQL
@@ -559,6 +578,7 @@ def diagnostic_receipt(root):
         normalizedIndependentDecisionGraphSha256=graph_digest(independent_rows),
         independentDecisionFieldSha256=decision_field_digests(graph_rows,independent_rows),
         decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),goldRankDiagnostics=gold,
+        ingestElapsedMs=ingest_ms,censusElapsedMs=census_timing["elapsedMs"],runnerSql=instrumentation,
         matrixExecuted=False,scientificTest=False,activation=False))
 # Explicit fixed diagnostic vocabulary. Never export exceptions or SQL text.
 INGEST_FAILURE_CODES=frozenset((
@@ -600,7 +620,7 @@ def sql_failure_summary(lines):
     return result
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic","pair","sql-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic","pair","sql-probe","sql-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
     try:
         label,(n,_,_)=profile()
         if a.mode=="preflight":preflight(a.root)
@@ -608,6 +628,7 @@ def main():
         elif a.mode=="plan":plan(a.root)
         elif a.mode=="diagnostic":diagnostic_receipt(a.root)
         elif a.mode=="pair":pair_receipt(a.root)
+        elif a.mode=="sql-probe":sql_probe_receipt(a.root)
         elif a.mode=="sql-failure":
             path=a.root/"publication-regression.log"
             require(path.is_file() and not path.is_symlink() and path.stat().st_size<=16*1024*1024,"SCALE_SQL_LOG_BOUND")

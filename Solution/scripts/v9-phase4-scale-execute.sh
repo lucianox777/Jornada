@@ -11,20 +11,49 @@ run_cli() {
   }
 }
 run_full() {
+  local profile="$JORNADA_V9_PHASE4_SCALE"
+  if [[ "$profile" == diagnostic* || "$profile" == optimized* ]]; then
+    verify_pair_database
+    full_sql_probe Start "$profile" >"$root/sql-probe-start.log"
+  fi
   run_cli full
+  if [[ "$profile" == diagnostic* || "$profile" == optimized* ]]; then
+    full_sql_probe Finish "$profile" >"$root/sql-probe-finish.json"
+    python3 scripts/v9-phase4-scale.py sql-probe --root "$root"
+  fi
   python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
   echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
 }
 
+full_sql_probe() {
+  local operation="$1" profile="$2"
+  case "$operation:$profile" in
+    Start:diagnostic1k|Start:optimized1k|Start:optimized2k|Start:optimized4k|Finish:diagnostic1k|Finish:optimized1k|Finish:optimized2k|Finish:optimized4k) ;;
+    *) return 1 ;;
+  esac
+  docker exec "$sql_name" sh -c \
+    'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -r 1 -d master -h -1 -W -w 1024 -i "$1" -v "ProbeFile=$2"' \
+    sh "database/tests/20261126_V9_Full_Sql_Probe_${operation}.sql" "v9-full-$profile" \
+    2>>"$root/sql-probe-error.log" || {
+    sed -nE 's/^Msg ([0-9]{1,6}), Level ([0-9]{1,2}), State ([0-9]{1,3}).*/V9_FULL_SQL_PROBE_ERROR=\1_\2_\3/p' "$root/sql-probe-error.log" >&2
+    printf 'V9_FULL_SQL_PROBE_FAILED_%s\n' "$operation" >&2
+    return 1
+  }
+}
+
 pair_sql() {
-  docker exec "$sql_name" sh -c     'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"'     sh "$1" "$2" >>"$root/pair-sql.log" 2>&1 || {
+  docker exec "$sql_name" sh -c \
+    'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' \
+    sh "$1" "$2" >>"$root/pair-sql.log" 2>&1 || {
     echo 'V9_SCALE_PAIR_SQL_FAILED'
     return 1
   }
 }
 
 pair_file() {
-  docker exec "$sql_name" sh -c     'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"'     sh "$db" "$1" >>"$root/pair-sql.log" 2>&1 || {
+  docker exec "$sql_name" sh -c \
+    'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' \
+    sh "$db" "$1" >>"$root/pair-sql.log" 2>&1 || {
     echo 'V9_SCALE_PAIR_MIGRATION_FAILED'
     return 1
   }
@@ -42,7 +71,7 @@ verify_pair_database() {
       THROW 52990, 'V9_SCALE_PAIR_DATABASE_REJECTED', 1;"
 }
 
-prepare_pair() {
+bind_disposable_sql() {
   [[ "${GITHUB_ACTIONS:-}" == true && "${GITHUB_EVENT_NAME:-}" == pull_request &&
      "${GITHUB_REPOSITORY:-}" == lucianox777/Jornada && "${JORNADA_RUNTIME_MODE:-}" == DEV &&
      "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9]+$ ]]
@@ -52,6 +81,9 @@ prepare_pair() {
   [[ "$attempt" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ &&
      "$db" == "JornadaV9Dev_${attempt//-/}" &&
      "$root" == "$RUNNER_TEMP/jornada-v9-e2e-$attempt" && ! -L "$root" ]]
+}
+
+prepare_pair() {
   verify_pair_database
   backup="/var/opt/mssql/data/$db-pre-full.bak"
   docker exec "$sql_name" test ! -e "$backup"
@@ -85,7 +117,7 @@ repeat_full_from_pair() {
       *) exit 1 ;;
     esac
     mkdir -m 700 "$root/pair" "$root/pair/diagnostics"
-    cp -- "$root/census.sql" "$root/http-lineage.json" "$root/wave-preflight-receipt.json" "$root/pair/"
+    cp -- "$root/census.sql" "$root/http-lineage.json" "$root/wave-preflight-receipt.json" "$root/ingest-elapsed.txt" "$root/pair/"
     cp -a -- "$root/fixture" "$root/pair/"
     root="$root/pair"
     export JORNADA_V9_E2E_PRIVATE_ROOT="$root" RUNNER_TEMP="$root/diagnostics"
@@ -126,9 +158,12 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
-python3 scripts/v9-phase4-scale.py ingest --root "$root/fixture"
+/usr/bin/time -f '%e' -o "$root/ingest-elapsed.txt"   python3 scripts/v9-phase4-scale.py ingest --root "$root/fixture"
 cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
 export JORNADA_V9_PHASE4_MATRIX=true
+if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* || "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
+  bind_disposable_sql
+fi
 if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
   stop_apps
   trap - EXIT

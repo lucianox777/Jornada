@@ -56,8 +56,9 @@ public static class V9DevE2EFullCommand
 
         stage = "configuration";
         var config = Host.CreateApplicationBuilder(Array.Empty<string>()).Configuration;
-        var sql = new OperationalSqlAdapter(config.GetConnectionString("Jornada")
-            ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING"));
+        var connectionString = config.GetConnectionString("Jornada")
+            ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING");
+        var sql = new OperationalSqlAdapter(connectionString);
         if (!config.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting)
             || config[V9BlockingMaintenanceGate.AttemptSetting] != attempt.ToString("D")
             || config.GetValue<bool>(V9ControlledDevCohortScorer.DiagnosticFixtureSetting)
@@ -118,7 +119,14 @@ public static class V9DevE2EFullCommand
             await V9Phase4Matrix.ExecuteAsync(root, sql, loaded.Snapshot, attempt, CancellationToken.None);
             return;
         }
-        var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
+        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
+        // Use a separate connection pool so the SQL-side FULL probe counts
+        // the Runner and scorer without the pre/post-census and sampler.
+        var runnerSql = fullDiagnostic
+            ? new OperationalSqlAdapter(new SqlConnectionStringBuilder(connectionString)
+                { ApplicationName = "JornadaV9Phase4Runner" }.ConnectionString)
+            : sql;
+        var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, runnerSql, attempt,
             CancellationToken.None, effectiveEnvironment: "Development");
         stage = "pre-full-sql";
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
@@ -185,7 +193,6 @@ public static class V9DevE2EFullCommand
         stage = "runner-composition";
         object? privateDiagnostic = null;
         IReadOnlyList<V9ControlledDevCohortScorer.GoldScore>? privateGoldScores = null;
-        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
         Guid observedRun = Guid.Empty;
         scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, goldScores, candidates) =>
         {
@@ -234,11 +241,11 @@ public static class V9DevE2EFullCommand
         if (Directory.Exists(storeRoot))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
         Directory.CreateDirectory(storeRoot);
-        var runner = new ProbabilisticLinkageBatchRunner(config, sql, scorer,
-            new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
+        var runner = new ProbabilisticLinkageBatchRunner(config, runnerSql, scorer,
+            new SqlPipelineCoordinator(runnerSql), new Dt05ReplaySql(runnerSql),
             new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
-            new Dt05CandidateStateSnapshotPublisher(sql, storeRoot),
-            new Dt05BlockingProjectionSnapshotPublisher(sql, storeRoot),
+            new Dt05CandidateStateSnapshotPublisher(runnerSql, storeRoot),
+            new Dt05BlockingProjectionSnapshotPublisher(runnerSql, storeRoot),
             new Dt05HistoricalCandidateStateVerifier(storeRoot),
             new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
             NullLogger<ProbabilisticLinkageBatchRunner>.Instance);

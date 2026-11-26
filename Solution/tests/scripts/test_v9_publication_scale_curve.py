@@ -70,3 +70,19 @@ class CurveTests(unittest.TestCase):
         self.assertEqual(C.extra_metrics(dict(x,probeError="arbitrary private text"))["probeError"],"UNCLASSIFIED")
         self.assertEqual(C.extra_metrics(dict(x,probeError="SQL_207_1"))["probeError"],"SQL_207_1")
         self.assertEqual(C.extra_metrics(dict(x,probeError=None))["probeError"],"INCOMPLETE_WITHOUT_CODE")
+
+    def test_sql_probe_counts_require_lossless_attribution_and_known_scope(self):
+        probe = dict(schema="V9_DEV_FULL_SQL_OPERATIONS_V1", scope="TAGGED_RUNNER_AND_SCORER_SQL",
+                     droppedEvents=0, rawEventsExported=False, completedRpc=45,
+                     completedBatches=1, completedSqlStatements=50, completedProcedureStatements=60,
+                     topLevelSqlCpuMicroseconds=90052, eventFiles=1)
+        frames = self.frames()
+        for receipt, *_ in frames:
+            receipt.update(runnerSql=probe, ingestElapsedMs=150, censusElapsedMs=10)
+        result = C.assess(frames, "a" * 40)
+        self.assertNotIn("exactSqlOperations", result["missingEvidence"])
+        self.assertEqual(result["rows"][0]["runnerSql"]["topLevelSqlCpuMicroseconds"], 90052)
+        self.assertEqual(result["rows"][0]["separatelyMeasuredStagesMs"]["censusElapsedMs"], 10)
+        for change in (dict(droppedEvents=1), dict(eventFiles=4), dict(scope="INSTANCE")):
+            with self.assertRaises(ValueError):
+                C.runner_sql_metrics({"runnerSql": dict(probe, **change)})

@@ -82,6 +82,21 @@ def extra_metrics(extra):
             else "UNCLASSIFIED")
     return result
 
+def runner_sql_metrics(receipt):
+    metrics = receipt.get("runnerSql")
+    if metrics is None:
+        return dict(status="ABSENT")
+    counters = ("completedRpc", "completedBatches", "completedSqlStatements",
+                "completedProcedureStatements", "topLevelSqlCpuMicroseconds", "eventFiles")
+    require(metrics.get("schema") == "V9_DEV_FULL_SQL_OPERATIONS_V1"
+            and metrics.get("scope") == "TAGGED_RUNNER_AND_SCORER_SQL"
+            and metrics.get("droppedEvents") == 0 and metrics.get("rawEventsExported") is False
+            and all(type(metrics[k]) is int and metrics[k] >= 0 for k in counters)
+            and 1 <= metrics["eventFiles"] <= 3
+            and metrics["completedRpc"] + metrics["completedBatches"] > 0
+            and metrics["completedSqlStatements"] + metrics["completedProcedureStatements"] > 0)
+    return dict(status="MEASURED", scope=metrics["scope"], **{k: metrics[k] for k in counters})
+
 def assess(frames, sha, extras=None):
     require(len(frames) == 3 and re.fullmatch(r"[0-9a-f]{40}", sha))
     if extras is None: extras=[None]*3
@@ -111,7 +126,10 @@ def assess(frames, sha, extras=None):
                                  "processPeakWorkingSetBytes")}
         host = {k:resource[k] for k in ("peakHostMemoryUsed","minMemoryAvailable","minDiskFree")}
         require(all(type(x) is int and x >= 0 for x in (mem|host).values()))
+        stages = {k: receipt[k] for k in ("ingestElapsedMs", "censusElapsedMs") if k in receipt}
+        require(all(number(value) for value in stages.values()))
         rows.append(dict(profile=label,population=n,counts=counts,fullTimingMs=timing,
+                         separatelyMeasuredStagesMs=stages,runnerSql=runner_sql_metrics(receipt),
                          exclusiveDiagnosticPhaseMs=phase_ms(diag),fullMemory=mem,
                          pipelineHostResources=host,extraFullResources=extra_metrics(extra)))
     t = ratios(rows[1]["fullTimingMs"], rows[2]["fullTimingMs"])
@@ -120,15 +138,14 @@ def assess(frames, sha, extras=None):
                       +[f"phase:{k}" for k,v in p.items() if v is not None and v>2.5])
     unmeasurable = sorted([f"timing:{k}" for k,v in t.items() if v is None]
                           +[f"phase:{k}" for k,v in p.items() if v is None])
-    # Current evidence does not count all SQL executions or capture full-scope
-    # tempdb, index size, SQL/host CPU and disk IO. Never certify A on this basis.
-    missing = ["exactSqlOperations","independentOperationalV8Regression"]
-    if any(row["extraFullResources"]["status"]!="MEASURED" for row in rows):
-        missing += ["fullTempdbUsage","physicalIndexBytes","fullCpuAndDiskIo"]
-    else:
-        # Sampled tempdb and CPU/IO scopes are explicit; cannot claim an
-        # instantaneous maximum or per-statement attribution.
-        missing += ["sqlCpuAndExactRunnerAttribution"]
+    # These counts cover the two statement completion streams and the top-level
+    # RPC/batch streams separately. Do not sum the layers or equate those CPU
+    # counters with background SQL or host CPU. V8 has its own physical gate.
+    missing = ["independentOperationalV8Regression"]
+    if any(row["runnerSql"]["status"] != "MEASURED" for row in rows):
+        missing += ["exactSqlOperations", "sqlCpuAndExactRunnerAttribution"]
+    if any(row["extraFullResources"]["status"] != "MEASURED" for row in rows):
+        missing += ["fullTempdbUsage", "physicalIndexBytes", "fullCpuAndDiskIo"]
     return dict(schema="V9_MIGRATED_CURVE_DIAGNOSTIC_V1",commit=sha,rows=rows,
                 fullTimingRatios2kTo4k=t,exclusivePhaseRatios2kTo4k=p,
                 overLimit=failures,unmeasurable=unmeasurable,
