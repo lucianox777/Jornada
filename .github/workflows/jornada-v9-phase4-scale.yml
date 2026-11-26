@@ -286,3 +286,23 @@ jobs:
           EXPECTED: ${{ github.event.pull_request.head.sha }}
         run: |
           python3 scripts/v9-publication-scale-parity.py
+
+
+  audit-curve:
+    needs: scale-dev-nonpublish
+    if: ${{ always() && needs.scale-dev-nonpublish.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Report measured curve and missing evidence (not phase A acceptance)
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          python3 scripts/v9-publication-scale-curve.py --run "$GITHUB_RUN_ID" --sha "$EXPECTED" --current-run

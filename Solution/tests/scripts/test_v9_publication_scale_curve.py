@@ -45,3 +45,18 @@ class CurveTests(unittest.TestCase):
         f=self.frames()
         f[1][2]["phases"][1]["elapsedMs"]=1
         with self.assertRaises(ValueError):C.assess(f,"a"*40)
+
+    def test_extended_resource_scope_and_invalid_cpu(self):
+        x=dict(schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status="MEASURED",sampleCount=2,
+               probeError=None,sampleScope="FULL_WITH_OBSERVER_OVERHEAD",
+               sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
+               exactRunnerSqlStatementCount=False,rawSqlExported=False,
+               runnerCpuMs=15,hostCpuBusyFraction=.5)
+        x.update({k:10 for k in C.EXTRA_COUNTS})
+        result=C.assess(self.frames(),"a"*40,[x,x,x])
+        self.assertNotIn("fullTempdbUsage",result["missingEvidence"])
+        self.assertIn("exactSqlOperations",result["missingEvidence"])
+        self.assertFalse(result["phaseAComplete"])
+        self.assertIn("fullTempdbUsage",C.assess(self.frames(),"a"*40,[x,None,x])["missingEvidence"])
+        with self.assertRaises(ValueError):C.extra_metrics(dict(x,hostCpuBusyFraction=1.1))
+        with self.assertRaises(ValueError):C.extra_metrics(dict(x,exactRunnerSqlStatementCount=True))

@@ -48,10 +48,35 @@ def ratios(left, right):
     return {key: (right[key]/left[key] if left[key] > 0 else None)
             for key in sorted(left)}
 
-def assess(frames, sha):
+EXTRA_COUNTS = ("peakTempdbUserBytes","peakTempdbInternalBytes","peakTempdbVersionBytes",
+                "peakBlockingIndexBytes","finalBlockingIndexBytes","peakHostMemoryUsedBytes","minFreeDiskBytes",
+                "databaseReadBytes","databaseWriteBytes","tempdbReadBytes","tempdbWriteBytes","instanceBatchRequests")
+
+def extra_metrics(extra):
+    if extra is None:
+        return dict(status="ABSENT")
+    require(extra["schema"]=="V9_DEV_FULL_EXTRA_RESOURCE_V1"
+            and extra["sampleScope"]=="FULL_WITH_OBSERVER_OVERHEAD"
+            and extra["sqlBatchScope"]=="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS"
+            and extra["exactRunnerSqlStatementCount"] is False and extra["rawSqlExported"] is False
+            and extra["status"] in ("MEASURED","INCOMPLETE")
+            and type(extra["sampleCount"]) is int and extra["sampleCount"]>=0)
+    result=dict(status=extra["status"],sampleCount=extra["sampleCount"])
+    if extra["status"]=="MEASURED":
+        require(extra["sampleCount"]>=2 and extra["probeError"] is None
+                and all(type(extra[k]) is int and extra[k]>=0 for k in EXTRA_COUNTS)
+                and extra["peakBlockingIndexBytes"]>=extra["finalBlockingIndexBytes"]
+                and number(extra["runnerCpuMs"]) and number(extra["hostCpuBusyFraction"])
+                and extra["hostCpuBusyFraction"]<=1)
+        result.update({k:extra[k] for k in EXTRA_COUNTS+("runnerCpuMs","hostCpuBusyFraction")})
+    return result
+
+def assess(frames, sha, extras=None):
     require(len(frames) == 3 and re.fullmatch(r"[0-9a-f]{40}", sha))
+    if extras is None: extras=[None]*3
+    require(len(extras)==3)
     rows = []
-    for (receipt, member, diag, resource), label, n in zip(frames, LABELS, POPULATIONS):
+    for (receipt, member, diag, resource), label, n, extra in zip(frames, LABELS, POPULATIONS, extras):
         require(receipt["commit"] == sha and receipt["profile"] == label
                 and receipt["population"] == n and receipt["winnerSha256"] == WINNER
                 and receipt["fullCompleted"] is True
@@ -77,7 +102,7 @@ def assess(frames, sha):
         require(all(type(x) is int and x >= 0 for x in (mem|host).values()))
         rows.append(dict(profile=label,population=n,counts=counts,fullTimingMs=timing,
                          exclusiveDiagnosticPhaseMs=phase_ms(diag),fullMemory=mem,
-                         pipelineHostResources=host))
+                         pipelineHostResources=host,extraFullResources=extra_metrics(extra)))
     t = ratios(rows[1]["fullTimingMs"], rows[2]["fullTimingMs"])
     p = ratios(rows[1]["exclusiveDiagnosticPhaseMs"],rows[2]["exclusiveDiagnosticPhaseMs"])
     failures = sorted([f"timing:{k}" for k,v in t.items() if v is not None and v>2.5]
@@ -86,8 +111,13 @@ def assess(frames, sha):
                           +[f"phase:{k}" for k,v in p.items() if v is None])
     # Current evidence does not count all SQL executions or capture full-scope
     # tempdb, index size, SQL/host CPU and disk IO. Never certify A on this basis.
-    missing = ["exactSqlOperations","fullTempdbUsage","physicalIndexBytes",
-               "fullCpuAndDiskIo","independentOperationalV8Regression"]
+    missing = ["exactSqlOperations","independentOperationalV8Regression"]
+    if any(row["extraFullResources"]["status"]!="MEASURED" for row in rows):
+        missing += ["fullTempdbUsage","physicalIndexBytes","fullCpuAndDiskIo"]
+    else:
+        # Sampled tempdb and CPU/IO scopes are explicit; cannot claim an
+        # instantaneous maximum or per-statement attribution.
+        missing += ["sqlCpuAndExactRunnerAttribution"]
     return dict(schema="V9_MIGRATED_CURVE_DIAGNOSTIC_V1",commit=sha,rows=rows,
                 fullTimingRatios2kTo4k=t,exclusivePhaseRatios2kTo4k=p,
                 overLimit=failures,unmeasurable=unmeasurable,
@@ -99,6 +129,7 @@ def main():
     a=argparse.ArgumentParser()
     a.add_argument("--run",required=True,type=int)
     a.add_argument("--sha",required=True)
+    a.add_argument("--current-run",action="store_true")
     args=a.parse_args()
     spec=importlib.util.spec_from_file_location("preserved",Path(__file__).with_name("v9-preserve-campaign38-artifacts.py"))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
@@ -107,12 +138,16 @@ def main():
     run=module.api_json(f"{root}/runs/{args.run}",token)
     require(run["id"]==args.run and run["head_sha"]==args.sha
             and run["path"].split("@")[0]==".github/workflows/jornada-v9-phase4-scale.yml"
-            and run["event"]=="pull_request" and run["status"]=="completed"
-            and run["conclusion"] in ("success","failure","cancelled","timed_out"))
+            and run["event"]=="pull_request")
+    require((run["status"]=="completed" and run["conclusion"] in ("success","failure","cancelled","timed_out"))
+            or (args.current_run and os.environ.get("GITHUB_ACTIONS")=="true"
+                and os.environ.get("GITHUB_REPOSITORY")==module.REPO
+                and os.environ.get("GITHUB_RUN_ID")==str(args.run)
+                and run["status"]=="in_progress"))
     artifacts=module.api_json(f"{root}/runs/{args.run}/artifacts?per_page=100",token)
     require(artifacts["total_count"]==len(artifacts["artifacts"]))
     with tempfile.TemporaryDirectory() as folder:
-        def get(prefix,label,members):
+        def get(prefix,label,members,optional=()):
             name=f"{prefix}-{label}-{args.sha}"
             found=[x for x in artifacts["artifacts"] if x["name"]==name and not x["expired"]]
             require(len(found)==1 and re.fullmatch("sha256:[0-9a-f]{64}",found[0]["digest"])
@@ -121,19 +156,22 @@ def main():
             try:
                 with zipfile.ZipFile(tmp) as z:
                     result=[]
-                    for m in members:
+                    for m in members+optional:
+                        if m in optional and m not in z.namelist():
+                            result.append(None);continue
                         info=z.getinfo(m)
                         require(z.namelist().count(m)==1 and 0<info.file_size<=32*1024*1024)
                         result.append(json.loads(z.read(info)))
                     return result
             finally:Path(tmp).unlink(missing_ok=True)
-        frames=[]
+        frames=[];extras=[]
         for label in LABELS:
             receipt,member=get("v9-phase4-scale",label,("diagnostic-receipt.json","membership-receipt.json"))
-            diag,=get("v9-full-diagnostic",label,("v9-full-diagnostic.json",))
+            diag,extra=get("v9-full-diagnostic",label,("v9-full-diagnostic.json",),("v9-full-extra-resource.json",))
+            extras.append(extra)
             resource,=get("v9-scale-resource",label,("v9-scale-resource-receipt.json",))
             frames.append((receipt,member,diag,resource))
-        result=assess(frames,args.sha)
+        result=assess(frames,args.sha,extras)
         result["runConclusion"]=run["conclusion"]
         # Timing evidence remains useful even if another gate fails. Never
         # infer strict parity from timings or from a run-level conclusion.
