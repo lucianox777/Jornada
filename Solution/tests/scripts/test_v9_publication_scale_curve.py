@@ -60,3 +60,13 @@ class CurveTests(unittest.TestCase):
         self.assertIn("fullTempdbUsage",C.assess(self.frames(),"a"*40,[x,None,x])["missingEvidence"])
         with self.assertRaises(ValueError):C.extra_metrics(dict(x,hostCpuBusyFraction=1.1))
         with self.assertRaises(ValueError):C.extra_metrics(dict(x,exactRunnerSqlStatementCount=True))
+
+    def test_incomplete_probe_retains_only_fixed_failure_codes(self):
+        x=dict(schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status="INCOMPLETE",sampleCount=0,
+               probeError="FULL_RESOURCE_BATCH_REQUESTS_NULL",sampleScope="FULL_WITH_OBSERVER_OVERHEAD",
+               sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
+               exactRunnerSqlStatementCount=False,rawSqlExported=False)
+        self.assertEqual(C.extra_metrics(x)["probeError"],"FULL_RESOURCE_BATCH_REQUESTS_NULL")
+        self.assertEqual(C.extra_metrics(dict(x,probeError="arbitrary private text"))["probeError"],"UNCLASSIFIED")
+        self.assertEqual(C.extra_metrics(dict(x,probeError="SQL_207_1"))["probeError"],"SQL_207_1")
+        self.assertEqual(C.extra_metrics(dict(x,probeError=None))["probeError"],"INCOMPLETE_WITHOUT_CODE")
