@@ -220,41 +220,58 @@ jobs:
           run_sql() {
             docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$db" "$1"
           }
+          run_fixture() {
+            local expected="$1"
+            case "$expected" in
+              BASELINE|20261125_V1|20261126_V2|20261126_V3) ;;
+              *) return 1 ;;
+            esac
+            docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' sh "$db" "
+              DECLARE @actual nvarchar(40) = (
+                SELECT CONVERT(nvarchar(40), value) FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.LinkagePublicationScale'
+              );
+              IF COALESCE(@actual, N'BASELINE') <> N'$expected'
+                THROW 52997, 'V9_PUBLICATION_REGRESSION_SCHEMA_MISMATCH', 1;" || return $?
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || return $?
+            printf 'V9_SQL_NEGATIVES_VERIFIED=%s\n' "$expected"
+          }
           (
             # The paired FULL leaves the opposite schema installed in each 1k job.
             if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k ]]; then
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
-              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+              run_fixture 20261126_V3 || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V3
               run_sql database/rollback/20261126_Linkage_Publication_Scale_V3_Restore.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
-              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+              run_fixture 20261126_V2 || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V2
               run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
-              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+              run_fixture 20261125_V1 || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V1
               run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql || exit $?
             fi
             echo V9_SQL_REGRESSION_STAGE=BASELINE
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+            run_fixture BASELINE || exit $?
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V1
             run_sql database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+            run_fixture 20261125_V1 || exit $?
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V2
             run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+            run_fixture 20261126_V2 || exit $?
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V3
             run_sql database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
-            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+            run_fixture 20261126_V3 || exit $?
           ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
             python3 scripts/v9-phase4-scale.py sql-failure --root "$JORNADA_V9_E2E_PRIVATE_ROOT" || true
             echo V9_PUBLICATION_SCALE_REGRESSION_FAILED
             exit 1
           }
+          sed -nE '/^V9_SQL_(REGRESSION_STAGE=(MIGRATED_V[123]|ROLLBACK_V[123]|REAPPLY_V[123]|BASELINE)|NEGATIVES_VERIFIED=(BASELINE|20261125_V1|20261126_V[23]))$/p'             "$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log"
           echo V9_PUBLICATION_SCALE_REGRESSION_PASS
       - name: Publish sanitized FULL diagnostic even on failure
         if: always()

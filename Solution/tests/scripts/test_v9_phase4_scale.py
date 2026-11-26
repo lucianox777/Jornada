@@ -20,11 +20,38 @@ class ScaleTests(unittest.TestCase):
             self.assertIsNotNone(match)
             body=match[1]+"\n"+match[2]+match[3]
             shell="set -euo pipefail\nJORNADA_V9_PHASE4_SCALE=optimized1k\ndb=mock\nJORNADA_V9_DEV_ATTEMPT=mock\n"
-            shell+="sql() { :; }\nrun_sql() { echo CALL; return 7; }\n"
+            shell+="sql() { :; }\nrun_sql() { echo CALL; return 7; }\nrun_fixture() { run_sql; }\n"
             result=subprocess.run(["bash","-c",shell+body+" || { echo FAILED; exit 1; }"],capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0)
             self.assertEqual(result.stdout.splitlines().count("CALL"),1)
             self.assertIn("FAILED",result.stdout)
+
+    def test_regression_rechecks_all_six_negatives_at_each_physical_stage(self):
+        import re
+        import subprocess
+
+        workflow = (Path(__file__).resolve().parents[3] /
+                    ".github/workflows/jornada-v9-phase4-scale.yml").read_text()
+        sql = workflow.split("- name: SQL regression on the completed disposable FULL", 1)[1]
+        group = re.search(r"(?ms)^          \(\n(.*?)^          \) >", sql)[1]
+        shell = """set -eu
+run_sql() { printf 'MIGRATION %s\n' "$1"; }
+run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
+"""
+        restored = subprocess.check_output(["bash", "-c", shell + group], text=True,
+            env={**os.environ, "JORNADA_V9_PHASE4_SCALE": "diagnostic1k"})
+        applied = subprocess.check_output(["bash", "-c", shell + group], text=True,
+            env={**os.environ, "JORNADA_V9_PHASE4_SCALE": "optimized1k"})
+        def tested_schemas(output):
+            return [line.split()[1] for line in output.splitlines() if line.startswith("NEGATIVES ")]
+        self.assertEqual(tested_schemas(restored), [
+            "20261126_V3", "20261126_V2", "20261125_V1", "BASELINE",
+            "20261125_V1", "20261126_V2", "20261126_V3",
+        ])
+        self.assertEqual(tested_schemas(applied), ["BASELINE", "20261125_V1", "20261126_V2", "20261126_V3"])
+        for source, after in (("V3", "20261126_V2"), ("V2", "20261125_V1"), ("V1", "BASELINE")):
+            tail = restored.split("V9_SQL_REGRESSION_STAGE=ROLLBACK_" + source, 1)[1]
+            self.assertEqual(tested_schemas(tail)[0], after)
 
     def test_scale_failure_diagnostics_are_fixed_and_stage_specific(self):
         for code in ("PROCESSOR_TIMEOUT","PROCESSOR_REJECTED","HTTP_STATUS_UNAVAILABLE",
