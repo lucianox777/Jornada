@@ -232,6 +232,7 @@ jobs:
             ${{ runner.temp }}/v9-full-diagnostic.json
             ${{ runner.temp }}/v9-full-diagnostic.jsonl
             ${{ runner.temp }}/v9-full-completed-resource.json
+            ${{ runner.temp }}/v9-full-extra-resource.json
           if-no-files-found: ignore
           retention-days: 30
       - name: Publish sanitized census diagnostic even on failure

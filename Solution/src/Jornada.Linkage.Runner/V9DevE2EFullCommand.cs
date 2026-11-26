@@ -274,6 +274,9 @@ public static class V9DevE2EFullCommand
             var destination = Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,
                 "v9-full-completed-resource.json");
             File.Copy(Path.Combine(root, "matrix-full-physical-resource.json"), destination, overwrite: false);
+            if (scale && OperatingSystem.IsLinux())
+                File.Copy(Path.Combine(root, "scale-full-extra-resource.json"),
+                    Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!, "v9-full-extra-resource.json"), overwrite: false);
         }
         if (privateDiagnostic is null || observedRun != summary.RunId)
             throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_MISSING");

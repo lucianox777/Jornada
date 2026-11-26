@@ -57,6 +57,49 @@ internal static class V9Phase4Matrix
         await using var c=new SqlCommand("SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_tran_version_store_space_usage WHERE database_id=DB_ID();",conn,tx);
         return Convert.ToInt64(await c.ExecuteScalarAsync(ct),CultureInfo.InvariantCulture);
     }
+    // Extra read-only counters for the isolated Linux Actions FULL only.
+    // Instance counters include the observers and any concurrent harness
+    // work; they are not an exact count of Runner-issued statements.
+    private sealed record FullResourceSample(long TempdbUserBytes,long TempdbInternalBytes,
+        long TempdbVersionBytes,long BlockingIndexBytes,long DatabaseReadBytes,long DatabaseWriteBytes,
+        long TempdbReadBytes,long TempdbWriteBytes,long InstanceBatchRequests,long HostMemoryUsedBytes,
+        long HostCpuBusyTicks,long HostCpuTotalTicks,long FreeDiskBytes,double RunnerCpuMs);
+
+    private static async Task<FullResourceSample> ReadFullResourceAsync(SqlConnection conn,string root,CancellationToken ct)
+    {
+        await using var cmd=new SqlCommand("""
+            SELECT
+              (SELECT COALESCE(SUM(CONVERT(bigint,user_object_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,internal_object_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,version_store_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_db_partition_stats
+                 WHERE object_id=OBJECT_ID(N'identidade.blocking_chave_v9')),
+              (SELECT COALESCE(SUM(num_of_bytes_read),0) FROM sys.dm_io_virtual_file_stats(DB_ID(),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_written),0) FROM sys.dm_io_virtual_file_stats(DB_ID(),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_read),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_written),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
+              (SELECT MAX(cntr_value) FROM sys.dm_os_performance_counters
+                 WHERE object_name LIKE N'%:SQL Statistics' AND counter_name=N'Batch Requests/sec'
+                   AND cntr_type=272696576);
+            """,conn) {CommandTimeout=5};
+        await using var rd=await cmd.ExecuteReaderAsync(ct);
+        Require(await rd.ReadAsync(ct)&&Enumerable.Range(0,9).All(i=>!rd.IsDBNull(i)),"FULL_RESOURCE_COUNTERS");
+        var v=Enumerable.Range(0,9).Select(i=>Convert.ToInt64(rd.GetValue(i),CultureInfo.InvariantCulture)).ToArray();
+        Require(v.All(x=>x>=0),"FULL_RESOURCE_COUNTERS");
+        var memory=File.ReadLines("/proc/meminfo").Where(x=>x.StartsWith("MemTotal:",StringComparison.Ordinal)
+            ||x.StartsWith("MemAvailable:",StringComparison.Ordinal)).ToDictionary(
+            x=>x.Split(':')[0],x=>long.Parse(x.Split(':')[1].Trim().Split(' ',StringSplitOptions.RemoveEmptyEntries)[0],CultureInfo.InvariantCulture)*1024);
+        var cpu=File.ReadLines("/proc/stat").First().Split(' ',StringSplitOptions.RemoveEmptyEntries);
+        Require(cpu.Length>=9&&cpu[0]=="cpu","FULL_HOST_CPU");
+        // Linux guest/guest_nice are already included in user/nice; omit them.
+        var ticks=cpu.Skip(1).Take(8).Select(x=>long.Parse(x,CultureInfo.InvariantCulture)).ToArray();
+        var total=ticks.Sum();var busy=total-ticks[3]-ticks[4];
+        using var process=Process.GetCurrentProcess();
+        return new(v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],
+            memory["MemTotal"]-memory["MemAvailable"],busy,total,
+            new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace,process.TotalProcessorTime.TotalMilliseconds);
+    }
+
     internal static async Task<ProbabilisticLinkageRunSummary> MeasurePhysicalFullAsync(string root,
         IOperationalSqlAdapter sql,Guid attempt,Func<Task<ProbabilisticLinkageRunSummary>> run,
         Func<double[]?> timing,CancellationToken ct)
@@ -67,12 +110,23 @@ internal static class V9Phase4Matrix
         var sw=Stopwatch.StartNew();
         var samples=new List<object>();
         long peakStore=0,peakMemory=0;
+        var expanded=V9DevE2EFullCommand.ScaleAdmitted&&OperatingSystem.IsLinux();
+        var extra=new List<FullResourceSample>();
+        string? extraProbeError=null;
         async Task Sample()
         {
             var bytes=await VersionStore(conn,null,ct);
             var memory=Environment.WorkingSet;
             peakStore=Math.Max(peakStore,bytes);peakMemory=Math.Max(peakMemory,memory);
             samples.Add(new {ms=sw.Elapsed.TotalMilliseconds,versionStoreBytes=bytes,workingSetBytes=memory});
+            if(expanded&&extraProbeError is null)
+            {
+                try {extra.Add(await ReadFullResourceAsync(conn,root,ct));}
+                catch(SqlException e){extraProbeError=FormattableString.Invariant($"SQL_{e.Number}_{e.State}");}
+                catch(Exception e) when(e is InvalidDataException or InvalidOperationException or IOException or
+                    UnauthorizedAccessException or FormatException or OverflowException or KeyNotFoundException)
+                {extraProbeError=e.GetType().Name;}
+            }
         }
         await Sample();
         var task=run();
@@ -85,6 +139,36 @@ internal static class V9Phase4Matrix
         var t=timing();
         Require(t is {Length:5}&&t.All(x=>double.IsFinite(x)&&x>=0)&&t[0]>=t[1],"PHYSICAL_TIMING");
         var v=t!;
+        if(expanded)
+        {
+            var complete=extraProbeError is null&&extra.Count==samples.Count&&extra.Count>=2;
+            var first=extra.FirstOrDefault();var last=extra.LastOrDefault();
+            var monotonic=complete&&last!.DatabaseReadBytes>=first!.DatabaseReadBytes
+                &&last.DatabaseWriteBytes>=first.DatabaseWriteBytes&&last.TempdbReadBytes>=first.TempdbReadBytes
+                &&last.TempdbWriteBytes>=first.TempdbWriteBytes&&last.InstanceBatchRequests>=first.InstanceBatchRequests
+                &&last.HostCpuBusyTicks>=first.HostCpuBusyTicks&&last.HostCpuTotalTicks>first.HostCpuTotalTicks
+                &&last.RunnerCpuMs>=first.RunnerCpuMs;
+            await WriteAsync(root,"scale-full-extra-resource.json",new {
+                schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status=monotonic?"MEASURED":"INCOMPLETE",
+                sampleCount=extra.Count,probeError=extraProbeError,
+                peakTempdbUserBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbUserBytes),
+                peakTempdbInternalBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbInternalBytes),
+                peakTempdbVersionBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbVersionBytes),
+                peakBlockingIndexBytes=extra.Count==0?(long?)null:extra.Max(x=>x.BlockingIndexBytes),
+                finalBlockingIndexBytes=last?.BlockingIndexBytes,
+                peakHostMemoryUsedBytes=extra.Count==0?(long?)null:extra.Max(x=>x.HostMemoryUsedBytes),
+                minFreeDiskBytes=extra.Count==0?(long?)null:extra.Min(x=>x.FreeDiskBytes),
+                databaseReadBytes=monotonic?last!.DatabaseReadBytes-first!.DatabaseReadBytes:(long?)null,
+                databaseWriteBytes=monotonic?last!.DatabaseWriteBytes-first!.DatabaseWriteBytes:(long?)null,
+                tempdbReadBytes=monotonic?last!.TempdbReadBytes-first!.TempdbReadBytes:(long?)null,
+                tempdbWriteBytes=monotonic?last!.TempdbWriteBytes-first!.TempdbWriteBytes:(long?)null,
+                instanceBatchRequests=monotonic?last!.InstanceBatchRequests-first!.InstanceBatchRequests:(long?)null,
+                hostCpuBusyFraction=monotonic?(double)(last!.HostCpuBusyTicks-first!.HostCpuBusyTicks)/
+                    (last.HostCpuTotalTicks-first.HostCpuTotalTicks):(double?)null,
+                runnerCpuMs=monotonic?last!.RunnerCpuMs-first!.RunnerCpuMs:(double?)null,
+                sampleScope="FULL_WITH_OBSERVER_OVERHEAD",sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
+                exactRunnerSqlStatementCount=false,rawSqlExported=false});
+        }
         await WriteAsync(root,"matrix-full-physical-resource.json",new {
             fullElapsedMs=sw.Elapsed.TotalMilliseconds,physicalReadMs=v[0],physicalSnapshotMs=v[1],
             silverGroupingMs=v[2],goldScoringMs=v[3],translationMs=v[4],
