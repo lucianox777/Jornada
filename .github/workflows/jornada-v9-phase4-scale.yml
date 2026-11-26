@@ -12,6 +12,8 @@ on:
       - 'Solution/database/migrations/20261125_Linkage_Publication_Scale.sql'
       - 'Solution/database/rollback/20261125_Linkage_Publication_Scale_Restore.sql'
       - 'Solution/database/tests/20261125_Linkage_Publication_Scale_Regression.sql'
+      - 'Solution/database/migrations/20261126_Linkage_Publication_Scale_V2.sql'
+      - 'Solution/database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql'
 
 permissions:
   contents: read
@@ -189,6 +191,8 @@ jobs:
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
               run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
               run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql
             fi
             sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';"
           } >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
@@ -216,10 +220,14 @@ jobs:
             # Both original and migrated guards execute the same negative fixture.
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
               run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+              run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql
+              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
               run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql
             fi
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
             run_sql database/migrations/20261125_Linkage_Publication_Scale.sql
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
+            run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql
           } >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || { echo V9_PUBLICATION_SCALE_REGRESSION_FAILED; exit 1; }
           echo V9_PUBLICATION_SCALE_REGRESSION_PASS
