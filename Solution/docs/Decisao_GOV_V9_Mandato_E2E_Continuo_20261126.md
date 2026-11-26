@@ -4,9 +4,25 @@
 
 O PO delegou ao Codex local a execução contínua do caminho crítico do E2E integral DEV V9, começando pela Fase A na PR #1940. A execução depende da sessão ativa e usa o checkpoint existente na #1851 para retomada. A suspensão de automações continua vigente. As Fases B, C e D ficam postergadas até decisão expressa do PO.
 
-A decisão complementa o [plano do E2E de 22/11](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md) e o [plano v8](Decisao_GOV_V9_Plano_PO_V8_20261125.md). Prevalece sobre os trechos incompatíveis do [regime de ciclos](Decisao_GOV_V9_Plano_PO_V8_Regime_Ciclos_20261126.md) quanto a executor, continuidade e escalada por defeito. A delegação do disparo final vale somente para este E2E DEV, com a credencial do PO e as guardas do próprio workflow. A evidência de SHA-256 14/14 da guarda declarada pelo PO basta para a missão e a disponibilidade operacional continua sujeita à pinagem dos dois hashes e ao prazo do anexo. Os demais controles do projeto continuam aplicáveis.
+A decisão complementa o [plano do E2E de 22/11](Decisao_GOV_DEV_E2E_Integral_V9_Plano_Aprovado_20261122.md) e o [plano v8](https://github.com/lucianox777/Jornada/blob/744dd504ef290e20e139b90ce7030aa5b0d43ca0/Solution/docs/Decisao_GOV_V9_Plano_PO_V8_20261125.md). Prevalece sobre os trechos incompatíveis do [regime de ciclos](https://github.com/lucianox777/Jornada/blob/744dd504ef290e20e139b90ce7030aa5b0d43ca0/Solution/docs/Decisao_GOV_V9_Plano_PO_V8_Regime_Ciclos_20261126.md) quanto a executor, continuidade e escalada por defeito. A delegação do disparo final vale somente para este E2E DEV, com a credencial do PO e as guardas do próprio workflow. A evidência de SHA-256 14/14 da guarda declarada pelo PO basta para a missão e a disponibilidade operacional continua sujeita à pinagem dos dois hashes e ao prazo do anexo. Os demais controles do projeto continuam aplicáveis.
 
 **Rastreabilidade.** [PR #1940](https://github.com/lucianox777/Jornada/pull/1940), [checkpoint #1851](https://github.com/lucianox777/Jornada/issues/1851), [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).
+
+## Registro da parada operacional de 26/11/2026
+
+O §3.f veda disparar TRAIN, VALIDATION, TEST e calibração nesta missão. A [configuração vigente na master 0a29d560](https://github.com/lucianox777/Jornada/blob/0a29d560558c30349d88da7935bc22ce4f649b20/.github/workflows/v9-v3-broad-train-regression.yml) aciona o job `broad-physical` ao receber um push de código na master. Esse caminho gerou TRAIN sintético em seis braços [na execução 45631879433](https://github.com/lucianox777/Jornada/actions/runs/45631879433) e inclui a chamada `--v9-calibrate`. A [validação independente](https://github.com/lucianox777/Jornada/blob/0a29d560558c30349d88da7935bc22ce4f649b20/.github/workflows/linkage-independent-validation.yml) também chama `calibrate` no push quando o diff inclui arquivos do Runner, como no HEAD da #1940. Na própria #1940, o diff atual aciona ainda o [contraste experimental de 1k](https://github.com/lucianox777/Jornada/actions/runs/45832006993), que executa matriz S4b, fora do escopo desta missão.
+
+Aplica-se a parada do §9.i. O procedimento de squash e validação exige decisão do PO sobre os jobs automáticos incompatíveis com o escopo DEV autorizado. O registro documental pode seguir a classificação docs-only existente, pois o diff contém somente os índices e esta decisão. [Checkpoint de retomada e evidências](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198120173).
+
+## Esclarecimento do PO de 26/11/2026 — CI automática vigente e retomada da Fase A
+
+**Autoridade e estado.** O Product Owner esclareceu expressamente o GOV-V9-MANDATO-E2E-CONTINUO-20261126 para resolver a parada do §9.i. **DECIDIDO.** O esclarecimento autoriza a retomada imediata da Fase A na #1940 e prevalece sobre a interpretação registrada na parada histórica acima. O mandato original permanece no anexo.
+
+Workflows de CI já existentes acionados automaticamente por push, PR ou merge seguem normalmente, incluindo a matriz S4b 1k (#1939), `v9-v3-broad-train-regression` e o gate técnico Seed42 pós-merge. Para o mandato, esses jobs são regressões da CI vigente. Seus resultados temporários não produzem nem substituem modelo oficial, não consomem TEST/holdout e não alteram o vencedor #38. A execução automática prevista não abre as Fases B/C nem constitui nova campanha, TRAIN ou calibração proibida pelo mandato.
+
+As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam aplicáveis a disparos manuais, workflows novos e mudanças de gatilho. Os gatilhos vigentes permanecem em operação e são preservados, sem desativação ou contorno. Falhas da CI vigente seguem o ciclo normal de diagnóstico, correção e validação, com M/U, TF, limiares, política oficial e vencedor #38 preservados. Continuam aplicáveis os gates de evidência da Fase A, os controles de segurança e os demais pontos de parada.
+
+**Rastreabilidade.** [Parada histórica na #1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198240514), [Fase A na #1940](https://github.com/lucianox777/Jornada/pull/1940), [regressão S4b 1k integrada na #1939](https://github.com/lucianox777/Jornada/pull/1939).
 
 ## Anexo integral aprovado pelo PO
 
