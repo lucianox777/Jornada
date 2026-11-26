@@ -243,6 +243,7 @@ void CheckFamilyPlan()
 try
 {
     CheckFamilyPlan();
+    FamilyMaterializationSmoke.Run();
     await ExpectValidMaterialization();
     await ExpectInvalidOptions();
     await ExpectZeroPopulationRejected();
