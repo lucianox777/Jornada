@@ -81,6 +81,34 @@ class ScaleTests(unittest.TestCase):
             with self.assertRaises(ValueError):S.verify_paired_prefull_frames(left,changed,a,b)
         with self.assertRaises(ValueError):S.verify_paired_prefull_frames(left,left,a,a)
 
+    def test_restored_pair_requires_same_physical_input_and_two_runs(self):
+        import uuid
+        attempt, first, second = (str(uuid.UUID(int=i)) for i in (1, 2, 3))
+        evidence = {
+            "Attempt": attempt,
+            "Rows": [dict(Id=1, Origin=1, Version=1, Wave=1, Manager="SYNTH",
+                          Observation={"NomeCompleto": "SYNTH"}, HasCpf=True,
+                          Initial=first, Current=first, Canonical=first,
+                          Status="RESOLVIDO", Method="CPF_DETERMINISTICO",
+                          State="REFERENCIA", AsOf="2026-11-22T00:00:00+00:00",
+                          NameVerified=None, BirthVerified=None, MotherVerified=None)],
+            "InitialRefs": [dict(Person=first, Name="SYNTH", Birth=None, Mother=None)],
+            "SnapshotMs": 1, "VersionStoreStartBytes": 0, "VersionStoreEndBytes": 0,
+            "ProcessMemoryBytes": 1,
+        }
+        receipt = S.verify_restored_prefull_frames(
+            evidence, dict(evidence, SnapshotMs=2), attempt, first, second)
+        self.assertEqual(receipt, {"observations": 1, "references": 1})
+        with self.assertRaises(ValueError):
+            S.verify_restored_prefull_frames(evidence, evidence, attempt, first, first)
+        with self.assertRaises(ValueError):
+            S.verify_restored_prefull_frames(evidence, dict(evidence, Attempt=second),
+                                             attempt, first, second)
+        with self.assertRaises(ValueError):
+            S.verify_restored_prefull_frames(evidence, dict(evidence, InitialRefs=[
+                dict(Person=second, Name="SYNTH", Birth=None, Mother=None)]),
+                attempt, first, second)
+
     def test_progressive_diagnostic_admission(self):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",

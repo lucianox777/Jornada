@@ -221,8 +221,8 @@ jobs:
             docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$db" "$1"
           }
           (
-            # Both original and migrated guards execute the same negative fixture.
-            if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+            # The paired FULL leaves the opposite schema installed in each 1k job.
+            if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k ]]; then
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
               run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V3
