@@ -14,6 +14,8 @@ on:
       - 'Solution/database/tests/20261125_Linkage_Publication_Scale_Regression.sql'
       - 'Solution/database/migrations/20261126_Linkage_Publication_Scale_V2.sql'
       - 'Solution/database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql'
+      - 'Solution/database/migrations/20261126_Linkage_Publication_Scale_V3.sql'
+      - 'Solution/database/rollback/20261126_Linkage_Publication_Scale_V3_Restore.sql'
 
 permissions:
   contents: read
@@ -193,6 +195,8 @@ jobs:
               run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
               run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
               run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
             fi
             sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';" || exit $?
           ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
@@ -219,6 +223,10 @@ jobs:
           (
             # Both original and migrated guards execute the same negative fixture.
             if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
+              run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V3
+              run_sql database/rollback/20261126_Linkage_Publication_Scale_V3_Restore.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
               run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
               echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V2
@@ -237,6 +245,10 @@ jobs:
             echo V9_SQL_REGRESSION_STAGE=REAPPLY_V2
             run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
             echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V3
+            run_sql database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
             run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || exit $?
           ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
             python3 scripts/v9-phase4-scale.py sql-failure --root "$JORNADA_V9_E2E_PRIVATE_ROOT" || true

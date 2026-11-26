@@ -524,7 +524,7 @@ def safe_failure_code(mode,error):
 
 def sql_failure_summary(lines):
     import re
-    stages={"BASELINE","MIGRATED_V1","MIGRATED_V2","ROLLBACK_V2","ROLLBACK_V1","REAPPLY_V1","REAPPLY_V2"}
+    stages={"BASELINE","MIGRATED_V1","MIGRATED_V2","ROLLBACK_V2","ROLLBACK_V1","REAPPLY_V1","REAPPLY_V2","MIGRATED_V3","ROLLBACK_V3","REAPPLY_V3"}
     fixtures={"NEGATIVE_GUARDS","CURRENT_MULTISET","CANONICAL_NAME","RECOMPOSITION"}
     result=[];errors=0
     for line in lines:
