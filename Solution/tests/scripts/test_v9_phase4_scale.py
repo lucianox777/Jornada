@@ -6,6 +6,39 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_paired_prefull_frame_preserves_physical_identity_and_evidence(self):
+        from copy import deepcopy
+        import uuid
+        a,b=str(uuid.UUID(int=1)),str(uuid.UUID(int=2))
+        x,y=str(uuid.UUID(int=3)),str(uuid.UUID(int=4))
+        def row(i,person):
+            return dict(Id=i,Origin=i,Version=1,Wave=1,Manager="SYNTH",
+                        Observation={"NomeCompleto":"SYNTH"},HasCpf=True,Initial=person,
+                        Current=person,Canonical=person,Status="RESOLVIDO",
+                        Method="CPF_DETERMINISTICO",State="REFERENCIA",
+                        AsOf="2026-11-22T00:00:00+00:00",
+                        NameVerified=None,BirthVerified=None,MotherVerified=None)
+        left=dict(Attempt=a,Rows=[row(1,x),row(2,y)],
+                  InitialRefs=[dict(Person=x,Name="SYNTH",Birth=None,Mother=None),
+                               dict(Person=y,Name="SYNTH",Birth=None,Mother=None)],
+                  SnapshotMs=1,VersionStoreStartBytes=0,VersionStoreEndBytes=0,ProcessMemoryBytes=1)
+        right=deepcopy(left);right["Attempt"]=b
+        right["Rows"].reverse();right["InitialRefs"].reverse();right["SnapshotMs"]=2
+        S.verify_paired_prefull_frames(left,right,a,b)
+        for mutate in (
+            lambda f:f["Rows"][0].update(Initial=x),
+            lambda f:f["Rows"][0].update(AsOf="2026-11-23T00:00:00+00:00"),
+            lambda f:f["Rows"][0]["Observation"].update(NomeCompleto="SYNTH_CHANGED"),
+            lambda f:f["Rows"].append(deepcopy(f["Rows"][0])),
+            lambda f:f["InitialRefs"][0].update(Person=x),
+            lambda f:f["InitialRefs"][0].update(Name="SYNTH_CHANGED"),
+            lambda f:f.update(Attempt=a),
+            lambda f:f.update(UnexpectedField="SYNTH"),
+        ):
+            changed=deepcopy(right);mutate(changed)
+            with self.assertRaises(ValueError):S.verify_paired_prefull_frames(left,changed,a,b)
+        with self.assertRaises(ValueError):S.verify_paired_prefull_frames(left,left,a,a)
+
     def test_progressive_diagnostic_admission(self):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
