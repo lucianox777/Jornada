@@ -128,6 +128,62 @@ public sealed class V9ControlledDevSecureEvidenceScoreTests
         Assert.That(reversed, Is.EqualTo(actual));
     }
 
+    // References A/B have fixed evidence; only their assigned UUIDs change.
+    // The strict cross-attempt comparator must detect the resulting rank swap.
+    // This fixture does not assert the cause of any physical 1k discrepancy.
+    [TestCase(true)]
+    [TestCase(false)]
+    public void B1_reference_uuid_permutation_distinguishes_tied_and_distinct_scores(bool tied)
+    {
+        V9ControlledDevSecureEvidenceScore.Receipt Run(Guid a, Guid b,
+            out ProbabilisticLinkageDecision decision,
+            out IReadOnlyList<V9ControlledDevSecureEvidenceScore.RecordScore>? scores)
+        {
+            IReadOnlyList<V9ControlledDevSecureEvidenceScore.RecordScore>? captured = null;
+            var result = V9ControlledDevSecureEvidenceScore.Score(Winner, Model, Source,
+                new[] { a, b }, new V9ControlledDevSecureEvidenceScore.Evidence[]
+                {
+                    new(1, 1, Exact(a)), new(2, 2, tied ? Exact(b) : Weak(b))
+                }, observe: x => captured = x);
+            decision = result.Decision;
+            scores = captured;
+            return result.EvidenceReceipt;
+        }
+        var leftReceipt = Run(X, Y, out var left, out var leftScores);
+        var rightReceipt = Run(Y, X, out var right, out var rightScores);
+        string? Stable(Guid? id, Guid a, Guid b) =>
+            id == a ? "A" : id == b ? "B" : id is null ? null :
+                throw new InvalidDataException("Unexpected fixture identity");
+        Assert.That(leftReceipt.ComparedRecords, Is.EqualTo(2));
+        Assert.That(rightReceipt.ComparedRecords, Is.EqualTo(2));
+        Assert.That(leftScores, Is.Not.Null);
+        Assert.That(rightScores, Is.Not.Null);
+        Assert.That(leftScores!.Select(x => (x.ObservationId, x.Posterior, x.LogOdds)),
+            Is.EqualTo(rightScores!.Select(x => (x.ObservationId, x.Posterior, x.LogOdds))));
+        Assert.That(left.MelhorScore, Is.EqualTo(right.MelhorScore));
+        Assert.That(left.SegundoScore, Is.EqualTo(right.SegundoScore));
+        Assert.That(left.Margem, Is.EqualTo(right.Margem));
+        Assert.That(left.Status, Is.EqualTo(right.Status));
+        Assert.That(left.Motivo, Is.EqualTo(right.Motivo));
+        Assert.That(Stable(left.PessoaUuidResolvido, X, Y),
+            Is.EqualTo(Stable(right.PessoaUuidResolvido, Y, X)));
+        Assert.That(Stable(left.MelhorCandidatoUuid, X, Y), Is.EqualTo("A"));
+        Assert.That(Stable(left.SegundoCandidatoUuid, X, Y), Is.EqualTo("B"));
+        if (tied)
+        {
+            Assert.That(left.Margem, Is.Zero);
+            Assert.That(left.PessoaUuidResolvido, Is.Null);
+            Assert.That(Stable(right.MelhorCandidatoUuid, Y, X), Is.EqualTo("B"));
+            Assert.That(Stable(right.SegundoCandidatoUuid, Y, X), Is.EqualTo("A"));
+        }
+        else
+        {
+            Assert.That(left.Margem, Is.GreaterThan(0m));
+            Assert.That(Stable(right.MelhorCandidatoUuid, Y, X), Is.EqualTo("A"));
+            Assert.That(Stable(right.SegundoCandidatoUuid, Y, X), Is.EqualTo("B"));
+        }
+    }
+
     [Test]
     public void B1_distinct_bigint_observations_do_not_alias_on_low_32_bits()
     {
