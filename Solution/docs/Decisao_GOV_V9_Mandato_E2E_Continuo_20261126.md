@@ -26,7 +26,7 @@ As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam ap
 
 ## Esclarecimento do PO de 26/11/2026 — retomadas na mesma sessão e acompanhamento da CI
 
-**DECIDIDO pelo PO.** Para reduzir leituras repetidas e consultas à CI, ler as fontes do mandato na abertura de cada sessão. Em retomadas dentro da mesma sessão, consultar o checkpoint da #1851 e os arquivos necessários à tarefa atual. Durante CI ativa, acompanhar a execução com `gh run watch` e consultar os jobs e recibos pertinentes ao concluir. O esclarecimento delimita o procedimento de leitura e espera nesta missão. Preserva a checagem do estado vivo, a reconciliação por SHA, a revisão de gates e as condições de publicação do mandato.
+**DECIDIDO pelo PO.** Para reduzir leituras repetidas e consultas à CI, ler as fontes do mandato na abertura de cada sessão. Em retomadas dentro da mesma sessão, consultar o checkpoint da #1851 e os arquivos necessários à tarefa atual. Para qualquer workflow do GitHub Actions, incluindo checks da PR, escala, `jornada-ci`, Diagnostics, regressões automáticas de TRAIN e E2E, aguardar com `gh run watch` bloqueante. Consultar os jobs e recibos pertinentes ao concluir. Durante a espera, dispensar laços de consulta e releitura de documentos. Quando não houver tarefa independente, comunicar `aguardando run X, sem tarefa independente` para que o PO possa decidir se pausa. O esclarecimento delimita o procedimento de leitura e espera nesta missão. Preserva a checagem do estado vivo, a reconciliação por SHA, a revisão de gates e as condições de publicação do mandato.
 
 ## Anexo integral aprovado pelo PO
 
