@@ -1,5 +1,7 @@
 # Regime de execução por ciclos — plano PO v8, modo chat (26/11/2026)
 
+> **Precedência de 26/11/2026.** O [mandato de execução contínua](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) substitui neste regime os trechos incompatíveis sobre executor, continuidade entre ciclos sem nova mensagem, escalada por defeito e limites expressamente modificados no anexo. Os critérios de aceitação e os demais controles continuam aplicáveis.
+
 **ID:** GOV-V9-PLANO-PO-V8-REGIME-CICLOS-20261126. **Autoridade:** PO, “Avalie e se concordar ... documente e implemente”, proposta de regime de execução por ciclos de 26/11/2026; aceita com esclarecimentos técnicos abaixo. **Estado:** DECIDIDO, aplicação operacional imediata na #1851; integração documental pendente dos gates. GOV-DOC-01. Complementa o [plano v8](Decisao_GOV_V9_Plano_PO_V8_20261125.md), sem nova política de identidade, sem revogar a [emenda familiar](Decisao_GOV_V9_Plano_PO_V8_Emenda_Familia_20261125.md) ou a [custódia](Decisao_GOV_V9_Custodia_Vencedor38_20261125.md). Precedência sobre práticas avulsas de relato/execução incompatíveis. Contexto: falhas do run 45748506810 ocultaram códigos SQL/ingestão; grupos Bash poderiam mascarar falhas intermediárias; correção c5701c653158caf91011526e62c4d051e45bf989. Evitar falsa aceitação e paralisação indevida, preservar CI ativa e rastreabilidade por defeito.
 
 ## Ciclo obrigatório
