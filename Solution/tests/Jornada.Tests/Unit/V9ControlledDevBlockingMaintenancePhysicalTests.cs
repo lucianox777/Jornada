@@ -253,6 +253,21 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Guid attempt, V9FittedSnapshot winner)
     {
         await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(db, 0);
+        await using (var attribute = new SqlCommand("""
+            IF NOT EXISTS (
+                SELECT 1 FROM ref.atributo_transversal
+                WHERE atributo_codigo=N'NOME_SOCIAL'
+            )
+                INSERT ref.atributo_transversal(
+                    atributo_codigo,nome,formato_codigo,regra_temporal_codigo,
+                    cardinalidade,chave_instancia_codigo)
+                VALUES(
+                    N'NOME_SOCIAL',N'Nome social',N'TEXTO_UTF8_V1',
+                    N'REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1',N'SINGLE',N'UNICA_V1');
+            """, db))
+        {
+            await attribute.ExecuteNonQueryAsync();
+        }
         Assert.That(await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9;"), Is.Zero);
         var temp = Path.Combine(Path.GetTempPath(), "jornada-rf1936-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
