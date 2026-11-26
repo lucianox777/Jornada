@@ -111,17 +111,20 @@ public static class SyntheticFamilyConditionalSampler
                     // Shared maternal surname is an explicit engineering model,
                     // not a measured surname transmission probability.
                     var twinSurname = Surname();
-                    var twinFirst = First();
                     var similar = left.CaseKind == SyntheticFamilyCaseKind.SimilarNameTwins;
-                    var otherFirst = DrawUntil("TWIN_FIRST_NAME", First, candidate =>
-                    {
-                        var distance = SyntheticFamilyAttributeMaterializer.EditDistance(Key(twinFirst), Key(candidate));
-                        return distance > 0 && (similar
-                            ? distance <= rules.MaximumSimilarTwinFirstNameEditDistance
-                            : distance > rules.MaximumSimilarTwinFirstNameEditDistance);
-                    });
-                    SetName(left, twinFirst, twinSurname, Sex());
-                    SetName(rows[1], otherFirst, twinSurname, Sex());
+                    // Draw both names jointly: freezing a first name without a
+                    // compatible neighbor would incorrectly exhaust valid support.
+                    var twinNames = DrawUntil("TWIN_FIRST_NAME",
+                        () => (First: First(), Second: First()), candidate =>
+                        {
+                            var distance = SyntheticFamilyAttributeMaterializer.EditDistance(
+                                Key(candidate.First), Key(candidate.Second));
+                            return distance > 0 && (similar
+                                ? distance <= rules.MaximumSimilarTwinFirstNameEditDistance
+                                : distance > rules.MaximumSimilarTwinFirstNameEditDistance);
+                        });
+                    SetName(left, twinNames.First, twinSurname, Sex());
+                    SetName(rows[1], twinNames.Second, twinSurname, Sex());
                     SetBirth(left, BoundedBirth()); // one event shared by both twins
                     SetMother(left, nominal.MotherFirstNames.Draw(random) + " " + twinSurname);
                     break;

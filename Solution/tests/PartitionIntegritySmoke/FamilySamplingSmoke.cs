@@ -73,12 +73,11 @@ internal static class FamilySamplingSmoke
             {
                 SyntheticFamilyConditionalSampler.Sample(impossible,
                     options with { AttributeRules = rules with { EarliestBirth = new(2025, 1, 2), LatestBirth = new(2025, 1, 2) },
-                        MaximumAttemptsPerConstraint = 8 },
+                        MaximumAttemptsPerConstraint = 200 },
                     nominal with { PersonFirstNames = Sampler("ANA", "ANNA") }, births, 1);
                 throw new InvalidOperationException("Unsupported date constraint accepted");
             }
-            catch (InvalidDataException ex) when (ex.Message == "FAMILY_SAMPLING_SUPPORT_EXHAUSTED_BIRTH_RANGE" ||
-                ex.Message == "FAMILY_SAMPLING_SUPPORT_EXHAUSTED_TWIN_FIRST_NAME") { }
+            catch (InvalidDataException ex) when (ex.Message == "FAMILY_SAMPLING_SUPPORT_EXHAUSTED_BIRTH_RANGE") { }
             Console.WriteLine("FAMILY_CONDITIONAL_SAMPLING_SMOKE_PASS");
         }
         finally { Directory.Delete(root, recursive: true); }
