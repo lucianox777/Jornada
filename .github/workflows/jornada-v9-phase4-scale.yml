@@ -271,7 +271,8 @@ jobs:
             echo V9_PUBLICATION_SCALE_REGRESSION_FAILED
             exit 1
           }
-          sed -nE '/^V9_SQL_(REGRESSION_STAGE=(MIGRATED_V[123]|ROLLBACK_V[123]|REAPPLY_V[123]|BASELINE)|NEGATIVES_VERIFIED=(BASELINE|20261125_V1|20261126_V[23]))$/p'             "$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log"
+          sed -nE '/^V9_SQL_(REGRESSION_STAGE=(MIGRATED_V[123]|ROLLBACK_V[123]|REAPPLY_V[123]|BASELINE)|NEGATIVES_VERIFIED=(BASELINE|20261125_V1|20261126_V[23]))$/p' \
+            "$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log"
           echo V9_PUBLICATION_SCALE_REGRESSION_PASS
       - name: Publish sanitized FULL diagnostic even on failure
         if: always()
