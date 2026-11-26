@@ -84,7 +84,9 @@ def ingest(root, attempt, population=1000):
             and os.environ.get('GITHUB_REPOSITORY') == 'lucianox777/Jornada'
             and os.environ.get('GITHUB_EVENT_NAME') == 'pull_request'
             and os.environ.get('JORNADA_V9_FULL_DIAGNOSTIC') == 'true'
-            and os.environ.get('JORNADA_V9_PHASE4_SCALE') == f'diagnostic{population//1000}k'
+            and os.environ.get('JORNADA_RUNTIME_MODE') == 'DEV'
+            and os.environ.get('JORNADA_V9_PHASE4_SCALE') in (
+                f'diagnostic{population//1000}k', f'optimized{population//1000}k')
             and os.environ.get('JORNADA_E2E_HTTP_VOLUME_COUNT') == str(population)), 'VOLUME_ADMISSION')
     preflight_path = root / "delivery-preflight-receipt.json"
     pre = get_json(preflight_path)

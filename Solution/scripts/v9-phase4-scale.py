@@ -473,7 +473,7 @@ def main():
     except (ValueError,OSError,KeyError,TypeError,AttributeError,ArithmeticError) as e:
         # Fixed internal code only; never arbitrary input or stack.
         import re
-        code=str(e) if re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]+",str(e)) else "UNCLASSIFIED"
+        code=str(e) if (str(e) == "VOLUME_ADMISSION" or re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]+",str(e))) else "UNCLASSIFIED"
         raise SystemExit("V9_PHASE4_SCALE_REJECTED_"+code) from None
     print("V9_PHASE4_SCALE_"+a.mode.upper()+"_PASS")
 if __name__=="__main__":main()

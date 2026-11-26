@@ -37,6 +37,7 @@ class ScaleTests(unittest.TestCase):
         valid=dict(env,JORNADA_V9_PHASE4_SCALE="optimized2k",JORNADA_E2E_HTTP_VOLUME_COUNT="2000")
         for changes,n in (({"GITHUB_ACTIONS":"false"},2000),({"GITHUB_REPOSITORY":"other/repo"},2000),
                           ({"GITHUB_EVENT_NAME":"push"},2000),({"JORNADA_V9_FULL_DIAGNOSTIC":"false"},2000),
+                          ({"JORNADA_RUNTIME_MODE":"PROD"},2000),({"JORNADA_RUNTIME_MODE":"HML"},2000),
                           ({"JORNADA_V9_PHASE4_SCALE":"optimized4k"},2000),
                           ({"JORNADA_E2E_HTTP_VOLUME_COUNT":"4000"},2000),
                           ({"JORNADA_V9_PHASE4_SCALE":"comparable","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000),
