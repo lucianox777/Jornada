@@ -28,6 +28,16 @@ As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam ap
 
 **DECIDIDO pelo PO.** Para reduzir leituras repetidas e consultas à CI, ler as fontes do mandato na abertura de cada sessão. Em retomadas dentro da mesma sessão, consultar o checkpoint da #1851 e os arquivos necessários à tarefa atual. Para qualquer workflow do GitHub Actions, incluindo checks da PR, escala, `jornada-ci`, Diagnostics, regressões automáticas de TRAIN e E2E, aguardar com `gh run watch` bloqueante. Consultar os jobs e recibos pertinentes ao concluir. Durante a espera, dispensar laços de consulta e releitura de documentos. Quando não houver tarefa independente, comunicar `aguardando run X, sem tarefa independente` para que o PO possa decidir se pausa. O esclarecimento delimita o procedimento de leitura e espera nesta missão. Preserva a checagem do estado vivo, a reconciliação por SHA, a revisão de gates e as condições de publicação do mandato.
 
+## Adendo do PO de 26/11/2026 — supervisor único da missão
+
+**GOV-V9-SUPERVISAO-CLAUDE-MISSAO-20261126 — DECIDIDO pelo PO.** O Product Owner designa o Claude como supervisor único desta missão, nos papéis de revisor de rigor e orientador. O supervisor revisa o diff de cada push e aponta perda de rigor, incluindo gate convertido em diagnóstico, teste que deixa de reprovar, braço retirado, tolerância ou timeout. Também questiona evidência fraca, como verde de coleta, PASS sem repetição e cobertura parcial, e pode pedir diagnósticos e propostas de solução.
+
+Comentários do supervisor na #1851 começam exatamente por `SUPERVISÃO <AAAAMMDD-HHMM UTC> — NÃO É DECISÃO DO PO`, são publicados com a credencial do PO e nunca constituem checkpoint. O executor verifica novos comentários com esse prefixo ao fim de cada CI e imediatamente antes de cada push. Orientação não é ordem. O executor pode adotar ou adaptar sem justificativa adicional. A recusa deve ser justificada no checkpoint seguinte. Todo apontamento de perda de rigor deve constar no checkpoint seguinte e só se encerra pela manutenção do rigor ou pela prova documentada do defeito conforme GOV-DOC-01.
+
+Proposta do supervisor que não alcance o §7 nem o §9.a pode ser implementada sem nova espera pelo PO. Qualquer proposta que alcance comparador, gate, desempate, política ou regra congelada fica `ESCALADA AO PO`; o executor prossegue com itens independentes. O supervisor não decide matérias do §9.a, não autoriza execução, não muda a frente principal e não aciona parada. Mensagens do PO prevalecem. Divergência mantida fica `ESCALADA AO PO`, sem interromper a missão fora das hipóteses do §9. Apontamentos do supervisor não contam como abordagem malsucedida para o §3.d.
+
+**Estado documental.** DECIDIDO e registrado. A aplicação operacional, as revisões e suas respostas têm evidências próprias na #1851 e nos checkpoints subsequentes.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL
