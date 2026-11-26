@@ -35,6 +35,40 @@ class ScaleTests(unittest.TestCase):
         self.assertEqual(S.decision_field_digests([graph,g2],[rank,r2]),
                          S.decision_field_digests([g2,graph],[r2,rank]))
         with self.assertRaises(ValueError):S.decision_field_digests([dict(graph,unexpected=1)],[rank])
+    def test_gold_evidence_normalization_detects_uuid_tie_without_relaxing_rank(self):
+        ids={1:("source","SMS",1),2:("a","SMS",1),3:("b","SMS",1),4:("c","SMS",1)}
+        x="11111111-1111-4111-8111-111111111111"
+        y="22222222-2222-4222-8222-222222222222"
+        z="33333333-3333-4333-8333-333333333333"
+        def frame(a,b,second_only=False):
+            target=lambda u:{a:[ids[2]],b:[ids[3]],z:[ids[4]]}[u]
+            rows=[dict(Source=1,Record=2,Person=a,Posterior=.8,LogOdds=2),
+                  dict(Source=1,Record=3,Person=b,Posterior=.8,LogOdds=2)]
+            if second_only:
+                rows.append(dict(Source=1,Record=4,Person=z,Posterior=.9,LogOdds=3))
+            rank=dict(Id=1,Best=z if second_only else min(a,b),BestScore=.9 if second_only else .8,
+                Second=min(a,b) if second_only else max(a,b),SecondScore=.8,Margin=1 if second_only else 0,
+                ScoreableRecords=len(rows),PeopleWithoutScoreableEvidence=0,CandidateCount=len(rows),
+                HasPass=True,Status="CONFLITO",Resolved=None,Reason="X")
+            graph=dict(observationId=1,candidates=[a,b]+([z] if second_only else []))
+            return rows,rank,graph,target
+        def verify(f):
+            rows,rank,graph,target=f
+            return S.gold_rank_diagnostics(rows,[rank],[graph],ids,target,len(rows))
+        for second_only in (False,True):
+            left=frame(x,y,second_only);right=frame(y,x,second_only)
+            l=verify(left);r=verify(right)
+            self.assertEqual(l,r)
+            self.assertEqual(l["counts"]["tiedBestRows"],0 if second_only else 1)
+            self.assertEqual(l["counts"]["tiedSecondRows"],1)
+            self.assertNotEqual(left[3](left[1]["Second"]),right[3](right[1]["Second"]))
+            invalid=frame(x,y,second_only);invalid[1]["Second"]=z if not second_only else y
+            with self.assertRaises(ValueError):verify(invalid)
+        changed=frame(x,y);changed[0][0]["Posterior"]=.81;changed[1]["BestScore"]=.81
+        self.assertNotEqual(verify(frame(x,y))["normalizedGoldRecordScoreSha256"],
+                            verify(changed)["normalizedGoldRecordScoreSha256"])
+        with self.assertRaises(ValueError):
+            S.gold_rank_diagnostics(left[0]+[left[0][0]],[left[1]],[left[2]],ids,left[3],len(left[0])+1)
     def test_conditional_bound_and_cap(self):
         b=S.bound(10000,0,20000,0,1)
         self.assertAlmostEqual(b["cpUpper"],1-.025**(1/10000),places=12)

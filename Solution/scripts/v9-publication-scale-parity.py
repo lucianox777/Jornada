@@ -32,5 +32,18 @@ require(all(isinstance(d,dict) and set(d)==expected_fields and
     all(isinstance(v,str) and re.fullmatch("[0-9a-f]{64}",v) for v in d.values()) for d in diagnostics))
 components=sorted(k for k in expected_fields if diagnostics[0][k]!=diagnostics[1][k])
 if components:print("V9_PARITY_DIFFERENT_GRAPH_COMPONENTS="+",".join(components))
-require(not different and not components)
+# Additional proof of normalized per-record evidence and score tiers. The
+# strict Best/Second equality above is still mandatory, even on tied ranks.
+gold=[r.get("goldRankDiagnostics") for r in receipts]
+gold_fields={"normalizedGoldRecordScoreSha256","normalizedGoldScoreTiersSha256"}
+count_fields={"rows","scoreRecords","tiedBestRows","tiedSecondRows","tiedBestOrSecondRows","tiedResolvedRows"}
+require(all(isinstance(g,dict) and set(g)==gold_fields|{"counts","rawUuidRankVerified"} and
+    g["rawUuidRankVerified"] is True and all(isinstance(g[k],str) and re.fullmatch("[0-9a-f]{64}",g[k]) for k in gold_fields) and
+    isinstance(g["counts"],dict) and set(g["counts"])==count_fields and
+    all(type(v) is int and v>=0 for v in g["counts"].values()) for g in gold))
+gold_diff=sorted(k for k in gold_fields|{"counts"} if gold[0][k]!=gold[1][k])
+print("V9_PARITY_GOLD_DIAGNOSTICS="+("DIFFERENT:"+",".join(gold_diff) if gold_diff else "EQUAL"))
+for label,g in zip(("baseline","optimized"),gold):
+    print("V9_PARITY_GOLD_COUNTS_"+label+"="+json.dumps(g["counts"],sort_keys=True))
+require(not different and not components and not gold_diff)
 print("V9_PUBLICATION_SCALE_NORMALIZED_1K_PARITY_PASS")

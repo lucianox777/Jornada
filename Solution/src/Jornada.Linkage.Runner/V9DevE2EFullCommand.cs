@@ -182,6 +182,8 @@ public static class V9DevE2EFullCommand
 
         stage = "runner-composition";
         object? privateDiagnostic = null;
+        IReadOnlyList<V9ControlledDevCohortScorer.GoldScore>? privateGoldScores = null;
+        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
         Guid observedRun = Guid.Empty;
         scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, goldScores, candidates) =>
         {
@@ -215,6 +217,8 @@ public static class V9DevE2EFullCommand
                     throw new InvalidDataException("RUNNER_V9_E2E_GROUP_INTERNAL_SCORE_DIVERGENCE");
                 groupMinimum.Add(groupRoot, size==1 ? null : scores.Min(x=>x.Posterior));
             }
+            // Already independently verified above; retain only in disposable DEV memory.
+            if (fullDiagnostic) privateGoldScores = goldScores;
             observedRun = runId;
             privateDiagnostic = ids.Select((id,i) => new {
                 observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
@@ -250,7 +254,6 @@ public static class V9DevE2EFullCommand
                 () => runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None),
                 () => physicalTiming,CancellationToken.None)
             : runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
-        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
         ProbabilisticLinkageRunSummary summary;
         if (fullDiagnostic)
         {
@@ -273,6 +276,12 @@ public static class V9DevE2EFullCommand
         if (privateDiagnostic is null || observedRun != summary.RunId)
             throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_MISSING");
         await WriteNewAsync(root, "fn-private.json", JsonSerializer.Serialize(privateDiagnostic));
+        if (fullDiagnostic)
+        {
+            if (privateGoldScores is null)
+                throw new InvalidDataException("RUNNER_V9_E2E_PRIVATE_GOLD_SCORE_MISSING");
+            await WriteNewAsync(root, "scale-gold-scores-private.json", JsonSerializer.Serialize(privateGoldScores));
+        }
         await WriteNewAsync(root, "actual-graph-receipt.json", JsonSerializer.Serialize(new {
             runId = observedRun, edges = membership.SilverEdges, edgesSha256 = membership.SilverEdgesSha256,
             directions = membership.SilverDirectionalReplay!.DirectionsCompared,

@@ -316,6 +316,82 @@ def decision_field_digests(graph_rows,rank_rows):
                 separators=(",",":"),allow_nan=False).encode()).hexdigest()
     return result
 
+def gold_rank_diagnostics(scores,ranks,graphs,key_byid,target,expected_count):
+    """Check each raw UUID rank against actual per-record scores; emit aggregates only.
+
+    Post-publication destination normalization is the same as the strict digest.
+    This is additional evidence, not a replacement for rank equality.
+    """
+    require(len(scores)==expected_count,"SCALE_GOLD_SCORE_CENSUS")
+    bysource={r["Id"]:r for r in ranks}
+    candidates={g["observationId"]:{u.lower() for u in g["candidates"]} for g in graphs}
+    require(len(bysource)==len(ranks)==len(candidates)==len(graphs)
+            and set(bysource)==set(candidates),"SCALE_GOLD_SCORE_UNIVERSE")
+    evidence=defaultdict(list); normalized=[]; seen=set()
+    def number(x):
+        require(type(x) in (int,float) and math.isfinite(x),"SCALE_GOLD_SCORE_NUMBER")
+        # The frozen score contract publishes eight decimal places.
+        from decimal import Decimal
+        return Decimal(str(x))
+    for s in scores:
+        require(set(s)=={"Source","Record","Person","Posterior","LogOdds"},"SCALE_GOLD_SCORE_SCHEMA")
+        src,rec,u=s["Source"],s["Record"],s["Person"].lower()
+        require(src in bysource and rec in key_byid and src in key_byid and u in candidates[src],
+                "SCALE_GOLD_SCORE_REFERENCE")
+        k=(src,rec,u)
+        require(k not in seen,"SCALE_GOLD_SCORE_DUPLICATE");seen.add(k)
+        p,l=s["Posterior"],s["LogOdds"]
+        require((p is None)==(l is None),"SCALE_GOLD_SCORE_ABSTENTION")
+        if p is not None:
+            require(0<=number(p)<=1,"SCALE_GOLD_SCORE_POSTERIOR")
+            number(l)
+        evidence[src].append((u,rec,p,l))
+        normalized.append((key_byid[src],target(u),key_byid[rec],p,l))
+    bands=[]; counts=dict(rows=len(ranks),scoreRecords=len(scores),
+        tiedBestRows=0,tiedSecondRows=0,tiedBestOrSecondRows=0,tiedResolvedRows=0)
+    for src,r in bysource.items():
+        ev=evidence[src]
+        require(len(candidates[src])==r["CandidateCount"],"SCALE_GOLD_CANDIDATE_CENSUS")
+        valid=[(u,rec,p,l) for u,rec,p,l in ev if l is not None]
+        require(len(valid)==r["ScoreableRecords"],"SCALE_GOLD_SCOREABLE_CENSUS")
+        best={}
+        for u,rec,p,l in valid:
+            # Independent oracle uses maximum LogOdds then source observation ID.
+            if u not in best or (-number(l),rec)<(-number(best[u][2]),best[u][0]):
+                best[u]=(rec,p,l)
+        require(len(candidates[src])-len(best)==r["PeopleWithoutScoreableEvidence"],
+                "SCALE_GOLD_ABSTAINED_CENSUS")
+        # Guid.CompareTo orders unsigned fields, equivalently canonical hex strings.
+        ranked=sorted(best,key=lambda u:(-number(best[u][2]),u))
+        raw_best=r["Best"].lower() if r["Best"] else None
+        raw_second=r["Second"].lower() if r["Second"] else None
+        require(raw_best==(ranked[0] if ranked else None) and
+                raw_second==(ranked[1] if len(ranked)>1 else None),"SCALE_GOLD_RAW_RANK_MISMATCH")
+        require(r["BestScore"]==(best[ranked[0]][1] if ranked else 0) and
+                r["SecondScore"]==(best[ranked[1]][1] if len(ranked)>1 else None),
+                "SCALE_GOLD_RAW_POSTERIOR_MISMATCH")
+        margin=number(best[ranked[0]][2])-number(best[ranked[1]][2]) if len(ranked)>1 else None
+        require((r["Margin"] is None and margin is None) or
+                (r["Margin"] is not None and margin is not None and number(r["Margin"])==margin),
+                "SCALE_GOLD_RAW_MARGIN_MISMATCH")
+        # Compare all candidates within score tiers, including ties for second
+        # below a unique best. Preserve scores, membership and abstentions.
+        tiers=defaultdict(list)
+        for u in ranked:tiers[best[u][2]].append((target(u),best[u][1]))
+        ordered=[(l,sorted(tiers[l])) for l in sorted(tiers,key=number,reverse=True)]
+        tied_best=bool(ranked and len(tiers[best[ranked[0]][2]])>1)
+        tied_second=bool(len(ranked)>1 and len(tiers[best[ranked[1]][2]])>1)
+        counts["tiedBestRows"]+=int(tied_best)
+        counts["tiedSecondRows"]+=int(tied_second)
+        counts["tiedBestOrSecondRows"]+=int(tied_best or tied_second)
+        counts["tiedResolvedRows"]+=int(tied_best and r["Resolved"] is not None)
+        bands.append((key_byid[src],ordered))
+    def digest(rows):
+        return hashlib.sha256(json.dumps(sorted(rows),sort_keys=True,separators=(",",":"),
+            allow_nan=False).encode()).hexdigest()
+    return dict(normalizedGoldRecordScoreSha256=digest(normalized),
+        normalizedGoldScoreTiersSha256=digest(bands),counts=counts,rawUuidRankVerified=True)
+
 def diagnostic_receipt(root):
     label,(n,_,_)=profile()
     require(label in DIAGNOSTIC_PROFILES,"SCALE_DIAGNOSTIC_ONLY")
@@ -370,6 +446,10 @@ def diagnostic_receipt(root):
             row[field]=target(x[field].lower()) if x[field] else None
         rank_rows.append(row)
     require(len(ranks)==len(graphs)==runner["evaluated"],"SCALE_PARITY_UNIVERSE")
+    actual_graph=read(root/"actual-graph-receipt.json")
+    require(actual_graph["actualGoldRecordScoresVerified"] is True,"SCALE_GOLD_SCORE_ORACLE_GATE")
+    gold=gold_rank_diagnostics(read(root/"scale-gold-scores-private.json"),ranks,graphs,
+        key_byid,target,actual_graph["goldRecordScores"])
     decision_digest=hashlib.sha256(json.dumps(dict(
         graph=sorted(graph_rows,key=lambda x:x["key"]),ranks=sorted(rank_rows,key=lambda x:x["Id"])),
         sort_keys=True,separators=(",",":")).encode()).hexdigest()
@@ -378,7 +458,7 @@ def diagnostic_receipt(root):
         commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
         fullCompleted=True,independentMembershipVerified=True,identityCensusStatus=identity["status"],
         pairMetrics=identity["pairMetrics"],physicalFull=full,normalizedPublicationSha256=parity_digest,normalizedDecisionGraphSha256=decision_digest,
-        decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),
+        decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),goldRankDiagnostics=gold,
         matrixExecuted=False,scientificTest=False,activation=False))
 def main():
     p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","plan","measure","diagnostic"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
