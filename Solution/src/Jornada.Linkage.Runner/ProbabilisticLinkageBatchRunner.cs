@@ -1284,7 +1284,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
             await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
                 connection, transaction, newReferences, ct);
             if (maintenance is not null)
+            {
+                DevPhaseObserver?.Invoke("publish-blocking-v9-maintenance");
                 await maintenance.RefreshAsync(connection, transaction, ct);
+                DevPhaseObserver?.Invoke("publish-commit");
+            }
 
             await transaction.CommitAsync(ct);
             logger.LogInformation(

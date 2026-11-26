@@ -46,6 +46,20 @@ class CurveTests(unittest.TestCase):
         f[1][2]["phases"][1]["elapsedMs"]=1
         with self.assertRaises(ValueError):C.assess(f,"a"*40)
 
+    def test_split_v9_blocking_maintenance_is_an_independent_gate(self):
+        f=self.frames()
+        for index, elapsed in enumerate((40,40,100)):
+            scale=1 if index<2 else 2
+            f[index][2].update(elapsedMs=elapsed, finalPhase="publish-commit", phases=[
+                dict(phase="publish-blocking", elapsedMs=10*scale),
+                dict(phase="publish-blocking-v9-maintenance", elapsedMs=20*scale),
+                dict(phase="publish-commit", elapsedMs=30 if index<2 else 80)])
+        result=C.assess(f,"a"*40)
+        self.assertEqual(result["timingGate"],"FAIL")
+        self.assertEqual(result["exclusivePhaseRatios2kTo4k"]["publish-blocking"],2)
+        self.assertEqual(result["exclusivePhaseRatios2kTo4k"]["publish-blocking-v9-maintenance"],4)
+        self.assertIn("phase:publish-blocking-v9-maintenance",result["overLimit"])
+
     def test_extended_resource_scope_and_invalid_cpu(self):
         x=dict(schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status="MEASURED",sampleCount=2,
                probeError=None,sampleScope="FULL_WITH_OBSERVER_OVERHEAD",
