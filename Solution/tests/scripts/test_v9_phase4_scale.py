@@ -150,6 +150,8 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
             return dict(profile=profile, versions=1, eligible=1, winnerSha256=digest,
                         pairMetrics={}, normalizedPublicationSha256=digest,
                         normalizedDecisionGraphSha256=digest,
+                        normalizedIndependentDecisionGraphSha256=digest,
+                        independentDecisionFieldSha256=S.decision_field_digests([graph], [rank_row]),
                         decisionFieldSha256=S.decision_field_digests([graph], [rank_row]),
                         goldRankDiagnostics=dict(normalizedGoldRecordScoreSha256=digest,
                             normalizedGoldScoreTiersSha256=digest, rawUuidRankVerified=True,
@@ -167,6 +169,47 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
             parity.check_comparisons([stable, changed])
         self.assertIn("V9_PARITY_DIFFERENT_GRAPH_COMPONENTS=rank.Best", messages.getvalue())
         self.assertNotIn("V9_PUBLICATION_SCALE_NORMALIZED_1K_PARITY_PASS", messages.getvalue())
+
+    def test_independent_tie_sets_preserve_members_decisions_and_strict_pairs(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+
+        parity = S.module("parity", "v9-publication-scale-parity.py")
+        digest = "a" * 64
+        graph = dict(key=1, group=[1], candidates=[2, 3, 4, 5], neighbors=[], minimum=None, reason="SYNTH")
+        rank = dict(Id=1, Best=2, BestScore="0.8", Second=3, SecondScore="0.8", Margin="0",
+                    ScoreableRecords=3, PeopleWithoutScoreableEvidence=1, CandidateCount=4,
+                    HasPass=True, Status="CONFLITO", Resolved=None, Reason="SYNTH")
+
+        def row(profile, labels, tied_targets, changes=None, tied_resolved=0):
+            raw_rank = dict(rank, Best=labels[0], Second=labels[1], **(changes or {}))
+            tie_set = dict(logOdds="2", destinations=tied_targets)
+            canonical = dict(raw_rank, Best=tie_set, Second=tie_set)
+            return dict(profile=profile, versions=1, eligible=1, winnerSha256=digest,
+                        pairMetrics={}, normalizedPublicationSha256=digest,
+                        normalizedDecisionGraphSha256=digest,
+                        normalizedIndependentDecisionGraphSha256=digest,
+                        decisionFieldSha256=S.decision_field_digests([graph], [raw_rank]),
+                        independentDecisionFieldSha256=S.decision_field_digests([graph], [canonical]),
+                        goldRankDiagnostics=dict(normalizedGoldRecordScoreSha256=digest,
+                            normalizedGoldScoreTiersSha256=digest, rawUuidRankVerified=True,
+                            counts=dict(rows=1, scoreRecords=3, tiedBestRows=1, tiedSecondRows=1,
+                                        tiedBestOrSecondRows=1, tiedResolvedRows=tied_resolved)))
+
+        baseline = row("diagnostic1k", [2, 3], [2, 3, 4])
+        reordered = row("optimized1k", [3, 2], [2, 3, 4])
+        with redirect_stdout(StringIO()):
+            self.assertTrue(parity.compare([baseline, reordered], independent=True))
+            self.assertFalse(parity.compare([baseline, reordered]))
+            self.assertFalse(parity.compare([baseline,
+                row("optimized1k", [3, 2], [2, 3, 5])], independent=True))
+            for changes in (dict(Status="INDEFINIDO"), dict(Resolved=3),
+                            dict(Reason="OUTRA_DECISAO"), dict(Margin="0.01")):
+                self.assertFalse(parity.compare([baseline,
+                    row("optimized1k", [3, 2], [2, 3, 4], changes)], independent=True))
+            resolved_tie = row("optimized1k", [2, 3], [2, 3, 4], dict(Resolved=2), tied_resolved=1)
+            with self.assertRaisesRegex(SystemExit, "V9_PARITY_TIED_BEST_RESOLVED_DETERMINISM"):
+                parity.compare([resolved_tie, resolved_tie], independent=True)
 
     def test_progressive_diagnostic_admission(self):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
@@ -260,6 +303,37 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
                             verify(changed)["normalizedGoldRecordScoreSha256"])
         with self.assertRaises(ValueError):
             S.gold_rank_diagnostics(left[0]+[left[0][0]],[left[1]],[left[2]],ids,left[3],len(left[0])+1)
+    def test_gold_tie_set_includes_third_destination_and_uses_exact_decimals(self):
+        from decimal import Decimal
+
+        candidates = tuple(f"00000000-0000-4000-8000-{i:012d}" for i in (2, 3, 4))
+        keys = {i: ("person", "SMS", i) for i in (1, 2, 3, 4)}
+        destinations = {uuid: [keys[i]] for i, uuid in enumerate(candidates, 2)}
+        scores = [dict(Source=1, Record=i, Person=uuid, Posterior=Decimal(".8"), LogOdds=Decimal("2"))
+                  for i, uuid in enumerate(candidates, 2)]
+        rank = dict(Id=1, CandidateCount=3, ScoreableRecords=3, PeopleWithoutScoreableEvidence=0,
+                    Best=candidates[0], Second=candidates[1], BestScore=Decimal(".8"),
+                    SecondScore=Decimal(".8"), Margin=Decimal("0"), Resolved=None)
+        graph = dict(observationId=1, candidates=list(candidates))
+
+        def classify():
+            labels = {}
+            gold = S.gold_rank_diagnostics(scores, [rank], [graph], keys, destinations.__getitem__, 3, labels)
+            return gold["counts"], labels[keys[1]]
+
+        counts, labels = classify()
+        self.assertEqual(counts["tiedBestOrSecondRows"], 1)
+        self.assertEqual(labels["Best"], {"logOdds": "2", "destinations": sorted(destinations.values())})
+        self.assertEqual(labels["Best"], labels["Second"])
+
+        scores[2]["LogOdds"] = Decimal("2.0000000000000000000000000001")
+        rank.update(Best=candidates[2], Second=candidates[0], Margin=Decimal(".0000000000000000000000000001"))
+        counts, labels = classify()
+        self.assertEqual(counts["tiedBestRows"], 0)
+        self.assertEqual(counts["tiedSecondRows"], 1)
+        self.assertEqual(labels["Best"], destinations[candidates[2]])
+        self.assertEqual(labels["Second"]["destinations"], [destinations[u] for u in candidates[:2]])
+
     def test_conditional_bound_and_cap(self):
         b=S.bound(10000,0,20000,0,1)
         self.assertAlmostEqual(b["cpUpper"],1-.025**(1/10000),places=12)
