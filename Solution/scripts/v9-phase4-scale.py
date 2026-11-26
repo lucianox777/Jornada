@@ -15,8 +15,9 @@ H=module("http","v9-e2e-1k-http.py")
 require=I.require
 PROFILES={"audit1k":(1000,355,"clean"),"diagnostic1k":(1000,355,"clean"),
           "diagnostic2k":(2000,355,"clean"),"diagnostic4k":(4000,355,"clean"),"optimized1k":(1000,355,"clean"),
+          "optimized2k":(2000,355,"clean"),"optimized4k":(4000,355,"clean"),
           "comparable":(10000,355,"clean"),"challenge":(10000,7311026,"field")}
-DIAGNOSTIC_PROFILES=("diagnostic1k","diagnostic2k","diagnostic4k","optimized1k")
+DIAGNOSTIC_PROFILES=("diagnostic1k","diagnostic2k","diagnostic4k","optimized1k","optimized2k","optimized4k")
 CAP=8
 LIMIT=.001446
 def profile():

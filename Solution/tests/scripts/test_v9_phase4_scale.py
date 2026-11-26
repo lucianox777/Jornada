@@ -10,12 +10,13 @@ class ScaleTests(unittest.TestCase):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
                  JORNADA_V9_FULL_DIAGNOSTIC="true")
-        for label,n in (("diagnostic1k",1000),("diagnostic2k",2000),("diagnostic4k",4000)):
+        for label,n in (("diagnostic1k",1000),("diagnostic2k",2000),("diagnostic4k",4000),
+                        ("optimized1k",1000),("optimized2k",2000),("optimized4k",4000)):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 self.assertEqual(S.profile()[1][0],n)
                 with self.assertRaises(ValueError):S.plan(Path("."))
-        for label,n in (("comparable",10000),("challenge",10000),("diagnostic4k",2000)):
+        for label,n in (("comparable",10000),("challenge",10000),("diagnostic4k",2000),("optimized4k",10000),("optimized2k",4000)):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 with self.assertRaises(ValueError):S.profile()

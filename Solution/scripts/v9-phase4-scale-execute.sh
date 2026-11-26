@@ -43,7 +43,7 @@ export JORNADA_V9_PHASE4_MATRIX=true
 run_cli full
 python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
 echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
-if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* || "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
   python3 scripts/v9-phase4-scale.py diagnostic --root "$root"
   out="$RUNNER_TEMP/v9-scale-aggregate"
   mkdir -m 700 "$out"
