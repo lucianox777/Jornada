@@ -3,9 +3,7 @@ set -euo pipefail
 umask 077
 root="$JORNADA_V9_E2E_PRIVATE_ROOT"
 run_cli() {
-  flag=--v9-dev-full-10k
-  [[ "$JORNADA_V9_PHASE4_SCALE" != audit1k ]] || flag=--v9-dev-full-1k
-  dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Linkage.Runner -- "$flag" "$1" >"$root/runner-$1.log" 2>&1 || {
+  dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Linkage.Runner -- --v9-dev-full-10k "$1" >"$root/runner-$1.log" 2>&1 || {
     grep -E '^V9_DEV_E2E_FAILURE stage=[a-z-]+ type=[A-Za-z0-9_-]+ code=[A-Z0-9_]+$' "$root/runner-$1.log" || true
     echo "V9_E2E_RUNNER_STAGE_FAILED_$1"; exit 1;
   }
@@ -158,38 +156,26 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
-/usr/bin/time -f '%e' -o "$root/ingest-elapsed.txt"   python3 scripts/v9-phase4-scale.py ingest --root "$root/fixture"
+/usr/bin/time -f '%e' -o "$root/ingest-elapsed.txt" \
+  python3 scripts/v9-phase4-scale.py ingest --root "$root/fixture"
 cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"
 export JORNADA_V9_PHASE4_MATRIX=true
-if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* || "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
-  bind_disposable_sql
-fi
+bind_disposable_sql
 if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
   stop_apps
   trap - EXIT
   prepare_pair
 fi
 run_full
-if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic* || "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
-  python3 scripts/v9-phase4-scale.py diagnostic --root "$root"
-  out="$RUNNER_TEMP/v9-scale-aggregate"
-  mkdir -m 700 "$out"
-  cp "$root/diagnostic-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$out/"
-  if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
-    repeat_full_from_pair
-    python3 scripts/v9-phase4-scale.py pair --root "$root"
-    cp -- "$root/pair-receipt.json" "$out/"
-    cp -- "$root/pair/diagnostic-receipt.json" "$out/restored-diagnostic-receipt.json"
-  fi
-  printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
-  echo 'V9_FULL_SCALE_DIAGNOSTIC_MEASURED_NOT_MATRIX'
-  exit 0
-fi
-python3 scripts/v9-phase4-scale.py plan --root "$root"
-run_cli matrix
-python3 scripts/v9-phase4-scale.py measure --root "$root"
+python3 scripts/v9-phase4-scale.py diagnostic --root "$root"
 out="$RUNNER_TEMP/v9-scale-aggregate"
 mkdir -m 700 "$out"
-cp "$root/selection/winner-pin-receipt.json" "$root/http-lineage.json" "$root/runner-receipt.json" "$root/identity-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$root/s4b-receipt.json" "$root/scale-receipt.json" "$root/case-audit.jsonl" "$out/"
+cp "$root/diagnostic-receipt.json" "$root/membership-receipt.json" "$root/scalar-receipt.json" "$root/actual-graph-receipt.json" "$out/"
+if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+  repeat_full_from_pair
+  python3 scripts/v9-phase4-scale.py pair --root "$root"
+  cp -- "$root/pair-receipt.json" "$out/"
+  cp -- "$root/pair/diagnostic-receipt.json" "$out/restored-diagnostic-receipt.json"
+fi
 printf '%s\n' "$JORNADA_E2E_EXACT_SHA" > "$out/commit.txt"
-echo 'V9_SCALE_MEASURED_NONPUBLISHING'
+echo 'V9_FULL_SCALE_DIAGNOSTIC_MEASURED_NOT_MATRIX'

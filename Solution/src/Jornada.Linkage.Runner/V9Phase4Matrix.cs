@@ -26,25 +26,23 @@ internal static class V9Phase4Matrix
         long VersionStoreEndBytes,long ProcessMemoryBytes);
     private sealed record CellGraph(Row[] Pending,Dictionary<long,HashSet<BlockingProjectionKey>> Keys,
         Dictionary<long,Guid> Groups,HashSet<long> Incident,HashSet<long> NoPass,
-        int Edges,double Milliseconds,string DirectionSha256,
-        Dictionary<Guid,int> GroupSizes,Dictionary<Guid,decimal?> GroupMinPosterior);
+        int Edges,double Milliseconds,string DirectionSha256);
     private sealed record Link(Guid Person,bool Secure,string Method,decimal? AssociationScore=null);
     private sealed record IndexEntry(Ref Summary,HashSet<BlockingProjectionKey> Keys,Row[] All,Row[] Secure);
     private sealed record Projection(long Id,Guid? Person,string RawStatus,string RawReason,string EffectiveReason,
         string Method,decimal Score,decimal? AssociationScore,int Fs,int Candidates,int SecureCandidates,int PriorCardinality,
-        Guid? Best,int OnlyViaNonsecure,long Origin,int Wave,long LeaderId,int GroupSize,
-        decimal? GroupMinPosterior,Guid[] CandidateIds,bool SecureOrigin);
+        Guid? Best,int OnlyViaNonsecure);
     private sealed record RoundResult(Projection[] Rows,object Resources);
     private static void Require(bool ok,string reason)
     { if(!ok) throw new InvalidDataException("RUNNER_V9_PHASE4_"+reason); }
-    private static void Admit() => Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"
+    private static void Admit(bool allowScale = false) => Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"
         && Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX")=="true"
         && Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE")=="DEV"
-        && (Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")=="1000"||V9DevE2EFullCommand.ScaleAdmitted),"ADMISSION");
+        && (Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")=="1000"||(allowScale&&V9DevE2EFullCommand.ScaleAdmitted)),"ADMISSION");
     private static JsonDocument Read(string root,string name)
     {
         var f=new FileInfo(Path.Combine(root,name));
-        Require(f.Exists&&f.LinkTarget is null&&f.Length>0&&f.Length<=(V9DevE2EFullCommand.ScaleAdmitted?128L:32L)*1024*1024,"PRIVATE_INPUT");
+        Require(f.Exists&&f.LinkTarget is null&&f.Length>0&&f.Length<=32*1024*1024,"PRIVATE_INPUT");
         return JsonDocument.Parse(File.ReadAllBytes(f.FullName));
     }
     private static async Task WriteAsync(string root,string name,object data)
@@ -126,7 +124,7 @@ internal static class V9Phase4Matrix
         IOperationalSqlAdapter sql,Guid attempt,Func<Task<ProbabilisticLinkageRunSummary>> run,
         Func<double[]?> timing,CancellationToken ct)
     {
-        Admit();
+        Admit(allowScale: true);
         await using var conn=await sql.OpenAsync(ct);
         await V9DisposableAttemptDatabase.VerifyAsync(conn,attempt,ct);
         var sw=Stopwatch.StartNew();
@@ -210,7 +208,7 @@ internal static class V9Phase4Matrix
     }
     internal static async Task CaptureAsync(string root,IOperationalSqlAdapter sql,Guid attempt,CancellationToken ct)
     {
-        Admit();
+        Admit(allowScale: true);
         using var p=Read(root,"wave-preflight-receipt.json");
         var waves=p.RootElement.GetProperty("packagesByWave").EnumerateArray()
             .SelectMany(w=>w.GetProperty("packages").EnumerateArray().Select(x=>(
@@ -377,15 +375,8 @@ internal static class V9Phase4Matrix
         var groups=pending.Select((x,i)=>(x.Id,Group:grouped.IdentityByObservation[i+1])).ToDictionary(x=>x.Id,x=>x.Group);
         var incident=edges.SelectMany(e=>new[]{pending[e.A-1].Id,pending[e.B-1].Id}).ToHashSet();
         var noPass=pending.Where(x=>planner.Plan(x.Observation).Count==0).Select(x=>x.Id).ToHashSet();
-        var sizes=groups.Values.GroupBy(x=>x).ToDictionary(x=>x.Key,x=>x.Count());
-        var internalDirections=dirs!.Where(d=>groups[pending[d.Source-1].Id]==groups[pending[d.Target-1].Id])
-            .GroupBy(d=>groups[pending[d.Source-1].Id]).ToDictionary(x=>x.Key,x=>x.ToArray());
-        var minimum=sizes.ToDictionary(x=>x.Key,x=>x.Value==1?(decimal?)null:
-            internalDirections[x.Key].Min(d=>d.Posterior));
-        Require(sizes.All(x=>x.Value==1|| (internalDirections[x.Key].Length==x.Value*(x.Value-1)
-            && internalDirections[x.Key].All(d=>d.Posterior.HasValue))),"GROUP_INTERNAL_CENSUS");
         return new(pending,keys,groups,incident,noPass,edges.Count,sw.Elapsed.TotalMilliseconds,
-            V9DevE2EGroupOracle.DirectionDigest(dirs!),sizes,minimum);
+            V9DevE2EGroupOracle.DirectionDigest(dirs!));
     }
     private static Guid NewGroup(string trajectory,Guid group)
     {
@@ -393,7 +384,7 @@ internal static class V9Phase4Matrix
         return new Guid(bytes.AsSpan(0,16));
     }
     private static RoundResult Round(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible,
-        CellGraph graph,Dictionary<long,Link> links,string trajectory,string s4b,string evidence,string prior,string policy,string blocking,string groupSafety,
+        CellGraph graph,Dictionary<long,Link> links,string trajectory,string s4b,string evidence,string prior,string policy,string blocking,
         JsonElement? physical,JsonElement? diagnostic,JsonElement? actualGraph)
     {
         var sw=Stopwatch.StartNew();var samples=new List<object>();
@@ -491,16 +482,11 @@ internal static class V9Phase4Matrix
                 && origin.All(x=>candidates[x.Id].Count==0))
                 additions.Add(origin.Key,new(leader.Initial,true,"SINGLETON_FOUNDER"));
         }
-        // Authority is hypothetical only. Existing or later-associated origins
-        // never gain security here. One founder retains the 1k definition.
-        Require(groupSafety is "leader" or "all","GROUP_SECURITY_VARIANT");
+        // Exactly one hypothetical founder per surviving collective identity.
         foreach(var group in additions.Where(x=>x.Value.Method=="S4B_GROUP").GroupBy(x=>x.Value.Person).ToArray())
         {
             var origin=group.Min(x=>x.Key);
-            foreach(var member in group)
-                if(member.Key==origin||groupSafety=="all")
-                    additions[member.Key]=member.Value with {Secure=true,Method=member.Key==origin?
-                        "S4B_HYPOTHETICAL_FOUNDER":"S4B_HYPOTHETICAL_SECURE_MEMBER"};
+            additions[origin]=additions[origin] with {Secure=true,Method="S4B_HYPOTHETICAL_FOUNDER"};
         }
         foreach(var x in additions)links.Add(x.Key,x.Value);
         Sample("project");
@@ -515,12 +501,7 @@ internal static class V9Phase4Matrix
             var effective=link is null?translated[leaderByOrigin[x.Origin]].Motivo??"SEM_MOTIVO":
                 link.Method;
             return new Projection(x.Id,link?.Person,t?.Status.ToString()??"CPF",rawReason,effective,link?.Method??"INDEFINIDA",
-                leaderScore,link?.AssociationScore,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only,
-                x.Origin,x.Wave,x.HasCpf?x.Id:leaderByOrigin[x.Origin],
-                x.HasCpf?1:graph.GroupSizes[graph.Groups[x.Id]],x.HasCpf?null:graph.GroupMinPosterior[graph.Groups[x.Id]],
-                Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE") is "audit1k" or "comparable" or "challenge"
-                    ? candidates.GetValueOrDefault(x.Id)?.Select(c=>c.PessoaUuid).ToArray()??[] : [],
-                link?.Secure??false);
+                leaderScore,link?.AssociationScore,m.Fs,m.Candidates,m.SecureCandidates,m.PriorCount,t?.MelhorCandidatoUuid,m.Only);
         }).ToArray();
         if(physical.HasValue)
         {
@@ -543,15 +524,11 @@ internal static class V9Phase4Matrix
         Admit();
         using var f=Read(root,"matrix-frame-private.json");
         var frame=f.RootElement.Deserialize<Frame>()!;
-        using var pre=Read(root,"wave-preflight-receipt.json");
-        Require(frame.Attempt==attempt&&frame.Rows.Length==pre.RootElement.GetProperty("sourceVersions").GetInt32()
-            &&(V9DevE2EFullCommand.ScaleAdmitted||frame.Rows.Length==2349)
-            &&winner.Payload.Parameters.GetValueOrDefault(LinkageParameterCatalog.DecisionEvidenceScoring)==1m,"EXEC_FRAME");
+        Require(frame.Attempt==attempt&&frame.Rows.Length==2349&&winner.Payload.Parameters.GetValueOrDefault(LinkageParameterCatalog.DecisionEvidenceScoring)==1m,"EXEC_FRAME");
         using var plan=Read(root,"phase4-matrix-bound-plan.json");
         var p=plan.RootElement;
         Require(p.GetProperty("attempt").GetGuid()==attempt&&p.GetProperty("status").GetString()=="S4B_VERIFIED_MATRIX_PLANNED_ONLY"
-            &&p.GetProperty("firstContrast").GetProperty("status").GetString()=="MEASURED"
-            &&p.GetProperty("cells").GetArrayLength()==(V9DevE2EFullCommand.ScaleAdmitted?72:48),"EXEC_GATE");
+            &&p.GetProperty("firstContrast").GetProperty("status").GetString()=="MEASURED"&&p.GetProperty("cells").GetArrayLength()==48,"EXEC_GATE");
         using var census=Read(root,"sql-census.json");using var diag=Read(root,"fn-private.json");using var actualGraph=Read(root,"actual-graph-receipt.json");
         var planner=V9FittedSnapshotExecutionRuntime.Load(winner.SerializeUtf8(),winner.ContentSha256);
         var initial=frame.Rows.Where(x=>x.HasCpf).GroupBy(x=>x.Origin).ToDictionary(x=>x.Key,x=>new Link(x.First().Current!.Value,true,"CPF"));
@@ -584,7 +561,6 @@ internal static class V9Phase4Matrix
                     var baseline=cell.GetProperty("officialBaseline").GetBoolean()&&t.GetProperty("schedule").GetString()=="single";
                     Require(baselineDone||baseline,"BASELINE_MUST_BE_FIRST");
                     var res=Round(winner,planner,visible[wave],graphs[wave]!,links,trajectory+"/"+wave.ToString(CultureInfo.InvariantCulture),F("s4b"),F("evidence"),F("prior"),F("policy"),F("blocking"),
-                        factors.TryGetProperty("groupSecurity",out var gs)?gs.GetString()!:"leader",
                         baseline?census.RootElement:null,baseline?diag.RootElement:null,baseline?actualGraph.RootElement:null);
                     if(baseline)baselineDone=true;
                     await output.WriteLineAsync(JsonSerializer.Serialize(new {cell=cell.GetProperty("cell").GetString(),schedule=t.GetProperty("schedule").GetString(),
@@ -595,8 +571,7 @@ internal static class V9Phase4Matrix
                 }
             }
         }
-        Require(total==(V9DevE2EFullCommand.ScaleAdmitted?216:144)&&baselineDone,"EXEC_CENSUS");
-        Console.WriteLine(V9DevE2EFullCommand.ScaleAdmitted?
-            "V9_PHASE4_MATRIX_72_CELLS_216_STATES_NONPUBLISHING":"V9_PHASE4_MATRIX_48_CELLS_144_STATES_NONPUBLISHING");
+        Require(total==144&&baselineDone,"EXEC_CENSUS");
+        Console.WriteLine("V9_PHASE4_MATRIX_48_CELLS_144_STATES_NONPUBLISHING");
     }
 }
