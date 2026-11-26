@@ -1,3 +1,5 @@
+> **GOV-V9-PARIDADE-INDEPENDENTE-EMPATE-20261126 — DECIDIDO pelo PO:** [paridade independente por conjunto de destinos empatados](Relatorio_V9_Ensaio_10k_20261125.md#decisão-do-po--paridade-independente-invariante-a-empate), pares de mesma entrada estritos e escalada de empate resolvido em Best. #1940/#1851. GOV-DOC-01.
+
 > **ACERVO GOV-V9-MANDATO-E2E-CONTINUO-20261126:** [Mandato integral aprovado](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) para o caminho crítico do E2E integral DEV V9 pelo Codex local, com Fase A obrigatória, Fases B/C/D postergadas e regras de continuidade, custódia, parada e disparo final. #1851/#1940. GOV-DOC-01.
 
 > **Esclarecimento do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. GOV-DOC-01. [Retomadas na mesma sessão e acompanhamento da CI](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--retomadas-na-mesma-sessão-e-acompanhamento-da-ci).
