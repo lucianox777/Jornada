@@ -105,6 +105,11 @@ V8_DECISION_FAILURE_FIELDS=(
 V8_DECISION_FAILURE_FIELD_SET=frozenset(V8_DECISION_FAILURE_FIELDS)
 V8_DECISION_ERROR_CODE="V9_E2E_ORACLE_SCALE_V8_OPERATIONAL_DECISION"
 V8_DECIMAL_ERROR_CODE="V9_E2E_ORACLE_SCALE_V8_OPERATIONAL_DECIMAL"
+V8_LINK_FAILURE_FIELDS=(
+    "linkCollection","linkRowCount","linkFieldSet","observationCoverage",
+    "method","status","reason","exactRun","modelId","personUuid","score")
+V8_LINK_FAILURE_FIELD_SET=frozenset(V8_LINK_FAILURE_FIELDS)
+V8_LINK_ERROR_CODE="V9_E2E_ORACLE_SCALE_V8_OPERATIONAL_LINK"
 
 class V8DecisionPredicateError(ValueError):
     """Carry only fixed field labels; never receipt values or private identifiers."""
@@ -117,6 +122,17 @@ class V8DecisionPredicateError(ValueError):
             raise ValueError(V8_DECISION_ERROR_CODE)
         self.fields=fields
         super().__init__(error_code)
+
+class V8LinkPredicateError(ValueError):
+    """Carry only fixed link predicate labels; never receipt values."""
+    def __init__(self,fields):
+        fields=tuple(fields)
+        if (not fields or len(fields)!=len(set(fields))
+                or any(field not in V8_LINK_FAILURE_FIELD_SET for field in fields)
+                or tuple(sorted(fields,key=V8_LINK_FAILURE_FIELDS.index))!=fields):
+            raise ValueError(V8_LINK_ERROR_CODE)
+        self.fields=fields
+        super().__init__(V8_LINK_ERROR_CODE)
 
 def canonical_prefull_frame(frame, attempt):
     frame_fields={"Attempt","Rows","InitialRefs","SnapshotMs","VersionStoreStartBytes",
@@ -315,22 +331,35 @@ def canonical_v8_operational_receipt(receipt):
     links=receipt["currentLinks"]
     link_fields={"observationId","personUuid","method","score","status","reason","modelId","exactRun"}
     decision_by_observation={row["observationId"]:row for row in decisions}
+    if not isinstance(links,list):
+        raise V8LinkPredicateError(("linkCollection",))
+    if len(links)!=4:
+        raise V8LinkPredicateError(("linkRowCount",))
+    if any(not isinstance(link,dict) or set(link)!=link_fields for link in links):
+        raise V8LinkPredicateError(("linkFieldSet",))
+    if ({link["observationId"] for link in links}!=set(decision_by_observation)
+            or len({link["observationId"] for link in links})!=4):
+        raise V8LinkPredicateError(("observationCoverage",))
     def exact_link_score(link,decision):
         try:
             return persisted_decimal(link["score"])==persisted_decimal(decision["bestScore"])
         except (ValueError,TypeError,ArithmeticError):
             return False
-    require(isinstance(links,list) and len(links)==4
-            and len({link.get("observationId") for link in links if isinstance(link,dict)})==4
-            and all(isinstance(link,dict) and set(link)==link_fields
-                and link["observationId"] in decision_by_observation
-                and link["method"]=="LINKAGE_PROBABILISTICO"
-                and link["status"]==decision_by_observation[link["observationId"]]["status"]
-                and link["reason"]==decision_by_observation[link["observationId"]]["reason"]
-                and link["exactRun"] is True and link["modelId"]==model["modelId"]
-                and link["personUuid"]==decision_by_observation[link["observationId"]]["resolvedUuid"]
-                and exact_link_score(link,decision_by_observation[link["observationId"]])
-                for link in links),"SCALE_V8_OPERATIONAL_LINK")
+    link_checks=(
+        ("method",all(link["method"]=="LINKAGE_PROBABILISTICO" for link in links)),
+        ("status",all(link["status"]==decision_by_observation[link["observationId"]]["status"]
+            for link in links)),
+        ("reason",all(link["reason"]==decision_by_observation[link["observationId"]]["reason"]
+            for link in links)),
+        ("exactRun",all(link["exactRun"] is True for link in links)),
+        ("modelId",all(link["modelId"]==model["modelId"] for link in links)),
+        ("personUuid",all(link["personUuid"]==
+            decision_by_observation[link["observationId"]]["resolvedUuid"] for link in links)),
+        ("score",all(exact_link_score(link,decision_by_observation[link["observationId"]])
+            for link in links)))
+    link_failures=tuple(field for field,passed in link_checks if not passed)
+    if link_failures:
+        raise V8LinkPredicateError(link_failures)
     progressive=receipt["progressiveOrigins"]
     progressive_fields={"originId","initialUuid","canonicalUuid","legacyUuid","state","version",
                         "lastExternalTargetUuid"}
@@ -777,6 +806,9 @@ def main():
         if isinstance(e,V8DecisionPredicateError):
             for field in e.fields:
                 print("V8_OPERATIONAL_DECISION_FIELD="+field)
+        elif isinstance(e,V8LinkPredicateError):
+            for field in e.fields:
+                print("V8_OPERATIONAL_LINK_FIELD="+field)
         code=safe_failure_code(a.mode,e)
         raise SystemExit("V9_PHASE4_SCALE_REJECTED_"+code) from None
     print("V9_PHASE4_SCALE_"+a.mode.upper()+"_PASS")

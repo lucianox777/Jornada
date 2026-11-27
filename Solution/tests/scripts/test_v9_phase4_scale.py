@@ -586,18 +586,34 @@ env() {
         self.assertEqual(caught.exception.fields,
             ("status","publicationReason","universeReference"))
         for label,mutate in (
+            ("method",lambda r:r["currentLinks"][0].update(method="CHANGED")),
             ("score",lambda r:r["currentLinks"][1].update(score="0.97000000")),
             ("status",lambda r:r["currentLinks"][3].update(status="RESOLVIDO")),
             ("reason",lambda r:r["currentLinks"][3].update(
                 reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA")),
-            ("resolvedUuid",lambda r:r["currentLinks"][0].update(personUuid=initial_resolved)),
-            ("cardinality",lambda r:r["currentLinks"][3].update(observationId=10))):
+            ("exactRun",lambda r:r["currentLinks"][0].update(exactRun=False)),
+            ("modelId",lambda r:r["currentLinks"][0].update(modelId=initial_resolved)),
+            ("personUuid",lambda r:r["currentLinks"][0].update(personUuid=initial_resolved)),
+            ("observationCoverage",lambda r:r["currentLinks"][3].update(observationId=10))):
             with self.subTest(currentLink=label):
                 changed=deepcopy(migrated);mutate(changed)
-                with self.assertRaisesRegex(ValueError,"SCALE_V8_OPERATIONAL_LINK"):
+                with self.assertRaises(S.V8LinkPredicateError) as caught:
                     S.canonical_v8_operational_receipt(changed)
+                self.assertEqual(caught.exception.fields,(label,))
+        link_shape_cases=(
+            ("linkCollection",lambda r:r.update(currentLinks={})),
+            ("linkRowCount",lambda r:r.update(currentLinks=[])),
+            ("linkFieldSet",lambda r:r["currentLinks"][0].pop("reason")))
+        for expected,mutate in link_shape_cases:
+            with self.subTest(v8LinkShape=expected):
+                changed=deepcopy(migrated);mutate(changed)
+                with self.assertRaises(S.V8LinkPredicateError) as caught:
+                    S.canonical_v8_operational_receipt(changed)
+                self.assertEqual(caught.exception.fields,(expected,))
         with self.assertRaises(ValueError):
             S.V8DecisionPredicateError(("private-value",))
+        with self.assertRaises(ValueError):
+            S.V8LinkPredicateError(("private-value",))
         for mutate in (
             lambda r:r["gold"][0].update(fullName="CHANGED"),
             lambda r:r["decisions"][0].update(publicationReason="CHANGED"),
@@ -652,6 +668,26 @@ env() {
             "V8_OPERATIONAL_DECISION_FIELD=publishedUuid",
             "V8_OPERATIONAL_DECISION_FIELD=publicationReason",
             "V8_OPERATIONAL_DECISION_FIELD=universeReference"])
+
+    def test_operational_v8_link_diagnostics_emit_all_fixed_fields_then_reject(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        import sys
+        error=S.V8LinkPredicateError(("status","reason","personUuid","score"))
+        output=StringIO()
+        with (patch.object(S,"profile",return_value=("optimized1k",(1000,355,"clean"))),
+              patch.object(S,"pair_receipt",side_effect=error),
+              patch.object(sys,"argv",["v9-phase4-scale.py","pair","--root","/tmp"]),
+              redirect_stdout(output)):
+            with self.assertRaises(SystemExit) as rejected:
+                S.main()
+        self.assertEqual(str(rejected.exception),
+            "V9_PHASE4_SCALE_REJECTED_"+S.V8_LINK_ERROR_CODE)
+        self.assertEqual(output.getvalue().splitlines(),[
+            "V8_OPERATIONAL_LINK_FIELD=status",
+            "V8_OPERATIONAL_LINK_FIELD=reason",
+            "V8_OPERATIONAL_LINK_FIELD=personUuid",
+            "V8_OPERATIONAL_LINK_FIELD=score"])
 
     def test_independent_rank_drift_blocks_even_when_both_restored_pairs_match(self):
         from contextlib import redirect_stdout
