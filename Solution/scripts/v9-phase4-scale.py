@@ -315,19 +315,21 @@ def canonical_v8_operational_receipt(receipt):
     links=receipt["currentLinks"]
     link_fields={"observationId","personUuid","method","score","status","reason","modelId","exactRun"}
     decision_by_observation={row["observationId"]:row for row in decisions}
+    def exact_link_score(link,decision):
+        try:
+            return persisted_decimal(link["score"])==persisted_decimal(decision["bestScore"])
+        except (ValueError,TypeError,ArithmeticError):
+            return False
     require(isinstance(links,list) and len(links)==4
+            and len({link.get("observationId") for link in links if isinstance(link,dict)})==4
             and all(isinstance(link,dict) and set(link)==link_fields
                 and link["observationId"] in decision_by_observation
                 and link["method"]=="LINKAGE_PROBABILISTICO"
-                and link["status"]==decision_by_observation[link["observationId"]]["publicationStatus"]
-                and link["reason"]==decision_by_observation[link["observationId"]]["publicationReason"]
+                and link["status"]==decision_by_observation[link["observationId"]]["status"]
+                and link["reason"]==decision_by_observation[link["observationId"]]["reason"]
                 and link["exactRun"] is True and link["modelId"]==model["modelId"]
-                and (link["personUuid"]==decision_by_observation[link["observationId"]]["publishedUuid"]
-                     if decision_by_observation[link["observationId"]]["publicationResult"]=="ASSOCIACAO_EXISTENTE"
-                     else link["personUuid"] is None)
-                and (link["score"]==decision_by_observation[link["observationId"]]["bestScore"]
-                     if decision_by_observation[link["observationId"]]["publicationResult"]=="ASSOCIACAO_EXISTENTE"
-                     else link["score"] is None)
+                and link["personUuid"]==decision_by_observation[link["observationId"]]["resolvedUuid"]
+                and exact_link_score(link,decision_by_observation[link["observationId"]])
                 for link in links),"SCALE_V8_OPERATIONAL_LINK")
     progressive=receipt["progressiveOrigins"]
     progressive_fields={"originId","initialUuid","canonicalUuid","legacyUuid","state","version",

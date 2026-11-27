@@ -486,16 +486,16 @@ env() {
                       gold(initial_none,"NONE")],
                 currentLinks=[
                     dict(observationId=10,personUuid=resolved_person,method="LINKAGE_PROBABILISTICO",
-                        score="0.98000000",status="RESOLVIDO",reason="ASSOCIACAO_EXISTENTE_LINKAGE",
+                        score="0.98000000",status="RESOLVIDO",reason=None,
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=11,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
+                    dict(observationId=11,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.98000000",
                         status="CONFLITO",reason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=12,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
+                    dict(observationId=12,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.10000000",
                         status="NAO_RESOLVIDO",reason="ABAIXO_T_LINKAGE",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=13,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
-                        status="RESOLVIDO",reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA",
+                    dict(observationId=13,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.00000000",
+                        status="NAO_RESOLVIDO",reason="SEM_CANDIDATO_NO_RULESET_BLOCKING",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True)],
                 progressiveOrigins=[
                     dict(originId=30,initialUuid=initial_resolved,canonicalUuid=resolved_person,
@@ -585,6 +585,17 @@ env() {
             S.canonical_v8_operational_receipt(changed)
         self.assertEqual(caught.exception.fields,
             ("status","publicationReason","universeReference"))
+        for label,mutate in (
+            ("score",lambda r:r["currentLinks"][1].update(score="0.97000000")),
+            ("status",lambda r:r["currentLinks"][3].update(status="RESOLVIDO")),
+            ("reason",lambda r:r["currentLinks"][3].update(
+                reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA")),
+            ("resolvedUuid",lambda r:r["currentLinks"][0].update(personUuid=initial_resolved)),
+            ("cardinality",lambda r:r["currentLinks"][3].update(observationId=10))):
+            with self.subTest(currentLink=label):
+                changed=deepcopy(migrated);mutate(changed)
+                with self.assertRaisesRegex(ValueError,"SCALE_V8_OPERATIONAL_LINK"):
+                    S.canonical_v8_operational_receipt(changed)
         with self.assertRaises(ValueError):
             S.V8DecisionPredicateError(("private-value",))
         for mutate in (
