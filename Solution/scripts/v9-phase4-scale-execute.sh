@@ -15,6 +15,13 @@ run_full() {
     full_sql_probe Start "$profile" >"$root/sql-probe-start.log"
   fi
   run_cli full
+  if [[ "$profile" == diagnostic1k || "$profile" == optimized1k ]]; then
+    grep -Fxq V9_E2E_CENSUS_REFERENCE_EXACT_PASS "$root/runner-full.log" || {
+      echo V9_E2E_CENSUS_REFERENCE_EVIDENCE_MISSING
+      return 1
+    }
+    printf 'V9_E2E_CENSUS_REFERENCE_EXACT_PASS profile=%s\n' "$profile"
+  fi
   if [[ "$profile" == diagnostic* || "$profile" == optimized* ]]; then
     full_sql_probe Finish "$profile" >"$root/sql-probe-finish.json"
     python3 scripts/v9-phase4-scale.py sql-probe --root "$root"
@@ -208,7 +215,8 @@ repeat_full_from_pair() {
       *) exit 1 ;;
     esac
     mkdir -m 700 "$root/pair" "$root/pair/diagnostics"
-    cp -- "$root/census.sql" "$root/http-lineage.json" "$root/wave-preflight-receipt.json" "$root/ingest-elapsed.txt" "$root/pair/"
+    cp -- "$root/census.sql" "$root/scale-census.sql" "$root/http-lineage.json" \
+      "$root/wave-preflight-receipt.json" "$root/ingest-elapsed.txt" "$root/pair/"
     cp -a -- "$root/fixture" "$root/pair/"
     root="$root/pair"
     export JORNADA_V9_E2E_PRIVATE_ROOT="$root" RUNNER_TEMP="$root/diagnostics"

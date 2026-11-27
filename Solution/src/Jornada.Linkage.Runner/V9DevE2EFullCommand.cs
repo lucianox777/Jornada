@@ -41,6 +41,8 @@ public static class V9DevE2EFullCommand
         DiagnosticPopulation > 0;
     private static string stage = "admission";
     private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
+    private const string ReferenceCensusSha256 = "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece";
+    private const string ScaleCensusSha256 = "8b5a29d9f7ca47482b0fc3930b7607c882b3197ff55ddfd10ed8172d59aac873";
 
     public static async Task RunAsync(string[] args)
     {
@@ -324,14 +326,9 @@ public static class V9DevE2EFullCommand
             if (scale)
                 await WriteNewAsync(root, "scale-rank-private.json", JsonSerializer.Serialize(membership.ExpectedRanks));
             stage = "post-full-census";
-            var query = await ReadPrivateAsync(root, "census.sql");
-            if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(query))) != "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece")
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
-            await using var census = new SqlCommand(query, connection)
-                { CommandTimeout = 120 };
-            census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
-            census.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
+            await using var census = scale
+                ? await LoadCensusAsync("scale-census.sql", ScaleCensusSha256)
+                : await LoadCensusAsync("census.sql", ReferenceCensusSha256);
             var json = new StringBuilder();
             if (scale && Environment.GetEnvironmentVariable("JORNADA_V9_CENSUS_DIAGNOSTIC") == "true")
             {
@@ -339,10 +336,38 @@ public static class V9DevE2EFullCommand
             }
             else
             {
-                await using var reader = await census.ExecuteReaderAsync();
-                while (await reader.ReadAsync()) json.Append(reader.GetString(0));
+                await ReadCensusAsync(census, json);
             }
-            await WriteNewAsync(root, "sql-census.json", json.ToString());
+            var censusJson = json.ToString();
+            if (scale && DiagnosticPopulation == 1000)
+            {
+                stage = "post-full-census-equivalence";
+                await using var reference = await LoadCensusAsync("census.sql", ReferenceCensusSha256);
+                var referenceJson = new StringBuilder();
+                await ReadCensusAsync(reference, referenceJson);
+                if (!string.Equals(censusJson, referenceJson.ToString(), StringComparison.Ordinal))
+                    throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_REFERENCE_DIVERGENCE");
+                Console.WriteLine("V9_E2E_CENSUS_REFERENCE_EXACT_PASS");
+            }
+            await WriteNewAsync(root, "sql-census.json", censusJson);
+
+            async Task<SqlCommand> LoadCensusAsync(string file, string expectedSha256)
+            {
+                var query = await ReadPrivateAsync(root, file);
+                if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(query))) != expectedSha256)
+                    throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
+                var command = new SqlCommand(query, connection) { CommandTimeout = 120 };
+                command.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
+                command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
+                return command;
+            }
+
+            static async Task ReadCensusAsync(SqlCommand command, StringBuilder destination)
+            {
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) destination.Append(reader.GetString(0));
+            }
         }
         if (!scale)
         {

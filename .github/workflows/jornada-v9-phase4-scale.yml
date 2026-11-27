@@ -171,6 +171,7 @@ jobs:
           python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
           cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
           cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
       - name: Launch isolated SQL Server
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
       - name: Fresh schema with C07 resident identity
@@ -482,6 +483,7 @@ jobs:
           python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
           cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
           cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
       - name: Launch isolated SQL Server for FULL 10k
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
       - name: Create fresh V3 schema for FULL 10k
