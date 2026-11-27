@@ -16,7 +16,8 @@ H=module("http","v9-e2e-1k-http.py")
 require=I.require
 PROFILES={"diagnostic1k":(1000,355,"clean"),
           "diagnostic2k":(2000,355,"clean"),"diagnostic4k":(4000,355,"clean"),"optimized1k":(1000,355,"clean"),
-          "optimized2k":(2000,355,"clean"),"optimized4k":(4000,355,"clean")}
+          "optimized2k":(2000,355,"clean"),"optimized4k":(4000,355,"clean"),
+          "optimized10k":(10000,355,"clean")}
 CAP=8
 def profile():
     label=os.environ["JORNADA_V9_PHASE4_SCALE"]

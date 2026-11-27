@@ -80,13 +80,16 @@ def sql_scalar(query, attempt):
 
 
 def ingest(root, attempt, population=1000):
-    require(population == 1000 or (population in (2000,4000) and os.environ.get('GITHUB_ACTIONS') == 'true'
+    scale_profile = os.environ.get('JORNADA_V9_PHASE4_SCALE')
+    allowed_scale_profiles = ({f'diagnostic{population//1000}k', f'optimized{population//1000}k'}
+                              if population in (2000, 4000) else
+                              {'optimized10k'} if population == 10000 else set())
+    require(population == 1000 or (population in (2000,4000,10000) and os.environ.get('GITHUB_ACTIONS') == 'true'
             and os.environ.get('GITHUB_REPOSITORY') == 'lucianox777/Jornada'
             and os.environ.get('GITHUB_EVENT_NAME') == 'pull_request'
             and os.environ.get('JORNADA_V9_FULL_DIAGNOSTIC') == 'true'
             and os.environ.get('JORNADA_RUNTIME_MODE') == 'DEV'
-            and os.environ.get('JORNADA_V9_PHASE4_SCALE') in (
-                f'diagnostic{population//1000}k', f'optimized{population//1000}k')
+            and scale_profile in allowed_scale_profiles
             and os.environ.get('JORNADA_E2E_HTTP_VOLUME_COUNT') == str(population)), 'VOLUME_ADMISSION')
     preflight_path = root / "delivery-preflight-receipt.json"
     pre = get_json(preflight_path)

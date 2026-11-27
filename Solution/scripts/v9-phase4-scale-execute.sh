@@ -136,7 +136,7 @@ PY
 full_sql_probe() {
   local operation="$1" profile="$2"
   case "$operation:$profile" in
-    Start:diagnostic1k|Start:optimized1k|Start:optimized2k|Start:optimized4k|Finish:diagnostic1k|Finish:optimized1k|Finish:optimized2k|Finish:optimized4k) ;;
+    Start:diagnostic1k|Start:optimized1k|Start:optimized2k|Start:optimized4k|Start:optimized10k|Finish:diagnostic1k|Finish:optimized1k|Finish:optimized2k|Finish:optimized4k|Finish:optimized10k) ;;
     *) return 1 ;;
   esac
   docker exec "$sql_name" sh -c \

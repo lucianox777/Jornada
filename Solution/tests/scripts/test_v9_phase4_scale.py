@@ -640,21 +640,49 @@ env() {
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
                  JORNADA_V9_FULL_DIAGNOSTIC="true")
         for label,n in (("diagnostic1k",1000),("diagnostic2k",2000),("diagnostic4k",4000),
-                        ("optimized1k",1000),("optimized2k",2000),("optimized4k",4000)):
+                        ("optimized1k",1000),("optimized2k",2000),("optimized4k",4000),
+                        ("optimized10k",10000)):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 self.assertEqual(S.profile()[1][0],n)
-        for label,n in (("comparable",10000),("challenge",10000),("diagnostic4k",2000),("optimized4k",10000),("optimized2k",4000)):
+        for label,n in (("comparable",10000),("challenge",10000),("diagnostic10k",10000),
+                        ("diagnostic4k",2000),("optimized4k",10000),("optimized2k",4000)):
             with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=label,
                            JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
                 with self.assertRaises(ValueError):S.profile()
+
+    def test_full10k_is_sequential_blocking_and_keeps_prefull_matrix_unchanged(self):
+        workflow=(Path(__file__).resolve().parents[3]/
+                  ".github/workflows/jornada-v9-phase4-scale.yml").read_text(encoding="utf-8")
+        matrix=workflow.split("  scale-dev-nonpublish:",1)[1].split("  parity-1k:",1)[0]
+        full=workflow.split("  full10k-confirmation:",1)[1]
+        self.assertNotIn("optimized10k",matrix)
+        self.assertIn("needs: audit-curve",full)
+        self.assertIn("JORNADA_V9_PHASE4_SCALE: optimized10k",full)
+        self.assertIn("JORNADA_E2E_HTTP_VOLUME_COUNT: '10000'",full)
+        self.assertIn("--confirm-full10k",full)
+        self.assertIn("--full10k-profile optimized10k",full)
+        self.assertIn("if: always()",full)
+        self.assertLess(full.index("Execute one FULL 10k"),
+                        full.index("Apply the approved deterministic counter confirmation"))
+        self.assertIn("${{ runner.temp }}/v9-full-diagnostic.json",full)
+        self.assertIn("${{ runner.temp }}/v9-full-extra-resource.json",full)
+        self.assertNotIn("workflow_dispatch:",workflow.split("permissions:",1)[0])
+
+        executor=(Path(__file__).resolve().parents[2]/
+                  "scripts/v9-phase4-scale-execute.sh").read_text(encoding="utf-8")
+        self.assertIn("Start:optimized10k",executor)
+        self.assertIn("Finish:optimized10k",executor)
+
     def test_http_ingest_admits_exact_optimized_volumes_and_preserves_negative_scope(self):
         env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY="lucianox777/Jornada",
                  GITHUB_EVENT_NAME="pull_request",JORNADA_RUNTIME_MODE="DEV",
                  JORNADA_V9_FULL_DIAGNOSTIC="true")
         # Stop at the first fixture read: no HTTP, SQL or real data access.
-        for n in (2000,4000):
-            for prefix in ("diagnostic","optimized"):
+        for n,prefixes in ((2000,("diagnostic","optimized")),
+                           (4000,("diagnostic","optimized")),
+                           (10000,("optimized",))):
+            for prefix in prefixes:
                 with self.subTest(population=n,prefix=prefix):
                     with patch.dict(os.environ,dict(env,JORNADA_V9_PHASE4_SCALE=f"{prefix}{n//1000}k",
                                      JORNADA_E2E_HTTP_VOLUME_COUNT=str(n)),clear=True):
@@ -668,6 +696,7 @@ env() {
                           ({"JORNADA_RUNTIME_MODE":"PROD"},2000),({"JORNADA_RUNTIME_MODE":"HML"},2000),
                           ({"JORNADA_V9_PHASE4_SCALE":"optimized4k"},2000),
                           ({"JORNADA_E2E_HTTP_VOLUME_COUNT":"4000"},2000),
+                          ({"JORNADA_V9_PHASE4_SCALE":"diagnostic10k","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000),
                           ({"JORNADA_V9_PHASE4_SCALE":"comparable","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000),
                           ({"JORNADA_V9_PHASE4_SCALE":"challenge","JORNADA_E2E_HTTP_VOLUME_COUNT":"10000"},10000)):
             with self.subTest(changes=changes,population=n):
