@@ -789,6 +789,10 @@ env() {
         self.assertIn("needs: audit-curve",full)
         self.assertIn("JORNADA_V9_PHASE4_SCALE: optimized10k",full)
         self.assertIn("JORNADA_E2E_HTTP_VOLUME_COUNT: '10000'",full)
+        runner=(Path(__file__).resolve().parents[2]/
+                "src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs").read_text(encoding="utf-8")
+        self.assertIn('(\"optimized10k\", \"10000\") => 10000',runner)
+        self.assertNotIn('(\"diagnostic10k\", \"10000\")',runner)
         self.assertIn("--confirm-full10k",full)
         self.assertIn("--full10k-profile optimized10k",full)
         self.assertIn("if: always()",full)

@@ -27,6 +27,7 @@ public static class V9DevE2EFullCommand
             ("optimized1k", "1000") => 1000,
             ("optimized2k", "2000") => 2000,
             ("optimized4k", "4000") => 4000,
+            ("optimized10k", "10000") => 10000,
             ("diagnostic2k", "2000") => 2000,
             ("diagnostic4k", "4000") => 4000,
             _ => 0
