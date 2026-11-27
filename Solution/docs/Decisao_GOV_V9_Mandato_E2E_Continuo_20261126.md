@@ -38,6 +38,16 @@ Proposta do supervisor que não alcance o §7 nem o §9.a pode ser implementada 
 
 **Estado documental.** DECIDIDO e registrado. A aplicação operacional, as revisões e suas respostas têm evidências próprias na #1851 e nos checkpoints subsequentes.
 
+## Decisão do PO de 26/11/2026 — PASS qualificado da curva §4.1
+
+**GOV-V9-CURVA-PASS-QUALIFICADO-20261126 — DECIDIDO pelo PO.** A curva 1k → 2k → 4k da Fase A é aceita como **PASS QUALIFICADO** com dois PASS físicos consecutivos na mesma árvore operacional, runs 45910892664 e 45913982837, após o FAIL preservado da run 45907711629. Todos os resultados continuam reportados. A variância de tempo é atribuída ao ambiente dos runners hospedados e à instrumentação somente como hipótese; não é causa demonstrada.
+
+O FULL 10k funciona como confirmação do PASS qualificado. Se o tempo do FULL 10k exceder 3,4× o tempo do FULL 4k medido — regra de 2,5× por duplicação extrapolada de 4k para 10k — a curva é reaberta. A run automática 45916702378, já em andamento quando esta decisão foi emitida, será reportada como evidência adicional e não altera a decisão.
+
+Esta decisão substitui a proposta de exigir três PASS consecutivos. Os demais gates da Fase A permanecem obrigatórios antes do FULL 10k, inclusive a regressão V8 pelo caminho operacional real. O PASS qualificado não autoriza antecipar o 10k, não altera comparador, modelo, TF, limiares, política nem o vencedor #38.
+
+**Estado documental.** DECIDIDO. A medição do FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL
