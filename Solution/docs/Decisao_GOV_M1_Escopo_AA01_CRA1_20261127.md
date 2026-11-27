@@ -42,3 +42,7 @@ O exemplo cadastral SMS preservado em revisões anteriores é histórico e não 
 - [#1851 — checkpoint do executor](https://github.com/lucianox777/Jornada/issues/1851), sem transformar registro auxiliar em checkpoint.
 - Base documental examinada: `250aedc5f71aec2fd54f7af80b404450d800ce08`.
 - Kit anterior: `Jornada_M1a_Kit_Preliminar_rev06_20261127.zip`, SHA-256 `4da6b1e40c4024881615b50f8e18515f7eb6c75ae69d076dea9e32356d51bc4b`.
+
+## Evidência técnica posterior — sem nova decisão
+
+A [preparação de conformidade factual AA01/CRA1](Preparacao_M1_Conformidade_AA01_CRA1_20261127.md) registra 141 casos de schema avaliados offline e um confronto NUnit candidato com o validador real, ainda não compilado/executado. Essa evidência não amplia contratos, não altera autorização, não acrescenta gate obrigatório e não declara M1/E2E PASS. Os índices e a integração documental protegida permanecem pendentes.
