@@ -22,15 +22,25 @@ class ScaleTests(unittest.TestCase):
         pairs=re.findall(r"\(@model,N'([A-Z0-9_]+)',([0-9.]+)\)",parameter_block)
         self.assertEqual(len(pairs),55)
         self.assertEqual(len({name for name,_ in pairs}),55)
-        def g29(raw):
-            value=format(Decimal(raw),"f")
-            return value.rstrip("0").rstrip(".") if "." in value else value
+        def fixture_dotnet_decimal_g29(raw):
+            """Mirror .NET G29 for the positive, <=29-digit literals in this fixture."""
+            value=Decimal(raw).normalize()
+            if value.is_zero():
+                return "0"
+            exponent=value.adjusted()
+            if -4 <= exponent < 29:
+                return format(value,"f")
+            significand=format(value.scaleb(-exponent).normalize(),"f")
+            return f"{significand}E{exponent:+03d}"
+        self.assertEqual(
+            fixture_dotnet_decimal_g29(dict(pairs)["PRIOR_BLOCK_MIN"]),"1E-06")
         canonical=("V8_OPERATIONAL_REGRESSION_RULESET_V1\n"
             "FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8\n-\n-\n"
             "PASS\tfull-name\nF\tname_full\n"+
-            "".join(f"P\t{name}\t{g29(value)}\n" for name,value in sorted(pairs)))
+            "".join(f"P\t{name}\t{fixture_dotnet_decimal_g29(value)}\n"
+                    for name,value in sorted(pairs)))
         fingerprint=hashlib.sha256(canonical.encode()).hexdigest()
-        self.assertEqual(fingerprint,"900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504")
+        self.assertEqual(fingerprint,"017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd")
         self.assertIn("'"+fingerprint+"'",sql)
 
     def test_sql_workflow_stops_on_first_failed_command(self):
@@ -245,7 +255,7 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
                 model=dict(modelId="88000000-0000-4000-8000-000000008008",version=8008,
                     status="INATIVO",algorithmVersion="FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8",
                     ruleSetVersion="V8_OPERATIONAL_REGRESSION_RULESET_V1",
-                    ruleSetFingerprintSha256="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                    ruleSetFingerprintSha256="017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd",
                     projectionSchemaVersion="PERSON_RESOLUTION_PROJECTION_V2",
                     projectionFingerprintSha256="d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4"),
                 run=dict(mode="ON_DEMAND",status="PUBLICADO",observationId=10,highWatermark=20,

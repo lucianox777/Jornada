@@ -132,7 +132,7 @@ def operational_v8_evidence(pairs, sha):
                 and re.fullmatch(r"[0-9a-f]{64}",receipt["operationalV8SemanticSha256"])
                 and receipt["operationalV8ModelId"]=="88000000-0000-4000-8000-000000008008"
                 and receipt["operationalV8RuleSetFingerprintSha256"]==
-                    "900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504")
+                    "017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd")
         direction=(receipt["primaryProfile"],receipt["restoredProfile"])
         require(direction in expected and direction not in directions
                 and receipt["operationalV8Stages"]==list(expected[direction]))
@@ -145,7 +145,7 @@ def operational_v8_evidence(pairs, sha):
     return dict(status="PASS",entrypoint="ProbabilisticLinkageBatchRunner.RunAsync",
                 strictBestSecond=True,tolerance=None,fixtureLifecycle="NO_TRAIN_NO_VALIDATION_NO_ACTIVATION",
                 modelId="88000000-0000-4000-8000-000000008008",
-                ruleSetFingerprintSha256="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                ruleSetFingerprintSha256="017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd",
                 forwardAndRollbackVerified=True,mutationDetected=True,rows=rows)
 
 def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
@@ -194,13 +194,14 @@ def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
     # counters with background SQL or host CPU. V8 has its own physical gate.
     v8=operational_v8_evidence(v8_pairs,sha)
     require(type(parity_pass) is bool)
-    missing = [] if parity_pass else ["strictParity1k"]
+    pre_full_missing = [] if parity_pass else ["strictParity1k"]
     if v8 is None:
-        missing += ["independentOperationalV8Regression"]
+        pre_full_missing += ["independentOperationalV8Regression"]
     if any(row["runnerSql"]["status"] != "MEASURED" for row in rows):
-        missing += ["exactSqlOperations", "sqlCpuAndExactRunnerAttribution"]
+        pre_full_missing += ["exactSqlOperations", "sqlCpuAndExactRunnerAttribution"]
     if any(row["extraFullResources"]["status"] != "MEASURED" for row in rows):
-        missing += ["fullTempdbUsage", "physicalIndexBytes", "fullCpuAndDiskIo"]
+        pre_full_missing += ["fullTempdbUsage", "physicalIndexBytes", "fullCpuAndDiskIo"]
+    completion_blockers = ["full10kDeterministicCounterConfirmation", "phaseAAnalysis1931"]
     return dict(schema="V9_MIGRATED_CURVE_DIAGNOSTIC_V1",commit=sha,rows=rows,
                 fullTimingRatios2kTo4k=t,exclusivePhaseRatios2kTo4k=p,
                 overLimit=failures,unmeasurable=unmeasurable,
@@ -210,7 +211,11 @@ def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
                 qualifiedCurveDecisionId="GOV-V9-CURVA-PASS-QUALIFICADO-20261126",
                 strictParity1k="PASS" if parity_pass else "ABSENT",
                 operationalV8Regression=v8,
-                missingEvidence=missing,phaseAComplete=not missing)
+                preFullMissingEvidence=pre_full_missing,
+                phaseAPreFullGatesComplete=not pre_full_missing,
+                phaseACompletionBlockers=completion_blockers,
+                missingEvidence=pre_full_missing+completion_blockers,
+                phaseAComplete=False)
 
 def main():
     # This can inspect a completed exact-SHA run without recomputing a corpus.

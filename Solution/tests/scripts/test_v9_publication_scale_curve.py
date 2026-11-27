@@ -35,7 +35,7 @@ class CurveTests(unittest.TestCase):
                 operationalV8GoldRows=1,
                 operationalV8ModelId="88000000-0000-4000-8000-000000008008",
                 operationalV8RuleSetFingerprintSha256=
-                    "900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                    "017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd",
                 operationalV8Stages=(["BASELINE","20261126_V3"]
                     if primary=="diagnostic1k" else ["20261126_V3","BASELINE"]))
         return [pair("diagnostic1k","optimized1k","b"*64),
@@ -44,6 +44,7 @@ class CurveTests(unittest.TestCase):
         result=C.assess(self.frames(),"a"*40)
         self.assertEqual(result["timingGate"],"PASS")
         self.assertEqual(result["exclusivePhaseRatios2kTo4k"]["full-read"],2)
+        self.assertFalse(result["phaseAPreFullGatesComplete"])
         self.assertFalse(result["phaseAComplete"])
         self.assertTrue(result["missingEvidence"])
         result=C.assess(self.frames(6),"a"*40)
@@ -69,10 +70,16 @@ class CurveTests(unittest.TestCase):
         self.assertEqual(result["qualifiedCurveDecision"],"PASS_QUALIFIED")
         self.assertEqual(result["strictParity1k"],"PASS")
         self.assertEqual(result["operationalV8Regression"]["status"],"PASS")
-        self.assertEqual(result["missingEvidence"],[])
-        self.assertTrue(result["phaseAComplete"])
+        blockers=["full10kDeterministicCounterConfirmation","phaseAAnalysis1931"]
+        self.assertEqual(result["preFullMissingEvidence"],[])
+        self.assertTrue(result["phaseAPreFullGatesComplete"])
+        self.assertEqual(result["phaseACompletionBlockers"],blockers)
+        self.assertEqual(result["missingEvidence"],blockers)
+        self.assertFalse(result["phaseAComplete"])
         without_parity=C.assess(frames,"a"*40,[extra,extra,extra],self.v8_pairs())
-        self.assertEqual(without_parity["missingEvidence"],["strictParity1k"])
+        self.assertEqual(without_parity["preFullMissingEvidence"],["strictParity1k"])
+        self.assertEqual(without_parity["missingEvidence"],["strictParity1k",*blockers])
+        self.assertFalse(without_parity["phaseAPreFullGatesComplete"])
         self.assertFalse(without_parity["phaseAComplete"])
         bad=self.v8_pairs();bad[0]["operationalV8MutationDetected"]=False
         with self.assertRaises(ValueError):

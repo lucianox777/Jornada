@@ -164,7 +164,7 @@ def canonical_v8_operational_receipt(receipt):
             and model["version"]==8008 and model["status"]=="INATIVO"
             and model["algorithmVersion"]=="FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8"
             and model["ruleSetVersion"]=="V8_OPERATIONAL_REGRESSION_RULESET_V1"
-            and model["ruleSetFingerprintSha256"]=="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504"
+            and model["ruleSetFingerprintSha256"]=="017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd"
             and model["projectionSchemaVersion"]=="PERSON_RESOLUTION_PROJECTION_V2"
             and model["projectionFingerprintSha256"]=="d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4",
             "SCALE_V8_OPERATIONAL_MODEL")

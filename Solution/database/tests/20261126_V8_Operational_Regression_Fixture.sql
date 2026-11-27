@@ -105,7 +105,7 @@ INSERT identidade.linkage_ruleset(
     ibge_source_versao,ibge_fingerprint_sha256)
 VALUES(
     @ruleset,@model,N'V8_OPERATIONAL_REGRESSION_RULESET_V1',@algorithm,
-    '900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504',
+    '017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd',
     N'PERSON_RESOLUTION_PROJECTION_V2',
     'd186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4',
     NULL,NULL);
