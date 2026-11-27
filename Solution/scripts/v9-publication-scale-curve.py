@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit same-SHA migrated DEV FULL curve; never treat incomplete evidence as PASS."""
+"""Audit the DEV curve or FULL10k evidence; never run a corpus or pass incomplete evidence."""
 import argparse
 import importlib.util
 import json
@@ -15,6 +15,15 @@ POPULATIONS = (1000, 2000, 4000)
 TIMINGS = ("fullElapsedMs", "physicalReadMs", "physicalSnapshotMs",
            "silverGroupingMs", "goldScoringMs", "translationMs", "remainingFullLifecycleMs")
 WINNER = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee"
+FULL10K_POPULATION = 10000
+FULL10K_REFERENCE_RUNS = (45910892664, 45913982837, 45916702378)
+FULL10K_REFERENCES = {
+    "candidatePeople": 1034,
+    "silverEdges": 8524,
+    "silverDirectionsCompared": 17048,
+    "goldRecordScores": 1820,
+    "instanceBatchRequests": 84941,
+}
 
 def require(ok):
     if not ok:
@@ -86,6 +95,7 @@ def runner_sql_metrics(receipt):
     metrics = receipt.get("runnerSql")
     if metrics is None:
         return dict(status="ABSENT")
+    require(isinstance(metrics, dict))
     if metrics.get("schema") == "V9_DEV_FULL_SQL_OPERATIONS_V1":
         return dict(status="ARCHIVE_UNRECONCILED")
     counters = ("completedRpc", "completedBatches", "completedSqlStatements",
@@ -147,6 +157,146 @@ def operational_v8_evidence(pairs, sha):
                 modelId="88000000-0000-4000-8000-000000008008",
                 ruleSetFingerprintSha256="017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd",
                 forwardAndRollbackVerified=True,mutationDetected=True,rows=rows)
+
+def deterministic_counter_gate(observed):
+    require(isinstance(observed, dict) and set(observed) == set(FULL10K_REFERENCES)
+            and all(type(value) is int and value >= 0 for value in observed.values()))
+    counters = {}
+    over_limit = []
+    for key, reference in FULL10K_REFERENCES.items():
+        value = observed[key]
+        observed_times_10 = value * 10
+        reference_times_34 = reference * 34
+        passed = observed_times_10 <= reference_times_34
+        counters[key] = dict(reference4kMedian=reference, observed10k=value,
+            observedTimes10=observed_times_10, referenceTimes34=reference_times_34,
+            maximumObserved10k=reference_times_34 // 10,
+            status="PASS" if passed else "FAIL")
+        if not passed:
+            over_limit.append(key)
+    return counters, over_limit
+
+def full10k_instance_batch_requests(extra):
+    require(isinstance(extra, dict)
+            and extra["schema"] == "V9_DEV_FULL_EXTRA_RESOURCE_V1"
+            and extra["status"] == "MEASURED"
+            and extra["sampleScope"] == "FULL_WITH_OBSERVER_OVERHEAD"
+            and extra["sqlBatchScope"] == "DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS"
+            and extra["exactRunnerSqlStatementCount"] is False
+            and extra["rawSqlExported"] is False
+            and type(extra["sampleCount"]) is int and extra["sampleCount"] >= 2
+            and extra["probeError"] is None
+            and type(extra["instanceBatchRequests"]) is int
+            and extra["instanceBatchRequests"] >= 0)
+    return extra["instanceBatchRequests"]
+
+def full10k_diagnostics(receipt, diag, extra):
+    # Clock and CPU availability are report-only. Malformed diagnostics never
+    # approve, reject or reopen the deterministic counter confirmation.
+    full_timing = dict(status="UNAVAILABLE")
+    try:
+        values = {key: receipt["physicalFull"][key] for key in TIMINGS}
+        if all(number(value) for value in values.values()) and values["fullElapsedMs"] > 0:
+            full_timing = dict(status="MEASURED",values=values)
+    except (KeyError, TypeError, OverflowError):
+        pass
+    phase_timing = dict(status="ABSENT" if diag is None else "UNAVAILABLE")
+    if diag is not None:
+        try:
+            phase_timing = dict(status="MEASURED",values=phase_ms(diag))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            pass
+    cpu = dict(status="UNAVAILABLE")
+    if isinstance(extra,dict):
+        runner_cpu = extra.get("runnerCpuMs")
+        host_cpu = extra.get("hostCpuBusyFraction")
+        try:
+            if number(runner_cpu) and number(host_cpu) and host_cpu <= 1:
+                cpu = dict(status="MEASURED",runnerCpuMs=runner_cpu,hostCpuBusyFraction=host_cpu)
+        except OverflowError:
+            pass
+    try:
+        sql = runner_sql_metrics(receipt)
+    except (KeyError, TypeError, ValueError):
+        sql = dict(status="UNAVAILABLE")
+    return dict(fullTimingMs=full_timing,exclusiveDiagnosticPhaseMs=phase_timing,
+                runnerAndHostCpu=cpu,runnerSql=sql)
+
+def assess_full10k_confirmation(receipt, member, diag, extra, sha, expected_profile):
+    """Apply the PO gate to required FULL 10k evidence, using integer arithmetic only."""
+    require(re.fullmatch(r"[0-9a-f]{40}", sha)
+            and isinstance(expected_profile,str)
+            and re.fullmatch(r"[a-z][a-z0-9-]{0,39}",expected_profile)
+            and expected_profile.endswith("10k")
+            and receipt["schema"] == "V9_DEV_FULL_SCALE_DIAGNOSTIC_V1"
+            and receipt["commit"] == sha
+            and receipt["profile"] == expected_profile
+            and type(receipt["population"]) is int
+            and receipt["population"] == FULL10K_POPULATION
+            and receipt["winnerSha256"] == WINNER
+            and receipt["fullCompleted"] is True
+            and receipt["independentMembershipVerified"] is True
+            and receipt["identityCensusStatus"] == "PASS"
+            and receipt["matrixExecuted"] is False
+            and receipt["scientificTest"] is False
+            and receipt["activation"] is False)
+    require(member["schema"] == "V9_E2E_1K_MEMBERSHIP_ORACLE_V1"
+            and member["status"] == "PASS"
+            and member["scope"] == "ACTUAL_B1_MEMBERSHIP_RANK_R1_LEDGER_AND_CONSUMED_SILVER_EDGE_SCORE_GROUP"
+            and type(member["observations"]) is int
+            and member["observations"] > 0
+            and type(receipt["eligible"]) is int
+            and member["observations"] == receipt["eligible"]
+            and all(member[k] is True for k in (
+                "actualConsumedSilverEdgesVerified", "actualConsumedScoresVerified",
+                "actualConsumedGroupsVerified", "actualGoldRecordScoresVerified",
+                "independentR1DecisionVerified", "silverSqlReplayEqual",
+                "silverDirectionalReplayVerified", "independentScoreOracleVerified",
+                "frozenGroupReplayEqual")))
+    observed = {key: member[key] for key in FULL10K_REFERENCES if key != "instanceBatchRequests"}
+    observed["instanceBatchRequests"] = full10k_instance_batch_requests(extra)
+    require(type(member["secureRecords"]) is int and member["secureRecords"] >= 0
+            and observed["silverDirectionsCompared"] == 2 * observed["silverEdges"]
+            and observed["goldRecordScores"] == member["secureRecords"])
+    counters, over_limit = deterministic_counter_gate(observed)
+
+    return dict(schema="V9_FULL10K_DETERMINISTIC_COUNTER_CONFIRMATION_V1",
+                commit=sha,profile=expected_profile,population=FULL10K_POPULATION,
+                winnerSha256=WINNER,
+                decisionId="GOV-V9-CURVA-PASS-QUALIFICADO-20261126",
+                reference4kRuns=list(FULL10K_REFERENCE_RUNS),
+                status="FAIL_REOPEN_CURVE" if over_limit else "PASS",
+                curveReopened=bool(over_limit),
+                comparison="observed*10 <= reference*34",
+                counters=counters,overLimit=over_limit,
+                timingAndCpuRole="DIAGNOSTIC_ONLY",
+                diagnostics=full10k_diagnostics(receipt,diag,extra))
+
+def load_full10k_evidence(folder):
+    require(isinstance(folder, Path) and folder.is_dir() and not folder.is_symlink())
+    def read(name):
+        path = folder / name
+        require(path.is_file() and not path.is_symlink()
+                and 0 < path.stat().st_size <= 32 * 1024 * 1024)
+        return json.loads(path.read_text(encoding="utf-8"))
+    receipt = read("diagnostic-receipt.json")
+    member = read("membership-receipt.json")
+    extra = read("v9-full-extra-resource.json")
+    diag_path = folder / "v9-full-diagnostic.json"
+    diag = None
+    try:
+        # This receipt carries clock diagnostics only. Never read a symlink and
+        # never let absence, shape, size or parse errors alter the counter gate.
+        if diag_path.is_symlink():
+            diag = {}
+        elif diag_path.exists():
+            if not diag_path.is_file() or not 0 < diag_path.stat().st_size <= 32 * 1024 * 1024:
+                diag = {}
+            else:
+                diag = json.loads(diag_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, RecursionError):
+        diag = {}
+    return receipt,member,diag,extra
 
 def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
     require(len(frames) == 3 and re.fullmatch(r"[0-9a-f]{40}", sha))
@@ -218,12 +368,27 @@ def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
                 phaseAComplete=False)
 
 def main():
-    # This can inspect a completed exact-SHA run without recomputing a corpus.
+    # Neither mode recomputes or admits a corpus.
     a=argparse.ArgumentParser()
-    a.add_argument("--run",required=True,type=int)
+    a.add_argument("--run",type=int)
     a.add_argument("--sha",required=True)
     a.add_argument("--current-run",action="store_true")
+    a.add_argument("--confirm-full10k",action="store_true",
+                   help="require and gate extracted FULL10k evidence; never admits or runs FULL 10k")
+    a.add_argument("--full10k-evidence-dir",type=Path)
+    a.add_argument("--full10k-profile")
     args=a.parse_args()
+    if args.confirm_full10k:
+        require(args.run is None and not args.current_run and args.full10k_evidence_dir is not None
+                and args.full10k_profile is not None)
+        receipt,member,diag,extra=load_full10k_evidence(args.full10k_evidence_dir)
+        result=assess_full10k_confirmation(receipt,member,diag,extra,args.sha,args.full10k_profile)
+        print(json.dumps(result,sort_keys=True,allow_nan=False),flush=True)
+        # The explicit, currently unwired post-FULL mode is never allowed to
+        # treat missing, malformed or over-limit evidence as confirmation.
+        require(result["status"]=="PASS")
+        return
+    require(args.run is not None and args.full10k_evidence_dir is None and args.full10k_profile is None)
     spec=importlib.util.spec_from_file_location("preserved",Path(__file__).with_name("v9-preserve-campaign38-artifacts.py"))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     token=os.environ["GH_TOKEN"]
