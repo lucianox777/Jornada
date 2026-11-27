@@ -289,7 +289,21 @@ A confirmação aplica obrigatoriamente a igualdade inteira `observado * 10 <= m
 
 **IMPLEMENTADO na frente da #1940.** A consulta DEV de escala é versionada e tem SHA-256 conferido pelo Runner. Materializa e indexa uma vez o ranking de publicações e em seguida a projeção de vínculos correntes, seguindo os filtros, a ordenação, a precedência e o `UNION ALL` da view, como na recomposição V3. Conserva SNAPSHOT, as quatro verificações SQL, as junções externas, todo o universo Silver e o JSON original com nulos e ordem. Os dois braços físicos 1k e suas repetições pareadas exigem igualdade ordinal do JSON completo das duas consultas sobre a mesma tentativa e o mesmo FULL em cada schema. Cada consulta tem o mesmo limite de 120 s. Divergência impede a entrega do censo e reprova o job. O log expõe apenas um marcador de igualdade e o perfil. A view, o censo de referência, os fluxos 1k físicos fora da escala e as migrações permanecem como estavam.
 
-**PENDENTE DE VALIDAÇÃO.** Confirmar as quatro comparações físicas 1k, os recibos agregados, a execução do censo 10k e o veredito de cada contador na CI. Reportar tempo e leituras como diagnóstico. A análise #1931 segue como requisito para encerrar a Fase A.
+**MEDIDO E VALIDADO NA CI para a correção do SQL.** A [run 46054963760/1](https://github.com/lucianox777/Jornada/actions/runs/46054963760), SHA `95e51fdfaffe57a4e7b850a6ec3f0bd01f54d482`, registrou os quatro marcadores de igualdade ordinal exata do JSON, nas duas ordens BASELINE↔V3, nos jobs 140695100075 e 140695100424. Os seis negativos, o rollback e a reaplicação passaram. Os quatro braços, a paridade e a auditoria pré-FULL passaram. Os censos primários mediram 123 ms (diagnostic1k), 121 ms (optimized1k), 117 ms (optimized2k), 320 ms (optimized4k) e 479 ms (optimized10k), com timeout de 120 s. O censo terminou antes da primeira amostra do plano em todos esses casos, portanto não há leituras medidas para comparar com a tentativa anterior.
+
+**FULL 10k sem aprovação.** O [recibo sanitizado](https://github.com/lucianox777/Jornada/actions/runs/46054963760/artifacts/15228861385) registra publicação DEV em 94,874 s, censo SQL `QUERY_COMPLETED`, 23.204 versões, 20.493 elegíveis e oráculo de membership PASS. A conferência de identidade retornou `identityCensusStatus=FAIL`, com 14 pares falsos positivos, 4.753 verdadeiros positivos e 18.479 falsos negativos. A reprodução offline com o artefato do run confirmou que o gate parou no pré-requisito `identityCensusStatus=PASS`, com `V9_SCALE_CURVE_EVIDENCE_REJECTED` e recibo de confirmação vazio.
+
+Conferência aritmética separada usando os valores publicados e a regra inteira `observado * 10 <= mediana_4k * 34`:
+
+| Contador | Mediana 4k | FULL 10k | Razão | Condição ≤3,4× |
+|---|---:|---:|---:|---|
+| Pessoas candidatas | 1.034 | 3.568 | 3,4507× | Excede |
+| Arestas Silver | 8.524 | 26.984 | 3,1656× | Satisfaz |
+| Direções comparadas | 17.048 | 53.968 | 3,1656× | Satisfaz |
+| Escores Gold | 1.820 | 5.951 | 3,2698× | Satisfaz |
+| Lotes SQL | 84.941 | 193.262 | 2,2752× | Satisfaz |
+
+O máximo inteiro de pessoas candidatas é 3.515. O excesso aciona a condição de reabertura da curva decidida pelo PO. A CI terminou antes de emitir o veredito formal de contadores. Tempo e CPU são diagnósticos. O inventário por SHA fechou com 11 sucessos, um skip condicional e a falha de escala. Conferências e próximos itens registrados no [checkpoint da #1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7227117611). A análise #1931 e a aprovação integral 10k continuam pendentes.
 
 ## Decisão do PO — cobertura ampliada da regressão operacional V8
 
