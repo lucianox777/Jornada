@@ -575,7 +575,87 @@ def sql_probe_receipt(root):
         schema="V9_DEV_FULL_SQL_OPERATIONS_V2", scope="TAGGED_RUNNER_AND_SCORER_SQL",
         droppedEvents=0, rawEventsExported=False, **stats))
 
-def quality_trace(census, truth, before, ranks, graphs, identity, candidate_count, scores):
+def comparison_labels(left, right, fields, *, directional=False):
+    """Compare privately. Empty/missing values do not constitute agreement."""
+    labels = []
+    for field in fields:
+        a, b = left[field], right[field]
+        if a in (None, "") or b in (None, ""):
+            if a in (None, "") and b in (None, ""):
+                label = "bothMissing"
+            elif directional:
+                label = "sourceMissing" if a in (None, "") else "evidenceMissing"
+            else:
+                label = "oneMissing"
+        else:
+            label = "equal" if a == b else "different"
+        labels.append(label)
+    return tuple(labels)
+
+
+def fusion_inputs(root, selected_bases):
+    # truth_frame has verified the generator CSV hashes against its manifest.
+    import csv
+    corpus = root / "fixture" / "corpus" / "pessoas_verdade.csv"
+    with corpus.open(encoding="utf-8-sig", newline="") as source:
+        people = {row["base_person_id"]: row for row in csv.DictReader(source)
+                  if row["base_person_id"] in selected_bases}
+    require(people.keys() == selected_bases, "SCALE_FUSION_BASE_CENSUS")
+    raw = I.read(root / "selection" / (P.WINNER + ".operational.json"))
+    require(hashlib.sha256(raw).hexdigest() == P.WINNER, "SCALE_FUSION_WINNER")
+    pinned = json.loads(raw, parse_float=Decimal, object_pairs_hook=I.strict_pairs)
+    return people, pinned["Threshold"], pinned["ConflictMargin"]
+
+
+def fusion_profiles(root, groups, truth, prior, ranked, strongest, bases_by_ref):
+    """Histogram of anonymous fusion patterns. No version, identity or attribute values leave the attempt."""
+    from itertools import combinations
+    truth_fields = ("nome", "nome_mae", "data_nascimento", "sexo", "cpf", "cns")
+    score_fields = ("NomeCompleto", "NomeMae", "DataNascimento")
+    mixed = {dest: ids for dest, ids in groups.items() if len({truth[i]["base"] for i in ids}) > 1}
+    bases = {truth[i]["base"] for ids in mixed.values() for i in ids}
+    people, threshold, cutoff = fusion_inputs(root, bases)
+    patterns = Counter()
+    for dest, ids in mixed.items():
+        sizes = Counter(truth[i]["base"] for i in ids)
+        truth_types = Counter(comparison_labels(people[a], people[b], truth_fields)
+                              for a, b in combinations(sizes, 2))
+        decision_types = Counter()
+        for i in ids:
+            rank = ranked.get(i)
+            if (not rank or rank["Status"] != "RESOLVIDO" or rank["Resolved"] != dest
+                    or not bases_by_ref.get(dest) or truth[i]["base"] in bases_by_ref[dest]):
+                continue
+            best_log, negative_record = strongest[i, dest]
+            record = -negative_record
+            second = rank["Second"]
+            second_log = strongest[i, second][0] if second is not None else None
+            margin = rank["Margin"]
+            require(rank["Best"] == dest and rank["BestScore"] >= threshold
+                    and rank["PeopleWithoutScoreableEvidence"] == 0
+                    and ((second is None and margin is None)
+                         or (second_log is not None and margin == best_log - second_log and margin >= cutoff)),
+                    "SCALE_FUSION_RESOLVED_RANK")
+            observed = comparison_labels(prior[i]["Observation"], prior[record]["Observation"], score_fields, directional=True)
+            decision_types[(observed, decimal_text(best_log), decimal_text(rank["BestScore"]),
+                            decimal_text(second_log), decimal_text(margin), rank["CandidateCount"])] += 1
+        # Sort serialized aggregate profiles, independent of UUID and SQL observation order.
+        pattern = dict(versions=len(ids), bases=len(sizes),
+                       falsePairs=sum(a*b for a,b in combinations(sizes.values(), 2)),
+                       truthComparisons=[dict(labels=list(labels), basePairs=n)
+                                         for labels,n in sorted(truth_types.items())],
+                       foreignDecisions=[dict(observed=list(labels), bestLogOdds=best, bestPosterior=p,
+                                              secondLogOdds=second, margin=gap, candidateCount=count,
+                                              versions=n)
+                                         for (labels,best,p,second,gap,count),n in decision_types.items()])
+        pattern["foreignDecisions"].sort(key=lambda row: json.dumps(row, sort_keys=True))
+        patterns[json.dumps(pattern, sort_keys=True)] += 1
+    return dict(truthFields=list(truth_fields), observedFields=list(score_fields),
+                threshold=decimal_text(threshold), conflictMargin=decimal_text(cutoff),
+                patterns=[dict(json.loads(pattern), goldCount=count) for pattern,count in sorted(patterns.items())])
+
+
+def quality_trace(census, truth, before, ranks, graphs, identity, candidate_count, scores, fusion_root=None):
     """Post-FULL only. All ID-indexed collections stay inside the disposable attempt."""
     by_id = {row["observationId"]: row for row in census}
     prior = {row["Id"]: row for row in before}
@@ -698,7 +778,13 @@ def quality_trace(census, truth, before, ranks, graphs, identity, candidate_coun
         stage["publication"] += pairs - ledger
     require(sum(stage.values()) == identity["pairMetrics"]["fp"]
             and fused == identity["falseFusedGoldIdentities"], "SCALE_TRACE_PAIR_TOTAL")
-    return dict(fusedGold=fused, affectedBases=len(affected), affectedVersions=affected_versions,
+    details = {}
+    if fusion_root is not None:
+        details["fusionProfiles"] = fusion_profiles(fusion_root, current_groups, truth, prior, ranked, strongest, bases_by_ref)
+        measured = sum(p["goldCount"] * sum(row["versions"] for row in p["foreignDecisions"])
+                       for p in details["fusionProfiles"]["patterns"])
+        require(measured == wrong_with_own + wrong_without_candidate + wrong_without_ref, "SCALE_FUSION_COVERAGE")
+    return dict(**details, fusedGold=fused, affectedBases=len(affected), affectedVersions=affected_versions,
                 pairsByStage=stage, affectedVersionsByPath=dict(paths),
                 selectedForeignWithOwnCandidate=wrong_with_own,
                 selectedForeignWithoutOwnCandidate=wrong_without_candidate,
@@ -833,7 +919,8 @@ def diagnostic_receipt(root):
         frame = read(root / "matrix-frame-private.json")
         require(frame["Attempt"] == os.environ["JORNADA_V9_DEV_ATTEMPT"], "SCALE_TRACE_ATTEMPT")
         trace["qualityTrace"] = quality_trace(census, truth, frame["Rows"], ranks, graphs,
-                                              identity, member["candidatePeople"], scores)
+                                              identity, member["candidatePeople"], scores,
+                                              fusion_root=root if label == "optimized10k" else None)
         if trace["qualityTrace"]["preFullMixedReferences"]:
             trace["qualityTrace"]["preFullCrossBasePairs"] = pre_full_cpf_pairs(root, census, truth, frame["Rows"])
     write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",

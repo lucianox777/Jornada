@@ -6,6 +6,43 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_fusion_profiles_count_anonymous_cases_and_check_exact_margin(self):
+        import json
+        from decimal import Decimal
+        secret = "PRIVATE-SENTINEL"
+        dest, other = secret+"-dest", secret+"-second"
+        bases = [secret+"-base1", secret+"-base2"]
+        true_record = dict(nome=secret, nome_mae=secret, data_nascimento=secret,
+                           sexo=secret, cpf="", cns="")
+        people = dict(zip(bases, [true_record, dict(true_record, nome_mae="different")]))
+        prior = {i:dict(Observation=dict(NomeCompleto=secret, NomeMae=None, DataNascimento=None))
+                 for i in (1,2,3)}
+        truth = {i:dict(base=bases[int(i>1)]) for i in prior}
+        rank = dict(Best=dest, Resolved=dest, Status="RESOLVIDO", Second=other,
+                    CandidateCount=2, BestScore=Decimal(".99"), PeopleWithoutScoreableEvidence=0,
+                    Margin=Decimal("1.25"))
+        ranks = {2:dict(rank), 3:dict(rank)}
+        strongest = {(i,k):(v,-1) for i in ranks for k,v in
+                     ((dest,Decimal("8.75")), (other,Decimal("7.50")))}
+        def evaluate():
+            return S.fusion_profiles(None, {dest:[3,1,2]}, truth, prior, ranks, strongest, {dest:{bases[0]}})
+        with patch.object(S, "fusion_inputs", return_value=(people, Decimal(".95"), Decimal("1.25"))):
+            report = evaluate()
+            self.assertNotIn(secret, json.dumps(report))
+            case, = report["patterns"]
+            self.assertEqual((case["goldCount"],case["versions"],case["falsePairs"]), (1,3,2))
+            self.assertEqual(case["truthComparisons"][0]["labels"],
+                             ["equal","different","equal","equal","bothMissing","bothMissing"])
+            row, = case["foreignDecisions"]
+            self.assertEqual((row["versions"],row["bestLogOdds"],row["secondLogOdds"],row["margin"]),
+                             (2,"8.75","7.5","1.25"))
+            ranks[2]["Margin"] = Decimal("1.25000001")
+            with self.assertRaises(ValueError):
+                evaluate()
+            for v in ranks.values():
+                v.update(Margin=None, Second=None, CandidateCount=1)
+            self.assertIsNone(evaluate()["patterns"][0]["foreignDecisions"][0]["margin"])
+
     def test_quality_trace_counts_versions_and_localizes_pair_formation(self):
         from copy import deepcopy
         a, b = "anchor-a", "anchor-b"

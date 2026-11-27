@@ -356,3 +356,29 @@ Os três recibos históricos 4k de membership, das runs 45910892664, 45913982837
 | instanceBatchRequests | 84.941 | 193.203 | 288.799 | Dentro |
 
 **ESCALADO AO PO (§9.a).** A aritmética inteira satisfaz a condição aprovada de reabertura. O avaliador terminou no pré-requisito de identidade e deixou os cinco contadores sem veredito formal. Uma reprodução diagnóstica e zero abordagens de correção de produto para cada achado. Nenhum defeito de implementação demonstrado. Não cabe alterar regras, cortar candidatos ou repetir a execução para tentar PASS. O PO decide o encaminhamento dos dois bloqueios sob as regras congeladas, inclusive eventual abertura de escopo específico para tratamento. FULL 10k, Fase A e E2E sem aprovação. A prioridade de M1 segue a vigente. O inventário do SHA fechou com 11 workflows em success, um skipped condicional e uma failure. Última SUPERVISÃO 7212575535, sem orientação posterior no fechamento da CI.
+
+
+## Decisão do PO de 27/11 — fusões e projeção de trabalho na #1931
+
+**DECIDIDO pelo PO.** Manter por ora a exigência de zero identidades Gold fundidas no censo DEV. Analisar as duas fusões individualmente, com foco nas quatro versões resolvidas para base alheia, comparando atributos do gabarito e da evidência efetiva, LogOdds e margem. O PO decidirá o encaminhamento depois desses resultados e da projeção de trabalho. Modelo, política, limites e critérios de aceite permanecem os vigentes. GOV-DOC-01.
+
+**IMPLEMENTADO para a análise pós-FULL do 10k.** O oráculo da tentativa cruza o CSV de pessoas-base já verificado com o destino publicado e o registro que venceu pelo LogOdds. Compara nome, mãe, nascimento, sexo, CPF e CNS no gabarito; no registro usado para pontuar, compara nome, mãe e nascimento. Distingue valor diferente, ausência dos dois lados e ausência unilateral. Agrupa as fusões por padrão de comparação e ranking e as versões pela multiplicidade. Exporta apenas classes de concordância, números de decisão e contagens. As réguas de posterior e margem são lidas da cópia privada verificada do vencedor; a análise corre depois da conferência do ledger. Os recibos da tentativa anterior contêm apenas os totais de concordância do nome e não contêm as margens dos casos. Essa lacuna motiva a reprodução dirigida, pelo gatilho automático vigente.
+
+### Projeção de trabalho para 100k solicitada pelo PO em 27/11/2026
+
+**DECIDIDO.** O PO aceita a reabertura da curva por `candidatePeople` para investigação. Os cinco tetos e as referências do gate continuam vigentes. **MEDIDO** nos braços otimizados de uma única [run 46063709894/1](https://github.com/lucianox777/Jornada/actions/runs/46063709894), SHA `3bd3658bf`, seed 355, perfil clean, duas ondas. A coluna SQL conta lotes da instância descartável durante o FULL, inclusive observadores. Cada incidência de candidato corresponde a uma versão elegível e um destino Gold distinto.
+
+| Pessoas-base DEV | candidatePeople | Arestas Silver | Lotes SQL da instância |
+|---|---:|---:|---:|
+| 1.000 | 159 | 1.702 | 21.665 |
+| 2.000 | 398 | 3.748 | 43.121 |
+| 4.000 | 1.034 | 8.524 | 84.837 |
+| 10.000 | 3.568 | 26.984 | 193.203 |
+| **100.000 projetadas, ajuste dos quatro pontos** | **80.395** | **418.650** | **1.760.704** |
+| 100.000 projetadas, sensibilidade à inclinação 4k→10k | 80.195 | 488.360 | 1.528.308 |
+
+**Método.** Para cada contador C, ajustar por mínimos quadrados, com pesos iguais por escala, `ln(C) = a + b × ln(N)`, onde N é a quantidade de pessoas-base. Os expoentes, na ordem da tabela, são 1,353585, 1,200755 e 0,950924. Avaliar em N=100.000 e arredondar ao inteiro mais próximo. A linha de sensibilidade parte do 10k observado e aplica `C10k × 10^[ln(C10k/C4k)/ln(2,5)]`. O intervalo entre os dois cenários expressa sensibilidade à escolha da inclinação. Quatro pontos da mesma seed e uma extrapolação dez vezes acima da maior população medida não permitem estabelecer intervalo de confiança nem validar a escalabilidade em 100k.
+
+A referência SQL do gate continua sendo a mediana aprovada de 84.941 no 4k. Os 84.837 desta tabela pertencem à curva observada do mesmo SHA. No 10k a rejeição formal foi de qualidade de identidade antes da aritmética, e 3.568 incidências excederam o teto 3.515 na conferência independente. Não houve execução 100k. [Auditoria de 1k, 2k e 4k](https://github.com/lucianox777/Jornada/actions/runs/46063709894/job/140734027219) · [Recibo 10k](https://github.com/lucianox777/Jornada/actions/runs/46063709894/artifacts/15230949437).
+
+[Entrega da projeção na #1931](https://github.com/lucianox777/Jornada/issues/1931#issuecomment-7228907393).
