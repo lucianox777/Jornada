@@ -215,7 +215,10 @@ def canonical_v8_operational_receipt(receipt):
     if not isinstance(decisions[0],dict) or set(decisions[0])!=decision_fields:
         raise V8DecisionPredicateError(("decisionFieldSet",))
     decision=decisions[0]
-    expected_universe=(f"LINKAGE_RUN:{receipt['runId']};HW:{run['highWatermark']};"
+    # The product persists uniqueidentifier text in SQL Server's canonical
+    # uppercase representation. Keep the observed value untouched and compare
+    # it textually and exactly against that physical representation.
+    expected_universe=(f"LINKAGE_RUN:{receipt['runId'].upper()};HW:{run['highWatermark']};"
                        f"ELIGIVEIS:{run['eligible']}")
     best_score_malformed=False
     try:

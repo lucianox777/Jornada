@@ -70,7 +70,7 @@ DECLARE @highWatermark bigint=(
     SELECT pessoa_observacao_id_high_watermark
     FROM identidade.linkage_run WHERE linkage_run_id=@run);
 DECLARE @expectedUniverse nvarchar(255)=CONCAT(
-    N'LINKAGE_RUN:',LOWER(CONVERT(nvarchar(36),@run)),
+    N'LINKAGE_RUN:',CONVERT(nvarchar(36),@run),
     N';HW:',CONVERT(nvarchar(30),@highWatermark),N';ELIGIVEIS:1');
 
 IF @origin IS NULL
@@ -78,7 +78,8 @@ IF @origin IS NULL
    OR EXISTS(
        SELECT 1 FROM identidade.linkage_resultado
        WHERE linkage_run_id=@run
-         AND (universo_referencia<>@expectedUniverse
+         AND (universo_referencia COLLATE Latin1_General_100_BIN2<>
+              @expectedUniverse COLLATE Latin1_General_100_BIN2
               OR politica_publicacao_versao<>N'LINKAGE_PROGRESSIVE_PUBLICATION_V1'
               OR publicado_em IS NULL))
     THROW 52979,'V8_OPERATIONAL_RECEIPT_UNIVERSE_INVALID',1;

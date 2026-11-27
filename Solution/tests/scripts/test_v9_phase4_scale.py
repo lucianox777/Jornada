@@ -402,7 +402,9 @@ env() {
     def test_operational_v8_pair_is_strict_and_detects_semantic_mutation(self):
         from copy import deepcopy
         import uuid
-        run_a,run_b,person,initial=(str(uuid.UUID(int=i)) for i in (1,2,3,4))
+        run_a="abcdefab-cdef-4abc-8def-abcdefabcdef"
+        run_b="fedcbafe-dcba-4fed-8cba-fedcbafedcba"
+        person,initial=(str(uuid.UUID(int=i)) for i in (3,4))
         def receipt(stage,run_id):
             return dict(
                 schema="V8_OPERATIONAL_REGRESSION_PRIVATE_V1",schemaStage=stage,
@@ -424,7 +426,7 @@ env() {
                     publicationStatus="RESOLVIDO",publicationReason="REFERENCIA_PROGRESSIVA_CONFIRMADA",
                     publishedOriginId=30,progressiveVersion=1,
                     publicationPolicy="LINKAGE_PROGRESSIVE_PUBLICATION_V1",
-                    universeReference=f"LINKAGE_RUN:{run_id};HW:20;ELIGIVEIS:1")],
+                    universeReference=f"LINKAGE_RUN:{run_id.upper()};HW:20;ELIGIVEIS:1")],
                 gold=[dict(personUuid=person,cpf=None,cpfStatus="SEM_CPF",fullName="SYNTH PERSON",
                     birthDate="1980-01-02",motherName="SYNTH MOTHER",distinctSources=1,
                     concordanceState="BASELINE_FONTE_UNICA",identityState="REFERENCIA",
@@ -441,6 +443,12 @@ env() {
         self.assertTrue(proof["operationalV8MutationDetected"])
         self.assertEqual(proof["operationalV8DecisionRows"],1)
         self.assertEqual(proof["operationalV8GoldRows"],1)
+        wrong_case=deepcopy(migrated)
+        wrong_case["decisions"][0]["universeReference"]=(
+            f"LINKAGE_RUN:{run_b};HW:20;ELIGIVEIS:1")
+        with self.assertRaises(S.V8DecisionPredicateError) as caught:
+            S.canonical_v8_operational_receipt(wrong_case)
+        self.assertEqual(caught.exception.fields,("universeReference",))
         shape_cases=(
             ("decisionCollection",lambda r:r.update(decisions={})),
             ("decisionRowCount",lambda r:r.update(decisions=[])),
@@ -514,6 +522,14 @@ env() {
                 ("BASELINE","20261126_V3"))
         with self.assertRaises(ValueError):
             S.verify_v8_operational_pair(baseline,migrated,("20261126_V3","BASELINE"))
+
+    def test_operational_v8_sql_guard_uses_exact_persisted_universe_casing(self):
+        sql=(Path(__file__).resolve().parents[2]/"database/tests"/
+             "20261126_V8_Operational_Regression_Receipt.sql").read_text(encoding="utf-8")
+        self.assertIn("N'LINKAGE_RUN:',CONVERT(nvarchar(36),@run)",sql)
+        self.assertNotIn("LOWER(CONVERT(nvarchar(36),@run))",sql)
+        self.assertIn("universo_referencia COLLATE Latin1_General_100_BIN2<>",sql)
+        self.assertIn("@expectedUniverse COLLATE Latin1_General_100_BIN2",sql)
 
     def test_operational_v8_decision_diagnostics_emit_all_fixed_fields_then_reject(self):
         from contextlib import redirect_stdout

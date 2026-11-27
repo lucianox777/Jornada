@@ -50,6 +50,14 @@ Esta decisão substitui a proposta de exigir três PASS consecutivos. Os demais 
 
 **Estado documental.** DECIDIDO. A medição dos cinco contadores no FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
 
+## Decisão do PO de 27/11/2026 — representação canônica de `universeReference` V8
+
+**GOV-V9-V8-UNIVERSE-REFERENCE-CANONICAL-20261127 — DECIDIDO pelo PO.** A verificação operacional V8 deve construir o valor esperado de `universeReference` na representação canônica realmente persistida pelo produto: o trecho `uniqueidentifier` convertido pelo SQL Server permanece em maiúsculas. O valor observado não é transformado. A comparação continua sendo igualdade textual exata.
+
+É expressamente proibido comparar ignorando maiúsculas/minúsculas, aplicar `LOWER`, `UPPER` ou outra normalização aos dois lados, excluir o campo, introduzir tolerância ou substituir a igualdade textual. A guarda SQL do recibo deve usar collation binária/case-sensitive e o fixture deve representar o formato físico persistido. A decisão resolve a escalada registrada após as runs 45940969049 e 45946811411; nesta última, `universeReference` foi o único dos 17 predicados de decisão divergente nos recibos primários alcançados.
+
+Nada nesta decisão altera os demais predicados do comparador, desempate, política, gate, modelo, M/U, TF, limiares ou o vencedor #38. A validação do par integral e das etapas posteriores continua dependente de nova CI física. **Estado documental: DECIDIDO; implementação e validação física pendentes.** #1940/#1851; GOV-DOC-01.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL
