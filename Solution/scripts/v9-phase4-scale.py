@@ -504,6 +504,66 @@ INGEST_FAILURE_CODES=frozenset((
     "HTTP_DELIVERY_IDEMPOTENCY_CENSUS","PRIVATE_JSON_INVALID","MANAGER_CREDENTIAL_REQUIRED",
     "MANAGER_INVALID","HTTP_RESPONSE_BOUND","CI_CONTAINER_INVALID","SQL_LINEAGE_QUERY_FAILED",
     "SQL_LINEAGE_SCALAR_INVALID"))
+V8_RUNNER_FAILURE_CODES=frozenset((
+    "RUNNER_V9_SELECTION_VERSION_MISMATCH","RUNNER_V9_SELECTION_MISSING",
+    "RUNNER_MODEL_CONFIGURATION_MISSING","RUNNER_MODEL_CONFIGURATION_MISMATCH",
+    "RUNNER_MODEL_CONTRACT_INCOMPATIBLE","RUNNER_MODEL_ALREADY_PINNED",
+    "RUNNER_MODEL_NOT_PREFLIGHTED","RUNNER_MODEL_PINNED_VERSION_MISMATCH",
+    "RUNNER_V9_PRODUCTIVE_ADAPTER_NOT_CERTIFIED"))
+V8_RUNNER_FAILURE_MARKERS=(
+    ("ConnectionStrings:Jornada não configurada.", "CONNECTION_CONFIGURATION_MISSING"),
+    ("Format of the initialization string does not conform", "CONNECTION_CONFIGURATION_INVALID"),
+    ("The ConnectionString property has not been initialized.", "CONNECTION_CONFIGURATION_INVALID"),
+    ("Keyword not supported:", "CONNECTION_CONFIGURATION_INVALID"),
+    ("Microsoft.Data.SqlClient.SqlException", "SQL_CLIENT_FAILURE"),
+    ("System.Data.SqlClient.SqlException", "SQL_CLIENT_FAILURE"),
+    ("ExecuteReader requires an open and available Connection", "SQL_CLIENT_FAILURE"),
+    ("Modelo probabilístico v", "MODEL_VERSION_NOT_CONSUMABLE"),
+    ("Modelo incompleto. Parâmetros ausentes:", "MODEL_PARAMETERS_INCOMPLETE"),
+    ("Modelo de decisão/evidência incompleto.", "MODEL_PARAMETERS_INCOMPLETE"),
+    ("V8 com TF exige ", "MODEL_V8_TF_CONTRACT_INVALID"),
+    ("V8 com TF habilitado exige ", "MODEL_V8_TF_CONTRACT_INVALID"),
+    ("TF exige ", "MODEL_V8_TF_CONTRACT_INVALID"),
+    ("Piso TF não pode superar", "MODEL_V8_TF_CONTRACT_INVALID"),
+    ("Novo contrato V8 com TF não admite", "MODEL_V8_TF_CONTRACT_INVALID"),
+    ("DUAL_THRESHOLD_CONFLICT_FLOOR_V2 sem", "MODEL_V8_FLOOR_CONTRACT_INVALID"),
+    ("DUAL_THRESHOLD_CONFLICT_FLOOR deve estar em [0,1]", "MODEL_V8_FLOOR_CONTRACT_INVALID"),
+    ("V8 exige ", "MODEL_V8_CONTRACT_INVALID"),
+    ("V8 não admite probabilidades M/U", "MODEL_V8_CONTRACT_INVALID"),
+    ("Modelo semântico incompleto.", "MODEL_SEMANTIC_BIRTH_INCOMPLETE"),
+    ("Modelo V5/V6/V7 incompleto.", "MODEL_SEMANTIC_BIRTH_INCOMPLETE"),
+    ("sem ruleset persistido", "RULESET_MISSING"),
+    ("não está em estado consumível", "RULESET_STATE_INVALID"),
+    ("Algoritmo do ruleset diverge", "RULESET_ALGORITHM_MISMATCH"),
+    ("do ruleset/modelo não é suportada", "RULESET_NORMALIZATION_UNSUPPORTED"),
+    ("Identidade da projeção deve informar", "RULESET_PROJECTION_INVALID"),
+    ("Fingerprint da projeção deve ser", "RULESET_PROJECTION_INVALID"),
+    ("Projeção física não suportada", "RULESET_PROJECTION_INVALID"),
+    ("usa atributo dinâmico sem identidade de projeção física", "RULESET_PROJECTION_IDENTITY_MISSING"),
+    ("possui passe inconsistente", "RULESET_PASS_INCONSISTENT"),
+    ("não possui passes/campos completos", "RULESET_PASSES_INVALID"),
+    ("Fingerprint do ruleset", "RULESET_FINGERPRINT_MISMATCH"))
+
+def v8_runner_failure_code(lines):
+    """Classify a private Runner log without returning any of its text."""
+    import re
+    text="".join(lines)
+    for token in re.findall(r"RUNNER_[A-Z0-9_]{1,96}",text):
+        if token in V8_RUNNER_FAILURE_CODES:return token
+    for marker,code in V8_RUNNER_FAILURE_MARKERS:
+        if marker in text:return code
+    return "UNCLASSIFIED"
+
+def v8_runner_failure_from_path(path):
+    try:
+        if (not path.is_file() or path.is_symlink()
+                or path.stat().st_size>4*1024*1024):
+            return "UNCLASSIFIED"
+        with path.open(encoding="utf-8",errors="replace") as source:
+            return v8_runner_failure_code(source)
+    except OSError:
+        return "UNCLASSIFIED"
+
 def safe_failure_code(mode,error):
     import re
     value=str(error)
@@ -541,8 +601,14 @@ def sql_failure_summary(lines):
     return result
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","diagnostic","pair","sql-probe","sql-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","diagnostic","pair","sql-probe","sql-failure","v8-runner-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
     try:
+        # Failure classification must remain available even when Runner startup
+        # failed before the scale environment could be admitted or inspected.
+        if a.mode=="v8-runner-failure":
+            print("V8_OPERATIONAL_RUNNER_ERROR="+
+                  v8_runner_failure_from_path(a.root/"v8-operational-runner.log"))
+            return
         label,(n,_,_)=profile()
         if a.mode=="preflight":preflight(a.root)
         elif a.mode=="ingest":H.ingest(a.root,uuid.UUID(os.environ["JORNADA_V9_DEV_ATTEMPT"]),population=n)

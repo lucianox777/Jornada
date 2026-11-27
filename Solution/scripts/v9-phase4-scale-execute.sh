@@ -80,7 +80,8 @@ run_v8_operational_regression() {
       --requested-by CI_V8_OPERATIONAL_REGRESSION \
       --reason governed-v8-operational-publication-regression \
       >"$runner_log" 2>&1 || {
-        grep -E '^(RUNNER_|V8_OPERATIONAL_)' "$runner_log" || true
+        python3 scripts/v9-phase4-scale.py v8-runner-failure --root "$root" || \
+          echo V8_OPERATIONAL_RUNNER_ERROR=UNCLASSIFIED
         echo V8_OPERATIONAL_RUNNER_FAILED
         return 1
       }

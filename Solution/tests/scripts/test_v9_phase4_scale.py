@@ -88,6 +88,76 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
         self.assertEqual(S.safe_failure_code("ingest",ValueError("arbitrary private text")), "UNCLASSIFIED")
         self.assertEqual(S.safe_failure_code("diagnostic",ValueError("PROCESSOR_TIMEOUT")), "UNCLASSIFIED")
         self.assertEqual(S.safe_failure_code("diagnostic",ValueError("V9_E2E_ORACLE_X")), "V9_E2E_ORACLE_X")
+
+    def test_v8_runner_failure_classifier_extracts_only_allowlisted_code(self):
+        secret="PRIVATE_PERSON_AND_DATABASE_DETAIL"
+        code=S.v8_runner_failure_code([
+            "Unhandled exception. System.InvalidOperationException: ",
+            "RUNNER_MODEL_CONFIGURATION_MISMATCH: "+secret+"\n"])
+        self.assertEqual(code,"RUNNER_MODEL_CONFIGURATION_MISMATCH")
+        self.assertNotIn(secret,code)
+        self.assertEqual(S.v8_runner_failure_code([
+            "Unhandled exception: RUNNER_PRIVATE_UNKNOWN: "+secret+"\n"]),"UNCLASSIFIED")
+        self.assertEqual(S.v8_runner_failure_code([secret+"\n"]),"UNCLASSIFIED")
+        for marker,expected in (
+            ("V8 com TF exige TF_NOMINAL_FIRST_TOKEN_V1.","MODEL_V8_TF_CONTRACT_INVALID"),
+            ("DUAL_THRESHOLD_CONFLICT_FLOOR_V2 sem DUAL_THRESHOLD_CONFLICT_FLOOR.",
+             "MODEL_V8_FLOOR_CONTRACT_INVALID"),
+            ("Ruleset possui passe inconsistente na ordem 3.","RULESET_PASS_INCONSISTENT"),
+            ("Ruleset usa atributo dinâmico sem identidade de projeção física.",
+             "RULESET_PROJECTION_IDENTITY_MISSING"),
+            ("ConnectionStrings:Jornada não configurada.","CONNECTION_CONFIGURATION_MISSING"),
+            ("Microsoft.Data.SqlClient.SqlException: "+secret,"SQL_CLIENT_FAILURE"),
+        ):
+            code=S.v8_runner_failure_code(["Unhandled exception: "+marker])
+            self.assertEqual(code,expected)
+            self.assertNotIn(secret,code)
+
+    def test_v8_runner_failure_from_path_is_bounded_and_rejects_links(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            missing=root/"missing.log"
+            self.assertEqual(S.v8_runner_failure_from_path(missing),"UNCLASSIFIED")
+            private=root/"private.log"
+            private.write_text(
+                "Unhandled exception: RUNNER_MODEL_CONFIGURATION_MISSING: PRIVATE\n",
+                encoding="utf-8")
+            self.assertEqual(S.v8_runner_failure_from_path(private),
+                             "RUNNER_MODEL_CONFIGURATION_MISSING")
+            link=root/"linked.log";link.symlink_to(private)
+            self.assertEqual(S.v8_runner_failure_from_path(link),"UNCLASSIFIED")
+            private.write_bytes(b"X"*(4*1024*1024+1))
+            self.assertEqual(S.v8_runner_failure_from_path(private),"UNCLASSIFIED")
+
+    def test_v8_runner_failure_cli_needs_no_scale_environment_and_leaks_nothing(self):
+        import subprocess
+        import sys
+        import tempfile
+        script=Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py"
+        secret="PRIVATE_PERSON_AND_DATABASE_DETAIL"
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"v8-operational-runner.log").write_text(
+                "Unhandled exception: RUNNER_MODEL_CONFIGURATION_MISMATCH: "+secret+"\n",
+                encoding="utf-8")
+            result=subprocess.run(
+                [sys.executable,str(script),"v8-runner-failure","--root",str(root)],
+                capture_output=True,text=True,env={"PYTHONDONTWRITEBYTECODE":"1"})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout,
+                         "V8_OPERATIONAL_RUNNER_ERROR=RUNNER_MODEL_CONFIGURATION_MISMATCH\n")
+        self.assertEqual(result.stderr,"")
+        self.assertNotIn(secret,result.stdout+result.stderr)
+
+    def test_v8_runner_failure_shell_never_greps_private_log(self):
+        shell=(Path(__file__).resolve().parents[2]/
+               "scripts/v9-phase4-scale-execute.sh").read_text(encoding="utf-8")
+        failure=shell.split('>"$runner_log" 2>&1 || {',1)[1].split("}",1)[0]
+        self.assertIn("v8-runner-failure --root",failure)
+        self.assertNotIn("grep",failure)
+        self.assertIn("V8_OPERATIONAL_RUNNER_ERROR=UNCLASSIFIED",failure)
+
     def test_sql_failure_summary_retains_numbers_not_messages(self):
         lines=["V9_SQL_REGRESSION_STAGE=BASELINE\n",
                "PUBLICATION_GUARDS_SIX_CODES_PASS\n",
