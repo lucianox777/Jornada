@@ -31,7 +31,7 @@ run_v8_operational_regression() {
   local version='8008'
   local observation runner_log receipt_log
   pair_file database/tests/20261126_V8_Operational_Regression_Fixture.sql
-  observation="$(docker exec "$sql_name" sh -c \
+  if ! observation="$(docker exec "$sql_name" sh -c \
     'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -W -Q "$2"' \
     sh "$db" "
       SET NOCOUNT ON;
@@ -65,8 +65,14 @@ run_v8_operational_regression() {
                 AND peer.projection_fingerprint_sha256=own_key.projection_fingerprint_sha256
                 AND peer.atributo=own_key.atributo
                 AND peer.valor_normalizado=own_key.valor_normalizado))
-      ORDER BY po.pessoa_observacao_id;" | tr -d '\r' | xargs)"
-  [[ "$observation" =~ ^[1-9][0-9]*$ ]]
+      ORDER BY po.pessoa_observacao_id;" 2>/dev/null | tr -d '\r' | xargs)"; then
+    echo V8_OPERATIONAL_OBSERVATION_QUERY_FAILED
+    return 1
+  fi
+  if [[ ! "$observation" =~ ^[1-9][0-9]*$ ]]; then
+    echo V8_OPERATIONAL_OBSERVATION_ID_INVALID
+    return 1
+  fi
 
   runner_log="$root/v8-operational-runner.log"
   env -u Linkage__V9SelectionFile \
@@ -85,26 +91,45 @@ run_v8_operational_regression() {
         echo V8_OPERATIONAL_RUNNER_FAILED
         return 1
       }
-  grep -Eq "^RUNNER_MODEL_PINNED modelId=$model version=$version contractSha256=[0-9a-f]{64}$" "$runner_log"
+  if ! grep -Eq "^RUNNER_MODEL_PINNED modelId=$model version=$version contractSha256=[0-9a-f]{64}$" "$runner_log" 2>/dev/null; then
+    echo V8_OPERATIONAL_PINNED_MARKER_INVALID
+    return 1
+  fi
 
   receipt_log="$root/v8-operational-receipt.log"
   docker exec "$sql_name" sh -c \
     'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -w 65535 -y 0 -i "$2"' \
     sh "$db" database/tests/20261126_V8_Operational_Regression_Receipt.sql \
-    >"$receipt_log" 2>&1
-  python3 - "$receipt_log" "$root/v8-operational-private.json" <<'PY'
+    >"$receipt_log" 2>&1 || {
+      python3 scripts/v9-phase4-scale.py v8-receipt-sql-failure --root "$root" || \
+        echo V8_OPERATIONAL_RECEIPT_SQL_ERROR=UNCLASSIFIED
+      echo V8_OPERATIONAL_RECEIPT_SQL_FAILED
+      return 1
+    }
+  if ! python3 - "$receipt_log" "$root/v8-operational-private.json" <<'PY'
 import json, pathlib, sys
-source, target = map(pathlib.Path, sys.argv[1:])
-prefix = "V8_OPERATIONAL_PRIVATE_JSON="
-lines = [line.strip() for line in source.read_text(encoding="utf-8").splitlines()]
-matches = [line[len(prefix):] for line in lines if line.startswith(prefix)]
-if len(matches) != 1:
-    raise SystemExit("V8_OPERATIONAL_RECEIPT_CARDINALITY")
-receipt = json.loads(matches[0])
-if receipt.get("schema") != "V8_OPERATIONAL_REGRESSION_PRIVATE_V1":
-    raise SystemExit("V8_OPERATIONAL_RECEIPT_SCHEMA")
-target.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+try:
+    source, target = map(pathlib.Path, sys.argv[1:])
+    if (not source.is_file() or source.is_symlink()
+            or source.stat().st_size > 1024*1024 or target.is_symlink()):
+        raise ValueError
+    prefix = "V8_OPERATIONAL_PRIVATE_JSON="
+    lines = [line.strip() for line in source.read_text(encoding="utf-8").splitlines()]
+    matches = [line[len(prefix):] for line in lines if line.startswith(prefix)]
+    if len(matches) != 1:
+        raise ValueError
+    receipt = json.loads(matches[0])
+    if (not isinstance(receipt,dict)
+            or receipt.get("schema") != "V8_OPERATIONAL_REGRESSION_PRIVATE_V1"):
+        raise ValueError
+    target.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+except (OSError,UnicodeError,ValueError,TypeError):
+    raise SystemExit(1) from None
 PY
+  then
+    echo V8_OPERATIONAL_RECEIPT_PARSE_FAILED
+    return 1
+  fi
   echo V8_OPERATIONAL_REAL_RUNASYNC_PUBLICATION_CAPTURED
 }
 

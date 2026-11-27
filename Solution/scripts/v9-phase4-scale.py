@@ -564,6 +564,37 @@ def v8_runner_failure_from_path(path):
     except OSError:
         return "UNCLASSIFIED"
 
+V8_RECEIPT_SQL_FAILURE_CODES={
+    52974:"SCHEMA_STAGE_INVALID",
+    52975:"RUN_CARDINALITY",
+    52976:"RUN_NOT_PUBLISHED",
+    52977:"MODEL_NOT_FROZEN",
+    52978:"FIXTURE_LIFECYCLE_FORBIDDEN",
+    52979:"UNIVERSE_INVALID",
+    52980:"RECEIPT_SIZE_INVALID",
+}
+
+def v8_receipt_sql_failure_code(lines):
+    """Classify only governed Receipt THROW numbers; never return SQL text."""
+    import re
+    for line in lines:
+        match=re.match(r"^Msg ([0-9]{1,6}), Level ([0-9]{1,2}), State ([0-9]{1,3})(?:,|$)",
+                       line.strip())
+        if match:
+            code=V8_RECEIPT_SQL_FAILURE_CODES.get(int(match.group(1)))
+            if code is not None:return code
+    return "UNCLASSIFIED"
+
+def v8_receipt_sql_failure_from_path(path):
+    try:
+        if (not path.is_file() or path.is_symlink()
+                or path.stat().st_size>1024*1024):
+            return "UNCLASSIFIED"
+        with path.open(encoding="utf-8",errors="replace") as source:
+            return v8_receipt_sql_failure_code(source)
+    except OSError:
+        return "UNCLASSIFIED"
+
 def safe_failure_code(mode,error):
     import re
     value=str(error)
@@ -601,13 +632,17 @@ def sql_failure_summary(lines):
     return result
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","diagnostic","pair","sql-probe","sql-failure","v8-runner-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("mode",choices=("preflight","ingest","diagnostic","pair","sql-probe","sql-failure","v8-runner-failure","v8-receipt-sql-failure"));p.add_argument("--root",type=Path,required=True);a=p.parse_args()
     try:
-        # Failure classification must remain available even when Runner startup
-        # failed before the scale environment could be admitted or inspected.
+        # Private-log classification must remain available before the scale
+        # environment can be admitted or inspected.
         if a.mode=="v8-runner-failure":
             print("V8_OPERATIONAL_RUNNER_ERROR="+
                   v8_runner_failure_from_path(a.root/"v8-operational-runner.log"))
+            return
+        if a.mode=="v8-receipt-sql-failure":
+            print("V8_OPERATIONAL_RECEIPT_SQL_ERROR="+
+                  v8_receipt_sql_failure_from_path(a.root/"v8-operational-receipt.log"))
             return
         label,(n,_,_)=profile()
         if a.mode=="preflight":preflight(a.root)

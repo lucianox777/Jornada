@@ -160,6 +160,60 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
         self.assertEqual(result.stderr,"")
         self.assertNotIn(secret,result.stdout+result.stderr)
 
+    def test_v8_receipt_sql_failure_classifier_is_allowlisted_and_bounded(self):
+        expected={
+            52974:"SCHEMA_STAGE_INVALID",52975:"RUN_CARDINALITY",
+            52976:"RUN_NOT_PUBLISHED",52977:"MODEL_NOT_FROZEN",
+            52978:"FIXTURE_LIFECYCLE_FORBIDDEN",52979:"UNIVERSE_INVALID",
+            52980:"RECEIPT_SIZE_INVALID",
+        }
+        secret="PRIVATE_PERSON_AND_DATABASE_DETAIL"
+        for number,code in expected.items():
+            actual=S.v8_receipt_sql_failure_code([
+                f"Msg {number}, Level 16, State 1, Server {secret}, Line 42\n"])
+            self.assertEqual(actual,code)
+            self.assertNotIn(secret,actual)
+        self.assertEqual(S.v8_receipt_sql_failure_code([
+            f"Msg 52973, Level 16, State 1, Server {secret}\n"]),"UNCLASSIFIED")
+        self.assertEqual(S.v8_receipt_sql_failure_code([secret+"\n"]),"UNCLASSIFIED")
+
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            missing=root/"missing.log"
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(missing),"UNCLASSIFIED")
+            private=root/"private.log"
+            private.write_text(
+                f"Msg 52973, Level 16, State 1, Server {secret}\n",encoding="utf-8")
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(private),"UNCLASSIFIED")
+            private.write_text(
+                f"Msg 52979, Level 16, State 1, Server {secret}\n",encoding="utf-8")
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(private),"UNIVERSE_INVALID")
+            link=root/"linked.log";link.symlink_to(private)
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(link),"UNCLASSIFIED")
+            private.write_bytes(b"X"*(1024*1024+1))
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(private),"UNCLASSIFIED")
+
+    def test_v8_receipt_sql_failure_cli_leaks_no_private_text(self):
+        import subprocess
+        import sys
+        import tempfile
+        script=Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py"
+        secret="PRIVATE_PERSON_AND_DATABASE_DETAIL"
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"v8-operational-receipt.log").write_text(
+                f"Msg 52978, Level 16, State 1, Server {secret}, Line 42\n",
+                encoding="utf-8")
+            result=subprocess.run(
+                [sys.executable,str(script),"v8-receipt-sql-failure","--root",str(root)],
+                capture_output=True,text=True,env={"PYTHONDONTWRITEBYTECODE":"1"})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout,
+                         "V8_OPERATIONAL_RECEIPT_SQL_ERROR=FIXTURE_LIFECYCLE_FORBIDDEN\n")
+        self.assertEqual(result.stderr,"")
+        self.assertNotIn(secret,result.stdout+result.stderr)
+
     def test_v8_runner_failure_shell_never_greps_private_log(self):
         shell=(Path(__file__).resolve().parents[2]/
                "scripts/v9-phase4-scale-execute.sh").read_text(encoding="utf-8")
@@ -167,6 +221,98 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
         self.assertIn("v8-runner-failure --root",failure)
         self.assertNotIn("grep",failure)
         self.assertIn("V8_OPERATIONAL_RUNNER_ERROR=UNCLASSIFIED",failure)
+
+    def test_v8_operational_substages_fail_closed_with_fixed_codes(self):
+        import json
+        import re
+        import subprocess
+        import tempfile
+        shell_path=(Path(__file__).resolve().parents[2]/
+                    "scripts/v9-phase4-scale-execute.sh")
+        shell=shell_path.read_text(encoding="utf-8")
+        match=re.search(
+            r"(?ms)^run_v8_operational_regression\(\) \{.*?^\}\n\nfull_sql_probe\(\)",
+            shell)
+        self.assertIsNotNone(match)
+        function=match.group(0).rsplit("\n\nfull_sql_probe()",1)[0]
+        harness=r'''
+set -euo pipefail
+root="$V8_TEST_ROOT"
+sql_name=synthetic-sql
+db=synthetic-db
+pair_file() { :; }
+docker() {
+  if [[ " $* " == *" -Q "* ]]; then
+    printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL' >&2
+    if [[ "$V8_TEST_STAGE" == query ]]; then
+      printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
+      return 7
+    fi
+    if [[ "$V8_TEST_STAGE" == invalid-id ]]; then
+      printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
+      return 0
+    fi
+    printf '%s\n' 10
+    return 0
+  fi
+  if [[ "$V8_TEST_STAGE" == receipt-sql ]]; then
+    printf '%s\n' 'Msg 52975, Level 16, State 1, Server PRIVATE_PERSON_AND_DATABASE_DETAIL, Line 42'
+    return 7
+  fi
+  if [[ "$V8_TEST_STAGE" == receipt-parse ]]; then
+    printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
+    return 0
+  fi
+  if [[ "$V8_TEST_STAGE" == receipt-non-object ]]; then
+    printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON=[]'
+    return 0
+  fi
+  if [[ "$V8_TEST_STAGE" == receipt-invalid-json ]]; then
+    printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={'
+    return 0
+  fi
+  printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V1"}'
+}
+env() {
+  if [[ "$V8_TEST_STAGE" == marker ]]; then
+    printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
+  else
+    printf '%s\n' 'RUNNER_MODEL_PINNED modelId=88000000-0000-4000-8000-000000008008 version=8008 contractSha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  fi
+}
+'''
+        expected={
+            "query":"V8_OPERATIONAL_OBSERVATION_QUERY_FAILED",
+            "invalid-id":"V8_OPERATIONAL_OBSERVATION_ID_INVALID",
+            "marker":"V8_OPERATIONAL_PINNED_MARKER_INVALID",
+            "receipt-sql":"V8_OPERATIONAL_RECEIPT_SQL_ERROR=RUN_CARDINALITY",
+            "receipt-parse":"V8_OPERATIONAL_RECEIPT_PARSE_FAILED",
+            "receipt-non-object":"V8_OPERATIONAL_RECEIPT_PARSE_FAILED",
+            "receipt-invalid-json":"V8_OPERATIONAL_RECEIPT_PARSE_FAILED",
+        }
+        solution=Path(__file__).resolve().parents[2]
+        secret="PRIVATE_PERSON_AND_DATABASE_DETAIL"
+        with tempfile.TemporaryDirectory() as directory:
+            for stage,code in expected.items():
+                root=Path(directory)/stage;root.mkdir()
+                result=subprocess.run(
+                    ["bash","-c",harness+function+"\nrun_v8_operational_regression\n"],
+                    cwd=solution,capture_output=True,text=True,
+                    env={**os.environ,"V8_TEST_STAGE":stage,"V8_TEST_ROOT":str(root)})
+                self.assertNotEqual(result.returncode,0,(stage,result.stdout,result.stderr))
+                self.assertIn(code,result.stdout,stage)
+                self.assertNotIn(secret,result.stdout+result.stderr,stage)
+            root=Path(directory)/"success";root.mkdir()
+            result=subprocess.run(
+                ["bash","-c",harness+function+"\nrun_v8_operational_regression\n"],
+                cwd=solution,capture_output=True,text=True,
+                env={**os.environ,"V8_TEST_STAGE":"success","V8_TEST_ROOT":str(root)})
+            self.assertEqual(result.returncode,0,(result.stdout,result.stderr))
+            self.assertIn("V8_OPERATIONAL_REAL_RUNASYNC_PUBLICATION_CAPTURED",result.stdout)
+            self.assertEqual(
+                json.loads((root/"v8-operational-private.json").read_text()),
+                {"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V1"})
+            self.assertNotIn(secret,result.stdout+result.stderr)
 
     def test_sql_failure_summary_retains_numbers_not_messages(self):
         lines=["V9_SQL_REGRESSION_STAGE=BASELINE\n",
