@@ -20,7 +20,91 @@ run_full() {
     python3 scripts/v9-phase4-scale.py sql-probe --root "$root"
   fi
   python3 scripts/v9-e2e-1k-membership-oracle.py --root "$root"
+  if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k || "$JORNADA_V9_PHASE4_SCALE" == optimized1k ]]; then
+    run_v8_operational_regression
+  fi
   echo 'V9_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL'
+}
+
+run_v8_operational_regression() {
+  local model='88000000-0000-4000-8000-000000008008'
+  local version='8008'
+  local observation runner_log receipt_log
+  pair_file database/tests/20261126_V8_Operational_Regression_Fixture.sql
+  observation="$(docker exec "$sql_name" sh -c \
+    'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -W -Q "$2"' \
+    sh "$db" "
+      SET NOCOUNT ON;
+      SELECT TOP(1) po.pessoa_observacao_id
+      FROM silver.pessoa_observacao po
+      JOIN identidade.v_vinculo_corrente vc
+        ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+       AND vc.status=N'RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL
+       AND vc.metodo_resolucao=N'LINKAGE_PROBABILISTICO'
+      JOIN gold.pessoa g
+        ON g.pessoa_uuid=vc.pessoa_uuid
+       AND g.estado_identidade=N'REFERENCIA'
+       AND g.nome_completo=po.nome_completo
+       AND g.nome_mae=po.nome_mae
+      WHERE po.cpf IS NULL
+        AND po.nome_mae IS NOT NULL
+        AND EXISTS(
+          SELECT 1
+          FROM identidade.blocking_chave own_key
+          WHERE own_key.pessoa_uuid=g.pessoa_uuid
+            AND own_key.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1'
+            AND own_key.projection_schema_version=N'PERSON_RESOLUTION_PROJECTION_V2'
+            AND own_key.projection_fingerprint_sha256='d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4'
+            AND own_key.atributo=N'name_full'
+            AND own_key.vigencia_fim IS NULL
+            AND 1=(
+              SELECT COUNT(DISTINCT peer.pessoa_uuid)
+              FROM identidade.blocking_chave peer
+              WHERE peer.normalizacao_versao=own_key.normalizacao_versao
+                AND peer.projection_schema_version=own_key.projection_schema_version
+                AND peer.projection_fingerprint_sha256=own_key.projection_fingerprint_sha256
+                AND peer.atributo=own_key.atributo
+                AND peer.valor_normalizado=own_key.valor_normalizado))
+      ORDER BY po.pessoa_observacao_id;" | tr -d '\r' | xargs)"
+  [[ "$observation" =~ ^[1-9][0-9]*$ ]]
+
+  runner_log="$root/v8-operational-runner.log"
+  env -u Linkage__V9SelectionFile \
+    Linkage__SelectedModelVersion="$version" \
+    dotnet run --no-build -c Release --no-launch-profile \
+      --project src/Jornada.Linkage.Runner -- \
+      --mode ON_DEMAND --model-version "$version" \
+      --pessoa-observacao-id "$observation" \
+      --batch-size 100 --max-parallelism 1 --publish true \
+      --correlation-id 88080000-0000-4000-8000-000000008008 \
+      --requested-by CI_V8_OPERATIONAL_REGRESSION \
+      --reason governed-v8-operational-publication-regression \
+      >"$runner_log" 2>&1 || {
+        grep -E '^(RUNNER_|V8_OPERATIONAL_)' "$runner_log" || true
+        echo V8_OPERATIONAL_RUNNER_FAILED
+        return 1
+      }
+  grep -Eq "^RUNNER_MODEL_PINNED modelId=$model version=$version contractSha256=[0-9a-f]{64}$" "$runner_log"
+
+  receipt_log="$root/v8-operational-receipt.log"
+  docker exec "$sql_name" sh -c \
+    'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -w 65535 -y 0 -i "$2"' \
+    sh "$db" database/tests/20261126_V8_Operational_Regression_Receipt.sql \
+    >"$receipt_log" 2>&1
+  python3 - "$receipt_log" "$root/v8-operational-private.json" <<'PY'
+import json, pathlib, sys
+source, target = map(pathlib.Path, sys.argv[1:])
+prefix = "V8_OPERATIONAL_PRIVATE_JSON="
+lines = [line.strip() for line in source.read_text(encoding="utf-8").splitlines()]
+matches = [line[len(prefix):] for line in lines if line.startswith(prefix)]
+if len(matches) != 1:
+    raise SystemExit("V8_OPERATIONAL_RECEIPT_CARDINALITY")
+receipt = json.loads(matches[0])
+if receipt.get("schema") != "V8_OPERATIONAL_REGRESSION_PRIVATE_V1":
+    raise SystemExit("V8_OPERATIONAL_RECEIPT_SCHEMA")
+target.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+PY
+  echo V8_OPERATIONAL_REAL_RUNASYNC_PUBLICATION_CAPTURED
 }
 
 full_sql_probe() {

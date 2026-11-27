@@ -2,7 +2,7 @@
 """PO-authorized independent DEV scale experiment. No truth is given to the runner."""
 import argparse, hashlib, importlib.util, json, math, os, shutil, uuid
 from collections import Counter, defaultdict
-from decimal import Decimal, localcontext
+from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 
 def module(name,file):
@@ -136,6 +136,135 @@ def verify_restored_prefull_frames(left, right, attempt, first_run, second_run):
             "SCALE_PAIRED_PREFULL_INPUT_DIFFERENCE")
     return dict(observations=len(left["Rows"]), references=len(left["InitialRefs"]))
 
+def canonical_v8_operational_receipt(receipt):
+    def persisted_decimal(value):
+        require(isinstance(value,str) and bool(value)
+                and all(ch in "-0123456789." for ch in value),
+                "SCALE_V8_OPERATIONAL_DECIMAL")
+        try:
+            number=Decimal(value)
+        except InvalidOperation:
+            require(False,"SCALE_V8_OPERATIONAL_DECIMAL")
+        require(number.is_finite(),"SCALE_V8_OPERATIONAL_DECIMAL")
+        return number
+    top={"schema","schemaStage","entrypoint","publish","fixtureLifecycle","runId",
+         "model","run","decisions","gold","currentLinks","progressiveOrigin"}
+    require(isinstance(receipt,dict) and set(receipt)==top
+            and receipt["schema"]=="V8_OPERATIONAL_REGRESSION_PRIVATE_V1"
+            and receipt["schemaStage"] in ("BASELINE","20261126_V3")
+            and receipt["entrypoint"]=="Jornada.Linkage.Runner.Program/ProbabilisticLinkageBatchRunner.RunAsync"
+            and receipt["publish"] is True
+            and receipt["fixtureLifecycle"]=="NO_TRAIN_NO_VALIDATION_NO_ACTIVATION"
+            and valid_uuid(receipt["runId"]),"SCALE_V8_OPERATIONAL_RECEIPT")
+    model=receipt["model"]
+    require(isinstance(model,dict) and set(model)=={"modelId","version","status","algorithmVersion",
+            "ruleSetVersion","ruleSetFingerprintSha256","projectionSchemaVersion",
+            "projectionFingerprintSha256"}
+            and model["modelId"]=="88000000-0000-4000-8000-000000008008"
+            and model["version"]==8008 and model["status"]=="INATIVO"
+            and model["algorithmVersion"]=="FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8"
+            and model["ruleSetVersion"]=="V8_OPERATIONAL_REGRESSION_RULESET_V1"
+            and model["ruleSetFingerprintSha256"]=="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504"
+            and model["projectionSchemaVersion"]=="PERSON_RESOLUTION_PROJECTION_V2"
+            and model["projectionFingerprintSha256"]=="d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4",
+            "SCALE_V8_OPERATIONAL_MODEL")
+    run=receipt["run"]
+    run_fields={"mode","status","observationId","highWatermark","eligible","evaluated",
+                "resolved","unresolved","conflicts","noCandidateInBlock","batchSize",
+                "maxParallelism","requestedBy","reason"}
+    require(isinstance(run,dict) and set(run)==run_fields and run["mode"]=="ON_DEMAND"
+            and run["status"]=="PUBLICADO" and type(run["observationId"]) is int
+            and 0<run["observationId"]<=run["highWatermark"]
+            and run["eligible"]==run["evaluated"]==run["resolved"]==1
+            and run["unresolved"]==run["conflicts"]==run["noCandidateInBlock"]==0
+            and run["batchSize"]==100 and run["maxParallelism"]==1
+            and run["requestedBy"]=="CI_V8_OPERATIONAL_REGRESSION"
+            and run["reason"]=="governed-v8-operational-publication-regression",
+            "SCALE_V8_OPERATIONAL_RUN")
+    decisions=receipt["decisions"]
+    decision_fields={"observationId","resolvedUuid","bestUuid","bestScore","secondUuid",
+        "secondScore","margin","status","reason","publicationResult","publishedUuid",
+        "publicationStatus","publicationReason","publishedOriginId","progressiveVersion",
+        "publicationPolicy","universeReference"}
+    require(isinstance(decisions,list) and len(decisions)==1
+            and set(decisions[0])==decision_fields,"SCALE_V8_OPERATIONAL_DECISION")
+    decision=decisions[0]
+    expected_universe=(f"LINKAGE_RUN:{receipt['runId']};HW:{run['highWatermark']};"
+                       f"ELIGIVEIS:{run['eligible']}")
+    require(decision["observationId"]==run["observationId"]
+            and decision["status"]=="RESOLVIDO"
+            and decision["reason"] is None
+            and valid_uuid(decision["resolvedUuid"])
+            and decision["bestUuid"]==decision["resolvedUuid"]
+            and 0<=persisted_decimal(decision["bestScore"])<=1
+            and decision["secondUuid"] is None and decision["secondScore"] is None
+            and decision["margin"] is None
+            and decision["publicationResult"]=="ASSOCIACAO_EXISTENTE"
+            and decision["publicationStatus"]=="RESOLVIDO"
+            and decision["publishedUuid"]==decision["resolvedUuid"]
+            and decision["publicationReason"]=="REFERENCIA_PROGRESSIVA_CONFIRMADA"
+            and type(decision["publishedOriginId"]) is int and decision["publishedOriginId"]>0
+            and type(decision["progressiveVersion"]) is int and decision["progressiveVersion"]>0
+            and decision["publicationPolicy"]=="LINKAGE_PROGRESSIVE_PUBLICATION_V1"
+            and decision["universeReference"]==expected_universe,
+            "SCALE_V8_OPERATIONAL_DECISION")
+    gold=receipt["gold"]
+    gold_fields={"personUuid","cpf","cpfStatus","fullName","birthDate","motherName",
+        "distinctSources","concordanceState","identityState","nucleusCompleteness",
+        "normalizedPublicationName","publicationNameMethodVersion",
+        "publicationNameNormalizationVersion"}
+    require(isinstance(gold,list) and gold and all(isinstance(row,dict) and set(row)==gold_fields
+            and valid_uuid(row["personUuid"]) for row in gold)
+            and len({row["personUuid"] for row in gold})==len(gold)
+            and decision["resolvedUuid"] in {row["personUuid"] for row in gold},
+            "SCALE_V8_OPERATIONAL_GOLD")
+    links=receipt["currentLinks"]
+    link_fields={"observationId","personUuid","method","score","status","reason","modelId","exactRun"}
+    require(isinstance(links,list) and len(links)==1 and set(links[0])==link_fields
+            and links[0]["observationId"]==run["observationId"]
+            and links[0]["personUuid"]==decision["resolvedUuid"]
+            and links[0]["method"]=="LINKAGE_PROBABILISTICO"
+            and links[0]["score"]==decision["bestScore"]
+            and links[0]["status"]==decision["publicationStatus"]
+            and links[0]["reason"]==decision["publicationReason"]
+            and links[0]["exactRun"] is True
+            and links[0]["modelId"]==model["modelId"],"SCALE_V8_OPERATIONAL_LINK")
+    progressive=receipt["progressiveOrigin"]
+    progressive_fields={"originId","initialUuid","canonicalUuid","legacyUuid","state","version",
+                        "lastExternalTargetUuid"}
+    require(isinstance(progressive,dict) and set(progressive)==progressive_fields
+            and progressive["originId"]==decision["publishedOriginId"]
+            and valid_uuid(progressive["initialUuid"])
+            and progressive["canonicalUuid"]==decision["publishedUuid"]
+            and progressive["state"]=="REFERENCIA"
+            and progressive["version"]==decision["progressiveVersion"],
+            "SCALE_V8_OPERATIONAL_PROGRESSIVE")
+    canonical=json.loads(json.dumps(receipt,sort_keys=True,allow_nan=False))
+    canonical.pop("schemaStage");canonical.pop("runId")
+    canonical["decisions"][0]["universeReference"]=(
+        f"HW:{run['highWatermark']};ELIGIVEIS:{run['eligible']}")
+    return canonical
+
+def verify_v8_operational_pair(left, right, expected_stages):
+    a,b=(canonical_v8_operational_receipt(x) for x in (left,right))
+    require(tuple(expected_stages) in (("BASELINE","20261126_V3"),("20261126_V3","BASELINE"))
+            and (left["schemaStage"],right["schemaStage"])==tuple(expected_stages),
+            "SCALE_V8_OPERATIONAL_STAGES")
+    require(left["runId"]!=right["runId"] and a==b,"SCALE_V8_OPERATIONAL_DIFFERENCE")
+    # Prove that this same strict comparator exposes a semantic Gold mutation.
+    mutation=json.loads(json.dumps(b,sort_keys=True,allow_nan=False))
+    mutation["gold"][0]["fullName"]=(mutation["gold"][0]["fullName"] or "")+" MUTATION"
+    require(a!=mutation,"SCALE_V8_OPERATIONAL_MUTATION_NOT_DETECTED")
+    raw=json.dumps(a,sort_keys=True,separators=(",",":"),allow_nan=False).encode()
+    return dict(operationalV8RegressionVerified=True,
+        operationalV8MutationDetected=True,
+        operationalV8SemanticSha256=hashlib.sha256(raw).hexdigest(),
+        operationalV8DecisionRows=len(a["decisions"]),
+        operationalV8GoldRows=len(a["gold"]),
+        operationalV8ModelId=a["model"]["modelId"],
+        operationalV8RuleSetFingerprintSha256=a["model"]["ruleSetFingerprintSha256"],
+        operationalV8Stages=list(expected_stages))
+
 def pair_receipt(root):
     left, right = root, root / "pair"
     attempt = os.environ["JORNADA_V9_DEV_ATTEMPT"]
@@ -150,9 +279,23 @@ def pair_receipt(root):
                 "edges", "edgesSha256", "directions", "directionSha256",
                 "goldRecordScores", "goldRecordScoreSha256")),
             "SCALE_PAIRED_RAW_SCORE_DIFFERENCE")
+    primary_profile=read(left/"diagnostic-receipt.json")["profile"]
+    restored_profile=read(right/"diagnostic-receipt.json")["profile"]
+    stage_by_direction={
+        ("diagnostic1k","optimized1k"):("BASELINE","20261126_V3"),
+        ("optimized1k","diagnostic1k"):("20261126_V3","BASELINE")}
+    require((primary_profile,restored_profile) in stage_by_direction,
+            "SCALE_V8_OPERATIONAL_STAGES")
+    v8=verify_v8_operational_pair(
+        read(left / "v8-operational-private.json"),
+        read(right / "v8-operational-private.json"),
+        stage_by_direction[(primary_profile,restored_profile)])
     write(left / "pair-receipt.json", dict(
-        schema="V9_RESTORED_PREFULL_PAIR_V1", commit=os.environ["JORNADA_E2E_EXACT_SHA"],
-        inputVerified=True, distinctPublishedRuns=True, rawEdgesAndScoresEqual=True, **equal))
+        schema="V9_RESTORED_PREFULL_PAIR_V2", commit=os.environ["JORNADA_E2E_EXACT_SHA"],
+        primaryProfile=primary_profile,
+        restoredProfile=restored_profile,
+        inputVerified=True, distinctPublishedRuns=True, rawEdgesAndScoresEqual=True,
+        **equal, **v8))
 
 def exact_decimal(value):
     require(type(value) in (int, float, Decimal), "SCALE_GOLD_SCORE_NUMBER")
@@ -368,7 +511,13 @@ def safe_failure_code(mode,error):
     if mode == "pair" and value in (
             "SCALE_PAIRED_RUN", "SCALE_PAIRED_PUBLICATION", "SCALE_PAIRED_FRAME",
             "SCALE_PAIRED_FRAME_ROWS", "SCALE_PAIRED_FRAME_DUPLICATE",
-            "SCALE_PAIRED_PREFULL_INPUT_DIFFERENCE", "SCALE_PAIRED_RAW_SCORE_DIFFERENCE"):
+            "SCALE_PAIRED_PREFULL_INPUT_DIFFERENCE", "SCALE_PAIRED_RAW_SCORE_DIFFERENCE",
+            "SCALE_V8_OPERATIONAL_RECEIPT", "SCALE_V8_OPERATIONAL_MODEL",
+            "SCALE_V8_OPERATIONAL_RUN", "SCALE_V8_OPERATIONAL_DECISION",
+            "SCALE_V8_OPERATIONAL_GOLD", "SCALE_V8_OPERATIONAL_LINK",
+            "SCALE_V8_OPERATIONAL_PROGRESSIVE", "SCALE_V8_OPERATIONAL_STAGES",
+            "SCALE_V8_OPERATIONAL_DIFFERENCE", "SCALE_V8_OPERATIONAL_MUTATION_NOT_DETECTED",
+            "SCALE_V8_OPERATIONAL_DECIMAL"):
         return value
     if re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]{1,96}",value):return value
     return "UNCLASSIFIED"

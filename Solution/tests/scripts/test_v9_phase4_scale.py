@@ -6,6 +6,33 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_v8_operational_fixture_is_fixed_inactive_and_fingerprint_exact(self):
+        import hashlib
+        import re
+        from decimal import Decimal
+        path=(Path(__file__).resolve().parents[2]/
+              "database/tests/20261126_V8_Operational_Regression_Fixture.sql")
+        sql=path.read_text(encoding="utf-8")
+        self.assertIn("@model,@version,N'RASCUNHO'",sql)
+        self.assertIn("SET status=N'INATIVO'",sql)
+        self.assertNotIn("SET status=N'VALIDADO'",sql)
+        self.assertNotIn("SET status=N'ATIVO'",sql)
+        parameter_block=sql.split("INSERT identidade.parametro_linkage",1)[1].split(
+            "INSERT identidade.linkage_ruleset",1)[0]
+        pairs=re.findall(r"\(@model,N'([A-Z0-9_]+)',([0-9.]+)\)",parameter_block)
+        self.assertEqual(len(pairs),55)
+        self.assertEqual(len({name for name,_ in pairs}),55)
+        def g29(raw):
+            value=format(Decimal(raw),"f")
+            return value.rstrip("0").rstrip(".") if "." in value else value
+        canonical=("V8_OPERATIONAL_REGRESSION_RULESET_V1\n"
+            "FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8\n-\n-\n"
+            "PASS\tfull-name\nF\tname_full\n"+
+            "".join(f"P\t{name}\t{g29(value)}\n" for name,value in sorted(pairs)))
+        fingerprint=hashlib.sha256(canonical.encode()).hexdigest()
+        self.assertEqual(fingerprint,"900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504")
+        self.assertIn("'"+fingerprint+"'",sql)
+
     def test_sql_workflow_stops_on_first_failed_command(self):
         # Execute the real workflow command groups with synthetic shell mocks.
         # A failed migration or negative test must never be hidden by a later
@@ -135,6 +162,66 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
             S.verify_restored_prefull_frames(evidence, dict(evidence, InitialRefs=[
                 dict(Person=second, Name="SYNTH", Birth=None, Mother=None)]),
                 attempt, first, second)
+
+    def test_operational_v8_pair_is_strict_and_detects_semantic_mutation(self):
+        from copy import deepcopy
+        import uuid
+        run_a,run_b,person,initial=(str(uuid.UUID(int=i)) for i in (1,2,3,4))
+        def receipt(stage,run_id):
+            return dict(
+                schema="V8_OPERATIONAL_REGRESSION_PRIVATE_V1",schemaStage=stage,
+                entrypoint="Jornada.Linkage.Runner.Program/ProbabilisticLinkageBatchRunner.RunAsync",
+                publish=True,fixtureLifecycle="NO_TRAIN_NO_VALIDATION_NO_ACTIVATION",runId=run_id,
+                model=dict(modelId="88000000-0000-4000-8000-000000008008",version=8008,
+                    status="INATIVO",algorithmVersion="FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8",
+                    ruleSetVersion="V8_OPERATIONAL_REGRESSION_RULESET_V1",
+                    ruleSetFingerprintSha256="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                    projectionSchemaVersion="PERSON_RESOLUTION_PROJECTION_V2",
+                    projectionFingerprintSha256="d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4"),
+                run=dict(mode="ON_DEMAND",status="PUBLICADO",observationId=10,highWatermark=20,
+                    eligible=1,evaluated=1,resolved=1,unresolved=0,conflicts=0,noCandidateInBlock=0,
+                    batchSize=100,maxParallelism=1,requestedBy="CI_V8_OPERATIONAL_REGRESSION",
+                    reason="governed-v8-operational-publication-regression"),
+                decisions=[dict(observationId=10,resolvedUuid=person,bestUuid=person,bestScore="0.98000000",
+                    secondUuid=None,secondScore=None,margin=None,status="RESOLVIDO",reason=None,
+                    publicationResult="ASSOCIACAO_EXISTENTE",publishedUuid=person,
+                    publicationStatus="RESOLVIDO",publicationReason="REFERENCIA_PROGRESSIVA_CONFIRMADA",
+                    publishedOriginId=30,progressiveVersion=1,
+                    publicationPolicy="LINKAGE_PROGRESSIVE_PUBLICATION_V1",
+                    universeReference=f"LINKAGE_RUN:{run_id};HW:20;ELIGIVEIS:1")],
+                gold=[dict(personUuid=person,cpf=None,cpfStatus="SEM_CPF",fullName="SYNTH PERSON",
+                    birthDate="1980-01-02",motherName="SYNTH MOTHER",distinctSources=1,
+                    concordanceState="BASELINE_FONTE_UNICA",identityState="REFERENCIA",
+                    nucleusCompleteness="COMPLETO",normalizedPublicationName=None,
+                    publicationNameMethodVersion=None,publicationNameNormalizationVersion=None)],
+                currentLinks=[dict(observationId=10,personUuid=person,method="LINKAGE_PROBABILISTICO",
+                    score="0.98000000",status="RESOLVIDO",reason="REFERENCIA_PROGRESSIVA_CONFIRMADA",
+                    modelId="88000000-0000-4000-8000-000000008008",exactRun=True)],
+                progressiveOrigin=dict(originId=30,initialUuid=initial,canonicalUuid=person,legacyUuid=None,
+                    state="REFERENCIA",version=1,lastExternalTargetUuid=person))
+        baseline,migrated=receipt("BASELINE",run_a),receipt("20261126_V3",run_b)
+        proof=S.verify_v8_operational_pair(baseline,migrated,("BASELINE","20261126_V3"))
+        self.assertTrue(proof["operationalV8RegressionVerified"])
+        self.assertTrue(proof["operationalV8MutationDetected"])
+        self.assertEqual(proof["operationalV8DecisionRows"],1)
+        self.assertEqual(proof["operationalV8GoldRows"],1)
+        for mutate in (
+            lambda r:r["gold"][0].update(fullName="CHANGED"),
+            lambda r:r["decisions"][0].update(publicationReason="CHANGED"),
+            lambda r:r["currentLinks"][0].update(score="0.97000000"),
+            lambda r:r["progressiveOrigin"].update(lastExternalTargetUuid=None),
+        ):
+            changed=deepcopy(migrated);mutate(changed)
+            with self.assertRaises(ValueError):
+                S.verify_v8_operational_pair(baseline,changed,("BASELINE","20261126_V3"))
+        with self.assertRaises(ValueError):
+            S.verify_v8_operational_pair(baseline,receipt("BASELINE",run_b),
+                ("BASELINE","20261126_V3"))
+        with self.assertRaises(ValueError):
+            S.verify_v8_operational_pair(baseline,receipt("20261126_V3",run_a),
+                ("BASELINE","20261126_V3"))
+        with self.assertRaises(ValueError):
+            S.verify_v8_operational_pair(baseline,migrated,("20261126_V3","BASELINE"))
 
     def test_independent_rank_drift_blocks_even_when_both_restored_pairs_match(self):
         from contextlib import redirect_stdout

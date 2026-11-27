@@ -147,6 +147,11 @@ jobs:
           set -euo pipefail
           ./scripts/nuget-lock-bootstrap.sh
           dotnet build Jornada.sln --no-restore -c Release -warnaserror
+      - name: Prove strict V8 operational and qualified-curve gates
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/scripts/test_v9_phase4_scale.py tests/scripts/test_v9_publication_scale_curve.py
       - name: Prepare private waves and catalog-only seed
         working-directory: Solution
         run: |
@@ -340,15 +345,15 @@ jobs:
 
 
   audit-curve:
-    needs: scale-dev-nonpublish
-    if: ${{ always() && needs.scale-dev-nonpublish.result == 'success' }}
+    needs: [scale-dev-nonpublish, parity-1k]
+    if: ${{ always() && needs.scale-dev-nonpublish.result == 'success' && needs.parity-1k.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Report measured curve and missing evidence (not phase A acceptance)
+      - name: Report qualified curve and Phase A scale/parity gates
         working-directory: Solution
         env:
           GH_TOKEN: ${{ github.token }}

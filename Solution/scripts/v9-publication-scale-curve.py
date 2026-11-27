@@ -102,7 +102,53 @@ def runner_sql_metrics(receipt):
             and metrics["completedSqlStatements"] + metrics["completedProcedureStatements"] > 0)
     return dict(status="MEASURED", scope=metrics["scope"], **{k: metrics[k] for k in counters})
 
-def assess(frames, sha, extras=None):
+def operational_v8_evidence(pairs, sha):
+    if pairs is None:
+        return None
+    require(isinstance(pairs,list) and len(pairs)==2)
+    expected={("diagnostic1k","optimized1k"):("BASELINE","20261126_V3"),
+              ("optimized1k","diagnostic1k"):("20261126_V3","BASELINE")}
+    directions=set()
+    rows=[]
+    for receipt in pairs:
+        fields={"schema","commit","primaryProfile","restoredProfile","inputVerified",
+                "distinctPublishedRuns","rawEdgesAndScoresEqual","observations","references",
+                "operationalV8RegressionVerified","operationalV8MutationDetected",
+                "operationalV8SemanticSha256","operationalV8DecisionRows","operationalV8GoldRows",
+                "operationalV8ModelId","operationalV8RuleSetFingerprintSha256",
+                "operationalV8Stages"}
+        require(isinstance(receipt,dict) and set(receipt)==fields
+                and receipt["schema"]=="V9_RESTORED_PREFULL_PAIR_V2"
+                and receipt["commit"]==sha
+                and all(receipt[k] is True for k in ("inputVerified","distinctPublishedRuns",
+                    "rawEdgesAndScoresEqual","operationalV8RegressionVerified",
+                    "operationalV8MutationDetected"))
+                and type(receipt["observations"]) is int and receipt["observations"]>0
+                and type(receipt["references"]) is int and receipt["references"]>0
+                and type(receipt["operationalV8DecisionRows"]) is int
+                and receipt["operationalV8DecisionRows"]==1
+                and type(receipt["operationalV8GoldRows"]) is int
+                and receipt["operationalV8GoldRows"]>0
+                and re.fullmatch(r"[0-9a-f]{64}",receipt["operationalV8SemanticSha256"])
+                and receipt["operationalV8ModelId"]=="88000000-0000-4000-8000-000000008008"
+                and receipt["operationalV8RuleSetFingerprintSha256"]==
+                    "900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504")
+        direction=(receipt["primaryProfile"],receipt["restoredProfile"])
+        require(direction in expected and direction not in directions
+                and receipt["operationalV8Stages"]==list(expected[direction]))
+        directions.add(direction)
+        rows.append(dict(primaryProfile=direction[0],restoredProfile=direction[1],
+            semanticSha256=receipt["operationalV8SemanticSha256"],
+            decisionRows=receipt["operationalV8DecisionRows"],
+            goldRows=receipt["operationalV8GoldRows"]))
+    require(directions==set(expected))
+    return dict(status="PASS",entrypoint="ProbabilisticLinkageBatchRunner.RunAsync",
+                strictBestSecond=True,tolerance=None,fixtureLifecycle="NO_TRAIN_NO_VALIDATION_NO_ACTIVATION",
+                modelId="88000000-0000-4000-8000-000000008008",
+                ruleSetFingerprintSha256="900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                forwardAndRollbackVerified=True,mutationDetected=True,rows=rows)
+
+def assess(frames, sha, extras=None, v8_pairs=None, parity_pass=False):
     require(len(frames) == 3 and re.fullmatch(r"[0-9a-f]{40}", sha))
     if extras is None: extras=[None]*3
     require(len(extras)==3)
@@ -146,7 +192,11 @@ def assess(frames, sha, extras=None):
     # These counts cover the two statement completion streams and the top-level
     # RPC/batch streams separately. Do not sum the layers or equate those CPU
     # counters with background SQL or host CPU. V8 has its own physical gate.
-    missing = ["independentOperationalV8Regression"]
+    v8=operational_v8_evidence(v8_pairs,sha)
+    require(type(parity_pass) is bool)
+    missing = [] if parity_pass else ["strictParity1k"]
+    if v8 is None:
+        missing += ["independentOperationalV8Regression"]
     if any(row["runnerSql"]["status"] != "MEASURED" for row in rows):
         missing += ["exactSqlOperations", "sqlCpuAndExactRunnerAttribution"]
     if any(row["extraFullResources"]["status"] != "MEASURED" for row in rows):
@@ -155,7 +205,12 @@ def assess(frames, sha, extras=None):
                 fullTimingRatios2kTo4k=t,exclusivePhaseRatios2kTo4k=p,
                 overLimit=failures,unmeasurable=unmeasurable,
                 timingGate="FAIL" if failures else "INCOMPLETE" if unmeasurable else "PASS",
-                missingEvidence=missing,phaseAComplete=False)
+                timingAndCpuRole="DIAGNOSTIC_ONLY",
+                qualifiedCurveDecision="PASS_QUALIFIED",
+                qualifiedCurveDecisionId="GOV-V9-CURVA-PASS-QUALIFICADO-20261126",
+                strictParity1k="PASS" if parity_pass else "ABSENT",
+                operationalV8Regression=v8,
+                missingEvidence=missing,phaseAComplete=not missing)
 
 def main():
     # This can inspect a completed exact-SHA run without recomputing a corpus.
@@ -179,6 +234,12 @@ def main():
                 and run["status"]=="in_progress"))
     artifacts=module.api_json(f"{root}/runs/{args.run}/artifacts?per_page=100",token)
     require(artifacts["total_count"]==len(artifacts["artifacts"]))
+    jobs=module.api_json(f"{root}/runs/{args.run}/jobs?filter=latest&per_page=100",token)
+    require(jobs["total_count"]==len(jobs["jobs"]))
+    parity=[job for job in jobs["jobs"] if job["name"]=="parity-1k"]
+    require(len(parity)==1 and parity[0]["run_id"]==args.run
+            and parity[0]["head_sha"]==args.sha and parity[0]["status"]=="completed"
+            and parity[0]["conclusion"]=="success")
     with tempfile.TemporaryDirectory() as folder:
         def get(prefix,label,members,optional=()):
             name=f"{prefix}-{label}-{args.sha}"
@@ -204,7 +265,11 @@ def main():
             extras.append(extra)
             resource,=get("v9-scale-resource",label,("v9-scale-resource-receipt.json",))
             frames.append((receipt,member,diag,resource))
-        result=assess(frames,args.sha,extras)
+        v8_pairs=[]
+        for label in ("diagnostic1k","optimized1k"):
+            pair,=get("v9-phase4-scale",label,("pair-receipt.json",))
+            v8_pairs.append(pair)
+        result=assess(frames,args.sha,extras,v8_pairs,parity_pass=True)
         result["runConclusion"]=run["conclusion"]
         # Timing evidence remains useful even if another gate fails. Never
         # infer strict parity from timings or from a run-level conclusion.

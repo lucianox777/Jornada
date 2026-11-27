@@ -25,6 +25,21 @@ class CurveTests(unittest.TestCase):
         return r,member,diag,resource
     def frames(self,last=4):
         return [self.frame(l,n,m) for l,n,m in zip(C.LABELS,C.POPULATIONS,(1,2,last))]
+    def v8_pairs(self):
+        def pair(primary,restored,digest):
+            return dict(schema="V9_RESTORED_PREFULL_PAIR_V2",commit="a"*40,
+                primaryProfile=primary,restoredProfile=restored,inputVerified=True,
+                distinctPublishedRuns=True,rawEdgesAndScoresEqual=True,observations=10,references=10,
+                operationalV8RegressionVerified=True,operationalV8MutationDetected=True,
+                operationalV8SemanticSha256=digest,operationalV8DecisionRows=1,
+                operationalV8GoldRows=1,
+                operationalV8ModelId="88000000-0000-4000-8000-000000008008",
+                operationalV8RuleSetFingerprintSha256=
+                    "900a6ab052f078f8422d76a297a5a9fbf6fe0003f764edc86e5d01e802991504",
+                operationalV8Stages=(["BASELINE","20261126_V3"]
+                    if primary=="diagnostic1k" else ["20261126_V3","BASELINE"]))
+        return [pair("diagnostic1k","optimized1k","b"*64),
+                pair("optimized1k","diagnostic1k","c"*64)]
     def test_ratio_and_missing_metrics_never_certify_phase_a(self):
         result=C.assess(self.frames(),"a"*40)
         self.assertEqual(result["timingGate"],"PASS")
@@ -34,6 +49,37 @@ class CurveTests(unittest.TestCase):
         result=C.assess(self.frames(6),"a"*40)
         self.assertEqual(result["timingGate"],"FAIL")
         self.assertIn("timing:fullElapsedMs",result["overLimit"])
+
+    def test_qualified_curve_uses_strict_v8_gate_and_keeps_time_diagnostic(self):
+        probe=dict(schema="V9_DEV_FULL_SQL_OPERATIONS_V2",scope="TAGGED_RUNNER_AND_SCORER_SQL",
+            droppedEvents=0,rawEventsExported=False,completedRpc=5,completedBatches=1,
+            completedSqlStatements=6,completedProcedureStatements=7,
+            topLevelSqlCpuMicroseconds=8,eventFiles=1,serverCompletedRpc=5,serverCompletedBatches=1)
+        frames=self.frames(6)
+        for receipt,*_ in frames:receipt["runnerSql"]=probe
+        extra=dict(schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status="MEASURED",sampleCount=2,
+            probeError=None,sampleScope="FULL_WITH_OBSERVER_OVERHEAD",
+            sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
+            exactRunnerSqlStatementCount=False,rawSqlExported=False,
+            runnerCpuMs=15,hostCpuBusyFraction=.5)
+        extra.update({k:10 for k in C.EXTRA_COUNTS})
+        result=C.assess(frames,"a"*40,[extra,extra,extra],self.v8_pairs(),parity_pass=True)
+        self.assertEqual(result["timingGate"],"FAIL")
+        self.assertEqual(result["timingAndCpuRole"],"DIAGNOSTIC_ONLY")
+        self.assertEqual(result["qualifiedCurveDecision"],"PASS_QUALIFIED")
+        self.assertEqual(result["strictParity1k"],"PASS")
+        self.assertEqual(result["operationalV8Regression"]["status"],"PASS")
+        self.assertEqual(result["missingEvidence"],[])
+        self.assertTrue(result["phaseAComplete"])
+        without_parity=C.assess(frames,"a"*40,[extra,extra,extra],self.v8_pairs())
+        self.assertEqual(without_parity["missingEvidence"],["strictParity1k"])
+        self.assertFalse(without_parity["phaseAComplete"])
+        bad=self.v8_pairs();bad[0]["operationalV8MutationDetected"]=False
+        with self.assertRaises(ValueError):
+            C.assess(frames,"a"*40,[extra,extra,extra],bad,parity_pass=True)
+        wrong_direction=self.v8_pairs();wrong_direction[0]["operationalV8Stages"].reverse()
+        with self.assertRaises(ValueError):
+            C.assess(frames,"a"*40,[extra,extra,extra],wrong_direction,parity_pass=True)
     def test_zero_denominator_and_wrong_provenance(self):
         frames=self.frames()
         frames[1][0]["physicalFull"]["physicalSnapshotMs"]=0
