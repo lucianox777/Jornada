@@ -50,6 +50,14 @@ Esta decisão substitui a proposta de exigir três PASS consecutivos. Os demais 
 
 **Estado documental.** DECIDIDO. A medição dos cinco contadores no FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
 
+## Decisão do PO de 27/11/2026 — cobertura da regressão operacional V8
+
+**GOV-V9-REGRESSAO-OPERACIONAL-V8-COBERTURA-20261127 — DECIDIDO pelo PO.** A regressão operacional V8 que integra o gate pré-FULL do §4.1 deve preservar o caso resolvido com candidato único e incluir, no mínimo, conflito entre dois candidatos próximos, não resolvido abaixo do limiar e ausência de candidato no bloco. Cada caso deve demonstrar no recibo que o cenário pretendido foi realmente exercitado pelo caminho `ProbabilisticLinkageBatchRunner.RunAsync`, usando o mesmo modelo inativo 8008 e infraestrutura DEV descartável.
+
+Nos dois sentidos BASELINE↔V3 permanecem obrigatórias igualdade estrita de Best/Second, scores, margem, status, decisão, publicação, Gold, vínculo e estado, além da prova de que uma mutação semântica é detectada. A ampliação não autoriza alterar M/U, TF, limiares, margem, desempate, modelo vencedor #38, política, tolerâncias, gates ou timeouts e não executa TRAIN, VALIDATION, TEST científico ou ativação. Esta decisão substitui o estado **PROPOSTA/ESCALADA AO PO** dessa ampliação e passa a integrar o gate pré-FULL; um PASS da fixture anterior de caso único continua histórico, mas não satisfaz a cobertura agora aprovada.
+
+**Estado documental.** DECIDIDO. Implementação e validação física são estados separados; até ambas ocorrerem, o FULL 10k permanece bloqueado.
+
 ## Decisão do PO de 27/11/2026 — representação canônica de `universeReference` V8
 
 **GOV-V9-V8-UNIVERSE-REFERENCE-CANONICAL-20261127 — DECIDIDO pelo PO.** A verificação operacional V8 deve construir o valor esperado de `universeReference` na representação canônica realmente persistida pelo produto: o trecho `uniqueidentifier` convertido pelo SQL Server permanece em maiúsculas. O valor observado não é transformado. A comparação continua sendo igualdade textual exata.

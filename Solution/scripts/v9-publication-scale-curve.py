@@ -126,9 +126,9 @@ def operational_v8_evidence(pairs, sha):
                 "operationalV8RegressionVerified","operationalV8MutationDetected",
                 "operationalV8SemanticSha256","operationalV8DecisionRows","operationalV8GoldRows",
                 "operationalV8ModelId","operationalV8RuleSetFingerprintSha256",
-                "operationalV8Stages"}
+                "operationalV8Stages","operationalV8Scenarios"}
         require(isinstance(receipt,dict) and set(receipt)==fields
-                and receipt["schema"]=="V9_RESTORED_PREFULL_PAIR_V2"
+                and receipt["schema"]=="V9_RESTORED_PREFULL_PAIR_V3"
                 and receipt["commit"]==sha
                 and all(receipt[k] is True for k in ("inputVerified","distinctPublishedRuns",
                     "rawEdgesAndScoresEqual","operationalV8RegressionVerified",
@@ -136,7 +136,9 @@ def operational_v8_evidence(pairs, sha):
                 and type(receipt["observations"]) is int and receipt["observations"]>0
                 and type(receipt["references"]) is int and receipt["references"]>0
                 and type(receipt["operationalV8DecisionRows"]) is int
-                and receipt["operationalV8DecisionRows"]==1
+                and receipt["operationalV8DecisionRows"]==4
+                and receipt["operationalV8Scenarios"]==[
+                    "BELOW_THRESHOLD","CONFLICT","NO_CANDIDATE","RESOLVED"]
                 and type(receipt["operationalV8GoldRows"]) is int
                 and receipt["operationalV8GoldRows"]>0
                 and re.fullmatch(r"[0-9a-f]{64}",receipt["operationalV8SemanticSha256"])
@@ -150,6 +152,7 @@ def operational_v8_evidence(pairs, sha):
         rows.append(dict(primaryProfile=direction[0],restoredProfile=direction[1],
             semanticSha256=receipt["operationalV8SemanticSha256"],
             decisionRows=receipt["operationalV8DecisionRows"],
+            scenarios=receipt["operationalV8Scenarios"],
             goldRows=receipt["operationalV8GoldRows"]))
     require(directions==set(expected))
     return dict(status="PASS",entrypoint="ProbabilisticLinkageBatchRunner.RunAsync",

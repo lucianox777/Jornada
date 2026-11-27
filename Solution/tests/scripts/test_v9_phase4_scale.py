@@ -43,6 +43,26 @@ class ScaleTests(unittest.TestCase):
         self.assertEqual(fingerprint,"017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd")
         self.assertIn("'"+fingerprint+"'",sql)
 
+    def test_v8_operational_fixture_and_receipt_require_all_four_cases(self):
+        database=Path(__file__).resolve().parents[2]/"database/tests"
+        fixture=(database/"20261126_V8_Operational_Regression_Fixture.sql").read_text(encoding="utf-8")
+        receipt=(database/"20261126_V8_Operational_Regression_Receipt.sql").read_text(encoding="utf-8")
+        for scenario,code in (("RESOLVED","V8-OP-RESOLVED"),("CONFLICT","V8-OP-CONFLICT"),
+                              ("BELOW_THRESHOLD","V8-OP-BELOW"),("NO_CANDIDATE","V8-OP-NONE")):
+            self.assertIn("N'"+scenario+"'",fixture)
+            self.assertIn("N'"+code+"'",fixture)
+            self.assertIn("N'"+scenario+"'",receipt)
+        self.assertIn("registros_elegiveis=4 AND avaliados=4",receipt)
+        self.assertIn("resolvidos=1 AND conflitos=1 AND nao_resolvidos=2 AND sem_candidato_no_bloco=1",receipt)
+        self.assertIn("V8_OPERATIONAL_RECEIPT_SCENARIO_COVERAGE_INVALID",receipt)
+        self.assertIn("V8_OPERATIONAL_REGRESSION_PRIVATE_V2",receipt)
+
+        executor=(Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale-execute.sh").read_text(encoding="utf-8")
+        function=executor.split("run_v8_operational_regression() {",1)[1].split("\n}\n\nfull_sql_probe",1)[0]
+        self.assertIn("--since 2099-01-01T00:00:00+00:00 --max-records 4",function)
+        self.assertIn("BACKUP DATABASE",function)
+        self.assertIn("RESTORE DATABASE",function)
+
     def test_sql_workflow_stops_on_first_failed_command(self):
         # Execute the real workflow command groups with synthetic shell mocks.
         # A failed migration or negative test must never be hidden by a later
@@ -189,6 +209,9 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
             private.write_text(
                 f"Msg 52979, Level 16, State 1, Server {secret}\n",encoding="utf-8")
             self.assertEqual(S.v8_receipt_sql_failure_from_path(private),"UNIVERSE_INVALID")
+            private.write_text(
+                f"Msg 52983, Level 16, State 1, Server {secret}\n",encoding="utf-8")
+            self.assertEqual(S.v8_receipt_sql_failure_from_path(private),"SCENARIO_COVERAGE_INVALID")
             link=root/"linked.log";link.symlink_to(private)
             self.assertEqual(S.v8_receipt_sql_failure_from_path(link),"UNCLASSIFIED")
             private.write_bytes(b"X"*(1024*1024+1))
@@ -248,19 +271,19 @@ set -euo pipefail
 root="$V8_TEST_ROOT"
 sql_name=synthetic-sql
 db=synthetic-db
+JORNADA_V9_PHASE4_SCALE=optimized1k
 pair_file() { :; }
+pair_sql() { :; }
 docker() {
+  if [[ " $* " == *" test ! -e "* || " $* " == *" rm -f "* ]]; then return 0; fi
   if [[ " $* " == *" -Q "* ]]; then
     printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL' >&2
     if [[ "$V8_TEST_STAGE" == query ]]; then
       printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
       return 7
     fi
-    if [[ "$V8_TEST_STAGE" == invalid-id ]]; then
-      printf '%s\n' 'PRIVATE_PERSON_AND_DATABASE_DETAIL'
-      return 0
-    fi
-    printf '%s\n' 10
+    if [[ "$V8_TEST_STAGE" == invalid-count ]]; then printf '%s\n' 3; return 0; fi
+    printf '%s\n' 4
     return 0
   fi
   if [[ "$V8_TEST_STAGE" == receipt-sql ]]; then
@@ -280,7 +303,7 @@ docker() {
     return 0
   fi
   printf '%s\n' 'sqlcmd column header' '--------------------'
-  printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V1"}'
+  printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V2"}'
   printf '%s\n' '(1 rows affected)'
 }
 env() {
@@ -292,8 +315,8 @@ env() {
 }
 '''
         expected={
-            "query":"V8_OPERATIONAL_OBSERVATION_QUERY_FAILED",
-            "invalid-id":"V8_OPERATIONAL_OBSERVATION_ID_INVALID",
+            "query":"V8_OPERATIONAL_SCENARIO_QUERY_FAILED",
+            "invalid-count":"V8_OPERATIONAL_SCENARIO_COUNT_INVALID",
             "marker":"V8_OPERATIONAL_PINNED_MARKER_INVALID",
             "receipt-sql":"V8_OPERATIONAL_RECEIPT_SQL_ERROR=RUN_CARDINALITY",
             "receipt-parse":"V8_OPERATIONAL_RECEIPT_PARSE_FAILED",
@@ -321,7 +344,7 @@ env() {
             self.assertIn("V8_OPERATIONAL_REAL_RUNASYNC_PUBLICATION_CAPTURED",result.stdout)
             self.assertEqual(
                 json.loads((root/"v8-operational-private.json").read_text()),
-                {"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V1"})
+                {"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V2"})
             self.assertNotIn(secret,result.stdout+result.stderr)
 
     def test_sql_failure_summary_retains_numbers_not_messages(self):
@@ -404,10 +427,47 @@ env() {
         import uuid
         run_a="abcdefab-cdef-4abc-8def-abcdefabcdef"
         run_b="fedcbafe-dcba-4fed-8cba-fedcbafedcba"
-        person,initial=(str(uuid.UUID(int=i)) for i in (3,4))
+        resolved_person,conflict_a,conflict_b,below_person=(str(uuid.UUID(int=i)) for i in range(1,5))
+        initial_resolved,initial_conflict,initial_below,initial_none=(str(uuid.UUID(int=i)) for i in range(11,15))
+        def gold(person,name):
+            return dict(personUuid=person,cpf=None,cpfStatus="SEM_CPF",fullName=name,
+                birthDate="1980-01-02",motherName="SYNTH MOTHER",distinctSources=1,
+                concordanceState="BASELINE_FONTE_UNICA",identityState="REFERENCIA",
+                nucleusCompleteness="COMPLETO",normalizedPublicationName=None,
+                publicationNameMethodVersion=None,publicationNameNormalizationVersion=None)
         def receipt(stage,run_id):
+            universe=f"LINKAGE_RUN:{run_id.upper()};HW:20;ELIGIVEIS:4"
+            common=dict(publicationPolicy="LINKAGE_PROGRESSIVE_PUBLICATION_V1",
+                        progressiveVersion=1,universeReference=universe)
+            decisions=[
+                dict(scenario="RESOLVED",observationId=10,resolvedUuid=resolved_person,
+                    bestUuid=resolved_person,bestScore="0.98000000",secondUuid=None,
+                    secondScore=None,margin=None,status="RESOLVIDO",reason=None,
+                    publicationResult="ASSOCIACAO_EXISTENTE",publishedUuid=resolved_person,
+                    publicationStatus="RESOLVIDO",publicationReason="ASSOCIACAO_EXISTENTE_LINKAGE",
+                    publishedOriginId=30,**common),
+                dict(scenario="CONFLICT",observationId=11,resolvedUuid=None,
+                    bestUuid=conflict_a,bestScore="0.98000000",secondUuid=conflict_b,
+                    secondScore="0.98000000",margin="0.000000000000",status="CONFLITO",
+                    reason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",publicationResult="INDEFINIDA",
+                    publishedUuid=None,publicationStatus="CONFLITO",
+                    publicationReason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",
+                    publishedOriginId=31,**common),
+                dict(scenario="BELOW_THRESHOLD",observationId=12,resolvedUuid=None,
+                    bestUuid=below_person,bestScore="0.10000000",secondUuid=None,
+                    secondScore=None,margin=None,status="NAO_RESOLVIDO",reason="ABAIXO_T_LINKAGE",
+                    publicationResult="INDEFINIDA",publishedUuid=None,
+                    publicationStatus="NAO_RESOLVIDO",publicationReason="ABAIXO_T_LINKAGE",
+                    publishedOriginId=32,**common),
+                dict(scenario="NO_CANDIDATE",observationId=13,resolvedUuid=None,
+                    bestUuid=None,bestScore="0.00000000",secondUuid=None,
+                    secondScore=None,margin=None,status="NAO_RESOLVIDO",
+                    reason="SEM_CANDIDATO_NO_RULESET_BLOCKING",publicationResult="NOVA_IDENTIDADE",
+                    publishedUuid=initial_none,publicationStatus="RESOLVIDO",
+                    publicationReason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA",
+                    publishedOriginId=33,**common)]
             return dict(
-                schema="V8_OPERATIONAL_REGRESSION_PRIVATE_V1",schemaStage=stage,
+                schema="V8_OPERATIONAL_REGRESSION_PRIVATE_V2",schemaStage=stage,
                 entrypoint="Jornada.Linkage.Runner.Program/ProbabilisticLinkageBatchRunner.RunAsync",
                 publish=True,fixtureLifecycle="NO_TRAIN_NO_VALIDATION_NO_ACTIVATION",runId=run_id,
                 model=dict(modelId="88000000-0000-4000-8000-000000008008",version=8008,
@@ -416,36 +476,58 @@ env() {
                     ruleSetFingerprintSha256="017a20967264e5de2351de3c4b1ebe0ef98f0fbe0d16d92da392ee63176a82fd",
                     projectionSchemaVersion="PERSON_RESOLUTION_PROJECTION_V2",
                     projectionFingerprintSha256="d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4"),
-                run=dict(mode="ON_DEMAND",status="PUBLICADO",observationId=10,highWatermark=20,
-                    eligible=1,evaluated=1,resolved=1,unresolved=0,conflicts=0,noCandidateInBlock=0,
+                run=dict(mode="ON_DEMAND",status="PUBLICADO",observationId=None,highWatermark=20,
+                    eligible=4,evaluated=4,resolved=1,unresolved=2,conflicts=1,noCandidateInBlock=1,
                     batchSize=100,maxParallelism=1,requestedBy="CI_V8_OPERATIONAL_REGRESSION",
                     reason="governed-v8-operational-publication-regression"),
-                decisions=[dict(observationId=10,resolvedUuid=person,bestUuid=person,bestScore="0.98000000",
-                    secondUuid=None,secondScore=None,margin=None,status="RESOLVIDO",reason=None,
-                    publicationResult="ASSOCIACAO_EXISTENTE",publishedUuid=person,
-                    publicationStatus="RESOLVIDO",publicationReason="REFERENCIA_PROGRESSIVA_CONFIRMADA",
-                    publishedOriginId=30,progressiveVersion=1,
-                    publicationPolicy="LINKAGE_PROGRESSIVE_PUBLICATION_V1",
-                    universeReference=f"LINKAGE_RUN:{run_id.upper()};HW:20;ELIGIVEIS:1")],
-                gold=[dict(personUuid=person,cpf=None,cpfStatus="SEM_CPF",fullName="SYNTH PERSON",
-                    birthDate="1980-01-02",motherName="SYNTH MOTHER",distinctSources=1,
-                    concordanceState="BASELINE_FONTE_UNICA",identityState="REFERENCIA",
-                    nucleusCompleteness="COMPLETO",normalizedPublicationName=None,
-                    publicationNameMethodVersion=None,publicationNameNormalizationVersion=None)],
-                currentLinks=[dict(observationId=10,personUuid=person,method="LINKAGE_PROBABILISTICO",
-                    score="0.98000000",status="RESOLVIDO",reason="REFERENCIA_PROGRESSIVA_CONFIRMADA",
-                    modelId="88000000-0000-4000-8000-000000008008",exactRun=True)],
-                progressiveOrigin=dict(originId=30,initialUuid=initial,canonicalUuid=person,legacyUuid=None,
-                    state="REFERENCIA",version=1,lastExternalTargetUuid=person))
+                decisions=decisions,
+                gold=[gold(resolved_person,"RESOLVED"),gold(conflict_a,"CONFLICT"),
+                      gold(conflict_b,"CONFLICT"),gold(below_person,"BELOW"),
+                      gold(initial_none,"NONE")],
+                currentLinks=[
+                    dict(observationId=10,personUuid=resolved_person,method="LINKAGE_PROBABILISTICO",
+                        score="0.98000000",status="RESOLVIDO",reason="ASSOCIACAO_EXISTENTE_LINKAGE",
+                        modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
+                    dict(observationId=11,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
+                        status="CONFLITO",reason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",
+                        modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
+                    dict(observationId=12,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
+                        status="NAO_RESOLVIDO",reason="ABAIXO_T_LINKAGE",
+                        modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
+                    dict(observationId=13,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
+                        status="RESOLVIDO",reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA",
+                        modelId="88000000-0000-4000-8000-000000008008",exactRun=True)],
+                progressiveOrigins=[
+                    dict(originId=30,initialUuid=initial_resolved,canonicalUuid=resolved_person,
+                        legacyUuid=None,state="REFERENCIA",version=1,lastExternalTargetUuid=resolved_person),
+                    dict(originId=31,initialUuid=initial_conflict,canonicalUuid=None,
+                        legacyUuid=None,state="INDEFINIDA",version=1,lastExternalTargetUuid=None),
+                    dict(originId=32,initialUuid=initial_below,canonicalUuid=None,
+                        legacyUuid=None,state="INDEFINIDA",version=1,lastExternalTargetUuid=None),
+                    dict(originId=33,initialUuid=initial_none,canonicalUuid=initial_none,
+                        legacyUuid=None,state="REFERENCIA",version=1,lastExternalTargetUuid=None)])
         baseline,migrated=receipt("BASELINE",run_a),receipt("20261126_V3",run_b)
         proof=S.verify_v8_operational_pair(baseline,migrated,("BASELINE","20261126_V3"))
         self.assertTrue(proof["operationalV8RegressionVerified"])
         self.assertTrue(proof["operationalV8MutationDetected"])
-        self.assertEqual(proof["operationalV8DecisionRows"],1)
-        self.assertEqual(proof["operationalV8GoldRows"],1)
+        self.assertEqual(proof["operationalV8DecisionRows"],4)
+        self.assertEqual(proof["operationalV8Scenarios"],
+                         ["BELOW_THRESHOLD","CONFLICT","NO_CANDIDATE","RESOLVED"])
+        self.assertEqual(proof["operationalV8GoldRows"],5)
+        for scenario in ("RESOLVED","CONFLICT","BELOW_THRESHOLD","NO_CANDIDATE"):
+            changed=deepcopy(migrated)
+            next(row for row in changed["decisions"] if row["scenario"]==scenario)["status"]="CHANGED"
+            with self.subTest(scenario=scenario), self.assertRaises(S.V8DecisionPredicateError) as caught:
+                S.canonical_v8_operational_receipt(changed)
+            self.assertEqual(caught.exception.fields,("status",))
+        changed=deepcopy(migrated)
+        changed["decisions"][3]["scenario"]="RESOLVED"
+        with self.assertRaises(S.V8DecisionPredicateError) as caught:
+            S.canonical_v8_operational_receipt(changed)
+        self.assertEqual(caught.exception.fields,("scenarioCoverage",))
         wrong_case=deepcopy(migrated)
         wrong_case["decisions"][0]["universeReference"]=(
-            f"LINKAGE_RUN:{run_b};HW:20;ELIGIVEIS:1")
+            f"LINKAGE_RUN:{run_b};HW:20;ELIGIVEIS:4")
         with self.assertRaises(S.V8DecisionPredicateError) as caught:
             S.canonical_v8_operational_receipt(wrong_case)
         self.assertEqual(caught.exception.fields,("universeReference",))
@@ -461,19 +543,19 @@ env() {
                 self.assertEqual(caught.exception.fields,(expected,))
                 self.assertEqual(str(caught.exception),S.V8_DECISION_ERROR_CODE)
         field_cases=(
-            ("observationId",lambda d:d.update(observationId=11)),
+            ("observationId",lambda d:d.update(observationId=99)),
             ("status",lambda d:d.update(status="CHANGED")),
             ("reason",lambda d:d.update(reason="CHANGED")),
             ("resolvedUuid",lambda d:d.update(resolvedUuid="not-a-uuid",
                 bestUuid="not-a-uuid",publishedUuid="not-a-uuid")),
-            ("bestUuid",lambda d:d.update(bestUuid=initial)),
-            ("bestScore",lambda d:d.update(bestScore="1.00000001")),
-            ("secondUuid",lambda d:d.update(secondUuid=initial)),
+            ("bestUuid",lambda d:d.update(bestUuid=initial_resolved)),
+            ("bestScore",lambda d:d.update(bestScore="0.50000000")),
+            ("secondUuid",lambda d:d.update(secondUuid=initial_resolved)),
             ("secondScore",lambda d:d.update(secondScore="0.10000000")),
             ("margin",lambda d:d.update(margin="0.10000000")),
             ("publicationResult",lambda d:d.update(publicationResult="CHANGED")),
             ("publicationStatus",lambda d:d.update(publicationStatus="CHANGED")),
-            ("publishedUuid",lambda d:d.update(publishedUuid=initial)),
+            ("publishedUuid",lambda d:d.update(publishedUuid=initial_resolved)),
             ("publicationReason",lambda d:d.update(publicationReason="CHANGED")),
             ("publishedOriginId",lambda d:d.update(publishedOriginId=True)),
             ("progressiveVersion",lambda d:d.update(progressiveVersion=0)),
@@ -509,7 +591,7 @@ env() {
             lambda r:r["gold"][0].update(fullName="CHANGED"),
             lambda r:r["decisions"][0].update(publicationReason="CHANGED"),
             lambda r:r["currentLinks"][0].update(score="0.97000000"),
-            lambda r:r["progressiveOrigin"].update(lastExternalTargetUuid=None),
+            lambda r:r["progressiveOrigins"][0].update(lastExternalTargetUuid=None),
         ):
             changed=deepcopy(migrated);mutate(changed)
             with self.assertRaises(ValueError):
@@ -531,13 +613,13 @@ env() {
         self.assertIn("universo_referencia COLLATE Latin1_General_100_BIN2<>",sql)
         self.assertIn("@expectedUniverse COLLATE Latin1_General_100_BIN2",sql)
 
-    def test_parity_reader_requires_current_v2_pair_receipt(self):
+    def test_parity_reader_requires_current_v3_pair_receipt(self):
         scripts=Path(__file__).resolve().parents[2]/"scripts"
         producer=(scripts/"v9-phase4-scale.py").read_text(encoding="utf-8")
         parity=(scripts/"v9-publication-scale-parity.py").read_text(encoding="utf-8")
-        self.assertIn('schema="V9_RESTORED_PREFULL_PAIR_V2"',producer)
-        self.assertIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V2"',parity)
-        self.assertNotIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V1"',parity)
+        self.assertIn('schema="V9_RESTORED_PREFULL_PAIR_V3"',producer)
+        self.assertIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V3"',parity)
+        self.assertNotIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V2"',parity)
 
     def test_operational_v8_decision_diagnostics_emit_all_fixed_fields_then_reject(self):
         from contextlib import redirect_stdout

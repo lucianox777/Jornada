@@ -26,8 +26,11 @@ WHERE modelo_id=@model AND modelo_versao=@version
 IF NOT EXISTS(
     SELECT 1 FROM identidade.linkage_run
     WHERE linkage_run_id=@run AND tipo_run=N'ON_DEMAND' AND status=N'PUBLICADO'
-      AND pessoa_observacao_id_filtro IS NOT NULL
-      AND registros_elegiveis=1 AND avaliados=1
+      AND pessoa_observacao_id_filtro IS NULL
+      AND desde_filtro=CONVERT(datetimeoffset(7),'2099-01-01T00:00:00+00:00')
+      AND limite_solicitado=4
+      AND registros_elegiveis=4 AND avaliados=4
+      AND resolvidos=1 AND conflitos=1 AND nao_resolvidos=2 AND sem_candidato_no_bloco=1
       AND avaliados=resolvidos+nao_resolvidos+conflitos)
     THROW 52976,'V8_OPERATIONAL_RECEIPT_RUN_NOT_PUBLISHED',1;
 
@@ -60,21 +63,14 @@ IF (SELECT COUNT_BIG(*) FROM auditoria.modelo_linkage_estado_evento
              N'GENERATE_DRAFT_FAILED',N'VALIDATE',N'ACTIVATE',N'ACTIVATE_SUPERSEDED'))
     THROW 52978,'V8_OPERATIONAL_FIXTURE_LIFECYCLE_OPERATION_FORBIDDEN',1;
 
-DECLARE @observation bigint=(
-    SELECT pessoa_observacao_id_filtro
-    FROM identidade.linkage_run WHERE linkage_run_id=@run);
-DECLARE @origin bigint=(
-    SELECT pessoa_origem_id FROM silver.pessoa_observacao
-    WHERE pessoa_observacao_id=@observation);
 DECLARE @highWatermark bigint=(
     SELECT pessoa_observacao_id_high_watermark
     FROM identidade.linkage_run WHERE linkage_run_id=@run);
 DECLARE @expectedUniverse nvarchar(255)=CONCAT(
     N'LINKAGE_RUN:',CONVERT(nvarchar(36),@run),
-    N';HW:',CONVERT(nvarchar(30),@highWatermark),N';ELIGIVEIS:1');
+    N';HW:',CONVERT(nvarchar(30),@highWatermark),N';ELIGIVEIS:4');
 
-IF @origin IS NULL
-   OR (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado WHERE linkage_run_id=@run)<>1
+IF (SELECT COUNT_BIG(*) FROM identidade.linkage_resultado WHERE linkage_run_id=@run)<>4
    OR EXISTS(
        SELECT 1 FROM identidade.linkage_resultado
        WHERE linkage_run_id=@run
@@ -84,9 +80,58 @@ IF @origin IS NULL
               OR publicado_em IS NULL))
     THROW 52979,'V8_OPERATIONAL_RECEIPT_UNIVERSE_INVALID',1;
 
+DECLARE @scenarios TABLE(
+    scenario nvarchar(30) NOT NULL PRIMARY KEY,
+    status nvarchar(30) NOT NULL,
+    reason nvarchar(500) NULL,
+    resolved_uuid uniqueidentifier NULL,
+    best_uuid uniqueidentifier NULL,
+    best_score decimal(9,8) NOT NULL,
+    second_uuid uniqueidentifier NULL,
+    second_score decimal(9,8) NULL,
+    margin decimal(30,12) NULL,
+    publication_result nvarchar(30) NULL,
+    publication_status nvarchar(30) NULL,
+    published_uuid uniqueidentifier NULL);
+INSERT @scenarios
+SELECT CASE o.codigo_pessoa_origem
+      WHEN N'V8-OP-RESOLVED' THEN N'RESOLVED'
+      WHEN N'V8-OP-CONFLICT' THEN N'CONFLICT'
+      WHEN N'V8-OP-BELOW' THEN N'BELOW_THRESHOLD'
+      WHEN N'V8-OP-NONE' THEN N'NO_CANDIDATE' END,
+      r.status,r.motivo,r.pessoa_uuid_resolvido,r.melhor_candidato_uuid,r.score_melhor,
+      r.segundo_candidato_uuid,r.score_segundo,r.margem,
+      r.resultado_publicacao,r.status_publicacao,r.pessoa_uuid_publicado
+    FROM identidade.linkage_resultado r
+    JOIN silver.pessoa_observacao p ON p.pessoa_observacao_id=r.pessoa_observacao_id
+    JOIN silver.pessoa_origem o ON o.pessoa_origem_id=p.pessoa_origem_id
+    WHERE r.linkage_run_id=@run;
+IF (SELECT COUNT_BIG(*) FROM @scenarios)<>4
+   OR NOT EXISTS(SELECT 1 FROM @scenarios WHERE scenario=N'RESOLVED'
+       AND status=N'RESOLVIDO' AND resolved_uuid=best_uuid
+       AND second_uuid IS NULL AND publication_result=N'ASSOCIACAO_EXISTENTE'
+       AND publication_status=N'RESOLVIDO' AND published_uuid=resolved_uuid)
+   OR NOT EXISTS(SELECT 1 FROM @scenarios WHERE scenario=N'CONFLICT'
+       AND status=N'CONFLITO' AND resolved_uuid IS NULL
+       AND best_uuid IS NOT NULL AND second_uuid IS NOT NULL
+       AND best_score=second_score AND margin=0
+       AND publication_result=N'INDEFINIDA' AND publication_status=N'CONFLITO'
+       AND published_uuid IS NULL)
+   OR NOT EXISTS(SELECT 1 FROM @scenarios WHERE scenario=N'BELOW_THRESHOLD'
+       AND status=N'NAO_RESOLVIDO' AND reason=N'ABAIXO_T_LINKAGE'
+       AND resolved_uuid IS NULL AND best_uuid IS NOT NULL
+       AND publication_result=N'INDEFINIDA' AND publication_status=N'NAO_RESOLVIDO'
+       AND published_uuid IS NULL)
+   OR NOT EXISTS(SELECT 1 FROM @scenarios WHERE scenario=N'NO_CANDIDATE'
+       AND status=N'NAO_RESOLVIDO' AND reason=N'SEM_CANDIDATO_NO_RULESET_BLOCKING'
+       AND resolved_uuid IS NULL AND best_uuid IS NULL
+       AND second_uuid IS NULL AND publication_result=N'NOVA_IDENTIDADE'
+       AND publication_status=N'RESOLVIDO' AND published_uuid IS NOT NULL)
+    THROW 52983,'V8_OPERATIONAL_RECEIPT_SCENARIO_COVERAGE_INVALID',1;
+
 DECLARE @receipt nvarchar(max)=(
     SELECT
-      N'V8_OPERATIONAL_REGRESSION_PRIVATE_V1' AS [schema],
+      N'V8_OPERATIONAL_REGRESSION_PRIVATE_V2' AS [schema],
       @stage AS schemaStage,
       N'Jornada.Linkage.Runner.Program/ProbabilisticLinkageBatchRunner.RunAsync' AS entrypoint,
       CAST(1 AS bit) AS publish,
@@ -114,7 +159,12 @@ DECLARE @receipt nvarchar(max)=(
         FROM identidade.linkage_run lr WHERE lr.linkage_run_id=@run
         FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES)) AS run,
       JSON_QUERY((
-        SELECT r.pessoa_observacao_id AS observationId,
+        SELECT CASE o.codigo_pessoa_origem
+                 WHEN N'V8-OP-RESOLVED' THEN N'RESOLVED'
+                 WHEN N'V8-OP-CONFLICT' THEN N'CONFLICT'
+                 WHEN N'V8-OP-BELOW' THEN N'BELOW_THRESHOLD'
+                 WHEN N'V8-OP-NONE' THEN N'NO_CANDIDATE' END AS scenario,
+               r.pessoa_observacao_id AS observationId,
                LOWER(CONVERT(varchar(36),r.pessoa_uuid_resolvido)) AS resolvedUuid,
                LOWER(CONVERT(varchar(36),r.melhor_candidato_uuid)) AS bestUuid,
                CONVERT(varchar(40),r.score_melhor) AS bestScore,
@@ -130,6 +180,8 @@ DECLARE @receipt nvarchar(max)=(
                r.politica_publicacao_versao AS publicationPolicy,
                r.universo_referencia AS universeReference
         FROM identidade.linkage_resultado r
+        JOIN silver.pessoa_observacao p ON p.pessoa_observacao_id=r.pessoa_observacao_id
+        JOIN silver.pessoa_origem o ON o.pessoa_origem_id=p.pessoa_origem_id
         WHERE r.linkage_run_id=@run
         ORDER BY r.pessoa_observacao_id
         FOR JSON PATH,INCLUDE_NULL_VALUES)) AS decisions,
@@ -144,8 +196,10 @@ DECLARE @receipt nvarchar(max)=(
                g.nome_publicacao_normalizacao_versao AS publicationNameNormalizationVersion
         FROM gold.pessoa g
         WHERE g.pessoa_uuid IN(
-            SELECT p.initial_uuid FROM identidade.pessoa_origem_progressiva p
-            WHERE p.pessoa_origem_id=@origin
+            SELECT x.initial_uuid FROM identidade.pessoa_origem_progressiva x
+            JOIN silver.pessoa_observacao p ON p.pessoa_origem_id=x.pessoa_origem_id
+            JOIN identidade.linkage_run_item i ON i.pessoa_observacao_id=p.pessoa_observacao_id
+            WHERE i.linkage_run_id=@run
             UNION SELECT r.pessoa_uuid_resolvido FROM identidade.linkage_resultado r
                   WHERE r.linkage_run_id=@run AND r.pessoa_uuid_resolvido IS NOT NULL
             UNION SELECT r.melhor_candidato_uuid FROM identidade.linkage_resultado r
@@ -163,7 +217,9 @@ DECLARE @receipt nvarchar(max)=(
                v.status,v.motivo AS reason,LOWER(CONVERT(varchar(36),v.modelo_id)) AS modelId,
                CAST(CASE WHEN v.linkage_run_id=@run THEN 1 ELSE 0 END AS bit) AS exactRun
         FROM identidade.v_vinculo_corrente v
-        WHERE v.pessoa_observacao_id=@observation
+        WHERE EXISTS(SELECT 1 FROM identidade.linkage_run_item i
+                     WHERE i.linkage_run_id=@run
+                       AND i.pessoa_observacao_id=v.pessoa_observacao_id)
         ORDER BY v.pessoa_observacao_id,v.pessoa_uuid
         FOR JSON PATH,INCLUDE_NULL_VALUES)) AS currentLinks,
       JSON_QUERY((
@@ -174,8 +230,11 @@ DECLARE @receipt nvarchar(max)=(
                p.estado AS state,p.versao AS version,
                LOWER(CONVERT(varchar(36),p.ultimo_destino_externo_uuid)) AS lastExternalTargetUuid
         FROM identidade.pessoa_origem_progressiva p
-        WHERE p.pessoa_origem_id=@origin
-        FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES)) AS progressiveOrigin
+        JOIN silver.pessoa_observacao o ON o.pessoa_origem_id=p.pessoa_origem_id
+        JOIN identidade.linkage_run_item i ON i.pessoa_observacao_id=o.pessoa_observacao_id
+        WHERE i.linkage_run_id=@run
+        ORDER BY o.pessoa_observacao_id
+        FOR JSON PATH,INCLUDE_NULL_VALUES)) AS progressiveOrigins
     FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES);
 
 IF @receipt IS NULL OR DATALENGTH(@receipt)>1048576

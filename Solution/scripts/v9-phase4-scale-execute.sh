@@ -29,48 +29,26 @@ run_full() {
 run_v8_operational_regression() {
   local model='88000000-0000-4000-8000-000000008008'
   local version='8008'
-  local observation runner_log receipt_log
+  local scenario_count runner_log receipt_log v8_backup
+  v8_backup="/var/opt/mssql/data/$db-v8-operational-$JORNADA_V9_PHASE4_SCALE.bak"
+  docker exec "$sql_name" test ! -e "$v8_backup"
+  pair_sql master "BACKUP DATABASE [$db] TO DISK=N'$v8_backup' WITH COPY_ONLY, CHECKSUM; RESTORE VERIFYONLY FROM DISK=N'$v8_backup' WITH CHECKSUM;"
   pair_file database/tests/20261126_V8_Operational_Regression_Fixture.sql
-  if ! observation="$(docker exec "$sql_name" sh -c \
+  if ! scenario_count="$(docker exec "$sql_name" sh -c \
     'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -W -Q "$2"' \
     sh "$db" "
       SET NOCOUNT ON;
-      SELECT TOP(1) po.pessoa_observacao_id
+      SELECT COUNT_BIG(*)
       FROM silver.pessoa_observacao po
-      JOIN identidade.v_vinculo_corrente vc
-        ON vc.pessoa_observacao_id=po.pessoa_observacao_id
-       AND vc.status=N'RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL
-       AND vc.metodo_resolucao=N'LINKAGE_PROBABILISTICO'
-      JOIN gold.pessoa g
-        ON g.pessoa_uuid=vc.pessoa_uuid
-       AND g.estado_identidade=N'REFERENCIA'
-       AND g.nome_completo=po.nome_completo
-       AND g.nome_mae=po.nome_mae
-      WHERE po.cpf IS NULL
-        AND po.nome_mae IS NOT NULL
-        AND EXISTS(
-          SELECT 1
-          FROM identidade.blocking_chave own_key
-          WHERE own_key.pessoa_uuid=g.pessoa_uuid
-            AND own_key.normalizacao_versao=N'IDENTITY_NORMALIZATION_V1'
-            AND own_key.projection_schema_version=N'PERSON_RESOLUTION_PROJECTION_V2'
-            AND own_key.projection_fingerprint_sha256='d186f28c51e18802f7c2df5b8b192b6278d28874833c8d824d483608aa3abbb4'
-            AND own_key.atributo=N'name_full'
-            AND own_key.vigencia_fim IS NULL
-            AND 1=(
-              SELECT COUNT(DISTINCT peer.pessoa_uuid)
-              FROM identidade.blocking_chave peer
-              WHERE peer.normalizacao_versao=own_key.normalizacao_versao
-                AND peer.projection_schema_version=own_key.projection_schema_version
-                AND peer.projection_fingerprint_sha256=own_key.projection_fingerprint_sha256
-                AND peer.atributo=own_key.atributo
-                AND peer.valor_normalizado=own_key.valor_normalizado))
-      ORDER BY po.pessoa_observacao_id;" 2>/dev/null | tr -d '\r' | xargs)"; then
-    echo V8_OPERATIONAL_OBSERVATION_QUERY_FAILED
+      JOIN silver.pessoa_origem o ON o.pessoa_origem_id=po.pessoa_origem_id
+      WHERE po.source_as_of>=CONVERT(datetimeoffset(7),'2099-01-01T00:00:00+00:00')
+        AND o.codigo_pessoa_origem IN(
+          N'V8-OP-RESOLVED',N'V8-OP-CONFLICT',N'V8-OP-BELOW',N'V8-OP-NONE');" 2>/dev/null | tr -d '\r' | xargs)"; then
+    echo V8_OPERATIONAL_SCENARIO_QUERY_FAILED
     return 1
   fi
-  if [[ ! "$observation" =~ ^[1-9][0-9]*$ ]]; then
-    echo V8_OPERATIONAL_OBSERVATION_ID_INVALID
+  if [[ "$scenario_count" != 4 ]]; then
+    echo V8_OPERATIONAL_SCENARIO_COUNT_INVALID
     return 1
   fi
 
@@ -80,7 +58,7 @@ run_v8_operational_regression() {
     dotnet run --no-build -c Release --no-launch-profile \
       --project src/Jornada.Linkage.Runner -- \
       --mode ON_DEMAND --model-version "$version" \
-      --pessoa-observacao-id "$observation" \
+      --since 2099-01-01T00:00:00+00:00 --max-records 4 \
       --batch-size 100 --max-parallelism 1 --publish true \
       --correlation-id 88080000-0000-4000-8000-000000008008 \
       --requested-by CI_V8_OPERATIONAL_REGRESSION \
@@ -120,7 +98,7 @@ try:
         raise ValueError
     receipt = json.loads(matches[0])
     if (not isinstance(receipt,dict)
-            or receipt.get("schema") != "V8_OPERATIONAL_REGRESSION_PRIVATE_V1"):
+            or receipt.get("schema") != "V8_OPERATIONAL_REGRESSION_PRIVATE_V2"):
         raise ValueError
     target.write_text(json.dumps(receipt, sort_keys=True, separators=(",", ":")), encoding="utf-8")
 except (OSError,UnicodeError,ValueError,TypeError):
@@ -130,6 +108,11 @@ PY
     echo V8_OPERATIONAL_RECEIPT_PARSE_FAILED
     return 1
   fi
+  pair_sql master "
+    ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    RESTORE DATABASE [$db] FROM DISK=N'$v8_backup' WITH REPLACE, CHECKSUM;
+    ALTER DATABASE [$db] SET MULTI_USER;"
+  docker exec "$sql_name" rm -f -- "$v8_backup"
   echo V8_OPERATIONAL_REAL_RUNASYNC_PUBLICATION_CAPTURED
 }
 

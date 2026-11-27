@@ -97,6 +97,7 @@ def valid_uuid(value):
 
 V8_DECISION_FAILURE_FIELDS=(
     "decisionCollection","decisionRowCount","decisionFieldSet",
+    "scenarioCoverage",
     "observationId","status","reason","resolvedUuid","bestUuid","bestScore",
     "secondUuid","secondScore","margin","publicationResult","publicationStatus",
     "publishedUuid","publicationReason","publishedOriginId","progressiveVersion",
@@ -171,9 +172,9 @@ def canonical_v8_operational_receipt(receipt):
         require(number.is_finite(),"SCALE_V8_OPERATIONAL_DECIMAL")
         return number
     top={"schema","schemaStage","entrypoint","publish","fixtureLifecycle","runId",
-         "model","run","decisions","gold","currentLinks","progressiveOrigin"}
+         "model","run","decisions","gold","currentLinks","progressiveOrigins"}
     require(isinstance(receipt,dict) and set(receipt)==top
-            and receipt["schema"]=="V8_OPERATIONAL_REGRESSION_PRIVATE_V1"
+            and receipt["schema"]=="V8_OPERATIONAL_REGRESSION_PRIVATE_V2"
             and receipt["schemaStage"] in ("BASELINE","20261126_V3")
             and receipt["entrypoint"]=="Jornada.Linkage.Runner.Program/ProbabilisticLinkageBatchRunner.RunAsync"
             and receipt["publish"] is True
@@ -196,64 +197,107 @@ def canonical_v8_operational_receipt(receipt):
                 "resolved","unresolved","conflicts","noCandidateInBlock","batchSize",
                 "maxParallelism","requestedBy","reason"}
     require(isinstance(run,dict) and set(run)==run_fields and run["mode"]=="ON_DEMAND"
-            and run["status"]=="PUBLICADO" and type(run["observationId"]) is int
-            and 0<run["observationId"]<=run["highWatermark"]
-            and run["eligible"]==run["evaluated"]==run["resolved"]==1
-            and run["unresolved"]==run["conflicts"]==run["noCandidateInBlock"]==0
+            and run["status"]=="PUBLICADO" and run["observationId"] is None
+            and type(run["highWatermark"]) is int and run["highWatermark"]>0
+            and run["eligible"]==run["evaluated"]==4
+            and run["resolved"]==1 and run["unresolved"]==2
+            and run["conflicts"]==1 and run["noCandidateInBlock"]==1
             and run["batchSize"]==100 and run["maxParallelism"]==1
             and run["requestedBy"]=="CI_V8_OPERATIONAL_REGRESSION"
             and run["reason"]=="governed-v8-operational-publication-regression",
             "SCALE_V8_OPERATIONAL_RUN")
     decisions=receipt["decisions"]
-    decision_fields={"observationId","resolvedUuid","bestUuid","bestScore","secondUuid",
+    decision_fields={"scenario","observationId","resolvedUuid","bestUuid","bestScore","secondUuid",
         "secondScore","margin","status","reason","publicationResult","publishedUuid",
         "publicationStatus","publicationReason","publishedOriginId","progressiveVersion",
         "publicationPolicy","universeReference"}
     if not isinstance(decisions,list):
         raise V8DecisionPredicateError(("decisionCollection",))
-    if len(decisions)!=1:
+    if len(decisions)!=4:
         raise V8DecisionPredicateError(("decisionRowCount",))
-    if not isinstance(decisions[0],dict) or set(decisions[0])!=decision_fields:
+    if any(not isinstance(row,dict) or set(row)!=decision_fields for row in decisions):
         raise V8DecisionPredicateError(("decisionFieldSet",))
-    decision=decisions[0]
+    scenarios=("RESOLVED","CONFLICT","BELOW_THRESHOLD","NO_CANDIDATE")
+    if ({row["scenario"] for row in decisions}!=set(scenarios)
+            or len({row["scenario"] for row in decisions})!=4
+            or len({row["observationId"] for row in decisions})!=4):
+        raise V8DecisionPredicateError(("scenarioCoverage",))
+    by_scenario={row["scenario"]:row for row in decisions}
     # The product persists uniqueidentifier text in SQL Server's canonical
     # uppercase representation. Keep the observed value untouched and compare
     # it textually and exactly against that physical representation.
     expected_universe=(f"LINKAGE_RUN:{receipt['runId'].upper()};HW:{run['highWatermark']};"
                        f"ELIGIVEIS:{run['eligible']}")
-    best_score_malformed=False
-    try:
-        best_score_ok=0<=persisted_decimal(decision["bestScore"])<=1
-    except (ValueError,TypeError,ArithmeticError):
-        best_score_malformed=True
-        best_score_ok=False
+    decimal_malformed=False
+    def decimal_value(value):
+        nonlocal decimal_malformed
+        try:return persisted_decimal(value)
+        except (ValueError,TypeError,ArithmeticError):
+            decimal_malformed=True
+            return None
+    scores={row["scenario"]:decimal_value(row["bestScore"]) for row in decisions}
+    second_scores={row["scenario"]:(None if row["secondScore"] is None
+        else decimal_value(row["secondScore"])) for row in decisions}
+    margins={row["scenario"]:(None if row["margin"] is None
+        else decimal_value(row["margin"])) for row in decisions}
+    resolved=by_scenario["RESOLVED"]
+    conflict=by_scenario["CONFLICT"]
+    below=by_scenario["BELOW_THRESHOLD"]
+    none=by_scenario["NO_CANDIDATE"]
     checks=(
-        ("observationId",decision["observationId"]==run["observationId"]),
-        ("status",decision["status"]=="RESOLVIDO"),
-        ("reason",decision["reason"] is None),
-        ("resolvedUuid",valid_uuid(decision["resolvedUuid"])),
-        ("bestUuid",decision["bestUuid"]==decision["resolvedUuid"]),
-        ("bestScore",best_score_ok),
-        ("secondUuid",decision["secondUuid"] is None),
-        ("secondScore",decision["secondScore"] is None),
-        ("margin",decision["margin"] is None),
-        ("publicationResult",decision["publicationResult"]=="ASSOCIACAO_EXISTENTE"),
-        ("publicationStatus",decision["publicationStatus"]=="RESOLVIDO"),
-        ("publishedUuid",decision["publishedUuid"]==decision["resolvedUuid"]),
-        ("publicationReason",decision["publicationReason"]=="REFERENCIA_PROGRESSIVA_CONFIRMADA"),
-        ("publishedOriginId",type(decision["publishedOriginId"]) is int
-            and decision["publishedOriginId"]>0),
-        ("progressiveVersion",type(decision["progressiveVersion"]) is int
-            and decision["progressiveVersion"]>0),
-        ("publicationPolicy",decision["publicationPolicy"]=="LINKAGE_PROGRESSIVE_PUBLICATION_V1"),
-        ("universeReference",decision["universeReference"]==expected_universe))
+        ("observationId",all(type(row["observationId"]) is int
+            and 0<row["observationId"]<=run["highWatermark"] for row in decisions)),
+        ("status",resolved["status"]=="RESOLVIDO" and conflict["status"]=="CONFLITO"
+            and below["status"]==none["status"]=="NAO_RESOLVIDO"),
+        ("reason",resolved["reason"] is None
+            and conflict["reason"]=="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"
+            and below["reason"]=="ABAIXO_T_LINKAGE"
+            and none["reason"]=="SEM_CANDIDATO_NO_RULESET_BLOCKING"),
+        ("resolvedUuid",valid_uuid(resolved["resolvedUuid"])
+            and all(row["resolvedUuid"] is None for row in (conflict,below,none))),
+        ("bestUuid",resolved["bestUuid"]==resolved["resolvedUuid"]
+            and valid_uuid(conflict["bestUuid"]) and valid_uuid(below["bestUuid"])
+            and none["bestUuid"] is None),
+        ("bestScore",not decimal_malformed
+            and scores["RESOLVED"] is not None and scores["RESOLVED"]>=Decimal("0.95")
+            and scores["CONFLICT"] is not None and scores["CONFLICT"]>=Decimal("0.95")
+            and scores["BELOW_THRESHOLD"] is not None
+            and Decimal(0)<=scores["BELOW_THRESHOLD"]<Decimal("0.95")
+            and scores["NO_CANDIDATE"]==0),
+        ("secondUuid",valid_uuid(conflict["secondUuid"])
+            and all(row["secondUuid"] is None for row in (resolved,below,none))),
+        ("secondScore",second_scores["CONFLICT"]==scores["CONFLICT"]
+            and all(second_scores[key] is None for key in ("RESOLVED","BELOW_THRESHOLD","NO_CANDIDATE"))),
+        ("margin",margins["CONFLICT"]==0
+            and all(margins[key] is None for key in ("RESOLVED","BELOW_THRESHOLD","NO_CANDIDATE"))),
+        ("publicationResult",resolved["publicationResult"]=="ASSOCIACAO_EXISTENTE"
+            and conflict["publicationResult"]==below["publicationResult"]=="INDEFINIDA"
+            and none["publicationResult"]=="NOVA_IDENTIDADE"),
+        ("publicationStatus",resolved["publicationStatus"]==none["publicationStatus"]=="RESOLVIDO"
+            and conflict["publicationStatus"]=="CONFLITO"
+            and below["publicationStatus"]=="NAO_RESOLVIDO"),
+        ("publishedUuid",resolved["publishedUuid"]==resolved["resolvedUuid"]
+            and valid_uuid(none["publishedUuid"])
+            and conflict["publishedUuid"] is None and below["publishedUuid"] is None),
+        ("publicationReason",resolved["publicationReason"]=="ASSOCIACAO_EXISTENTE_LINKAGE"
+            and conflict["publicationReason"]==conflict["reason"]
+            and below["publicationReason"]==below["reason"]
+            and none["publicationReason"]=="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA"),
+        ("publishedOriginId",all(type(row["publishedOriginId"]) is int
+            and row["publishedOriginId"]>0 for row in decisions)
+            and len({row["publishedOriginId"] for row in decisions})==4),
+        ("progressiveVersion",all(type(row["progressiveVersion"]) is int
+            and row["progressiveVersion"]==1 for row in decisions)),
+        ("publicationPolicy",all(row["publicationPolicy"]=="LINKAGE_PROGRESSIVE_PUBLICATION_V1"
+            for row in decisions)),
+        ("universeReference",all(row["universeReference"]==expected_universe for row in decisions)))
     failures=tuple(field for field,passed in checks if not passed)
     if failures:
         # Preserve the original short-circuit code: malformed decimal won only
         # when every preceding decision predicate passed. Diagnostics still
         # list every failed fixed field without exposing receipt values.
         error_code=(V8_DECIMAL_ERROR_CODE
-            if best_score_malformed and failures[0]=="bestScore"
+            if decimal_malformed and failures[0] in ("bestScore","secondScore","margin")
             else V8_DECISION_ERROR_CODE)
         raise V8DecisionPredicateError(failures,error_code)
     gold=receipt["gold"]
@@ -264,33 +308,53 @@ def canonical_v8_operational_receipt(receipt):
     require(isinstance(gold,list) and gold and all(isinstance(row,dict) and set(row)==gold_fields
             and valid_uuid(row["personUuid"]) for row in gold)
             and len({row["personUuid"] for row in gold})==len(gold)
-            and decision["resolvedUuid"] in {row["personUuid"] for row in gold},
+            and all(value in {row["personUuid"] for row in gold}
+                for value in (resolved["resolvedUuid"],conflict["bestUuid"],conflict["secondUuid"],
+                              below["bestUuid"],none["publishedUuid"])),
             "SCALE_V8_OPERATIONAL_GOLD")
     links=receipt["currentLinks"]
     link_fields={"observationId","personUuid","method","score","status","reason","modelId","exactRun"}
-    require(isinstance(links,list) and len(links)==1 and set(links[0])==link_fields
-            and links[0]["observationId"]==run["observationId"]
-            and links[0]["personUuid"]==decision["resolvedUuid"]
-            and links[0]["method"]=="LINKAGE_PROBABILISTICO"
-            and links[0]["score"]==decision["bestScore"]
-            and links[0]["status"]==decision["publicationStatus"]
-            and links[0]["reason"]==decision["publicationReason"]
-            and links[0]["exactRun"] is True
-            and links[0]["modelId"]==model["modelId"],"SCALE_V8_OPERATIONAL_LINK")
-    progressive=receipt["progressiveOrigin"]
+    decision_by_observation={row["observationId"]:row for row in decisions}
+    require(isinstance(links,list) and len(links)==4
+            and all(isinstance(link,dict) and set(link)==link_fields
+                and link["observationId"] in decision_by_observation
+                and link["method"]=="LINKAGE_PROBABILISTICO"
+                and link["status"]==decision_by_observation[link["observationId"]]["publicationStatus"]
+                and link["reason"]==decision_by_observation[link["observationId"]]["publicationReason"]
+                and link["exactRun"] is True and link["modelId"]==model["modelId"]
+                and (link["personUuid"]==decision_by_observation[link["observationId"]]["publishedUuid"]
+                     if decision_by_observation[link["observationId"]]["publicationResult"]=="ASSOCIACAO_EXISTENTE"
+                     else link["personUuid"] is None)
+                and (link["score"]==decision_by_observation[link["observationId"]]["bestScore"]
+                     if decision_by_observation[link["observationId"]]["publicationResult"]=="ASSOCIACAO_EXISTENTE"
+                     else link["score"] is None)
+                for link in links),"SCALE_V8_OPERATIONAL_LINK")
+    progressive=receipt["progressiveOrigins"]
     progressive_fields={"originId","initialUuid","canonicalUuid","legacyUuid","state","version",
                         "lastExternalTargetUuid"}
-    require(isinstance(progressive,dict) and set(progressive)==progressive_fields
-            and progressive["originId"]==decision["publishedOriginId"]
-            and valid_uuid(progressive["initialUuid"])
-            and progressive["canonicalUuid"]==decision["publishedUuid"]
-            and progressive["state"]=="REFERENCIA"
-            and progressive["version"]==decision["progressiveVersion"],
+    require(isinstance(progressive,list) and len(progressive)==4
+            and all(isinstance(row,dict) and set(row)==progressive_fields
+                and type(row["originId"]) is int and row["originId"]>0
+                and valid_uuid(row["initialUuid"]) for row in progressive),
+            "SCALE_V8_OPERATIONAL_PROGRESSIVE")
+    progressive_by_origin={row["originId"]:row for row in progressive}
+    require(len(progressive_by_origin)==4
+            and all(row["publishedOriginId"] in progressive_by_origin for row in decisions)
+            and progressive_by_origin[resolved["publishedOriginId"]]["canonicalUuid"]==resolved["publishedUuid"]
+            and progressive_by_origin[resolved["publishedOriginId"]]["state"]=="REFERENCIA"
+            and progressive_by_origin[none["publishedOriginId"]]["canonicalUuid"]==none["publishedUuid"]
+            and progressive_by_origin[none["publishedOriginId"]]["initialUuid"]==none["publishedUuid"]
+            and progressive_by_origin[none["publishedOriginId"]]["state"]=="REFERENCIA"
+            and all(progressive_by_origin[row["publishedOriginId"]]["canonicalUuid"] is None
+                and progressive_by_origin[row["publishedOriginId"]]["state"]=="INDEFINIDA"
+                for row in (conflict,below))
+            and all(progressive_by_origin[row["publishedOriginId"]]["version"]==row["progressiveVersion"]
+                for row in decisions),
             "SCALE_V8_OPERATIONAL_PROGRESSIVE")
     canonical=json.loads(json.dumps(receipt,sort_keys=True,allow_nan=False))
     canonical.pop("schemaStage");canonical.pop("runId")
-    canonical["decisions"][0]["universeReference"]=(
-        f"HW:{run['highWatermark']};ELIGIVEIS:{run['eligible']}")
+    for row in canonical["decisions"]:
+        row["universeReference"]=f"HW:{run['highWatermark']};ELIGIVEIS:{run['eligible']}"
     return canonical
 
 def verify_v8_operational_pair(left, right, expected_stages):
@@ -308,6 +372,7 @@ def verify_v8_operational_pair(left, right, expected_stages):
         operationalV8MutationDetected=True,
         operationalV8SemanticSha256=hashlib.sha256(raw).hexdigest(),
         operationalV8DecisionRows=len(a["decisions"]),
+        operationalV8Scenarios=sorted(row["scenario"] for row in a["decisions"]),
         operationalV8GoldRows=len(a["gold"]),
         operationalV8ModelId=a["model"]["modelId"],
         operationalV8RuleSetFingerprintSha256=a["model"]["ruleSetFingerprintSha256"],
@@ -339,7 +404,7 @@ def pair_receipt(root):
         read(right / "v8-operational-private.json"),
         stage_by_direction[(primary_profile,restored_profile)])
     write(left / "pair-receipt.json", dict(
-        schema="V9_RESTORED_PREFULL_PAIR_V2", commit=os.environ["JORNADA_E2E_EXACT_SHA"],
+        schema="V9_RESTORED_PREFULL_PAIR_V3", commit=os.environ["JORNADA_E2E_EXACT_SHA"],
         primaryProfile=primary_profile,
         restoredProfile=restored_profile,
         inputVerified=True, distinctPublishedRuns=True, rawEdgesAndScoresEqual=True,
@@ -620,6 +685,7 @@ V8_RECEIPT_SQL_FAILURE_CODES={
     52978:"FIXTURE_LIFECYCLE_FORBIDDEN",
     52979:"UNIVERSE_INVALID",
     52980:"RECEIPT_SIZE_INVALID",
+    52983:"SCENARIO_COVERAGE_INVALID",
 }
 
 def v8_receipt_sql_failure_code(lines):

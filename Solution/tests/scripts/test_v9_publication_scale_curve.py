@@ -39,11 +39,12 @@ class CurveTests(unittest.TestCase):
         return [self.frame(l,n,m) for l,n,m in zip(C.LABELS,C.POPULATIONS,(1,2,last))]
     def v8_pairs(self):
         def pair(primary,restored,digest):
-            return dict(schema="V9_RESTORED_PREFULL_PAIR_V2",commit="a"*40,
+            return dict(schema="V9_RESTORED_PREFULL_PAIR_V3",commit="a"*40,
                 primaryProfile=primary,restoredProfile=restored,inputVerified=True,
                 distinctPublishedRuns=True,rawEdgesAndScoresEqual=True,observations=10,references=10,
                 operationalV8RegressionVerified=True,operationalV8MutationDetected=True,
-                operationalV8SemanticSha256=digest,operationalV8DecisionRows=1,
+                operationalV8SemanticSha256=digest,operationalV8DecisionRows=4,
+                operationalV8Scenarios=["BELOW_THRESHOLD","CONFLICT","NO_CANDIDATE","RESOLVED"],
                 operationalV8GoldRows=1,
                 operationalV8ModelId="88000000-0000-4000-8000-000000008008",
                 operationalV8RuleSetFingerprintSha256=
