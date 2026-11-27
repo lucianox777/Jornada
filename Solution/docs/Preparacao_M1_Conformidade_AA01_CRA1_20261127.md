@@ -1,7 +1,7 @@
 # Preparação M1 — conformidade factual AA01/CRA1 — 27/11/2026
 
 **Natureza:** evidência técnica auxiliar da preparação autorizada; NÃO é nova decisão do PO, novo gate ou certificação do produto.
-**Escopo:** [GOV-M1-ESCOPO-AA01-CRA1-20211127](Decisao_GOV_M1_Escopo_AA01_CRA1_20261127.md), somente AA01 v1 e CRA1 v1. GESTOR, schemas, modelos, permissões e prioridade da Fase A preservados.
+**Escopo:** [GOV-M1-ESCOPO-AA01-CRA1-20261127](Decisao_GOV_M1_Escopo_AA01_CRA1_20261127.md), somente AA01 v1 e CRA1 v1. GESTOR, schemas, modelos, permissões e prioridade da Fase A preservados.
 **Base consultada:** `250aedc5f71aec2fd54f7af80b404450d800ce08`.
 
 ## Trabalho executado
