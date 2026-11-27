@@ -341,20 +341,29 @@ def canonical_v8_operational_receipt(receipt):
             or len({link["observationId"] for link in links})!=4):
         raise V8LinkPredicateError(("observationCoverage",))
     def exact_link_score(link,decision):
+        expected=(decision["bestScore"]
+            if decision["publicationResult"]=="ASSOCIACAO_EXISTENTE"
+                and decision["status"]=="RESOLVIDO"
+                and decision["resolvedUuid"]==decision["publishedUuid"]
+            else None)
+        if expected is None:
+            return link["score"] is None
         try:
-            return persisted_decimal(link["score"])==persisted_decimal(decision["bestScore"])
+            return persisted_decimal(link["score"])==persisted_decimal(expected)
         except (ValueError,TypeError,ArithmeticError):
             return False
     link_checks=(
         ("method",all(link["method"]=="LINKAGE_PROBABILISTICO" for link in links)),
-        ("status",all(link["status"]==decision_by_observation[link["observationId"]]["status"]
+        ("status",all(link["status"]==
+            decision_by_observation[link["observationId"]]["publicationStatus"]
             for link in links)),
-        ("reason",all(link["reason"]==decision_by_observation[link["observationId"]]["reason"]
+        ("reason",all(link["reason"]==
+            decision_by_observation[link["observationId"]]["publicationReason"]
             for link in links)),
         ("exactRun",all(link["exactRun"] is True for link in links)),
         ("modelId",all(link["modelId"]==model["modelId"] for link in links)),
         ("personUuid",all(link["personUuid"]==
-            decision_by_observation[link["observationId"]]["resolvedUuid"] for link in links)),
+            decision_by_observation[link["observationId"]]["publishedUuid"] for link in links)),
         ("score",all(exact_link_score(link,decision_by_observation[link["observationId"]])
             for link in links)))
     link_failures=tuple(field for field,passed in link_checks if not passed)

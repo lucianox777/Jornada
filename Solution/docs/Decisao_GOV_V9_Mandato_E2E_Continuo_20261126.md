@@ -66,6 +66,14 @@ Nos dois sentidos BASELINE↔V3 permanecem obrigatórias igualdade estrita de Be
 
 Nada nesta decisão altera os demais predicados do comparador, desempate, política, gate, modelo, M/U, TF, limiares ou o vencedor #38. A validação do par integral e das etapas posteriores continua dependente de nova CI física. **Estado documental: DECIDIDO; implementação e validação física pendentes.** #1940/#1851; GOV-DOC-01.
 
+## Decisão do PO de 27/11/2026 — representação estrita de `v_vinculo_corrente` V8
+
+**GOV-V9-V8-VINCULO-CORRENTE-PUBLICACAO-20261127 — DECIDIDO pelo PO.** O comparador da regressão operacional V8 deve representar exatamente a definição versionada final de `identidade.v_vinculo_corrente`, instalada por `20260919_Linkage_Publicacao_Progressiva.sql`. `status`, `reason` e `personUuid` devem ser iguais, respectivamente, a `status_publicacao`, `motivo_publicacao` e `pessoa_uuid_publicado`, inclusive o UUID da nova identidade no cenário `NO_CANDIDATE`.
+
+O score deve ser exatamente `score_melhor` somente quando o resultado de publicação for `ASSOCIACAO_EXISTENTE`, a decisão bruta estiver `RESOLVIDO` e o UUID bruto resolvido for igual ao UUID publicado; em todos os demais resultados, deve ser nulo. A igualdade continua exata, sem tolerância, normalização, exclusão de campo ou retirada de braço. Negativos sintéticos devem reprovar individualmente mutações nos quatro mapeamentos: status, motivo, UUID publicado e score.
+
+A decisão corrige a hipótese refutada pelas runs 46006426517, 46010866522 e 46015069225 e substitui o estado **PROPOSTA/ESCALADA AO PO** registrado após a última. Permanecem bloqueantes coleção, cardinalidade, schema, cobertura das quatro observações, método, run exata, modelo e os demais gates. Não se alteram produto, M/U, TF, limiares, desempate, política ou vencedor #38. **Estado documental: DECIDIDO; implementação local e validação física são estados separados.** #1940/#1851; GOV-DOC-01.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL

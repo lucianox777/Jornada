@@ -486,16 +486,16 @@ env() {
                       gold(initial_none,"NONE")],
                 currentLinks=[
                     dict(observationId=10,personUuid=resolved_person,method="LINKAGE_PROBABILISTICO",
-                        score="0.98000000",status="RESOLVIDO",reason=None,
+                        score="0.98000000",status="RESOLVIDO",reason="ASSOCIACAO_EXISTENTE_LINKAGE",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=11,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.98000000",
+                    dict(observationId=11,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
                         status="CONFLITO",reason="MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=12,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.10000000",
+                    dict(observationId=12,personUuid=None,method="LINKAGE_PROBABILISTICO",score=None,
                         status="NAO_RESOLVIDO",reason="ABAIXO_T_LINKAGE",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True),
-                    dict(observationId=13,personUuid=None,method="LINKAGE_PROBABILISTICO",score="0.00000000",
-                        status="NAO_RESOLVIDO",reason="SEM_CANDIDATO_NO_RULESET_BLOCKING",
+                    dict(observationId=13,personUuid=initial_none,method="LINKAGE_PROBABILISTICO",score=None,
+                        status="RESOLVIDO",reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA",
                         modelId="88000000-0000-4000-8000-000000008008",exactRun=True)],
                 progressiveOrigins=[
                     dict(originId=30,initialUuid=initial_resolved,canonicalUuid=resolved_person,
@@ -588,12 +588,12 @@ env() {
         for label,mutate in (
             ("method",lambda r:r["currentLinks"][0].update(method="CHANGED")),
             ("score",lambda r:r["currentLinks"][1].update(score="0.97000000")),
-            ("status",lambda r:r["currentLinks"][3].update(status="RESOLVIDO")),
+            ("status",lambda r:r["currentLinks"][3].update(status="NAO_RESOLVIDO")),
             ("reason",lambda r:r["currentLinks"][3].update(
-                reason="NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA")),
+                reason="SEM_CANDIDATO_NO_RULESET_BLOCKING")),
             ("exactRun",lambda r:r["currentLinks"][0].update(exactRun=False)),
             ("modelId",lambda r:r["currentLinks"][0].update(modelId=initial_resolved)),
-            ("personUuid",lambda r:r["currentLinks"][0].update(personUuid=initial_resolved)),
+            ("personUuid",lambda r:r["currentLinks"][3].update(personUuid=None)),
             ("observationCoverage",lambda r:r["currentLinks"][3].update(observationId=10))):
             with self.subTest(currentLink=label):
                 changed=deepcopy(migrated);mutate(changed)
