@@ -1,6 +1,6 @@
 # GOV-M1-ESCOPO-AA01-CRA1-20261127 — escopo factual inicial do M1
 
-**Data:** 27/11/2026. **Autoridade:** Product Owner. **Estado:** DECIDIDO; registro documental em branch, sincronização dos índices e integração protegida pendentes. **Política:** GOV-DOC-01.
+**Data:** 27/11/2026. **Autoridade:** Product Owner. **Estado:** DECIDIDO; registro documental e apontadores nos dois índices na PR #1946; integração protegida pendente. **Política:** GOV-DOC-01.
 
 ## Fonte, contexto e motivo
 
@@ -29,7 +29,7 @@ O exemplo cadastral SMS preservado em revisões anteriores é histórico e não 
 - **DECIDIDO:** escopo factual inicial AA01/CRA1.
 - **Preparação auxiliar:** artefatos candidatos no chat; testes offline não equivalem a testes do produto.
 - **Produto/HTTP/SQL/CI:** nenhum PASS novo decorre desta decisão.
-- **Documentação:** este arquivo deve ser incorporado com apontadores em `Indice_Decisoes_Vigentes.md` e `Indice_Acervo_Documental.md` no fluxo protegido. Não declarar registro integral concluído antes da sincronização e integração.
+- **Documentação:** este arquivo e apontadores em `Indice_Decisoes_Vigentes.md` e `Indice_Acervo_Documental.md` constam do diff documental #1946. A revisão, checks e integração protegida são pendentes; não declarar registro integral concluído antes da integração.
 - **Ativação:** nenhuma; HML/PROD e dados reais permanecem fora do escopo.
 
 ## Rastreabilidade
@@ -45,4 +45,4 @@ O exemplo cadastral SMS preservado em revisões anteriores é histórico e não 
 
 ## Evidência técnica posterior — sem nova decisão
 
-A [preparação de conformidade factual AA01/CRA1](Preparacao_M1_Conformidade_AA01_CRA1_20261127.md) registra 141 casos de schema avaliados offline e um confronto NUnit candidato com o validador real, ainda não compilado/executado. Essa evidência não amplia contratos, não altera autorização, não acrescenta gate obrigatório e não declara M1/E2E PASS. Os índices e a integração documental protegida permanecem pendentes.
+A [preparação de conformidade factual AA01/CRA1](Preparacao_M1_Conformidade_AA01_CRA1_20261127.md) registra 141 casos de schema avaliados offline e um confronto NUnit candidato com o validador real, ainda não compilado/executado. Essa evidência não amplia contratos, não altera autorização, não acrescenta gate obrigatório e não declara M1/E2E PASS. Os apontadores foram acrescentados nesta PR; a integração documental protegida permanece pendente.
