@@ -57,12 +57,23 @@ def preflight(root):
 def truth_frame(root,n):
     census=read(root/"sql-census.json")
     waves=[];keys={}
+    original = None
+    if n in (4000, 10000):
+        corpus = root / "fixture" / "corpus"
+        W.BRIDGE.PEOPLE = n
+        W.BRIDGE.MAX_SOURCE_CSV_BYTES = 128 * 1024 * 1024
+        original = W.BRIDGE.source_observation_truth(corpus, read(corpus / "generation-manifest.json"))
     for i in (1,2):
         d=root/"fixture"/"ingestion"/f"wave-{i:02}"/"delivery"
         raw=I.read(d/"bridge-truth.jsonl")
         waves.append((read(d/"bridge-manifest.json"),raw))
         for line in raw.splitlines():
             x=I.load(line);k=I.version_key(x["GestorCodigo"],x["PackageFileName"],x["OpaquePersonId"])
+            if original is not None:
+                source, sep, wave = x["ObservationId"].rpartition("-W")
+                require(sep and wave == str(i) and original.get(source) ==
+                        (x["BasePersonId"], x["Partition"], x["SyntheticGestor"])
+                        and W.ROUTES[x["SyntheticGestor"]] == x["GestorCodigo"], "SCALE_TRACE_SOURCE_JOIN")
             require(k not in keys,"SCALE_TRUTH_DUPLICATE");keys[k]=(x["BasePersonId"],i)
     identity=I.compare(waves,census,read(root/"runner-receipt.json"),required_identities=n)
     truth={}
@@ -564,6 +575,184 @@ def sql_probe_receipt(root):
         schema="V9_DEV_FULL_SQL_OPERATIONS_V2", scope="TAGGED_RUNNER_AND_SCORER_SQL",
         droppedEvents=0, rawEventsExported=False, **stats))
 
+def quality_trace(census, truth, before, ranks, graphs, identity, candidate_count, scores):
+    """Post-FULL only. All ID-indexed collections stay inside the disposable attempt."""
+    by_id = {row["observationId"]: row for row in census}
+    prior = {row["Id"]: row for row in before}
+    ranked = {row["Id"]: row for row in ranks}
+    eligible = {i for i, t in truth.items() if not t["cpf"]}
+    require(len(prior) == len(before) == len(by_id) == len(census)
+            and prior.keys() == by_id.keys() == truth.keys()
+            and len(ranked) == len(ranks) and ranked.keys() == eligible
+            and {row["observationId"] for row in graphs} == eligible
+            and len(graphs) == len(eligible), "SCALE_TRACE_UNIVERSE")
+
+    bases_by_ref = defaultdict(set)
+    refs_by_base = defaultdict(set)
+    current_groups = defaultdict(list)
+    for i, row in by_id.items():
+        prev, t = prior[i], truth[i]
+        require((prev["Version"], prev["Manager"], prev["Wave"], prev["Origin"], prev["HasCpf"])
+                == (row["version"], t["manager"], t["wave"], t["origin"], t["cpf"]),
+                "SCALE_TRACE_VERSION_JOIN")
+        if prev["Status"] == "RESOLVIDO":
+            ref = prev["Current"]
+            require(ref is not None, "SCALE_TRACE_PRIOR")
+            bases_by_ref[ref].add(t["base"])
+            refs_by_base[t["base"]].add(ref)
+        if row["currentStatus"] == "RESOLVIDO":
+            current_groups[row["currentUuid"]].append(i)
+
+    count_with = 0
+    extra_candidates = 0
+    incidences = Counter()
+    candidate_sets = {}
+    for graph in graphs:
+        i = graph["observationId"]
+        candidates = set(graph["candidates"])
+        require(len(candidates) == len(graph["candidates"]), "SCALE_TRACE_DUPLICATE_CANDIDATE")
+        candidate_sets[i] = candidates
+        if candidates:
+            count_with += 1
+            extra_candidates += len(candidates) - 1
+        for ref in candidates:
+            bases = bases_by_ref.get(ref)
+            if not bases:
+                kind = "unmappedReference"
+            elif truth[i]["base"] not in bases:
+                kind = "foreignBase"
+            elif len(bases) > 1:
+                kind = "mixedReference"
+            else:
+                kind = "ownBase"
+            incidences[kind] += 1
+    require(sum(incidences.values()) == candidate_count == count_with + extra_candidates,
+            "SCALE_TRACE_CANDIDATE_TOTAL")
+
+    def cross_base_pairs(ids):
+        sizes = Counter(truth[i]["base"] for i in ids)
+        return math.comb(sum(sizes.values()), 2) - sum(math.comb(n, 2) for n in sizes.values())
+
+    # Same (descending LogOdds, ascending record ID) order already checked
+    # against the scalar oracle. Only count field agreement for foreign winners.
+    strongest = {}
+    for score in scores:
+        if score["LogOdds"] is None:
+            continue
+        key = (score["Source"], score["Person"])
+        order = (score["LogOdds"], -score["Record"])
+        if key not in strongest or order > strongest[key]:
+            strongest[key] = order
+    agreements = Counter()
+    stage = dict(preFull=0, rawDecision=0, publication=0)
+    affected = set()
+    fused = 0
+    affected_versions = 0
+    paths = Counter()
+    wrong_with_own = wrong_without_candidate = wrong_without_ref = 0
+    for dest, ids in current_groups.items():
+        pairs = cross_base_pairs(ids)
+        if not pairs:
+            continue
+        fused += 1
+        affected_versions += len(ids)
+        affected.update(truth[i]["base"] for i in ids)
+        pre_members = []
+        ledger_members = []
+        for i in ids:
+            if prior[i]["Current"] == dest and prior[i]["Status"] == "RESOLVIDO":
+                pre_members.append(i)
+                ledger_members.append(i)
+                paths["preFull"] += 1
+            elif i in ranked and ranked[i]["Resolved"] == dest and ranked[i]["Status"] == "RESOLVIDO":
+                ledger_members.append(i)
+                paths["rawResolvedPublished"] += 1
+                base = truth[i]["base"]
+                require(ranked[i]["Best"] == dest and dest in candidate_sets[i],
+                        "SCALE_TRACE_RAW_RANK")
+                if dest in bases_by_ref and base not in bases_by_ref[dest]:
+                    record_id = -strongest[i, dest][1]
+                    source = prior[i]["Observation"]
+                    evidence = prior[record_id]["Observation"]
+                    for field in ("NomeCompleto", "NomeMae", "DataNascimento"):
+                        if source[field] is not None and source[field] == evidence[field]:
+                            agreements[field] += 1
+                    if refs_by_base[base] & candidate_sets[i]:
+                        wrong_with_own += 1
+                    elif refs_by_base[base]:
+                        wrong_without_candidate += 1
+                    else:
+                        wrong_without_ref += 1
+            else:
+                row = by_id[i]
+                if row["runResult"] == "NOVA_IDENTIDADE" and row["publishedUuid"] == prior[i]["Initial"]:
+                    paths["publishedOriginFounder"] += 1
+                elif row["runResult"] == "ASSOCIACAO_EXISTENTE" and row["publishedUuid"] == dest:
+                    paths["publishedAssociationWithoutMatchingRawResolution"] += 1
+                else:
+                    paths["otherCurrentResolution"] += 1
+        previous = cross_base_pairs(pre_members)
+        ledger = cross_base_pairs(ledger_members)
+        stage["preFull"] += previous
+        stage["rawDecision"] += ledger - previous
+        stage["publication"] += pairs - ledger
+    require(sum(stage.values()) == identity["pairMetrics"]["fp"]
+            and fused == identity["falseFusedGoldIdentities"], "SCALE_TRACE_PAIR_TOTAL")
+    return dict(fusedGold=fused, affectedBases=len(affected), affectedVersions=affected_versions,
+                pairsByStage=stage, affectedVersionsByPath=dict(paths),
+                selectedForeignWithOwnCandidate=wrong_with_own,
+                selectedForeignWithoutOwnCandidate=wrong_without_candidate,
+                selectedForeignWithoutOwnReference=wrong_without_ref,
+                foreignWinnerExactFieldAgreement=dict(agreements),
+                preFullReferencesWithResolvedVersions=len(bases_by_ref),
+                preFullMixedReferences=sum(len(bases) > 1 for bases in bases_by_ref.values()),
+                observationsWithCandidates=count_with, additionalCandidateIncidences=extra_candidates,
+                candidateIncidences=dict(incidences))
+
+
+def pre_full_cpf_pairs(root, census, truth, before):
+    """Compare delivered CPF values privately only for pre-existing mixed references."""
+    from io import BytesIO
+    from zipfile import ZipFile
+    prior = defaultdict(list)
+    for row in before:
+        if row["Status"] == "RESOLVIDO":
+            prior[row["Current"]].append(row["Id"])
+    mixed = {dest: ids for dest, ids in prior.items() if len({truth[i]["base"] for i in ids}) > 1}
+    by_id = {row["observationId"]: row for row in census}
+    wanted = {}
+    for dest, ids in mixed.items():
+        for i in ids:
+            row = by_id[i]
+            wanted[(row["manager"], row["package"], row["opaque"])] = (dest, truth[i]["base"])
+    counts = Counter()
+    totals = Counter()
+    seen = set()
+    for wave in read(root / "wave-preflight-receipt.json")["packagesByWave"]:
+        folder = root / "fixture" / "ingestion" / f"wave-{wave['wave']:02}" / "delivery"
+        for item in wave["packages"]:
+            name = item["fileName"]
+            require(Path(name).name == name, "SCALE_TRACE_PACKAGE")
+            raw = I.read(folder / name)
+            require(hashlib.sha256(raw).hexdigest().upper() == item["zipSha256"], "SCALE_TRACE_PACKAGE")
+            with ZipFile(BytesIO(raw)) as archive:
+                for line in archive.read("pessoas.jsonl").splitlines():
+                    person = I.load(line)
+                    key = (item["manager"], name, person["codigoPessoaOrigem"])
+                    if key in wanted:
+                        dest, base = wanted[key]
+                        cpf = person.get("cpf")
+                        require(key not in seen and isinstance(cpf, str) and cpf, "SCALE_TRACE_CPF")
+                        seen.add(key)
+                        counts[dest, cpf, base] += 1
+                        totals[dest, cpf] += 1
+    require(seen == wanted.keys(), "SCALE_TRACE_CPF_COVERAGE")
+    equal = sum(math.comb(n, 2) for n in totals.values()) - sum(math.comb(n, 2) for n in counts.values())
+    all_pairs = sum(math.comb(len(ids), 2) - sum(math.comb(n, 2) for n in
+                    Counter(truth[i]["base"] for i in ids).values()) for ids in mixed.values())
+    return dict(equalDeliveredCpf=equal, differentDeliveredCpf=all_pairs-equal)
+
+
 def diagnostic_receipt(root):
     label,(n,_,_)=profile()
     I.MAX_BYTES=128*1024*1024
@@ -629,7 +818,8 @@ def diagnostic_receipt(root):
     actual_graph=read(root/"actual-graph-receipt.json")
     require(actual_graph["actualGoldRecordScoresVerified"] is True,"SCALE_GOLD_SCORE_ORACLE_GATE")
     independent_labels = {}
-    gold=gold_rank_diagnostics(read_exact(root/"scale-gold-scores-private.json"),ranks,graphs,
+    scores = read_exact(root/"scale-gold-scores-private.json")
+    gold=gold_rank_diagnostics(scores,ranks,graphs,
         key_byid,target,actual_graph["goldRecordScores"],independent_labels)
     independent_rows = [dict(row, **independent_labels[row["Id"]]) for row in rank_rows]
 
@@ -638,6 +828,14 @@ def diagnostic_receipt(root):
             graph=sorted(graph_rows,key=lambda x:x["key"]), ranks=sorted(rows,key=lambda x:x["Id"])),
             sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
 
+    trace = {}
+    if label in {"optimized4k", "optimized10k"}:
+        frame = read(root / "matrix-frame-private.json")
+        require(frame["Attempt"] == os.environ["JORNADA_V9_DEV_ATTEMPT"], "SCALE_TRACE_ATTEMPT")
+        trace["qualityTrace"] = quality_trace(census, truth, frame["Rows"], ranks, graphs,
+                                              identity, member["candidatePeople"], scores)
+        if trace["qualityTrace"]["preFullMixedReferences"]:
+            trace["qualityTrace"]["preFullCrossBasePairs"] = pre_full_cpf_pairs(root, census, truth, frame["Rows"])
     write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",
         profile=label,population=n,versions=len(census),eligible=runner["eligible"],
         commit=os.environ["JORNADA_E2E_EXACT_SHA"],winnerSha256=P.WINNER,
@@ -647,7 +845,7 @@ def diagnostic_receipt(root):
         independentDecisionFieldSha256=decision_field_digests(graph_rows,independent_rows),
         decisionFieldSha256=decision_field_digests(graph_rows,rank_rows),goldRankDiagnostics=gold,
         ingestElapsedMs=ingest_ms,censusElapsedMs=census_timing["elapsedMs"],runnerSql=instrumentation,
-        matrixExecuted=False,scientificTest=False,activation=False))
+        matrixExecuted=False,scientificTest=False,activation=False, **trace))
 # Explicit fixed diagnostic vocabulary. Never export exceptions or SQL text.
 INGEST_FAILURE_CODES=frozenset((
     "VOLUME_ADMISSION","WAVE_PREFLIGHT_REQUIRED","DIRTY_SILVER_ATTEMPT","DIRTY_RUN_ATTEMPT",

@@ -6,6 +6,72 @@ import os
 spec=importlib.util.spec_from_file_location("scale",Path(__file__).resolve().parents[2]/"scripts/v9-phase4-scale.py")
 S=importlib.util.module_from_spec(spec);spec.loader.exec_module(S)
 class ScaleTests(unittest.TestCase):
+    def test_quality_trace_counts_versions_and_localizes_pair_formation(self):
+        from copy import deepcopy
+        a, b = "anchor-a", "anchor-b"
+        rows, pre, truth, ranks, graphs = [], [], {}, [], []
+        for i, (base, initial, raw, final) in enumerate((
+                ("x", a, None, a), ("y", a, None, a),
+                ("z", b, None, b), ("z", None, a, a),
+                ("z", None, None, a)), 1):
+            cpf = initial is not None
+            truth[i] = dict(base=base, wave=1, manager="SMS", origin=i, cpf=cpf)
+            rows.append(dict(observationId=i, version=1, currentStatus="RESOLVIDO",
+                             currentUuid=final, publishedUuid=None if cpf else final,
+                             runResult=None if cpf else "ASSOCIACAO_EXISTENTE"))
+            pre.append(dict(Id=i, Wave=1, Manager="SMS", Version=1, Origin=i,
+                            HasCpf=cpf, Current=initial, Observation=dict(NomeCompleto=None, NomeMae=None, DataNascimento=None),
+                            Status="RESOLVIDO" if cpf else "NAO_RESOLVIDO"))
+            if not cpf:
+                ranks.append(dict(Id=i, Resolved=raw, Best=raw, Status="RESOLVIDO" if raw else "NAO_RESOLVIDO"))
+                graphs.append(dict(observationId=i, candidates=[a,b] if raw else []))
+        identity=dict(pairMetrics=dict(fp=5),falseFusedGoldIdentities=1)
+        def trace(graph=graphs, before=pre):
+            return S.quality_trace(rows, truth, before, ranks, graph, identity, 2,
+                                   [dict(Source=4, Person=a, Record=1, LogOdds=10)])
+        d=trace()
+        self.assertEqual((d["fusedGold"], d["affectedBases"], d["affectedVersions"]), (1,3,4))
+        self.assertEqual(d["pairsByStage"], dict(preFull=1,rawDecision=2,publication=2))
+        self.assertEqual(d["candidateIncidences"], dict(ownBase=1,foreignBase=1))
+        self.assertEqual(d["observationsWithCandidates"], 1)
+        self.assertEqual(d["selectedForeignWithOwnCandidate"], 1)
+        self.assertFalse(any(x in str(d) for x in (a,b)))
+        altered=deepcopy(graphs)
+        altered[0]["candidates"]=[a,a]
+        with self.assertRaises(ValueError):
+            trace(graph=altered)
+        altered=deepcopy(pre)
+        altered[0]["Origin"]=99
+        with self.assertRaises(ValueError):
+            trace(before=altered)
+
+    def test_pre_full_mixed_reference_checks_sealed_delivered_values(self):
+        import hashlib
+        import json
+        from tempfile import TemporaryDirectory
+        from zipfile import ZipFile
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "fixture/ingestion/wave-01/delivery"
+            folder.mkdir(parents=True)
+            archive = folder / "example.zip"
+            rows = [dict(codigoPessoaOrigem=str(i), cpf=value)
+                    for i, value in enumerate(("a", "a", "b"))]
+            with ZipFile(archive, "w") as z:
+                z.writestr("pessoas.jsonl", "\n".join(map(json.dumps, rows)))
+            item = dict(manager="SMS", fileName=archive.name,
+                        zipSha256=hashlib.sha256(archive.read_bytes()).hexdigest().upper())
+            S.write(root / "wave-preflight-receipt.json", dict(packagesByWave=[dict(wave=1, packages=[item])]))
+            before = [dict(Id=i, Status="RESOLVIDO", Current="mixed") for i in range(3)]
+            census = [dict(observationId=i, manager="SMS", package=archive.name, opaque=str(i)) for i in range(3)]
+            truth = {i: dict(base=str(i)) for i in range(3)}
+            self.assertEqual(S.pre_full_cpf_pairs(root, census, truth, before),
+                             dict(equalDeliveredCpf=1, differentDeliveredCpf=2))
+            with archive.open("ab") as out:
+                out.write(b"x")
+            with self.assertRaises(ValueError):
+                S.pre_full_cpf_pairs(root, census, truth, before)
+
     def test_v8_operational_fixture_is_fixed_inactive_and_fingerprint_exact(self):
         import hashlib
         import re
