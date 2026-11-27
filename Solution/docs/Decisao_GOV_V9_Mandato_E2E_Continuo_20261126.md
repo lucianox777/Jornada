@@ -42,11 +42,13 @@ Proposta do supervisor que não alcance o §7 nem o §9.a pode ser implementada 
 
 **GOV-V9-CURVA-PASS-QUALIFICADO-20261126 — DECIDIDO pelo PO.** A curva 1k → 2k → 4k da Fase A é aceita como **PASS QUALIFICADO** com dois PASS físicos consecutivos na mesma árvore operacional, runs 45910892664 e 45913982837, após o FAIL preservado da run 45907711629. Todos os resultados continuam reportados. A variância de tempo é atribuída ao ambiente dos runners hospedados e à instrumentação somente como hipótese; não é causa demonstrada.
 
-O FULL 10k funciona como confirmação do PASS qualificado. Se o tempo do FULL 10k exceder 3,4× o tempo do FULL 4k medido — regra de 2,5× por duplicação extrapolada de 4k para 10k — a curva é reaberta. A run automática 45916702378, já em andamento quando esta decisão foi emitida, será reportada como evidência adicional e não altera a decisão.
+O FULL 10k funciona como confirmação do PASS qualificado por contadores determinísticos de trabalho já coletados, sem instrumentação adicional. Para cada contador, a razão entre o valor no FULL 10k e a mediana dos valores 4k das três runs PASS 45910892664, 45913982837 e 45916702378 deve ser ≤3,4×: pessoas candidatas (`candidatePeople`), arestas Silver (`silverEdges`), comparações Silver (`silverDirectionsCompared`), escores Gold (`goldRecordScores`) e lotes SQL (`instanceBatchRequests`). Qualquer razão acima de 3,4× reabre a curva. Tempo de relógio e CPU são reportados como diagnóstico, não como gate. Esta regra substitui integralmente a regra anterior de reabertura pelo tempo FULL 10k/4k.
+
+As referências 4k fixadas pelos recibos existentes são 1.034 pessoas candidatas, 8.524 arestas Silver, 17.048 comparações Silver, 1.820 escores Gold e mediana de 84.941 `instanceBatchRequests` (84.933, 84.941 e 84.948 nas três runs). Os tetos correspondentes a 3,4× são 3.515,6; 28.981,6; 57.963,2; 6.188; e 288.799,4. Como os contadores são inteiros, o maior valor admissível é respectivamente 3.515, 28.981, 57.963, 6.188 e 288.799. A run automática 45916702378 permanece evidência adicional do PASS qualificado e também integra, por decisão do PO, a mediana de referência.
 
 Esta decisão substitui a proposta de exigir três PASS consecutivos. Os demais gates da Fase A permanecem obrigatórios antes do FULL 10k, inclusive a regressão V8 pelo caminho operacional real. O PASS qualificado não autoriza antecipar o 10k, não altera comparador, modelo, TF, limiares, política nem o vencedor #38.
 
-**Estado documental.** DECIDIDO. A medição do FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
+**Estado documental.** DECIDIDO. A medição dos cinco contadores no FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
 
 ## Anexo integral aprovado pelo PO
 
