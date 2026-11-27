@@ -13,7 +13,7 @@ def read_pair(artifact, label, directory, sha, token):
         frame = json.loads(archive.read("pair-receipt.json"))
         receipts = [json.loads(archive.read(name)) for name in
                     ("diagnostic-receipt.json", "restored-diagnostic-receipt.json")]
-    require(frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V1" and frame["commit"] == sha
+    require(frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V2" and frame["commit"] == sha
             and frame["inputVerified"] is True and frame["distinctPublishedRuns"] is True
             and frame["rawEdgesAndScoresEqual"] is True
             and type(frame["references"]) is int and frame["references"] > 0

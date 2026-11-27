@@ -531,6 +531,14 @@ env() {
         self.assertIn("universo_referencia COLLATE Latin1_General_100_BIN2<>",sql)
         self.assertIn("@expectedUniverse COLLATE Latin1_General_100_BIN2",sql)
 
+    def test_parity_reader_requires_current_v2_pair_receipt(self):
+        scripts=Path(__file__).resolve().parents[2]/"scripts"
+        producer=(scripts/"v9-phase4-scale.py").read_text(encoding="utf-8")
+        parity=(scripts/"v9-publication-scale-parity.py").read_text(encoding="utf-8")
+        self.assertIn('schema="V9_RESTORED_PREFULL_PAIR_V2"',producer)
+        self.assertIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V2"',parity)
+        self.assertNotIn('frame["schema"] == "V9_RESTORED_PREFULL_PAIR_V1"',parity)
+
     def test_operational_v8_decision_diagnostics_emit_all_fixed_fields_then_reject(self):
         from contextlib import redirect_stdout
         from io import StringIO
