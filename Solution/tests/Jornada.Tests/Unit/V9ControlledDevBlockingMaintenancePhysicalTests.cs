@@ -336,9 +336,9 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             // Actual Processor persists a CPF reference and an unrelated
             // pending source. The next independent origin has no CPF.
             await PersistAsync(processor, "V9TEST",
-                Rf1936Person("RF1936_CPF", "52998224725", "MARIA SILVA", "ANA COSTA"),
-                Rf1936Person("RF1936_FOUNDER", null, "ALFA0003 SILVA", "CARLA0003 COSTA",
-                    [Rf1936SocialName()]));
+                Rf1936Person("RF1936_CPF", "52998224725", "MARIA SILVA", "ANA COSTA",
+                    [Rf1936SocialName()]),
+                Rf1936Person("RF1936_FOUNDER", null, "ALFA0003 SILVA", "CARLA0003 COSTA"));
             await PersistAsync(processor, "V9TEST2",
                 Rf1936Person("RF1936_FIRST", null, "MARIA SILVA", "ANA COSTA"));
             var cpf = (await ReadPr1RowsAsync(db, """
