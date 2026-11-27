@@ -222,6 +222,14 @@ run_fixture() { printf 'NEGATIVES %s\n' "$1"; }
         self.assertNotIn("grep",failure)
         self.assertIn("V8_OPERATIONAL_RUNNER_ERROR=UNCLASSIFIED",failure)
 
+    def test_v8_receipt_sqlcmd_preserves_json_without_incompatible_header_suppression(self):
+        shell=(Path(__file__).resolve().parents[2]/
+               "scripts/v9-phase4-scale-execute.sh").read_text(encoding="utf-8")
+        invocation=shell.split('receipt_log="$root/v8-operational-receipt.log"',1)[1]
+        invocation=invocation.split('>"$receipt_log" 2>&1',1)[0]
+        self.assertIn("-w 65535 -y 0",invocation)
+        self.assertNotIn("-h -1",invocation)
+
     def test_v8_operational_substages_fail_closed_with_fixed_codes(self):
         import json
         import re
@@ -271,7 +279,9 @@ docker() {
     printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={'
     return 0
   fi
+  printf '%s\n' 'sqlcmd column header' '--------------------'
   printf '%s\n' 'V8_OPERATIONAL_PRIVATE_JSON={"schema":"V8_OPERATIONAL_REGRESSION_PRIVATE_V1"}'
+  printf '%s\n' '(1 rows affected)'
 }
 env() {
   if [[ "$V8_TEST_STAGE" == marker ]]; then

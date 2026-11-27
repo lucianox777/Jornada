@@ -98,7 +98,7 @@ run_v8_operational_regression() {
 
   receipt_log="$root/v8-operational-receipt.log"
   docker exec "$sql_name" sh -c \
-    'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -h -1 -w 65535 -y 0 -i "$2"' \
+    'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -w 65535 -y 0 -i "$2"' \
     sh "$db" database/tests/20261126_V8_Operational_Regression_Receipt.sql \
     >"$receipt_log" 2>&1 || {
       python3 scripts/v9-phase4-scale.py v8-receipt-sql-failure --root "$root" || \
