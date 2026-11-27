@@ -441,6 +441,62 @@ env() {
         self.assertTrue(proof["operationalV8MutationDetected"])
         self.assertEqual(proof["operationalV8DecisionRows"],1)
         self.assertEqual(proof["operationalV8GoldRows"],1)
+        shape_cases=(
+            ("decisionCollection",lambda r:r.update(decisions={})),
+            ("decisionRowCount",lambda r:r.update(decisions=[])),
+            ("decisionFieldSet",lambda r:r["decisions"][0].pop("margin")))
+        for expected,mutate in shape_cases:
+            with self.subTest(v8DecisionShape=expected):
+                changed=deepcopy(migrated);mutate(changed)
+                with self.assertRaises(S.V8DecisionPredicateError) as caught:
+                    S.canonical_v8_operational_receipt(changed)
+                self.assertEqual(caught.exception.fields,(expected,))
+                self.assertEqual(str(caught.exception),S.V8_DECISION_ERROR_CODE)
+        field_cases=(
+            ("observationId",lambda d:d.update(observationId=11)),
+            ("status",lambda d:d.update(status="CHANGED")),
+            ("reason",lambda d:d.update(reason="CHANGED")),
+            ("resolvedUuid",lambda d:d.update(resolvedUuid="not-a-uuid",
+                bestUuid="not-a-uuid",publishedUuid="not-a-uuid")),
+            ("bestUuid",lambda d:d.update(bestUuid=initial)),
+            ("bestScore",lambda d:d.update(bestScore="1.00000001")),
+            ("secondUuid",lambda d:d.update(secondUuid=initial)),
+            ("secondScore",lambda d:d.update(secondScore="0.10000000")),
+            ("margin",lambda d:d.update(margin="0.10000000")),
+            ("publicationResult",lambda d:d.update(publicationResult="CHANGED")),
+            ("publicationStatus",lambda d:d.update(publicationStatus="CHANGED")),
+            ("publishedUuid",lambda d:d.update(publishedUuid=initial)),
+            ("publicationReason",lambda d:d.update(publicationReason="CHANGED")),
+            ("publishedOriginId",lambda d:d.update(publishedOriginId=True)),
+            ("progressiveVersion",lambda d:d.update(progressiveVersion=0)),
+            ("publicationPolicy",lambda d:d.update(publicationPolicy="CHANGED")),
+            ("universeReference",lambda d:d.update(universeReference="CHANGED")))
+        for expected,mutate in field_cases:
+            with self.subTest(v8DecisionField=expected):
+                changed=deepcopy(migrated);mutate(changed["decisions"][0])
+                with self.assertRaises(S.V8DecisionPredicateError) as caught:
+                    S.canonical_v8_operational_receipt(changed)
+                self.assertEqual(caught.exception.fields,(expected,))
+        changed=deepcopy(migrated)
+        changed["decisions"][0]["bestScore"]="not-decimal"
+        with self.assertRaises(S.V8DecisionPredicateError) as caught:
+            S.canonical_v8_operational_receipt(changed)
+        self.assertEqual(caught.exception.fields,("bestScore",))
+        self.assertEqual(str(caught.exception),S.V8_DECIMAL_ERROR_CODE)
+        changed["decisions"][0]["status"]="CHANGED"
+        with self.assertRaises(S.V8DecisionPredicateError) as caught:
+            S.canonical_v8_operational_receipt(changed)
+        self.assertEqual(caught.exception.fields,("status","bestScore"))
+        self.assertEqual(str(caught.exception),S.V8_DECISION_ERROR_CODE)
+        changed=deepcopy(migrated)
+        changed["decisions"][0].update(
+            status="CHANGED",publicationReason="CHANGED",universeReference="CHANGED")
+        with self.assertRaises(S.V8DecisionPredicateError) as caught:
+            S.canonical_v8_operational_receipt(changed)
+        self.assertEqual(caught.exception.fields,
+            ("status","publicationReason","universeReference"))
+        with self.assertRaises(ValueError):
+            S.V8DecisionPredicateError(("private-value",))
         for mutate in (
             lambda r:r["gold"][0].update(fullName="CHANGED"),
             lambda r:r["decisions"][0].update(publicationReason="CHANGED"),
@@ -458,6 +514,27 @@ env() {
                 ("BASELINE","20261126_V3"))
         with self.assertRaises(ValueError):
             S.verify_v8_operational_pair(baseline,migrated,("20261126_V3","BASELINE"))
+
+    def test_operational_v8_decision_diagnostics_emit_all_fixed_fields_then_reject(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        import sys
+        error=S.V8DecisionPredicateError(
+            ("status","publishedUuid","publicationReason","universeReference"))
+        output=StringIO()
+        with (patch.object(S,"profile",return_value=("optimized1k",(1000,355,"clean"))),
+              patch.object(S,"pair_receipt",side_effect=error),
+              patch.object(sys,"argv",["v9-phase4-scale.py","pair","--root","/tmp"]),
+              redirect_stdout(output)):
+            with self.assertRaises(SystemExit) as rejected:
+                S.main()
+        self.assertEqual(str(rejected.exception),
+            "V9_PHASE4_SCALE_REJECTED_"+S.V8_DECISION_ERROR_CODE)
+        self.assertEqual(output.getvalue().splitlines(),[
+            "V8_OPERATIONAL_DECISION_FIELD=status",
+            "V8_OPERATIONAL_DECISION_FIELD=publishedUuid",
+            "V8_OPERATIONAL_DECISION_FIELD=publicationReason",
+            "V8_OPERATIONAL_DECISION_FIELD=universeReference"])
 
     def test_independent_rank_drift_blocks_even_when_both_restored_pairs_match(self):
         from contextlib import redirect_stdout

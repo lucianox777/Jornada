@@ -94,6 +94,28 @@ def valid_uuid(value):
     except (ValueError, TypeError, AttributeError):
         return False
 
+V8_DECISION_FAILURE_FIELDS=(
+    "decisionCollection","decisionRowCount","decisionFieldSet",
+    "observationId","status","reason","resolvedUuid","bestUuid","bestScore",
+    "secondUuid","secondScore","margin","publicationResult","publicationStatus",
+    "publishedUuid","publicationReason","publishedOriginId","progressiveVersion",
+    "publicationPolicy","universeReference")
+V8_DECISION_FAILURE_FIELD_SET=frozenset(V8_DECISION_FAILURE_FIELDS)
+V8_DECISION_ERROR_CODE="V9_E2E_ORACLE_SCALE_V8_OPERATIONAL_DECISION"
+V8_DECIMAL_ERROR_CODE="V9_E2E_ORACLE_SCALE_V8_OPERATIONAL_DECIMAL"
+
+class V8DecisionPredicateError(ValueError):
+    """Carry only fixed field labels; never receipt values or private identifiers."""
+    def __init__(self,fields,error_code=V8_DECISION_ERROR_CODE):
+        fields=tuple(fields)
+        if (not fields or len(fields)!=len(set(fields))
+                or any(field not in V8_DECISION_FAILURE_FIELD_SET for field in fields)
+                or tuple(sorted(fields,key=V8_DECISION_FAILURE_FIELDS.index))!=fields
+                or error_code not in (V8_DECISION_ERROR_CODE,V8_DECIMAL_ERROR_CODE)):
+            raise ValueError(V8_DECISION_ERROR_CODE)
+        self.fields=fields
+        super().__init__(error_code)
+
 def canonical_prefull_frame(frame, attempt):
     frame_fields={"Attempt","Rows","InitialRefs","SnapshotMs","VersionStoreStartBytes",
                   "VersionStoreEndBytes","ProcessMemoryBytes"}
@@ -186,28 +208,50 @@ def canonical_v8_operational_receipt(receipt):
         "secondScore","margin","status","reason","publicationResult","publishedUuid",
         "publicationStatus","publicationReason","publishedOriginId","progressiveVersion",
         "publicationPolicy","universeReference"}
-    require(isinstance(decisions,list) and len(decisions)==1
-            and set(decisions[0])==decision_fields,"SCALE_V8_OPERATIONAL_DECISION")
+    if not isinstance(decisions,list):
+        raise V8DecisionPredicateError(("decisionCollection",))
+    if len(decisions)!=1:
+        raise V8DecisionPredicateError(("decisionRowCount",))
+    if not isinstance(decisions[0],dict) or set(decisions[0])!=decision_fields:
+        raise V8DecisionPredicateError(("decisionFieldSet",))
     decision=decisions[0]
     expected_universe=(f"LINKAGE_RUN:{receipt['runId']};HW:{run['highWatermark']};"
                        f"ELIGIVEIS:{run['eligible']}")
-    require(decision["observationId"]==run["observationId"]
-            and decision["status"]=="RESOLVIDO"
-            and decision["reason"] is None
-            and valid_uuid(decision["resolvedUuid"])
-            and decision["bestUuid"]==decision["resolvedUuid"]
-            and 0<=persisted_decimal(decision["bestScore"])<=1
-            and decision["secondUuid"] is None and decision["secondScore"] is None
-            and decision["margin"] is None
-            and decision["publicationResult"]=="ASSOCIACAO_EXISTENTE"
-            and decision["publicationStatus"]=="RESOLVIDO"
-            and decision["publishedUuid"]==decision["resolvedUuid"]
-            and decision["publicationReason"]=="REFERENCIA_PROGRESSIVA_CONFIRMADA"
-            and type(decision["publishedOriginId"]) is int and decision["publishedOriginId"]>0
-            and type(decision["progressiveVersion"]) is int and decision["progressiveVersion"]>0
-            and decision["publicationPolicy"]=="LINKAGE_PROGRESSIVE_PUBLICATION_V1"
-            and decision["universeReference"]==expected_universe,
-            "SCALE_V8_OPERATIONAL_DECISION")
+    best_score_malformed=False
+    try:
+        best_score_ok=0<=persisted_decimal(decision["bestScore"])<=1
+    except (ValueError,TypeError,ArithmeticError):
+        best_score_malformed=True
+        best_score_ok=False
+    checks=(
+        ("observationId",decision["observationId"]==run["observationId"]),
+        ("status",decision["status"]=="RESOLVIDO"),
+        ("reason",decision["reason"] is None),
+        ("resolvedUuid",valid_uuid(decision["resolvedUuid"])),
+        ("bestUuid",decision["bestUuid"]==decision["resolvedUuid"]),
+        ("bestScore",best_score_ok),
+        ("secondUuid",decision["secondUuid"] is None),
+        ("secondScore",decision["secondScore"] is None),
+        ("margin",decision["margin"] is None),
+        ("publicationResult",decision["publicationResult"]=="ASSOCIACAO_EXISTENTE"),
+        ("publicationStatus",decision["publicationStatus"]=="RESOLVIDO"),
+        ("publishedUuid",decision["publishedUuid"]==decision["resolvedUuid"]),
+        ("publicationReason",decision["publicationReason"]=="REFERENCIA_PROGRESSIVA_CONFIRMADA"),
+        ("publishedOriginId",type(decision["publishedOriginId"]) is int
+            and decision["publishedOriginId"]>0),
+        ("progressiveVersion",type(decision["progressiveVersion"]) is int
+            and decision["progressiveVersion"]>0),
+        ("publicationPolicy",decision["publicationPolicy"]=="LINKAGE_PROGRESSIVE_PUBLICATION_V1"),
+        ("universeReference",decision["universeReference"]==expected_universe))
+    failures=tuple(field for field,passed in checks if not passed)
+    if failures:
+        # Preserve the original short-circuit code: malformed decimal won only
+        # when every preceding decision predicate passed. Diagnostics still
+        # list every failed fixed field without exposing receipt values.
+        error_code=(V8_DECIMAL_ERROR_CODE
+            if best_score_malformed and failures[0]=="bestScore"
+            else V8_DECISION_ERROR_CODE)
+        raise V8DecisionPredicateError(failures,error_code)
     gold=receipt["gold"]
     gold_fields={"personUuid","cpf","cpfStatus","fullName","birthDate","motherName",
         "distinctSources","concordanceState","identityState","nucleusCompleteness",
@@ -658,6 +702,9 @@ def main():
             return
     except (ValueError,OSError,KeyError,TypeError,AttributeError,ArithmeticError) as e:
         # Fixed internal code only; never arbitrary input or stack.
+        if isinstance(e,V8DecisionPredicateError):
+            for field in e.fields:
+                print("V8_OPERATIONAL_DECISION_FIELD="+field)
         code=safe_failure_code(a.mode,e)
         raise SystemExit("V9_PHASE4_SCALE_REJECTED_"+code) from None
     print("V9_PHASE4_SCALE_"+a.mode.upper()+"_PASS")
