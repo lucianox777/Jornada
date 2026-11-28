@@ -1,3 +1,5 @@
+> **ACERVO GOV-M1-ESCOPO-AA01-CRA1-20261127:** [Decisão de escopo factual inicial](Decisao_GOV_M1_Escopo_AA01_CRA1_20261127.md) · [Preparação de conformidade e limites](Preparacao_M1_Conformidade_AA01_CRA1_20261127.md). AA01/CRA1, GESTOR preservado, evidência offline distinta de validação física. #1194/#1851/#1946. GOV-DOC-01.
+
 > **ACERVO GOV-V9-MANDATO-E2E-CONTINUO-20261126:** [Mandato integral aprovado](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) para o caminho crítico do E2E integral DEV V9 pelo Codex local, com Fase A obrigatória, Fases B/C/D postergadas e regras de continuidade, custódia, parada e disparo final. #1851/#1940. GOV-DOC-01.
 
 > **Esclarecimento do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. GOV-DOC-01.
