@@ -1,4 +1,4 @@
-> **PO, 27/11/2026 — AUTORIZADO A AVALIAR.** [Experimento DEV de abstenção pós-r1](Relatorio_V9_Ensaio_10k_20261125.md#avaliação-dev-de-abstenção-pós-r1--pré-registro), não publicante, hipótese única, resultado reservado ao PO. Permanecem vigentes o censo e os limites oficiais. #1851/#1940, GOV-DOC-01.
+> **PO, 27/11/2026 — AUTORIZADO A AVALIAR.** [Experimento DEV de abstenção pós-r1](Relatorio_V9_Ensaio_10k_20261125.md#avaliação-dev-de-abstenção-pós-r1--pré-registro), não publicante, hipótese única, resultado reservado ao PO. Permanecem vigentes o censo e os limites oficiais. #1851/#1940, GOV-DOC-01. [Medição 10k](Relatorio_V9_Ensaio_10k_20261125.md#medição-dev-da-abstenção-pós-r1-no-10k) concluída no corpus da hipótese. Encaminhamento ao PO, sem ativação.
 
 > **Decisão do PO de 27/11/2026.** Mantida por ora a exigência de zero fusões no censo DEV. Investigar os dois casos e projetar o trabalho de candidatos, arestas e lotes SQL em 100k a partir das quatro escalas medidas. Tetos vigentes preservados. [Decisão e projeção](Relatorio_V9_Ensaio_10k_20261125.md#decisão-do-po-de-2711--fusões-e-projeção-de-trabalho-na-1931). #1851/#1931/#1940. GOV-DOC-01.
 
