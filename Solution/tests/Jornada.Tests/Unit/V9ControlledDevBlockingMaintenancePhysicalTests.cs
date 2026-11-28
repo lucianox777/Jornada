@@ -56,9 +56,19 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             new byte[32], null, null, null, false, null, null, null);
     }
 
-    private static ParsedPerson Rf1936Person(string code, string? cpf, string name, string mother) =>
+    private static ParsedPerson Rf1936Person(string code, string? cpf, string name, string mother,
+        IReadOnlyList<ParsedTransversalAttribute>? attributes = null) =>
         new(code, code, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code))).ToLowerInvariant(),
-            null, cpf, cpf is null ? "SEM_CPF" : null, name, new DateOnly(1980, 5, 6), mother, [], []);
+            null, cpf, cpf is null ? "SEM_CPF" : null, name, new DateOnly(1980, 5, 6), mother,
+            attributes ?? [], []);
+
+    private static ParsedTransversalAttribute Rf1936SocialName() => new(
+        "RF1936-SOCIAL", PersonResolutionContractCatalog.SocialName, "ALFA SOCIAL",
+        "COMPROVADO", "DOCUMENTO",
+        DateTimeOffset.Parse("2026-11-20T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+        DateTimeOffset.Parse("2026-11-20T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+        DateTimeOffset.Parse("2026-11-20T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+        null, null, null);
 
     private static ParsedPackage Rf1936Package(ReservedBatch batch, params ParsedPerson[] people) =>
         new(new IngestionPackageManifest(2, batch.PessoaSchemaVersao, batch.CodigoSistemaOrigem,
@@ -153,9 +163,10 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         return Convert.ToHexString(sha.GetHashAndReset());
     }
 
-    // Independent read-only rederivation of all temporal keys from the
-    // same Gold and linked Silver history. It uses the frozen pure projector,
-    // not the new persistence writer or its coverage receipt.
+    // Independent read-only per-person rederivation of all temporal keys from
+    // the same Gold and linked Silver history. It uses the frozen pure projector,
+    // not the set-based persistence census or its coverage receipt, and requires
+    // exact SetEquals against the physical result.
     private static async Task VerifyRf1936ProjectionParityAsync(SqlConnection db, Guid attempt,
         V9FittedSnapshotExecutionRuntime planner)
     {
@@ -242,6 +253,21 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
         Guid attempt, V9FittedSnapshot winner)
     {
         await V9FullSchemaNonPublishingRunnerTests.SeedControlledDevFullFixtureAsync(db, 0);
+        await using (var attribute = new SqlCommand("""
+            IF NOT EXISTS (
+                SELECT 1 FROM ref.atributo_transversal
+                WHERE atributo_codigo=N'NOME_SOCIAL'
+            )
+                INSERT ref.atributo_transversal(
+                    atributo_codigo,nome,formato_codigo,regra_temporal_codigo,
+                    cardinalidade,chave_instancia_codigo)
+                VALUES(
+                    N'NOME_SOCIAL',N'Nome social',N'TEXTO_UTF8_V1',
+                    N'REFERENCIA_EVIDENCIA_OU_VERIFICADO_EM_V1',N'SINGLE',N'UNICA_V1');
+            """, db))
+        {
+            await attribute.ExecuteNonQueryAsync();
+        }
         Assert.That(await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9;"), Is.Zero);
         var temp = Path.Combine(Path.GetTempPath(), "jornada-rf1936-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
@@ -310,7 +336,8 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
             // Actual Processor persists a CPF reference and an unrelated
             // pending source. The next independent origin has no CPF.
             await PersistAsync(processor, "V9TEST",
-                Rf1936Person("RF1936_CPF", "52998224725", "MARIA SILVA", "ANA COSTA"),
+                Rf1936Person("RF1936_CPF", "52998224725", "MARIA SILVA", "ANA COSTA",
+                    [Rf1936SocialName()]),
                 Rf1936Person("RF1936_FOUNDER", null, "ALFA0003 SILVA", "CARLA0003 COSTA"));
             await PersistAsync(processor, "V9TEST2",
                 Rf1936Person("RF1936_FIRST", null, "MARIA SILVA", "ANA COSTA"));
@@ -326,6 +353,14 @@ public sealed partial class V9ControlledDevFullSqlR1Tests
                 "The Processor must not write V9, even for a CPF reference");
             Assert.That(await CountSqlAsync(db, "SELECT COUNT_BIG(*) FROM identidade.blocking_chave;"), Is.GreaterThan(0));
             var first = await FullAsync(2);
+            Assert.That(await CountSqlAsync(db, """
+                SELECT COUNT_BIG(*) FROM identidade.blocking_chave
+                WHERE atributo LIKE N'nome_social%';
+                """), Is.GreaterThan(0), "The transversal control must exist in the legacy projection");
+            Assert.That(await CountSqlAsync(db, """
+                SELECT COUNT_BIG(*) FROM identidade.blocking_chave_v9
+                WHERE atributo LIKE N'nome_social%';
+                """), Is.Zero, "The frozen V9 projection must ignore transversal attributes");
             await using (var keys = new SqlCommand("""
                 SELECT atributo,valor_normalizado FROM identidade.blocking_chave_v9 WHERE pessoa_uuid=@person;
                 """, db))

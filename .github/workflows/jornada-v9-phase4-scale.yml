@@ -1,0 +1,685 @@
+name: Jornada V9 PO-authorized phase 4 scale DEV
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/jornada-v9-phase4-scale.yml'
+      - 'Solution/src/Jornada.Linkage.Runner/V9DevFullDiagnostics.cs'
+      - 'Solution/scripts/v9-phase4-scale.py'
+      - 'Solution/scripts/v9-publication-scale-parity.py'
+      - 'Solution/tests/scripts/test_v9_phase4_scale.py'
+      - 'Solution/database/migrations/20261125_Linkage_Publication_Scale.sql'
+      - 'Solution/database/rollback/20261125_Linkage_Publication_Scale_Restore.sql'
+      - 'Solution/database/tests/20261125_Linkage_Publication_Scale_Regression.sql'
+      - 'Solution/database/migrations/20261126_Linkage_Publication_Scale_V2.sql'
+      - 'Solution/database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql'
+      - 'Solution/database/migrations/20261126_Linkage_Publication_Scale_V3.sql'
+      - 'Solution/database/rollback/20261126_Linkage_Publication_Scale_V3_Restore.sql'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jornada-v9-phase4-scale-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scale-dev-nonpublish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - profile: diagnostic1k
+            people: '1000'
+            seed: '355'
+            error: clean
+          - profile: optimized1k
+            people: '1000'
+            seed: '355'
+            error: clean
+          - profile: optimized2k
+            people: '2000'
+            seed: '355'
+            error: clean
+          - profile: optimized4k
+            people: '4000'
+            seed: '355'
+            error: clean
+    env:
+      JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
+      JORNADA_V9_FULL_DIAGNOSTIC: 'true'
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      JORNADA_E2E_V9_DEV_FULL: 'true'
+      JORNADA_E2E_HTTP_VOLUME_COUNT: ${{ matrix.people }}
+      JORNADA_V9_PHASE4_SCALE: ${{ matrix.profile }}
+      JORNADA_V9_PHASE4_MATRIX: 'true'
+      SCALE_SEED: ${{ matrix.seed }}
+      SCALE_ERROR: ${{ matrix.error }}
+      JORNADA_E2E_IBGE_1K: 'true'
+      Linkage__SelectedModelVersion: '9'
+      Linkage__V9BlockingMaintenance__Enabled: 'true'
+      Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
+      LinkageReplay__CaptureBronzeSources: 'false'
+    steps:
+      - name: Admit 1k parity repeat and optimized 1k/2k/4k curve; 10k stays blocked
+        run: |
+          set -euo pipefail
+          [[ "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]]
+          case "$JORNADA_V9_PHASE4_SCALE:$JORNADA_E2E_HTTP_VOLUME_COUNT" in
+            diagnostic1k:1000|optimized1k:1000|optimized2k:2000|optimized4k:4000) ;;
+            *) exit 1 ;;
+          esac
+      - name: Admit only owner-controlled exact repository commit
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == lucianox777/Jornada ]]
+          [[ "$GITHUB_ACTOR" == "$GITHUB_REPOSITORY_OWNER" && "$GITHUB_TRIGGERING_ACTOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            [[ "$PR_REPO" == "$GITHUB_REPOSITORY" && "$PR_AUTHOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+            [[ "$PR_SHA" =~ ^[0-9a-f]{40}$ ]]
+          else
+            [[ "$EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/master && "$GITHUB_REF_PROTECTED" == true ]]
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Bind exact checked-out SHA and private root
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          git diff --quiet HEAD --
+          umask 077
+          attempt="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          private="$RUNNER_TEMP/jornada-v9-e2e-$attempt"
+          [[ ! -e "$private" && ! -L "$private" ]]
+          mkdir -m 700 "$private"
+          {
+            echo "JORNADA_V9_E2E_PRIVATE_ROOT=$private"
+            echo "JORNADA_V9_DEV_ATTEMPT=$attempt"
+            echo "JORNADA_V9_DEV_ATTEMPT_DB=JornadaV9Dev_${attempt//-/}"
+            echo "Linkage__V9BlockingMaintenance__DevAttempt=$attempt"
+            echo "Linkage__V9SelectionFile=$private/selection/selection.json"
+            echo "JORNADA_E2E_EXACT_SHA=$EXPECTED"
+          } >> "$GITHUB_ENV"
+      - name: Bind one six-hour deadline across profiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,datetime,urllib.request,time
+          req=urllib.request.Request("https://api.github.com/repos/"+os.environ["GITHUB_REPOSITORY"]+"/actions/runs/"+os.environ["GITHUB_RUN_ID"],headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"]})
+          with urllib.request.urlopen(req,timeout=30) as r: run=json.load(r)
+          start=datetime.datetime.fromisoformat(run["created_at"].replace("Z","+00:00")).timestamp()
+          deadline=int(start+21600)
+          if time.time()>=deadline-300:raise SystemExit("V9_SCALE_TIME_BUDGET")
+          with open(os.environ["GITHUB_ENV"],"a") as f:f.write("JORNADA_PHASE4_DEADLINE_UNIX="+str(deadline)+"\n")
+          PY
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Download and verify only the approved campaign #38 artifact
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 scripts/v9-winner38-custody.py runner
+      - name: Restore and build exact commit
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          ./scripts/nuget-lock-bootstrap.sh
+          dotnet build Jornada.sln --no-restore -c Release -warnaserror
+      - name: Prove strict V8 operational and qualified-curve gates
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/scripts/test_v9_phase4_scale.py tests/scripts/test_v9_publication_scale_curve.py
+      - name: Prepare private waves and catalog-only seed
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          mkdir -m 700 "$root/fixture"
+          JORNADA_SYNTH_PSEUDONYMIZATION_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate-ingestion-waves \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --people "$JORNADA_E2E_HTTP_VOLUME_COUNT" --seed "$SCALE_SEED" --error-profile "$SCALE_ERROR" --gestores 4 \
+            --wave-count 2 --wave-delayed-arrival-rate 0 --wave-cpf-reveal-rate 0 \
+            --wave-name-correction-rate 1 --wave-mother-correction-rate 1 --wave-birth-recovery-rate 1 \
+            --data-referencia 2026-11-22T00:00:00+00:00 --out "$root/fixture" >"$root/generator.log" 2>&1 || { echo V9_SCALE_GENERATOR_FAILED; exit 1; }
+          python3 scripts/v9-phase4-scale.py preflight --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
+          cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
+      - name: Launch isolated SQL Server
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Fresh schema with C07 resident identity
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          db="$JORNADA_V9_DEV_ATTEMPT_DB"
+          [[ "$db" =~ ^JornadaV9Dev_[0-9a-f]{32}$ ]]
+          [[ "$db" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}" ]]
+          docker exec -u 0 "$sql_name" sh -c 'mkdir -p /work/Solution && chmod 755 /work /work/Solution'
+          docker cp database "$sql_name":/work/Solution/
+          sql() {
+            docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' sh "$1" "$2"
+          }
+          run_sql() {
+            docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$1" "$2"
+          }
+          (
+            sql master "IF DB_ID(N'$db') IS NOT NULL THROW 52990,'V9_E2E_ATTEMPT_REUSE',1; CREATE DATABASE [$db];" || exit $?
+            sql master "ALTER DATABASE [$db] SET ALLOW_SNAPSHOT_ISOLATION ON;" || exit $?
+            run_sql "$db" database/Jornada_Fase1_v3.70.sql || exit $?
+            run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql || exit $?
+            run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql || exit $?
+            if [[ "$JORNADA_V9_PHASE4_SCALE" == optimized* ]]; then
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+              run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+              run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+            fi
+            sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';" || exit $?
+          ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo 'V9_E2E_SCHEMA_FAILED'; exit 1; }
+          [[ "$ConnectionStrings__Jornada" == *'Database=JornadaHarness;'* ]]
+          conn="${ConnectionStrings__Jornada/Database=JornadaHarness;/Database=$db;}"
+          printf '::add-mask::%s\n' "$conn"
+          printf 'ConnectionStrings__Jornada=%s\n' "$conn" >> "$GITHUB_ENV"
+      - name: Execute scale profile under host resource watchdog
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-phase4-scale-execute.sh
+      - name: SQL regression on the completed disposable FULL; reverse, verify and reapply
+        if: matrix.people == '1000'
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          db="$JORNADA_V9_DEV_ATTEMPT_DB"
+          [[ "$db" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}" ]]
+          run_sql() {
+            docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$db" "$1"
+          }
+          run_fixture() {
+            local expected="$1"
+            case "$expected" in
+              BASELINE|20261125_V1|20261126_V2|20261126_V3) ;;
+              *) return 1 ;;
+            esac
+            docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' sh "$db" "
+              DECLARE @actual nvarchar(40) = (
+                SELECT CONVERT(nvarchar(40), value) FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.LinkagePublicationScale'
+              );
+              IF COALESCE(@actual, N'BASELINE') <> N'$expected'
+                THROW 52997, 'V9_PUBLICATION_REGRESSION_SCHEMA_MISMATCH', 1;" || return $?
+            run_sql database/tests/20261125_Linkage_Publication_Scale_Regression.sql || return $?
+            printf 'V9_SQL_NEGATIVES_VERIFIED=%s\n' "$expected"
+          }
+          (
+            # The paired FULL leaves the opposite schema installed in each 1k job.
+            if [[ "$JORNADA_V9_PHASE4_SCALE" == diagnostic1k ]]; then
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
+              run_fixture 20261126_V3 || exit $?
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V3
+              run_sql database/rollback/20261126_Linkage_Publication_Scale_V3_Restore.sql || exit $?
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
+              run_fixture 20261126_V2 || exit $?
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V2
+              run_sql database/rollback/20261126_Linkage_Publication_Scale_V2_Restore.sql || exit $?
+              echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
+              run_fixture 20261125_V1 || exit $?
+              echo V9_SQL_REGRESSION_STAGE=ROLLBACK_V1
+              run_sql database/rollback/20261125_Linkage_Publication_Scale_Restore.sql || exit $?
+            fi
+            echo V9_SQL_REGRESSION_STAGE=BASELINE
+            run_fixture BASELINE || exit $?
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V1
+            run_sql database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V1
+            run_fixture 20261125_V1 || exit $?
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V2
+            run_sql database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V2
+            run_fixture 20261126_V2 || exit $?
+            echo V9_SQL_REGRESSION_STAGE=REAPPLY_V3
+            run_sql database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+            echo V9_SQL_REGRESSION_STAGE=MIGRATED_V3
+            run_fixture 20261126_V3 || exit $?
+          ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log" 2>&1 || {
+            python3 scripts/v9-phase4-scale.py sql-failure --root "$JORNADA_V9_E2E_PRIVATE_ROOT" || true
+            echo V9_PUBLICATION_SCALE_REGRESSION_FAILED
+            exit 1
+          }
+          sed -nE '/^V9_SQL_(REGRESSION_STAGE=(MIGRATED_V[123]|ROLLBACK_V[123]|REAPPLY_V[123]|BASELINE)|NEGATIVES_VERIFIED=(BASELINE|20261125_V1|20261126_V[23]))$/p' \
+            "$JORNADA_V9_E2E_PRIVATE_ROOT/publication-regression.log"
+          echo V9_PUBLICATION_SCALE_REGRESSION_PASS
+      - name: Publish sanitized FULL diagnostic even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-full-diagnostic-${{ matrix.profile }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/v9-full-diagnostic.json
+            ${{ runner.temp }}/v9-full-diagnostic.jsonl
+            ${{ runner.temp }}/v9-full-completed-resource.json
+            ${{ runner.temp }}/v9-full-extra-resource.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish sanitized census diagnostic even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-census-diagnostic-${{ matrix.profile }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-census-diagnostic.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish safe resource receipt even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-scale-resource-${{ matrix.profile }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-scale-resource-receipt.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish only aggregate evidence of completed physical path
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-phase4-scale-${{ matrix.profile }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/v9-scale-aggregate/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Dispose attempt resources
+        if: always()
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [[ "$(docker ps -aq --filter "name=^/$sql_name$")" != "" ]]; then
+            docker stop "$sql_name" >/dev/null
+          fi
+          if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
+            rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          fi
+
+  parity-1k:
+    needs: scale-dev-nonpublish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Compare normalized full publication and decision graph digests
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/v9-publication-scale-parity.py
+
+
+  audit-curve:
+    needs: [scale-dev-nonpublish, parity-1k]
+    if: ${{ always() && needs.scale-dev-nonpublish.result == 'success' && needs.parity-1k.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Report qualified curve and Phase A scale/parity gates
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          python3 scripts/v9-publication-scale-curve.py --run "$GITHUB_RUN_ID" --sha "$EXPECTED" --current-run
+
+  full10k-confirmation:
+    needs: audit-curve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
+      JORNADA_V9_FULL_DIAGNOSTIC: 'true'
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      JORNADA_E2E_V9_DEV_FULL: 'true'
+      JORNADA_E2E_HTTP_VOLUME_COUNT: '10000'
+      JORNADA_V9_PHASE4_SCALE: optimized10k
+      JORNADA_V9_PHASE4_MATRIX: 'true'
+      SCALE_SEED: '355'
+      SCALE_ERROR: clean
+      JORNADA_E2E_IBGE_1K: 'true'
+      Linkage__SelectedModelVersion: '9'
+      Linkage__V9BlockingMaintenance__Enabled: 'true'
+      Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
+      LinkageReplay__CaptureBronzeSources: 'false'
+    steps:
+      - name: Admit only the PO-confirmed FULL 10k after every pre-FULL gate
+        run: |
+          set -euo pipefail
+          [[ "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]]
+          [[ "$JORNADA_V9_PHASE4_SCALE:$JORNADA_E2E_HTTP_VOLUME_COUNT:$SCALE_SEED:$SCALE_ERROR" == optimized10k:10000:355:clean ]]
+      - &six_admission
+        name: Admit only owner-controlled exact repository commit for FULL 10k
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == lucianox777/Jornada ]]
+          [[ "$EVENT_NAME" == pull_request ]]
+          [[ "$GITHUB_ACTOR" == "$GITHUB_REPOSITORY_OWNER" && "$GITHUB_TRIGGERING_ACTOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+          [[ "$PR_REPO" == "$GITHUB_REPOSITORY" && "$PR_AUTHOR" == "$GITHUB_REPOSITORY_OWNER" ]]
+          [[ "$PR_SHA" =~ ^[0-9a-f]{40}$ ]]
+      - &six_checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - &six_bind
+        name: Bind exact FULL 10k SHA and private root
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED" ]]
+          git diff --quiet HEAD --
+          umask 077
+          attempt="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          private="$RUNNER_TEMP/jornada-v9-e2e-$attempt"
+          [[ ! -e "$private" && ! -L "$private" ]]
+          mkdir -m 700 "$private"
+          {
+            echo "JORNADA_V9_E2E_PRIVATE_ROOT=$private"
+            echo "JORNADA_V9_DEV_ATTEMPT=$attempt"
+            echo "JORNADA_V9_DEV_ATTEMPT_DB=JornadaV9Dev_${attempt//-/}"
+            echo "Linkage__V9BlockingMaintenance__DevAttempt=$attempt"
+            echo "Linkage__V9SelectionFile=$private/selection/selection.json"
+            echo "JORNADA_E2E_EXACT_SHA=$EXPECTED"
+          } >> "$GITHUB_ENV"
+      - &six_deadline
+        name: Preserve the workflow-wide six-hour deadline for FULL 10k
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,datetime,urllib.request,time
+          req=urllib.request.Request("https://api.github.com/repos/"+os.environ["GITHUB_REPOSITORY"]+"/actions/runs/"+os.environ["GITHUB_RUN_ID"],headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"]})
+          with urllib.request.urlopen(req,timeout=30) as r: run=json.load(r)
+          start=datetime.datetime.fromisoformat(run["created_at"].replace("Z","+00:00")).timestamp()
+          deadline=int(start+21600)
+          if time.time()>=deadline-300:raise SystemExit("V9_SCALE_TIME_BUDGET")
+          with open(os.environ["GITHUB_ENV"],"a") as f:f.write("JORNADA_PHASE4_DEADLINE_UNIX="+str(deadline)+"\n")
+          PY
+      - &six_dotnet
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - &six_custody
+        name: Download and verify only the approved campaign 38 artifact for FULL 10k
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 scripts/v9-winner38-custody.py runner
+      - &six_build
+        name: Restore and build exact FULL 10k commit
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          ./scripts/nuget-lock-bootstrap.sh
+          dotnet build Jornada.sln --no-restore -c Release -warnaserror
+      - &six_counter_tests
+        name: Prove the deterministic FULL 10k gate before execution
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/scripts/test_v9_phase4_scale.py tests/scripts/test_v9_publication_scale_curve.py
+      - name: Prepare private FULL 10k waves and catalog-only seed
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          mkdir -m 700 "$root/fixture"
+          JORNADA_SYNTH_PSEUDONYMIZATION_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate-ingestion-waves \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --people "$JORNADA_E2E_HTTP_VOLUME_COUNT" --seed "$SCALE_SEED" --error-profile "$SCALE_ERROR" --gestores 4 \
+            --wave-count 2 --wave-delayed-arrival-rate 0 --wave-cpf-reveal-rate 0 \
+            --wave-name-correction-rate 1 --wave-mother-correction-rate 1 --wave-birth-recovery-rate 1 \
+            --data-referencia 2026-11-22T00:00:00+00:00 --out "$root/fixture" >"$root/generator.log" 2>&1 || { echo V9_SCALE_GENERATOR_FAILED; exit 1; }
+          python3 scripts/v9-phase4-scale.py preflight --root "$root/fixture"
+          python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
+          cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
+      - &six_sql
+        name: Launch isolated SQL Server for FULL 10k
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - &six_schema
+        name: Create fresh V3 schema for FULL 10k
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          db="$JORNADA_V9_DEV_ATTEMPT_DB"
+          [[ "$db" =~ ^JornadaV9Dev_[0-9a-f]{32}$ ]]
+          [[ "$db" == "JornadaV9Dev_${JORNADA_V9_DEV_ATTEMPT//-/}" ]]
+          docker exec -u 0 "$sql_name" sh -c 'mkdir -p /work/Solution && chmod 755 /work /work/Solution'
+          docker cp database "$sql_name":/work/Solution/
+          sql() {
+            docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -Q "$2"' sh "$1" "$2"
+          }
+          run_sql() {
+            docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d "$1" -i "$2"' sh "$1" "$2"
+          }
+          (
+            sql master "IF DB_ID(N'$db') IS NOT NULL THROW 52990,'V9_E2E_ATTEMPT_REUSE',1; CREATE DATABASE [$db];" || exit $?
+            sql master "ALTER DATABASE [$db] SET ALLOW_SNAPSHOT_ISOLATION ON;" || exit $?
+            run_sql "$db" database/Jornada_Fase1_v3.70.sql || exit $?
+            run_sql "$db" database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql || exit $?
+            run_sql "$db" database/migrations/20261124_V9_Blocking_Chave_Isolada.sql || exit $?
+            run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+            run_sql "$db" database/migrations/20261125_Linkage_Publication_Scale.sql || exit $?
+            run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+            run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V2.sql || exit $?
+            run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+            run_sql "$db" database/migrations/20261126_Linkage_Publication_Scale_V3.sql || exit $?
+            sql "$db" "EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.DevAttempt',@value=N'$JORNADA_V9_DEV_ATTEMPT';" || exit $?
+          ) >"$JORNADA_V9_E2E_PRIVATE_ROOT/schema.log" 2>&1 || { echo V9_E2E_SCHEMA_FAILED; exit 1; }
+          [[ "$ConnectionStrings__Jornada" == *'Database=JornadaHarness;'* ]]
+          conn="${ConnectionStrings__Jornada/Database=JornadaHarness;/Database=$db;}"
+          printf '::add-mask::%s\n' "$conn"
+          printf 'ConnectionStrings__Jornada=%s\n' "$conn" >> "$GITHUB_ENV"
+      - name: Execute one FULL 10k under the existing host resource watchdog
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-phase4-scale-execute.sh
+      - name: Apply the approved deterministic counter confirmation
+        working-directory: Solution
+        env:
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/v9-full10k-evidence"
+          aggregate="$RUNNER_TEMP/v9-scale-aggregate"
+          umask 077
+          [[ ! -e "$evidence" && ! -L "$evidence" ]]
+          mkdir -m 700 "$evidence"
+          cp -- "$aggregate/diagnostic-receipt.json" "$aggregate/membership-receipt.json" \
+            "$RUNNER_TEMP/v9-full-extra-resource.json" "$evidence/"
+          if [[ -f "$RUNNER_TEMP/v9-full-diagnostic.json" && ! -L "$RUNNER_TEMP/v9-full-diagnostic.json" ]]; then
+            cp -- "$RUNNER_TEMP/v9-full-diagnostic.json" "$evidence/"
+          fi
+          python3 scripts/v9-publication-scale-curve.py --confirm-full10k --sha "$EXPECTED" \
+            --full10k-profile optimized10k --full10k-evidence-dir "$evidence" \
+            > "$RUNNER_TEMP/v9-full10k-confirmation.json"
+      - name: Publish sanitized FULL 10k evidence even when confirmation reopens the curve
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-full10k-confirmation-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/v9-full10k-evidence/
+            ${{ runner.temp }}/v9-full10k-confirmation.json
+            ${{ runner.temp }}/v9-full-diagnostic.json
+            ${{ runner.temp }}/v9-full-diagnostic.jsonl
+            ${{ runner.temp }}/v9-full-completed-resource.json
+            ${{ runner.temp }}/v9-full-extra-resource.json
+            ${{ runner.temp }}/v9-census-diagnostic.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish safe FULL 10k resource receipt even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-scale-resource-optimized10k-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-scale-resource-receipt.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - &six_cleanup
+        name: Dispose FULL 10k attempt resources
+        if: always()
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [[ "$(docker ps -aq --filter "name=^/$sql_name$")" != "" ]]; then
+            docker stop "$sql_name" >/dev/null
+          fi
+          if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
+            rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          fi
+
+  six-arm-verification:
+    needs: [audit-curve, full10k-confirmation]
+    if: >-
+      ${{ !cancelled() && needs.audit-curve.result == 'success' &&
+      (needs.full10k-confirmation.result == 'success' || needs.full10k-confirmation.result == 'failure') &&
+      github.event.number == 1940 && github.event.action == 'synchronize' &&
+      github.event.before == 'a651d6fa2cf434bcce08187528fb0211dd4f0fac' && github.run_attempt == '1' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
+      JORNADA_V9_FULL_DIAGNOSTIC: 'true'
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      JORNADA_E2E_V9_DEV_FULL: 'true'
+      JORNADA_E2E_HTTP_VOLUME_COUNT: '10000'
+      JORNADA_V9_PHASE4_SCALE: optimized10k
+      JORNADA_V9_PHASE4_MATRIX: 'true'
+      SCALE_SEED: '85229684'
+      JORNADA_V9_SIX_ARM: '7235636439'
+      SCALE_ERROR: clean
+      JORNADA_E2E_IBGE_1K: 'true'
+      Linkage__SelectedModelVersion: '9'
+      Linkage__V9BlockingMaintenance__Enabled: 'true'
+      Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
+      LinkageReplay__CaptureBronzeSources: 'false'
+    steps:
+      - *six_admission
+      - *six_checkout
+      - *six_bind
+      - *six_deadline
+      - name: Verify the official FULL collection for this SHA before the one-time measurement
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: v9-full10k-confirmation-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-six-arm-predecessor
+      - name: Check preceding gates, decision, generator and reference data
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-six-arm-comparison.py admit --root "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          evidence="$RUNNER_TEMP/v9-six-arm-predecessor/v9-full10k-evidence"
+          jq -e --arg sha "$JORNADA_E2E_EXACT_SHA" '.commit==$sha and .fullCompleted==true and .independentMembershipVerified==true and .profile=="optimized10k" and .population==10000 and (.identityCensusStatus=="PASS" or .identityCensusStatus=="FAIL")' "$evidence/diagnostic-receipt.json" >/dev/null
+          jq -e '.status=="PASS" and .independentR1DecisionVerified==true and .actualGoldRecordScoresVerified==true' "$evidence/membership-receipt.json" >/dev/null
+      - *six_dotnet
+      - *six_custody
+      - *six_build
+      - *six_counter_tests
+      - name: Verify state, exact ties and control-census scope on directed fixtures
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/scripts/test_v9_origin_veto.py tests/scripts/test_v9_six_arm_comparison.py
+          dotnet test --no-build -c Release tests/Jornada.Tests --filter FullyQualifiedName~V9SixArmDirectVetoTests
+      - name: Generate and seal the single independent cohort
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          mkdir -m 700 "$root/fixture"
+          JORNADA_SYNTH_PSEUDONYMIZATION_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate-ingestion-waves \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --people "$JORNADA_E2E_HTTP_VOLUME_COUNT" --seed "$SCALE_SEED" --error-profile "$SCALE_ERROR" --gestores 4 \
+            --wave-count 2 --wave-delayed-arrival-rate 0 --wave-cpf-reveal-rate 0 \
+            --wave-name-correction-rate 1 --wave-mother-correction-rate 1 --wave-birth-recovery-rate 1 \
+            --data-referencia 2026-11-22T00:00:00+00:00 --out "$root/fixture" >"$root/generator.log" 2>&1 || { echo V9_SCALE_GENERATOR_FAILED; exit 1; }
+          python3 scripts/v9-six-arm-comparison.py preflight --root "$root"
+          python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-six-arm-round-census.sql "$root/comparative-census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
+      - *six_sql
+      - *six_schema
+      - name: Measure the independent trajectories under the existing resource watchdog
+        working-directory: Solution
+        run: python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-six-arm-execute.sh
+      - name: Preserve sanitized experimental results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-six-arm-7235636439-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/v9-six-arm-receipt.json
+            ${{ runner.temp }}/v9-six-arm-seal.json
+            ${{ runner.temp }}/v9-six-arm-control-*.json
+            ${{ runner.temp }}/v9-scale-resource-receipt.json
+          retention-days: 30
+          if-no-files-found: warn
+      - *six_cleanup

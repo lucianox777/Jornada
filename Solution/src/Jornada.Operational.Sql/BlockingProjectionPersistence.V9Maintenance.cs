@@ -226,31 +226,69 @@ public static partial class BlockingProjectionPersistence
     private static async Task<HashSet<V9ProjectionEntry>> ReadExpectedV9EntriesAsync(
         SqlConnection connection, SqlTransaction transaction, int maximumPrefixLength, CancellationToken ct)
     {
-        var people = new List<Guid>();
+        // Read the complete bounded DEV census in two set-based queries. The
+        // former per-person loader also read transversal attributes that the
+        // frozen V9 projector intentionally discards, and produced an N+1 SQL
+        // path during every post-publication reconciliation.
+        var people = new List<(Guid Person, BlockingCurrentPerson Current)>();
         await using (var query = new SqlCommand("""
-            SELECT g.pessoa_uuid,p.status FROM gold.pessoa g
+            SELECT g.pessoa_uuid,g.nome_completo,g.nome_mae,g.data_nascimento,
+                   g.atualizado_em,p.status
+            FROM gold.pessoa g
             JOIN identidade.pessoa p ON p.pessoa_uuid=g.pessoa_uuid
             WHERE g.estado_identidade=N'REFERENCIA' ORDER BY g.pessoa_uuid;
-            """, connection, transaction))
+            """, connection, transaction) { CommandTimeout = 120 })
         {
             await using var reader = await query.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                if (!string.Equals(reader.GetString(1), "ATIVO", StringComparison.Ordinal))
+                if (!string.Equals(reader.GetString(5), "ATIVO", StringComparison.Ordinal))
                     throw new InvalidDataException("RUNNER_V9_BLOCKING_INACTIVE_GOLD_REFERENCE");
-                people.Add(reader.GetGuid(0));
+                people.Add((reader.GetGuid(0), new BlockingCurrentPerson(
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.IsDBNull(3) ? null : DateOnly.FromDateTime(reader.GetDateTime(3)),
+                    reader.GetDateTimeOffset(4))));
             }
         }
+
+        var observations = people.ToDictionary(
+            static person => person.Person,
+            static _ => new List<BlockingNameObservation>());
+        await using (var history = new SqlCommand("""
+            SELECT vc.pessoa_uuid,po.nome_completo,po.nome_mae,po.source_as_of
+            FROM identidade.v_vinculo_corrente vc
+            JOIN gold.pessoa g
+              ON g.pessoa_uuid=vc.pessoa_uuid AND g.estado_identidade=N'REFERENCIA'
+            JOIN silver.pessoa_observacao po
+              ON po.pessoa_observacao_id=vc.pessoa_observacao_id
+            WHERE vc.status=N'RESOLVIDO'
+            ORDER BY vc.pessoa_uuid,po.source_as_of,po.pessoa_observacao_id;
+            """, connection, transaction) { CommandTimeout = 120 })
+        {
+            await using var reader = await history.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                if (!observations.TryGetValue(reader.GetGuid(0), out var personObservations))
+                    throw new InvalidDataException("RUNNER_V9_BLOCKING_HISTORY_REFERENCE_MISMATCH");
+                personObservations.Add(new BlockingNameObservation(
+                    reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetDateTimeOffset(3)));
+            }
+        }
+
         var expected = new HashSet<V9ProjectionEntry>();
         var supported = V9CalibrationBlockingProjection.SupportedFeatures(maximumPrefixLength)
             .ToHashSet(StringComparer.Ordinal);
-        foreach (var person in people)
+        foreach (var (person, current) in people)
         {
             ct.ThrowIfCancellationRequested();
             // Canonical projector and historical alias semantics, including
             // CPF-bearing references; no scoring or Gold summary authority.
-            var snapshot = await LoadSqlServerSnapshotAsync(connection, transaction,
-                person, ct, maximumPrefixLength);
+            var snapshot = BuildSnapshot(current.Name, current.MotherName, current.BirthDate,
+                current.AsOf, observations[person], Array.Empty<BlockingDynamicAttributeObservation>(),
+                maximumPrefixLength);
             foreach (var row in snapshot.Rows)
             {
                 if (!supported.Contains(row.Feature) || string.IsNullOrWhiteSpace(row.Value)

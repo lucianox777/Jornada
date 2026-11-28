@@ -30,6 +30,9 @@ public sealed class ProbabilisticLinkageBatchRunner(
     Dt05HistoricalBlockingProjectionVerifier historicalBlockingProjectionVerifier,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
+    // Installed only by the verified disposable DEV diagnostic CLI.
+    internal Action<string>? DevPhaseObserver { get; set; }
+
     /// <summary>
     /// File-pinned typed V9 handoff into the real operational candidate SQL
     /// retrieval, but strictly diagnostic in disposable JornadaHarness.
@@ -188,6 +191,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         if (request.Mode != LinkageRunType.FULL)
             throw new InvalidOperationException("RUNNER_V9_DEV_INCREMENTAL_R1_PENDING");
 
+        DevPhaseObserver?.Invoke("full-admission");
         var boundary = await V9ControlledDevSelection.VerifyAsync(
             configuration, operationalSql, disposableAttemptId, ct);
         if (!string.Equals(boundary.Runtime.WinnerSha256, devScorer.WinnerSha256,
@@ -266,6 +270,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
 
         var drainTimeoutSeconds = Math.Max(30,
             configuration.GetValue("PipelineCoordination:CurrentBatchDrainTimeoutSeconds", 900));
+        if (controlledDev) DevPhaseObserver?.Invoke("full-lease");
         await using var pipelineLease = await pipelineCoordinator.AcquireExclusiveJobAsync(
             "Jornada.Linkage.Runner",
             TimeSpan.FromSeconds(drainTimeoutSeconds),
@@ -345,6 +350,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
 
         try
         {
+            if (controlledDev) DevPhaseObserver?.Invoke("full-freeze-universe");
             var universe = await CreateRunAndMaterializeUniverseAsync(runId, model, request, started, workCt);
             eligible = universe.Eligible;
             // DT-05: pin the entire visible candidate corpus, not only selected run items.
@@ -414,6 +420,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     throw new InvalidDataException("Universo V9 sintético fora do limite 2..512; nenhuma decisão será avaliada.");
                 if (eligible > int.MaxValue)
                     throw new InvalidDataException("Universo V9 excede o limite de indexação por run.");
+                if (controlledDev) DevPhaseObserver?.Invoke("full-read-frozen");
                 var frozen = new List<V9FrozenRunObservation>((int)eligible);
                 long frozenAfterId = 0;
                 while (frozen.Count < eligible)
@@ -435,9 +442,11 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     throw new InvalidDataException("Coorte V9 não reconciliou o universo congelado.");
                 // Prepare ALL global FS/complete-link groups once. Only then may
                 // RunAsync persist the first SQL batch. Never group by page.
+                if (controlledDev) DevPhaseObserver?.Invoke("full-prepare");
                 await v9Grouped.PrepareAsync(runId, model, frozen, workCt);
             }
 
+            if (controlledDev) DevPhaseObserver?.Invoke("full-persist-batches");
             while (evaluated < eligible)
             {
                 workCt.ThrowIfCancellationRequested();
@@ -481,6 +490,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     $"Execução incompleta: elegíveis={eligible}, avaliados={evaluated}. O run não será publicado.");
 
             var finished = DateTimeOffset.UtcNow;
+            if (controlledDev) DevPhaseObserver?.Invoke("full-publication");
             var status = request.Publish
                 ? await PublishAsync(runId, eligible, evaluated, finished, workCt, maintenance)
                 : await CompleteWithoutPublicationAsync(runId, eligible, evaluated, finished, workCt);
@@ -1218,6 +1228,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             prepare.Parameters.Add("@avaliados", SqlDbType.BigInt).Value = evaluated;
             prepare.Parameters.Add("@elegiveis", SqlDbType.BigInt).Value = eligible;
             prepare.Parameters.Add("@fim", SqlDbType.DateTimeOffset).Value = finished;
+            if (maintenance is not null) DevPhaseObserver?.Invoke("publish-progressive-ledger");
             await prepare.ExecuteNonQueryAsync(ct);
 
             logger.LogInformation(
@@ -1231,6 +1242,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 CommandTimeout = commandTimeoutSeconds
             };
             recompose.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            if (maintenance is not null) DevPhaseObserver?.Invoke("publish-recompose-gold");
             await recompose.ExecuteNonQueryAsync(ct);
 
             logger.LogInformation(
@@ -1244,6 +1256,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 CommandTimeout = commandTimeoutSeconds
             };
             serving.Parameters.Add("@run_id", SqlDbType.UniqueIdentifier).Value = runId;
+            if (maintenance is not null) DevPhaseObserver?.Invoke("publish-serving");
             await serving.ExecuteNonQueryAsync(ct);
 
             var newReferences = new List<Guid>();
@@ -1267,10 +1280,15 @@ public sealed class ProbabilisticLinkageBatchRunner(
             logger.LogInformation(
                 "Publicação linkage {RunId}: fase 4/4 - atualizando blocking em lote para {ReferenceCount} novas referências.",
                 runId, newReferences.Count);
+            if (maintenance is not null) DevPhaseObserver?.Invoke("publish-blocking");
             await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
                 connection, transaction, newReferences, ct);
             if (maintenance is not null)
+            {
+                DevPhaseObserver?.Invoke("publish-blocking-v9-maintenance");
                 await maintenance.RefreshAsync(connection, transaction, ct);
+                DevPhaseObserver?.Invoke("publish-commit");
+            }
 
             await transaction.CommitAsync(ct);
             logger.LogInformation(

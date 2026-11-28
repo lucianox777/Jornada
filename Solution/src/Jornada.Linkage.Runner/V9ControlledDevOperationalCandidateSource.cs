@@ -195,7 +195,7 @@ public static class V9ControlledDevOperationalCandidateSource
         IReadOnlyList<V9FrozenRunObservation> frozenRows,
         int maximumCandidatesPerObservation,
         CancellationToken cancellationToken, bool useIsolatedProjection = false,
-        string? effectiveEnvironment = null)
+        string? effectiveEnvironment = null, Action<string>? diagnosticPhase = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(pinnedWinner);
@@ -233,6 +233,7 @@ public static class V9ControlledDevOperationalCandidateSource
         // One consistent operational snapshot for header, run_item,
         // Silver managers, blocking and Gold. If SNAPSHOT is unavailable, SQL
         // must fail closed; never fall back to independent READ COMMITTED pages.
+        diagnosticPhase?.Invoke("read-snapshot-authentication");
         var snapshotClock = System.Diagnostics.Stopwatch.StartNew();
         await using var snapshot = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Snapshot, cancellationToken);
@@ -404,6 +405,7 @@ public static class V9ControlledDevOperationalCandidateSource
         var planner = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), pinnedWinner.WinnerSha256);
 
+        diagnosticPhase?.Invoke("read-blocking-maintenance");
         V9OperationalBlockingManifest.Receipt? blockingManifest = null;
         if (useIsolatedProjection)
         {
@@ -417,6 +419,7 @@ public static class V9ControlledDevOperationalCandidateSource
                 connection, snapshot, planner, cancellationToken);
         }
 
+        diagnosticPhase?.Invoke("read-gold-candidates");
         var result = new Dictionary<long, IReadOnlyList<GoldCandidate>>(frozenRows.Count);
         var evidence = new Dictionary<long, V9OperationalCandidateRead.Receipt>(frozenRows.Count);
         var noEligiblePass = new HashSet<long>();
@@ -481,11 +484,13 @@ public static class V9ControlledDevOperationalCandidateSource
         // Read the provenance of all persistent origins for the exact Gold
         // UUID union before committing this same snapshot. The b1 scorer
         // consumes these facts, with no fallback to the Gold summary.
+        diagnosticPhase?.Invoke("read-secure-origins");
         var secureOriginFacts = await V9ControlledDevSecureOriginReader.ReadAsync(
             connection, snapshot, result.Values.SelectMany(v => v)
                 .Select(v => v.PessoaUuid).Distinct().ToArray(), cancellationToken);
         // Physical Silver graph uses the same verified source values and
         // SNAPSHOT as the Gold candidate census: no inter-snapshot repair.
+        diagnosticPhase?.Invoke("read-silver-graph");
         var silverGraph = await V9ControlledDevSilverGraph.ReadAsync(
             connection, snapshot, winner, frozenRows, managers, cancellationToken);
         await snapshot.CommitAsync(cancellationToken);

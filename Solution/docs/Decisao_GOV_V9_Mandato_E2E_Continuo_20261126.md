@@ -24,6 +24,56 @@ As proibições de TRAIN, VALIDATION, TEST, calibração e campanha continuam ap
 
 **Rastreabilidade.** [Parada histórica na #1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7198240514), [Fase A na #1940](https://github.com/lucianox777/Jornada/pull/1940), [regressão S4b 1k integrada na #1939](https://github.com/lucianox777/Jornada/pull/1939).
 
+## Esclarecimento do PO de 26/11/2026 — retomadas na mesma sessão e acompanhamento da CI
+
+**DECIDIDO pelo PO.** Para reduzir leituras repetidas e consultas à CI, ler as fontes do mandato na abertura de cada sessão. Em retomadas dentro da mesma sessão, consultar o checkpoint da #1851 e os arquivos necessários à tarefa atual. Para qualquer workflow do GitHub Actions, incluindo checks da PR, escala, `jornada-ci`, Diagnostics, regressões automáticas de TRAIN e E2E, aguardar com `gh run watch` bloqueante. Consultar os jobs e recibos pertinentes ao concluir. Durante a espera, dispensar laços de consulta e releitura de documentos. Quando não houver tarefa independente, comunicar `aguardando run X, sem tarefa independente` para que o PO possa decidir se pausa. O esclarecimento delimita o procedimento de leitura e espera nesta missão. Preserva a checagem do estado vivo, a reconciliação por SHA, a revisão de gates e as condições de publicação do mandato.
+
+## Adendo do PO de 26/11/2026 — supervisor único da missão
+
+**GOV-V9-SUPERVISAO-CLAUDE-MISSAO-20261126 — DECIDIDO pelo PO.** O Product Owner designa o Claude como supervisor único desta missão, nos papéis de revisor de rigor e orientador. O supervisor revisa o diff de cada push e aponta perda de rigor, incluindo gate convertido em diagnóstico, teste que deixa de reprovar, braço retirado, tolerância ou timeout. Também questiona evidência fraca, como verde de coleta, PASS sem repetição e cobertura parcial, e pode pedir diagnósticos e propostas de solução.
+
+Comentários do supervisor na #1851 começam exatamente por `SUPERVISÃO <AAAAMMDD-HHMM UTC> — NÃO É DECISÃO DO PO`, são publicados com a credencial do PO e nunca constituem checkpoint. O executor verifica novos comentários com esse prefixo ao fim de cada CI e imediatamente antes de cada push. Orientação não é ordem. O executor pode adotar ou adaptar sem justificativa adicional. A recusa deve ser justificada no checkpoint seguinte. Todo apontamento de perda de rigor deve constar no checkpoint seguinte e só se encerra pela manutenção do rigor ou pela prova documentada do defeito conforme GOV-DOC-01.
+
+Proposta do supervisor que não alcance o §7 nem o §9.a pode ser implementada sem nova espera pelo PO. Qualquer proposta que alcance comparador, gate, desempate, política ou regra congelada fica `ESCALADA AO PO`; o executor prossegue com itens independentes. O supervisor não decide matérias do §9.a, não autoriza execução, não muda a frente principal e não aciona parada. Mensagens do PO prevalecem. Divergência mantida fica `ESCALADA AO PO`, sem interromper a missão fora das hipóteses do §9. Apontamentos do supervisor não contam como abordagem malsucedida para o §3.d.
+
+**Estado documental.** DECIDIDO e registrado. A aplicação operacional, as revisões e suas respostas têm evidências próprias na #1851 e nos checkpoints subsequentes.
+
+## Decisão do PO de 26/11/2026 — PASS qualificado da curva §4.1
+
+**GOV-V9-CURVA-PASS-QUALIFICADO-20261126 — DECIDIDO pelo PO.** A curva 1k → 2k → 4k da Fase A é aceita como **PASS QUALIFICADO** com dois PASS físicos consecutivos na mesma árvore operacional, runs 45910892664 e 45913982837, após o FAIL preservado da run 45907711629. Todos os resultados continuam reportados. A variância de tempo é atribuída ao ambiente dos runners hospedados e à instrumentação somente como hipótese; não é causa demonstrada.
+
+O FULL 10k funciona como confirmação do PASS qualificado por contadores determinísticos de trabalho já coletados, sem instrumentação adicional. Para cada contador, a razão entre o valor no FULL 10k e a mediana dos valores 4k das três runs PASS 45910892664, 45913982837 e 45916702378 deve ser ≤3,4×: pessoas candidatas (`candidatePeople`), arestas Silver (`silverEdges`), comparações Silver (`silverDirectionsCompared`), escores Gold (`goldRecordScores`) e lotes SQL (`instanceBatchRequests`). Qualquer razão acima de 3,4× reabre a curva. Tempo de relógio e CPU são reportados como diagnóstico, não como gate. Esta regra substitui integralmente a regra anterior de reabertura pelo tempo FULL 10k/4k.
+
+As referências 4k fixadas pelos recibos existentes são 1.034 pessoas candidatas, 8.524 arestas Silver, 17.048 comparações Silver, 1.820 escores Gold e mediana de 84.941 `instanceBatchRequests` (84.933, 84.941 e 84.948 nas três runs). Os tetos correspondentes a 3,4× são 3.515,6; 28.981,6; 57.963,2; 6.188; e 288.799,4. Como os contadores são inteiros, o maior valor admissível é respectivamente 3.515, 28.981, 57.963, 6.188 e 288.799. A run automática 45916702378 permanece evidência adicional do PASS qualificado e também integra, por decisão do PO, a mediana de referência.
+
+Esta decisão substitui a proposta de exigir três PASS consecutivos. Os demais gates da Fase A permanecem obrigatórios antes do FULL 10k, inclusive a regressão V8 pelo caminho operacional real. O PASS qualificado não autoriza antecipar o 10k, não altera comparador, modelo, TF, limiares, política nem o vencedor #38.
+
+**Estado documental.** DECIDIDO. A medição dos cinco contadores no FULL 10k e a eventual aplicação da regra de reabertura serão estados MEDIDO/VALIDADO próprios; não são antecipadas por este registro.
+
+## Decisão do PO de 27/11/2026 — cobertura da regressão operacional V8
+
+**GOV-V9-REGRESSAO-OPERACIONAL-V8-COBERTURA-20261127 — DECIDIDO pelo PO.** A regressão operacional V8 que integra o gate pré-FULL do §4.1 deve preservar o caso resolvido com candidato único e incluir, no mínimo, conflito entre dois candidatos próximos, não resolvido abaixo do limiar e ausência de candidato no bloco. Cada caso deve demonstrar no recibo que o cenário pretendido foi realmente exercitado pelo caminho `ProbabilisticLinkageBatchRunner.RunAsync`, usando o mesmo modelo inativo 8008 e infraestrutura DEV descartável.
+
+Nos dois sentidos BASELINE↔V3 permanecem obrigatórias igualdade estrita de Best/Second, scores, margem, status, decisão, publicação, Gold, vínculo e estado, além da prova de que uma mutação semântica é detectada. A ampliação não autoriza alterar M/U, TF, limiares, margem, desempate, modelo vencedor #38, política, tolerâncias, gates ou timeouts e não executa TRAIN, VALIDATION, TEST científico ou ativação. Esta decisão substitui o estado **PROPOSTA/ESCALADA AO PO** dessa ampliação e passa a integrar o gate pré-FULL; um PASS da fixture anterior de caso único continua histórico, mas não satisfaz a cobertura agora aprovada.
+
+**Estado documental.** DECIDIDO. Implementação e validação física são estados separados; até ambas ocorrerem, o FULL 10k permanece bloqueado.
+
+## Decisão do PO de 27/11/2026 — representação canônica de `universeReference` V8
+
+**GOV-V9-V8-UNIVERSE-REFERENCE-CANONICAL-20261127 — DECIDIDO pelo PO.** A verificação operacional V8 deve construir o valor esperado de `universeReference` na representação canônica realmente persistida pelo produto: o trecho `uniqueidentifier` convertido pelo SQL Server permanece em maiúsculas. O valor observado não é transformado. A comparação continua sendo igualdade textual exata.
+
+É expressamente proibido comparar ignorando maiúsculas/minúsculas, aplicar `LOWER`, `UPPER` ou outra normalização aos dois lados, excluir o campo, introduzir tolerância ou substituir a igualdade textual. A guarda SQL do recibo deve usar collation binária/case-sensitive e o fixture deve representar o formato físico persistido. A decisão resolve a escalada registrada após as runs 45940969049 e 45946811411; nesta última, `universeReference` foi o único dos 17 predicados de decisão divergente nos recibos primários alcançados.
+
+Nada nesta decisão altera os demais predicados do comparador, desempate, política, gate, modelo, M/U, TF, limiares ou o vencedor #38. A validação do par integral e das etapas posteriores continua dependente de nova CI física. **Estado documental: DECIDIDO; implementação e validação física pendentes.** #1940/#1851; GOV-DOC-01.
+
+## Decisão do PO de 27/11/2026 — representação estrita de `v_vinculo_corrente` V8
+
+**GOV-V9-V8-VINCULO-CORRENTE-PUBLICACAO-20261127 — DECIDIDO pelo PO.** O comparador da regressão operacional V8 deve representar exatamente a definição versionada final de `identidade.v_vinculo_corrente`, instalada por `20260919_Linkage_Publicacao_Progressiva.sql`. `status`, `reason` e `personUuid` devem ser iguais, respectivamente, a `status_publicacao`, `motivo_publicacao` e `pessoa_uuid_publicado`, inclusive o UUID da nova identidade no cenário `NO_CANDIDATE`.
+
+O score deve ser exatamente `score_melhor` somente quando o resultado de publicação for `ASSOCIACAO_EXISTENTE`, a decisão bruta estiver `RESOLVIDO` e o UUID bruto resolvido for igual ao UUID publicado; em todos os demais resultados, deve ser nulo. A igualdade continua exata, sem tolerância, normalização, exclusão de campo ou retirada de braço. Negativos sintéticos devem reprovar individualmente mutações nos quatro mapeamentos: status, motivo, UUID publicado e score.
+
+A decisão corrige a hipótese refutada pelas runs 46006426517, 46010866522 e 46015069225 e substitui o estado **PROPOSTA/ESCALADA AO PO** registrado após a última. Permanecem bloqueantes coleção, cardinalidade, schema, cobertura das quatro observações, método, run exata, modelo e os demais gates. Não se alteram produto, M/U, TF, limiares, desempate, política ou vencedor #38. **Estado documental: DECIDIDO; implementação local e validação física são estados separados.** #1940/#1851; GOV-DOC-01.
+
 ## Anexo integral aprovado pelo PO
 
 # MANDATO — JORNADA V9 — CAMINHO CRÍTICO DO E2E INTEGRAL

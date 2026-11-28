@@ -50,6 +50,34 @@ class IdentityCensusTests(unittest.TestCase):
         query = SOURCE.with_name("v9-e2e-1k-identity-census.sql")
         self.assertEqual(hashlib.sha256(query.read_bytes()).hexdigest(), "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece")
 
+    def test_scale_census_keeps_original_guards_and_output_contract(self):
+        reference = SOURCE.with_name("v9-e2e-1k-identity-census.sql").read_text(encoding="utf-8")
+        query = SOURCE.with_name("v9-phase4-identity-census.sql")
+        scale = query.read_text(encoding="utf-8")
+        runner = SOURCE.parents[1] / "src/Jornada.Linkage.Runner/V9DevE2EFullCommand.cs"
+        self.assertIn(
+            f'const string ScaleCensusSha256 = "{hashlib.sha256(query.read_bytes()).hexdigest()}";',
+            runner.read_text(encoding="utf-8"),
+        )
+        def section(text, start, end):
+            return text[text.index(start):text.index(end)].rstrip()
+
+        self.assertEqual(
+            section(reference, "SET NOCOUNT ON;", "SET TRANSACTION ISOLATION LEVEL"),
+            section(scale, "SET NOCOUNT ON;", "-- Prepare empty, session-local tables"),
+        )
+        projection = "SELECT po.pessoa_observacao_id AS"
+        self.assertEqual(
+            section(reference, "SET TRANSACTION ISOLATION LEVEL", projection),
+            section(scale, "SET TRANSACTION ISOLATION LEVEL", "-- Preserve the view's ranking"),
+        )
+        self.assertEqual(
+            reference[reference.index(projection):].replace(
+                "LEFT JOIN identidade.v_vinculo_corrente vc", "LEFT JOIN #census_current vc", 1
+            ),
+            scale[scale.index(projection):],
+        )
+
     def test_cpf_versions_and_runner_universe(self):
         x = CENSUS.compare(*fixture(), required_identities=2)
         self.assertEqual(x["status"], "PASS")

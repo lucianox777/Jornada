@@ -13,7 +13,7 @@ namespace Jornada.Linkage.Runner;
 
 /// <summary>Phase 4 only: physically authenticated inputs, isolated in-memory
 /// alternative states, frozen scorer/complete-link/r1. No mutation API.</summary>
-internal static class V9Phase4Matrix
+internal static partial class V9Phase4Matrix
 {
     private const string Sem = "V9_R1_INDEFINIDO_SEM_INDICIO";
     private const string Ind = "V9_R1_INDEFINIDO_COM_INDICIO";
@@ -35,10 +35,10 @@ internal static class V9Phase4Matrix
     private sealed record RoundResult(Projection[] Rows,object Resources);
     private static void Require(bool ok,string reason)
     { if(!ok) throw new InvalidDataException("RUNNER_V9_PHASE4_"+reason); }
-    private static void Admit() => Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"
+    private static void Admit(bool allowScale = false) => Require(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"
         && Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX")=="true"
         && Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE")=="DEV"
-        && Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")=="1000","ADMISSION");
+        && (Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")=="1000"||(allowScale&&V9DevE2EFullCommand.ScaleAdmitted)),"ADMISSION");
     private static JsonDocument Read(string root,string name)
     {
         var f=new FileInfo(Path.Combine(root,name));
@@ -55,22 +55,99 @@ internal static class V9Phase4Matrix
         await using var c=new SqlCommand("SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_tran_version_store_space_usage WHERE database_id=DB_ID();",conn,tx);
         return Convert.ToInt64(await c.ExecuteScalarAsync(ct),CultureInfo.InvariantCulture);
     }
+    // Extra read-only counters for the isolated Linux Actions FULL only.
+    // Instance counters include the observers and any concurrent harness
+    // work; they are not an exact count of Runner-issued statements.
+    private sealed record FullResourceSample(long TempdbUserBytes,long TempdbInternalBytes,
+        long TempdbVersionBytes,long BlockingIndexBytes,long DatabaseReadBytes,long DatabaseWriteBytes,
+        long TempdbReadBytes,long TempdbWriteBytes,long InstanceBatchRequests,long HostMemoryUsedBytes,
+        long HostCpuBusyTicks,long HostCpuTotalTicks,long FreeDiskBytes,double RunnerCpuMs);
+
+    private static readonly string[] FullResourceCounterNames = [
+        "TEMPDB_USER","TEMPDB_INTERNAL","TEMPDB_VERSION","BLOCKING_INDEX",
+        "DATABASE_READ","DATABASE_WRITE","TEMPDB_READ","TEMPDB_WRITE","BATCH_REQUESTS"];
+    private static string SafeFullResourceError(InvalidDataException e)
+    {
+        const string prefix="RUNNER_V9_PHASE4_";
+        if(e.Message.StartsWith(prefix,StringComparison.Ordinal))
+        {
+            var code=e.Message[prefix.Length..];
+            if(code is "FULL_RESOURCE_NO_ROW" or "FULL_HOST_CPU" ||
+                FullResourceCounterNames.Any(x=>code=="FULL_RESOURCE_"+x+"_NULL"||
+                    code=="FULL_RESOURCE_"+x+"_NEGATIVE"))
+                return code;
+        }
+        return nameof(InvalidDataException);
+    }
+
+    private static async Task<FullResourceSample> ReadFullResourceAsync(SqlConnection conn,string root,CancellationToken ct)
+    {
+        await using var cmd=new SqlCommand("""
+            SELECT
+              (SELECT COALESCE(SUM(CONVERT(bigint,user_object_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,internal_object_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,version_store_reserved_page_count)),0)*8192 FROM tempdb.sys.dm_db_file_space_usage),
+              (SELECT COALESCE(SUM(CONVERT(bigint,reserved_page_count)),0)*8192 FROM sys.dm_db_partition_stats
+                 WHERE object_id=OBJECT_ID(N'identidade.blocking_chave_v9')),
+              (SELECT COALESCE(SUM(num_of_bytes_read),0) FROM sys.dm_io_virtual_file_stats(DB_ID(),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_written),0) FROM sys.dm_io_virtual_file_stats(DB_ID(),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_read),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
+              (SELECT COALESCE(SUM(num_of_bytes_written),0) FROM sys.dm_io_virtual_file_stats(DB_ID(N'tempdb'),NULL)),
+              (SELECT MAX(cntr_value) FROM sys.dm_os_performance_counters
+                 WHERE RTRIM(object_name) LIKE N'%:SQL Statistics' AND RTRIM(counter_name)=N'Batch Requests/sec'
+                   AND cntr_type=272696576);
+            """,conn) {CommandTimeout=5};
+        await using var rd=await cmd.ExecuteReaderAsync(ct);
+        Require(await rd.ReadAsync(ct),"FULL_RESOURCE_NO_ROW");
+        var v=new long[FullResourceCounterNames.Length];
+        for(var i=0;i<v.Length;i++)
+        {
+            Require(!rd.IsDBNull(i),"FULL_RESOURCE_"+FullResourceCounterNames[i]+"_NULL");
+            v[i]=Convert.ToInt64(rd.GetValue(i),CultureInfo.InvariantCulture);
+            Require(v[i]>=0,"FULL_RESOURCE_"+FullResourceCounterNames[i]+"_NEGATIVE");
+        }
+        var memory=File.ReadLines("/proc/meminfo").Where(x=>x.StartsWith("MemTotal:",StringComparison.Ordinal)
+            ||x.StartsWith("MemAvailable:",StringComparison.Ordinal)).ToDictionary(
+            x=>x.Split(':')[0],x=>long.Parse(x.Split(':')[1].Trim().Split(' ',StringSplitOptions.RemoveEmptyEntries)[0],CultureInfo.InvariantCulture)*1024);
+        var cpu=File.ReadLines("/proc/stat").First().Split(' ',StringSplitOptions.RemoveEmptyEntries);
+        Require(cpu.Length>=9&&cpu[0]=="cpu","FULL_HOST_CPU");
+        // Linux guest/guest_nice are already included in user/nice; omit them.
+        var ticks=cpu.Skip(1).Take(8).Select(x=>long.Parse(x,CultureInfo.InvariantCulture)).ToArray();
+        var total=ticks.Sum();var busy=total-ticks[3]-ticks[4];
+        using var process=Process.GetCurrentProcess();
+        return new(v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7],v[8],
+            memory["MemTotal"]-memory["MemAvailable"],busy,total,
+            new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace,process.TotalProcessorTime.TotalMilliseconds);
+    }
+
     internal static async Task<ProbabilisticLinkageRunSummary> MeasurePhysicalFullAsync(string root,
         IOperationalSqlAdapter sql,Guid attempt,Func<Task<ProbabilisticLinkageRunSummary>> run,
         Func<double[]?> timing,CancellationToken ct)
     {
-        Admit();
+        Admit(allowScale: true);
         await using var conn=await sql.OpenAsync(ct);
         await V9DisposableAttemptDatabase.VerifyAsync(conn,attempt,ct);
         var sw=Stopwatch.StartNew();
         var samples=new List<object>();
         long peakStore=0,peakMemory=0;
+        var expanded=V9DevE2EFullCommand.ScaleAdmitted&&OperatingSystem.IsLinux();
+        var extra=new List<FullResourceSample>();
+        string? extraProbeError=null;
         async Task Sample()
         {
             var bytes=await VersionStore(conn,null,ct);
             var memory=Environment.WorkingSet;
             peakStore=Math.Max(peakStore,bytes);peakMemory=Math.Max(peakMemory,memory);
             samples.Add(new {ms=sw.Elapsed.TotalMilliseconds,versionStoreBytes=bytes,workingSetBytes=memory});
+            if(expanded&&extraProbeError is null)
+            {
+                try {extra.Add(await ReadFullResourceAsync(conn,root,ct));}
+                catch(SqlException e){extraProbeError=FormattableString.Invariant($"SQL_{e.Number}_{e.State}");}
+                catch(InvalidDataException e){extraProbeError=SafeFullResourceError(e);}
+                catch(Exception e) when(e is InvalidOperationException or IOException or
+                    UnauthorizedAccessException or FormatException or OverflowException or KeyNotFoundException)
+                {extraProbeError=e.GetType().Name;}
+            }
         }
         await Sample();
         var task=run();
@@ -79,10 +156,47 @@ internal static class V9Phase4Matrix
             await Task.WhenAny(task,Task.Delay(1000,ct));
             await Sample();
         }
-        var result=await task;sw.Stop();
+        var result=await task;
+        // Even a synchronously completed FULL needs a terminal sample.
+        if(expanded) await Sample();
+        sw.Stop();
         var t=timing();
         Require(t is {Length:5}&&t.All(x=>double.IsFinite(x)&&x>=0)&&t[0]>=t[1],"PHYSICAL_TIMING");
         var v=t!;
+        if(expanded)
+        {
+            var complete=extraProbeError is null&&extra.Count==samples.Count&&extra.Count>=2;
+            var first=extra.FirstOrDefault();var last=extra.LastOrDefault();
+            static bool Nondecreasing(FullResourceSample a,FullResourceSample b) =>
+                b.DatabaseReadBytes>=a.DatabaseReadBytes&&b.DatabaseWriteBytes>=a.DatabaseWriteBytes
+                &&b.TempdbReadBytes>=a.TempdbReadBytes&&b.TempdbWriteBytes>=a.TempdbWriteBytes
+                &&b.InstanceBatchRequests>=a.InstanceBatchRequests&&b.HostCpuBusyTicks>=a.HostCpuBusyTicks
+                &&b.HostCpuTotalTicks>=a.HostCpuTotalTicks&&b.RunnerCpuMs>=a.RunnerCpuMs
+                &&b.HostCpuBusyTicks-a.HostCpuBusyTicks<=b.HostCpuTotalTicks-a.HostCpuTotalTicks;
+            var monotonic=complete&&first is not null&&last is not null
+                &&last.HostCpuTotalTicks>first.HostCpuTotalTicks
+                &&extra.Zip(extra.Skip(1),Nondecreasing).All(x=>x);
+            await WriteAsync(root,"scale-full-extra-resource.json",new {
+                schema="V9_DEV_FULL_EXTRA_RESOURCE_V1",status=monotonic?"MEASURED":"INCOMPLETE",
+                sampleCount=extra.Count,probeError=extraProbeError,
+                peakTempdbUserBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbUserBytes),
+                peakTempdbInternalBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbInternalBytes),
+                peakTempdbVersionBytes=extra.Count==0?(long?)null:extra.Max(x=>x.TempdbVersionBytes),
+                peakBlockingIndexBytes=extra.Count==0?(long?)null:extra.Max(x=>x.BlockingIndexBytes),
+                finalBlockingIndexBytes=last?.BlockingIndexBytes,
+                peakHostMemoryUsedBytes=extra.Count==0?(long?)null:extra.Max(x=>x.HostMemoryUsedBytes),
+                minFreeDiskBytes=extra.Count==0?(long?)null:extra.Min(x=>x.FreeDiskBytes),
+                databaseReadBytes=monotonic?last!.DatabaseReadBytes-first!.DatabaseReadBytes:(long?)null,
+                databaseWriteBytes=monotonic?last!.DatabaseWriteBytes-first!.DatabaseWriteBytes:(long?)null,
+                tempdbReadBytes=monotonic?last!.TempdbReadBytes-first!.TempdbReadBytes:(long?)null,
+                tempdbWriteBytes=monotonic?last!.TempdbWriteBytes-first!.TempdbWriteBytes:(long?)null,
+                instanceBatchRequests=monotonic?last!.InstanceBatchRequests-first!.InstanceBatchRequests:(long?)null,
+                hostCpuBusyFraction=monotonic?(double)(last!.HostCpuBusyTicks-first!.HostCpuBusyTicks)/
+                    (last!.HostCpuTotalTicks-first!.HostCpuTotalTicks):(double?)null,
+                runnerCpuMs=monotonic?last!.RunnerCpuMs-first!.RunnerCpuMs:(double?)null,
+                sampleScope="FULL_WITH_OBSERVER_OVERHEAD",sqlBatchScope="DISPOSABLE_INSTANCE_INCLUDING_OBSERVERS",
+                exactRunnerSqlStatementCount=false,rawSqlExported=false});
+        }
         await WriteAsync(root,"matrix-full-physical-resource.json",new {
             fullElapsedMs=sw.Elapsed.TotalMilliseconds,physicalReadMs=v[0],physicalSnapshotMs=v[1],
             silverGroupingMs=v[2],goldScoringMs=v[3],translationMs=v[4],
@@ -94,7 +208,7 @@ internal static class V9Phase4Matrix
     }
     internal static async Task CaptureAsync(string root,IOperationalSqlAdapter sql,Guid attempt,CancellationToken ct)
     {
-        Admit();
+        Admit(allowScale: true);
         using var p=Read(root,"wave-preflight-receipt.json");
         var waves=p.RootElement.GetProperty("packagesByWave").EnumerateArray()
             .SelectMany(w=>w.GetProperty("packages").EnumerateArray().Select(x=>(
@@ -155,8 +269,13 @@ internal static class V9Phase4Matrix
             while(await rd.ReadAsync(ct)) refs.Add(new(rd.GetGuid(0),rd.IsDBNull(1)?null:rd.GetString(1),
                 rd.IsDBNull(2)?null:DateOnly.FromDateTime(rd.GetDateTime(2)),rd.IsDBNull(3)?null:rd.GetString(3)));
         }
-        Require(rows.Count==2349&&rows.Count(x=>x.HasCpf)==315&&rows.Select(x=>x.Id).Distinct().Count()==2349
-            && rows.Select(x=>x.Origin).Distinct().Count()==1957&&refs.Count>0,"FRAME_CENSUS");
+        var population=p.RootElement;
+        Require(rows.Count==population.GetProperty("sourceVersions").GetInt32()
+            && rows.Count(x=>x.HasCpf)==population.GetProperty("cpfVersions").GetInt32()
+            && rows.Select(x=>x.Id).Distinct().Count()==rows.Count
+            && rows.Select(x=>x.Origin).Distinct().Count()==population.GetProperty("persistentOrigins").GetInt32()
+            && refs.Count>0 && (V9DevE2EFullCommand.ScaleAdmitted || (rows.Count==2349&&rows.Count(x=>x.HasCpf)==315
+            && rows.Select(x=>x.Origin).Distinct().Count()==1957)),"FRAME_CENSUS");
         foreach(var origin in rows.GroupBy(x=>x.Origin))
         {
             Require(origin.Select(x=>x.Initial).Distinct().Count()==1
@@ -170,6 +289,35 @@ internal static class V9Phase4Matrix
         await WriteAsync(root,"matrix-frame-private.json",new Frame(attempt,rows.ToArray(),refs.ToArray(),
             sw.Elapsed.TotalMilliseconds,start,end,Environment.WorkingSet));
     }
+    // Post-publication DEV diagnostics. No truth labels or database access.
+    internal static async Task WriteAbstentionPairsAsync(string root, Guid attempt, Guid runId,
+        IReadOnlyList<V9ControlledDevCohortScorer.GoldScore> scores)
+    {
+        Admit(allowScale: true);
+        Require(V9DevE2EFullCommand.DiagnosticPopulation == 10000, "ABSTENTION_SCOPE");
+        using var doc = Read(root, "matrix-frame-private.json");
+        var frame = doc.RootElement.Deserialize<Frame>()!;
+        Require(frame.Attempt == attempt, "ABSTENTION_FRAME");
+        var observations = frame.Rows.ToDictionary(row => row.Id, row => row.Observation);
+        var pairs = scores.Select(score =>
+        {
+            var src = observations[score.Source];
+            var rec = observations[score.Record];
+            var name = CompositeNominalComparisonV9.Classify(src.NomeCompleto, rec.NomeCompleto);
+            var mother = CompositeNominalComparisonV9.Classify(src.NomeMae, rec.NomeMae);
+            var birth = src.DataNascimento.HasValue && rec.DataNascimento.HasValue
+                ? (src.DataNascimento == rec.DataNascimento ? "equal" : "different") : "missing";
+            return new {
+                score.Source, score.Record, score.Person, score.LogOdds, score.Posterior,
+                ExactFull = name == CompositeNominalLevelV9.ExactFull, Birth = birth,
+                SourceMotherPresent = BrazilianNameComponents.Project(src.NomeMae) is not null,
+                RecordMotherPresent = BrazilianNameComponents.Project(rec.NomeMae) is not null,
+                MotherExactFull = mother == CompositeNominalLevelV9.ExactFull
+            };
+        });
+        await WriteAsync(root, "abstention-pairs-private.json", new { attempt, runId, pairs });
+    }
+
     private static Ref Summary(Guid person,Row[] rows)
     {
         Require(rows.Length>0,"SUMMARY_EMPTY");
@@ -211,23 +359,28 @@ internal static class V9Phase4Matrix
     // candidate membership is rechecked for every baseline source below.
     private static Func<HashSet<BlockingProjectionKey>,Guid[]> Lookup(
         Dictionary<Guid,IndexEntry> index,IReadOnlyList<LinkageBlockingPass> passes)
+        => Lookup(index.Select(x => (x.Key, x.Value.Keys)), passes);
+
+    private static Func<HashSet<BlockingProjectionKey>,T[]> Lookup<T>(
+        IEnumerable<(T Id,HashSet<BlockingProjectionKey> Keys)> entries,
+        IReadOnlyList<LinkageBlockingPass> passes) where T : notnull
     {
-        var byKey=new Dictionary<BlockingProjectionKey,HashSet<Guid>>();
-        foreach(var (person,entry) in index)
-        foreach(var key in entry.Keys)
+        var byKey=new Dictionary<BlockingProjectionKey,HashSet<T>>();
+        foreach(var (person,keys) in entries)
+        foreach(var key in keys)
         {
-            if(!byKey.TryGetValue(key,out var people))byKey.Add(key,people=new HashSet<Guid>());
+            if(!byKey.TryGetValue(key,out var people))byKey.Add(key,people=new HashSet<T>());
             people.Add(person);
         }
         return source=>
         {
-            var result=new HashSet<Guid>();
+            var result=new HashSet<T>();
             foreach(var pass in passes)
             {
-                HashSet<Guid>? hits=null;
+                HashSet<T>? hits=null;
                 foreach(var field in pass.Fields)
                 {
-                    var fieldHits=new HashSet<Guid>();
+                    var fieldHits=new HashSet<T>();
                     foreach(var key in source.Where(k=>k.Feature==field))
                         if(byKey.TryGetValue(key,out var values))fieldHits.UnionWith(values);
                     if(hits is null)hits=fieldHits;else hits.IntersectWith(fieldHits);
@@ -238,17 +391,28 @@ internal static class V9Phase4Matrix
             return result.OrderBy(x=>x).ToArray();
         };
     }
-    private static CellGraph Graph(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible)
+    private static CellGraph Graph(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible,bool indexedSilver=false)
     {
         var sw=Stopwatch.StartNew();
         var pending=visible.Where(x=>!x.HasCpf).OrderBy(x=>x.Id).ToArray();
         var keys=pending.ToDictionary(x=>x.Id,x=>Keys(planner,x.Observation));
         var passes=winner.Payload.BlockingPasses;
         var edges=new List<(int A,int B)>();
-        for(var i=0;i<pending.Length;i++)
-        for(var j=i+1;j<pending.Length;j++)
-            if(pending[i].Manager!=pending[j].Manager&&V9DevE2EFirstFullMembershipOracle.MatchesAnyPass(keys[pending[i].Id],keys[pending[j].Id],passes))
-                edges.Add((i+1,j+1));
+        if (indexedSilver)
+        {
+            var lookup = Lookup(pending.Select((row, index) => (index, keys[row.Id])), passes);
+            for (var i = 0; i < pending.Length; i++)
+                foreach (var j in lookup(keys[pending[i].Id]))
+                    if (j > i && pending[i].Manager != pending[j].Manager)
+                        edges.Add((i + 1, j + 1));
+        }
+        else
+        {
+            for(var i=0;i<pending.Length;i++)
+            for(var j=i+1;j<pending.Length;j++)
+                if(pending[i].Manager!=pending[j].Manager&&V9DevE2EFirstFullMembershipOracle.MatchesAnyPass(keys[pending[i].Id],keys[pending[j].Id],passes))
+                    edges.Add((i+1,j+1));
+        }
         var cohort=pending.Select((x,i)=>new V9PhysicalCalibrationObservation(i+1,"DEV_UNLABELED_"+(i+1),"DEV",x.Manager,
             x.Observation.NomeCompleto,x.Observation.NomeMae,x.Observation.DataNascimento)).ToArray();
         IReadOnlyList<V9DevDirectionalScore>? dirs=null;
@@ -266,7 +430,7 @@ internal static class V9Phase4Matrix
     }
     private static RoundResult Round(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible,
         CellGraph graph,Dictionary<long,Link> links,string trajectory,string s4b,string evidence,string prior,string policy,string blocking,
-        JsonElement? physical,JsonElement? diagnostic,JsonElement? actualGraph)
+        JsonElement? physical,JsonElement? diagnostic,JsonElement? actualGraph, ComparativeRound? experiment=null)
     {
         var sw=Stopwatch.StartNew();var samples=new List<object>();
         void Sample(string phase)=>samples.Add(new {phase,ms=sw.Elapsed.TotalMilliseconds,workingSetBytes=Environment.WorkingSet,managedBytes=GC.GetTotalMemory(false)});
@@ -289,6 +453,8 @@ internal static class V9Phase4Matrix
         var established=graph.Pending.Where(x=>links.ContainsKey(x.Origin)).ToDictionary(x=>x.Id,x=>links[x.Origin].Person);
         var metadata=new Dictionary<long,(int Fs,int Candidates,int SecureCandidates,int PriorCount,int Only)>();
         var physicalScores=physical.HasValue?new List<V9ControlledDevCohortScorer.GoldScore>():null;
+        var rowsById = experiment is null ? null : visible.ToDictionary(row => row.Id);
+        var vetoEvidence = new HashSet<long>();
         foreach(var row in graph.Pending)
         {
             var key=graph.Keys[row.Id];
@@ -309,7 +475,14 @@ internal static class V9Phase4Matrix
                         r.Observation.DataNascimento,r.Observation.NomeMae)));
             }
             var scored=V9ControlledDevSecureEvidenceScore.Score(winner,model,row.Observation,people,records,
-                observe:physicalScores is null?null:values=>physicalScores.AddRange(values.Select(v=>new V9ControlledDevCohortScorer.GoldScore(row.Id,v.ObservationId,v.Person,v.Posterior,v.LogOdds))));
+                observe:physicalScores is null && experiment is null ? null : values =>
+                {
+                    physicalScores?.AddRange(values.Select(v => new V9ControlledDevCohortScorer.GoldScore(
+                        row.Id, v.ObservationId, v.Person, v.Posterior, v.LogOdds)));
+                    if (experiment is not null && people.Length == 1 &&
+                        MatchesDirectVeto(row.Observation, values, id => rowsById![id].Observation))
+                        vetoEvidence.Add(row.Id);
+                });
             raw.Add(row.Id,scored.Decision);
             metadata.Add(row.Id,((int)scored.EvidenceReceipt.ComparedRecords,people.Length,restricted.Length,
                 prior=="records"?records.Count:people.Length,broad.Except(restricted).Count()));
@@ -360,7 +533,8 @@ internal static class V9Phase4Matrix
                 additions.Add(origin.Key,target);
             else if(translated[leader.Id].Status==ResolutionStatus.NAO_RESOLVIDO
                 && translated[leader.Id].Motivo?.StartsWith("SEM_CANDIDATO_",StringComparison.Ordinal)==true
-                && origin.All(x=>candidates[x.Id].Count==0))
+                && (experiment is null ? origin.All(x=>candidates[x.Id].Count==0) :
+                    ComparativeSingletonMayPublish(candidates[leader.Id].Count, origin.Select(x => translated[x.Id]))))
                 additions.Add(origin.Key,new(leader.Initial,true,"SINGLETON_FOUNDER"));
         }
         // Exactly one hypothetical founder per surviving collective identity.
@@ -368,6 +542,38 @@ internal static class V9Phase4Matrix
         {
             var origin=group.Min(x=>x.Key);
             additions[origin]=additions[origin] with {Secure=true,Method="S4B_HYPOTHETICAL_FOUNDER"};
+        }
+        var masked = new HashSet<long>();
+        if (experiment is not null)
+        {
+            foreach (var origin in graph.Pending.GroupBy(row => row.Origin))
+            {
+                if (!additions.TryGetValue(origin.Key, out var added))
+                    continue;
+                var leader = origin.OrderByDescending(row => row.Version).ThenByDescending(row => row.Id).First();
+                var evidenceIds = allIndex.TryGetValue(added.Person, out var entry)
+                    ? entry.Secure.Select(row => row.Id).ToArray() : Array.Empty<long>();
+                experiment.NewLinks.Add(new(leader.Id, added.Person, added.Method,
+                    origin.Select(row => row.Id).ToArray(), evidenceIds));
+                if (added.Method != "FS_ASSOCIATION" || !vetoEvidence.Contains(leader.Id))
+                    continue;
+                Require(!links.ContainsKey(origin.Key) && origin.All(row => !row.HasCpf &&
+                    row.Current is null && row.Canonical is null && row.State != "REFERENCIA") &&
+                    translated[leader.Id].Status == ResolutionStatus.RESOLVIDO &&
+                    raw[leader.Id].PessoaUuidResolvido == added.Person && raw[leader.Id].MelhorCandidatoUuid == added.Person &&
+                    candidates[leader.Id].Single().PessoaUuid == added.Person, "VETO_AUTHORITY");
+                experiment.EligibleLeaders.Add(leader.Id);
+                if (experiment.Mode == VetoMode.None) continue;
+                masked.Add(leader.Id);
+                if (experiment.Mode == VetoMode.Origin)
+                {
+                    // This is a NEW origin reference. Its only publication ground is this DT-10 leader.
+                    // Existing and protected references were excluded before additions were constructed.
+                    additions.Remove(origin.Key);
+                    foreach (var row in origin.Where(row => row.Id != leader.Id))
+                        experiment.SuppressedFollowers.Add(row.Id);
+                }
+            }
         }
         foreach(var x in additions)links.Add(x.Key,x.Value);
         Sample("project");
@@ -391,6 +597,17 @@ internal static class V9Phase4Matrix
             {
                 var a=actual[x.Id];return x.Person==(a.GetProperty("currentStatus").GetString()=="RESOLVIDO"?a.GetProperty("currentUuid").GetGuid():(Guid?)null);
             }),"BASELINE_PUBLICATION");
+        }
+        if (experiment is not null)
+        {
+            experiment.State = output.ToDictionary(row => row.Id, row => row.Person);
+            for (var i = 0; i < output.Length; i++)
+            {
+                var row = output[i];
+                if (masked.Contains(row.Id) || experiment.SuppressedFollowers.Contains(row.Id))
+                    output[i] = row with { Person = null, Method = "VETO", EffectiveReason =
+                        masked.Contains(row.Id) ? "VETO_DEV_POS_R1" : "VETO_DEV_PROPAGACAO_EXCLUSIVA" };
+            }
         }
         var keyBytes=chosen.Sum(x=>x.Value.Keys.Sum(k=>16L+Encoding.UTF8.GetByteCount(k.Feature)+Encoding.UTF8.GetByteCount(k.Value)+2));
         Sample("complete");

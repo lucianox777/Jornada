@@ -1,0 +1,23 @@
+{
+  "schema": "V9_DEV_FAMILY_PREGENERATION_V1",
+  "status": "PREDECLARED_CAP_ONLY_GENERATION_BLOCKED",
+  "decision": "GOV-V9-PLANO-PO-V8-EMENDA-FAMILIA-20261125",
+  "familyUnit": "maternal_truth_group_of_base_people_in_corpus_including_singletons",
+  "maximumBasePeoplePerFamily": 8,
+  "maximumSourceVersionsPerBasePerson": 8,
+  "maximumSourceVersionsPerFamily": 64,
+  "capPolicy": "Reject before execution if any family exceeds cap; no splitting or post-hoc tuning. Preregister and quantify exclusion/truncation of families above cap. Generation blocked until phase A integrated, full manifest and preflight approved under v8 as amended.",
+  "profiles": [
+    "DEMOGRAPHICALLY_REFERENCED",
+    "STRESS_COMPLEMENTARY_ISOLATED"
+  ],
+  "representativeness": "B=8 restricts maternal truth groups; not a claim about Brazilian family prevalence. Central hypotheses and sensitivity ranges in the amendment; final joint distribution, truncation treatment and quotas pending.",
+  "generatorImplemented": false,
+  "profileQuotasLocked": false,
+  "scientificCampaignLocked": false,
+  "generationAuthorized": false,
+  "scientificCampaignAuthorized": false,
+  "newTrainTestAuthorized": false,
+  "previousDecision": "GOV-V9-10K-FUNCIONAL-20261125",
+  "amendment": "Decisao_GOV_V9_Plano_PO_V8_Emenda_Familia_20261125.md"
+}

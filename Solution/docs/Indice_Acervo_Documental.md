@@ -1,6 +1,18 @@
+> **GOV-V9-PARIDADE-INDEPENDENTE-EMPATE-20261126 — DECIDIDO pelo PO:** [paridade independente por conjunto de destinos empatados](Relatorio_V9_Ensaio_10k_20261125.md#decisão-do-po--paridade-independente-invariante-a-empate), pares de mesma entrada estritos e escalada de empate resolvido em Best. #1940/#1851. GOV-DOC-01.
+
+> **GOV-V9-CURVA-PASS-QUALIFICADO-20261126 — DECIDIDO pelo PO:** [PASS qualificado da curva §4.1](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#decisão-do-po-de-26112026--pass-qualificado-da-curva-41), confirmação pelo FULL 10k usando os cinco contadores determinísticos já coletados e mediana 4k das três runs PASS, com limite de 3,4× por contador. Tempo/CPU são diagnósticos. Substitui a proposta de três PASS e a regra temporal anterior; regressão V8 operacional e demais gates continuam obrigatórios antes do 10k. #1940/#1851. GOV-DOC-01.
+
 > **ACERVO GOV-V9-MANDATO-E2E-CONTINUO-20261126:** [Mandato integral aprovado](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md) para o caminho crítico do E2E integral DEV V9 pelo Codex local, com Fase A obrigatória, Fases B/C/D postergadas e regras de continuidade, custódia, parada e disparo final. #1851/#1940. GOV-DOC-01.
 
-> **Esclarecimento do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. GOV-DOC-01.
+> **Esclarecimentos e adendo do PO de 26/11/2026:** [CI automática vigente e retomada da Fase A](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--ci-automática-vigente-e-retomada-da-fase-a). Os gatilhos existentes seguem normalmente; a parada do §9.i foi resolvida. [Retomadas na mesma sessão e acompanhamento da CI](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#esclarecimento-do-po-de-26112026--retomadas-na-mesma-sessão-e-acompanhamento-da-ci). [Supervisor único da missão](Decisao_GOV_V9_Mandato_E2E_Continuo_20261126.md#adendo-do-po-de-26112026--supervisor-único-da-missão), com revisão de rigor, orientação, limites de autoridade e consulta na #1851 ao fim de cada CI e antes de cada push. GOV-DOC-01.
+
+> **ACERVO GOV-V9-CUSTODIA-VENCEDOR38-20261125:** [decisão e evidência de renovação](Decisao_GOV_V9_Custodia_Vencedor38_20261125.md), #1943/#1940/#1851, novo artefato, run, hashes, retenção e gates. GOV-DOC-01.
+
+> **ACERVO GOV-V9-PLANO-PO-V8-EMENDA-FAMILIA-20261125:** [emenda ao v8 aprovada pelo PO](Decisao_GOV_V9_Plano_PO_V8_Emenda_Familia_20261125.md), fontes públicas, hipóteses/sensibilidade, caps 8/8/64, matriz, estratos e limites de inferência, gates e precedência. #1940/#1941/#1942/#1851. GOV-DOC-01.
+
+> **ACERVO GOV-V9-PLANO-PO-V8-REGIME-CICLOS-20261126:** [regime complementar de ciclos](Decisao_GOV_V9_Plano_PO_V8_Regime_Ciclos_20261126.md), critérios de aceitação após correção fail-closed, rastreabilidade de tentativas, checklist A, precedência do relatório histórico e formato de checkpoint. #1851/#1940. GOV-DOC-01.
+
+> **ACERVO GOV-V9-PLANO-PO-V8-20261125:** [plano consolidado aprovado pelo PO](Decisao_GOV_V9_Plano_PO_V8_20261125.md), precedência, A–D, gates, métricas, família e paradas. #1940/#1851. GOV-DOC-01.
 
 > **GOV-V9-PLANO-PO-V6-20261124 — atualização de execução:** fase 2b #1937 integrada na master `ed65a227`, push 13/13 SUCCESS; #1936 aberta até INCREMENTAL. Fase 3 #1938 draft, #1928/#1929 fechadas sem merge como substituídas por ordem expressa do PO, port essencial e execução física em curso. Nenhum E2E PASS declarado; igualdade independente e aceites ainda pendentes. [Plano v6 e registro](Decisao_GOV_V9_Plano_PO_V6_20261124.md) · [#1851](https://github.com/lucianox777/Jornada/issues/1851#issuecomment-7152014758). GOV-DOC-01.
 
@@ -312,3 +324,7 @@ Decisão nova deve entrar na fonte canônica adequada; estado comprovado no Esta
 > **ACERVO — Fase 4 S4b 1k (25/11/2026):** [resultado medido e estratos](Resultado_V9_Fase4_S4b_1k_20261125.md) · [plano de execução do harness](V9_Fase4_Harness_1k_Plano_Execucao_20261125.md) · #1939/#1851. Contraste isolado sem publicação; S4b(i) oficial preservada; matriz de 24 ainda pendente. GOV-DOC-01.
 
 > **ACERVO — Fase 4 final (25/11/2026):** [Relatório 1k medido](Relatorio_V9_Fase4_1k_20261125.md) · [Plano 10k proposto, não executado](Plano_V9_Fase4_10k_20261125.md) · #1939/#1851/#1926/#1931. Evidência DEV, política intacta, parada PO. Prevalece sobre estados anteriores de preparação. GOV-DOC-01.
+
+> **ACERVO — 10k autorizado PO (25/11):** [Plano 10k atualizado](Plano_V9_Fase4_10k_20261125.md) · [Plano v6](Decisao_GOV_V9_Plano_PO_V6_20261124.md). #1939 integrada, novo ensaio não publicante e não científico; relatório final pendente.
+
+> **V9 10k funcional, diagnóstico e segurança familiar (histórico cumulativo; roteiro vigente v8 e emendas):** [relatório único por SHA](Relatorio_V9_Ensaio_10k_20261125.md), decisão 25/11/2026. Preserva plano histórico, separa medido/projetado/pendente; GOV-DOC-01.

@@ -15,18 +15,45 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Jornada.Linkage.Runner;
 
 /// <summary>Only the explicitly admitted, fresh DEV 1k attempt. No productive dispatch.</summary>
-public static class V9DevE2EFullCommand
+public static partial class V9DevE2EFullCommand
 {
     public const string Flag = "--v9-dev-full-1k";
+    public const string ScaleFlag = "--v9-dev-full-10k";
+    internal static int DiagnosticPopulation =>
+        (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_SCALE"),
+         Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT")) switch
+        {
+            ("diagnostic1k", "1000") => 1000,
+            ("optimized1k", "1000") => 1000,
+            ("optimized2k", "2000") => 2000,
+            ("optimized4k", "4000") => 4000,
+            ("optimized10k", "10000") => 10000,
+            ("diagnostic2k", "2000") => 2000,
+            ("diagnostic4k", "4000") => 4000,
+            _ => 0
+        };
+    internal static bool ScaleAdmitted =>
+        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true" &&
+        Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") == "lucianox777/Jornada" &&
+        Environment.GetEnvironmentVariable("GITHUB_EVENT_NAME") == "pull_request" &&
+        Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true" &&
+        Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true" &&
+        DiagnosticPopulation > 0;
     private static string stage = "admission";
     private const string Winner = "6655a82cdda7f46f95896ce0a9abe26cc17ff290665a8347adb1a13683ec68ee";
+    private const string ReferenceCensusSha256 = "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece";
+    private const string ScaleCensusSha256 = "8b5a29d9f7ca47482b0fc3930b7607c882b3197ff55ddfd10ed8172d59aac873";
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 2 || args[0] != Flag || args[1] is not ("catalog" or "full" or "matrix")
+        var scale = args.Length == 2 && args[0] == ScaleFlag && ScaleAdmitted;
+        var comparison = scale && V9Phase4Matrix.SixArmAdmitted &&
+            args[1] is "six-compare" or "repeat-2" or "staged-1" or "staged-2";
+        if (args.Length != 2 || (!scale && args[0] != Flag) || (!comparison && args[1] is not ("catalog" or "full" or "matrix"))
+            || (scale && args[1] == "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
-            || Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000"
+            || (!scale && Environment.GetEnvironmentVariable("JORNADA_E2E_HTTP_VOLUME_COUNT") != "1000")
             || Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development"
             || !Guid.TryParseExact(Environment.GetEnvironmentVariable("JORNADA_V9_DEV_ATTEMPT"),
                 "D", out var attempt) || attempt == Guid.Empty)
@@ -34,8 +61,9 @@ public static class V9DevE2EFullCommand
 
         stage = "configuration";
         var config = Host.CreateApplicationBuilder(Array.Empty<string>()).Configuration;
-        var sql = new OperationalSqlAdapter(config.GetConnectionString("Jornada")
-            ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING"));
+        var connectionString = config.GetConnectionString("Jornada")
+            ?? throw new InvalidOperationException("RUNNER_V9_DEV_E2E_SQL_CONNECTION_MISSING");
+        var sql = new OperationalSqlAdapter(connectionString);
         if (!config.GetValue<bool>(V9BlockingMaintenanceGate.EnabledSetting)
             || config[V9BlockingMaintenanceGate.AttemptSetting] != attempt.ToString("D")
             || config.GetValue<bool>(V9ControlledDevCohortScorer.DiagnosticFixtureSetting)
@@ -68,6 +96,17 @@ public static class V9DevE2EFullCommand
             return;
         }
 
+        if (comparison)
+        {
+            stage = "six-comparison";
+            var selection = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
+            if (args[1] == "six-compare")
+                await V9Phase4Matrix.CompareSixAsync(root, selection.Snapshot, attempt);
+            else
+                await ComparativeFullAsync(args[1], root, config, sql, connectionString, selection.Snapshot, boundary.Runtime.ModelId, attempt);
+            return;
+        }
+
         stage = "lineage";
         using var pre = JsonDocument.Parse(await ReadPrivateAsync(root, "wave-preflight-receipt.json"));
         using var lineage = JsonDocument.Parse(await ReadPrivateAsync(root, "http-lineage.json"));
@@ -77,7 +116,7 @@ public static class V9DevE2EFullCommand
         var eligible = p.GetProperty("nonCpfVersions").GetInt32();
         if (p.GetProperty("schema").GetString() != "V9_E2E_1K_WAVE_PREFLIGHT_V1"
             || p.GetProperty("status").GetString() != "PASS"
-            || p.GetProperty("baseIdentities").GetInt32() != 1000
+            || p.GetProperty("baseIdentities").GetInt32() != (scale ? DiagnosticPopulation : 1000)
             || total <= eligible || eligible <= 0
             || l.GetProperty("schema").GetString() != "V9_E2E_1K_HTTP_LINEAGE_V1"
             || l.GetProperty("status").GetString() != "PASS"
@@ -96,7 +135,14 @@ public static class V9DevE2EFullCommand
             await V9Phase4Matrix.ExecuteAsync(root, sql, loaded.Snapshot, attempt, CancellationToken.None);
             return;
         }
-        var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, sql, attempt,
+        var fullDiagnostic = scale && Environment.GetEnvironmentVariable("JORNADA_V9_FULL_DIAGNOSTIC") == "true";
+        // Use a separate connection pool so the SQL-side FULL probe counts
+        // the Runner and scorer without the pre/post-census and sampler.
+        var runnerSql = fullDiagnostic
+            ? new OperationalSqlAdapter(new SqlConnectionStringBuilder(connectionString)
+                { ApplicationName = "JornadaV9Phase4Runner" }.ConnectionString)
+            : sql;
+        var scorer = await V9ControlledDevCohortScorer.CreateAsync(config, runnerSql, attempt,
             CancellationToken.None, effectiveEnvironment: "Development");
         stage = "pre-full-sql";
         await using (var connection = await sql.OpenAsync(CancellationToken.None))
@@ -129,25 +175,7 @@ public static class V9DevE2EFullCommand
                 await tx.CommitAsync();
             }
             stage = "model-staging";
-        var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
-            if (model.ModelId != boundary.Runtime.ModelId || model.Active || model.Published)
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
-            await using var anchor = new SqlCommand("""
-                INSERT identidade.modelo_linkage(
-                    modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
-                    deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
-                VALUES(@id,9,N'RASCUNHO',@algo,@normalization,
-                    N'V9_DEV_E2E_DISPOSABLE',N'IBGE_1K_DEV_AFTER_PROCESSOR',
-                    @sha,SYSDATETIMEOFFSET());
-                SELECT @@ROWCOUNT;
-                """, connection);
-            anchor.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = model.ModelId;
-            anchor.Parameters.Add("@algo", SqlDbType.NVarChar, 120).Value =
-                LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion;
-            anchor.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
-            anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = Winner;
-            if (Convert.ToInt32(await anchor.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
+            await StageFrozenModelAsync(connection, loaded.Snapshot, boundary.Runtime.ModelId);
         }
 
         if (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true")
@@ -162,6 +190,7 @@ public static class V9DevE2EFullCommand
 
         stage = "runner-composition";
         object? privateDiagnostic = null;
+        IReadOnlyList<V9ControlledDevCohortScorer.GoldScore>? privateGoldScores = null;
         Guid observedRun = Guid.Empty;
         scorer.DiagnosticObserver = (runId, ids, edgesSha, groups, directions, goldScores, candidates) =>
         {
@@ -195,6 +224,8 @@ public static class V9DevE2EFullCommand
                     throw new InvalidDataException("RUNNER_V9_E2E_GROUP_INTERNAL_SCORE_DIVERGENCE");
                 groupMinimum.Add(groupRoot, size==1 ? null : scores.Min(x=>x.Posterior));
             }
+            // Already independently verified above; retain only in disposable DEV memory.
+            if (fullDiagnostic) privateGoldScores = goldScores;
             observedRun = runId;
             privateDiagnostic = ids.Select((id,i) => new {
                 observationId = id, groupSize = sizes[roots[i]], groupRoot = roots[i],
@@ -208,35 +239,52 @@ public static class V9DevE2EFullCommand
         if (Directory.Exists(storeRoot))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
         Directory.CreateDirectory(storeRoot);
-        var runner = new ProbabilisticLinkageBatchRunner(config, sql, scorer,
-            new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
-            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
-            new Dt05CandidateStateSnapshotPublisher(sql, storeRoot),
-            new Dt05BlockingProjectionSnapshotPublisher(sql, storeRoot),
-            new Dt05HistoricalCandidateStateVerifier(storeRoot),
-            new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
-            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
+        var runner = CreateFullRunner(config, runnerSql, scorer, storeRoot);
         stage = "full-run";
         var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
-            "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
+            scale ? "V9_DEV_E2E_FULL_DIAGNOSTIC" : "V9_DEV_E2E_FULL_1K", "AFTER_PROCESSOR_IBGE_SYNTHETIC", Guid.NewGuid(), true);
         var matrixEnabled = Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true";
         double[]? physicalTiming = null;
         if (matrixEnabled)
             scorer.DiagnosticTimingObserver = (read,snapshot,group,score,translate) =>
                 physicalTiming = [read,snapshot,group,score,translate];
-        var summary = matrixEnabled
-            ? await V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
+        Task<ProbabilisticLinkageRunSummary> ExecuteFull() => matrixEnabled
+            ? V9Phase4Matrix.MeasurePhysicalFullAsync(root,sql,attempt,
                 () => runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None),
                 () => physicalTiming,CancellationToken.None)
-            : await runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
+            : runner.RunV9ControlledDevAsync(request,attempt,CancellationToken.None);
+        ProbabilisticLinkageRunSummary summary;
+        if (fullDiagnostic)
+        {
+            var diagnostics = new V9DevFullDiagnostics();
+            runner.DevPhaseObserver = diagnostics.Phase;
+            scorer.DiagnosticPhaseObserver = diagnostics.Phase;
+            summary = await diagnostics.RunAsync(sql, attempt, ExecuteFull);
+        }
+        else summary = await ExecuteFull();
         if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Elegiveis != eligible
             || summary.Avaliados != eligible)
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_PUBLICATION_INCOMPLETE");
 
+        if (fullDiagnostic)
+        {
+            var destination = Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,
+                "v9-full-completed-resource.json");
+            File.Copy(Path.Combine(root, "matrix-full-physical-resource.json"), destination, overwrite: false);
+            if (scale && OperatingSystem.IsLinux())
+                File.Copy(Path.Combine(root, "scale-full-extra-resource.json"),
+                    Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!, "v9-full-extra-resource.json"), overwrite: false);
+        }
         if (privateDiagnostic is null || observedRun != summary.RunId)
             throw new InvalidDataException("RUNNER_V9_E2E_ACTUAL_GRAPH_MISSING");
         await WriteNewAsync(root, "fn-private.json", JsonSerializer.Serialize(privateDiagnostic));
+        if (fullDiagnostic)
+        {
+            if (privateGoldScores is null)
+                throw new InvalidDataException("RUNNER_V9_E2E_PRIVATE_GOLD_SCORE_MISSING");
+            await WriteNewAsync(root, "scale-gold-scores-private.json", JsonSerializer.Serialize(privateGoldScores));
+        }
         await WriteNewAsync(root, "actual-graph-receipt.json", JsonSerializer.Serialize(new {
             runId = observedRun, edges = membership.SilverEdges, edgesSha256 = membership.SilverEdgesSha256,
             directions = membership.SilverDirectionalReplay!.DirectionsCompared,
@@ -263,31 +311,103 @@ public static class V9DevE2EFullCommand
             var scalar = await V9DevE2EScalarOracle.VerifyLedgerAsync(connection, summary.RunId,
                 membership.ExpectedRanks, CancellationToken.None);
             await WriteNewAsync(root, "scalar-receipt.json", JsonSerializer.Serialize(scalar));
+            if (scale)
+                await WriteNewAsync(root, "scale-rank-private.json", JsonSerializer.Serialize(membership.ExpectedRanks));
             stage = "post-full-census";
-            var query = await ReadPrivateAsync(root, "census.sql");
-            if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(query))) != "0b9a080ed9908384341d988e953bb03f4905f68152acaa09a97d2846e0d47ece")
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
-            await using var census = new SqlCommand(query, connection)
-                { CommandTimeout = 120 };
-            census.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
-            census.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
+            await using var census = scale
+                ? await LoadCensusAsync("scale-census.sql", ScaleCensusSha256)
+                : await LoadCensusAsync("census.sql", ReferenceCensusSha256);
             var json = new StringBuilder();
-            await using (var reader = await census.ExecuteReaderAsync())
-                while (await reader.ReadAsync()) json.Append(reader.GetString(0));
-            await WriteNewAsync(root, "sql-census.json", json.ToString());
+            if (scale && Environment.GetEnvironmentVariable("JORNADA_V9_CENSUS_DIAGNOSTIC") == "true")
+            {
+                await V9DevCensusDiagnostics.ReadAsync(sql, connection, census, json, attempt);
+            }
+            else
+            {
+                await ReadCensusAsync(census, json);
+            }
+            var censusJson = json.ToString();
+            if (scale && DiagnosticPopulation == 1000)
+            {
+                stage = "post-full-census-equivalence";
+                await using var reference = await LoadCensusAsync("census.sql", ReferenceCensusSha256);
+                var referenceJson = new StringBuilder();
+                await ReadCensusAsync(reference, referenceJson);
+                if (!string.Equals(censusJson, referenceJson.ToString(), StringComparison.Ordinal))
+                    throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_REFERENCE_DIVERGENCE");
+                Console.WriteLine("V9_E2E_CENSUS_REFERENCE_EXACT_PASS");
+            }
+            await WriteNewAsync(root, "sql-census.json", censusJson);
+
+            async Task<SqlCommand> LoadCensusAsync(string file, string expectedSha256)
+            {
+                var query = await ReadPrivateAsync(root, file);
+                if (Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(query))) != expectedSha256)
+                    throw new InvalidDataException("RUNNER_V9_DEV_E2E_CENSUS_PIN_MISMATCH");
+                var command = new SqlCommand(query, connection) { CommandTimeout = 120 };
+                command.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
+                command.Parameters.Add("@run", SqlDbType.UniqueIdentifier).Value = summary.RunId;
+                return command;
+            }
+
+            static async Task ReadCensusAsync(SqlCommand command, StringBuilder destination)
+            {
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync()) destination.Append(reader.GetString(0));
+            }
         }
-        stage = "retry-preview";
-        var preview = await V9DevE2ERetryPreview.ReadAsync(sql,loaded.Snapshot,attempt,summary.RunId,CancellationToken.None);
-        await WriteNewAsync(root, "retry-private.json", JsonSerializer.Serialize(preview));
+        if (!scale)
+        {
+            stage = "retry-preview";
+            var preview = await V9DevE2ERetryPreview.ReadAsync(sql,loaded.Snapshot,attempt,summary.RunId,CancellationToken.None);
+            await WriteNewAsync(root, "retry-private.json", JsonSerializer.Serialize(preview));
+        }
         stage = "receipt";
         await WriteNewAsync(root, "runner-receipt.json", JsonSerializer.Serialize(new {
             mode = "FULL", status = "PUBLICADO", winnerSha256 = Winner, scientificTest = false,
             activated = false, eligible = summary.Elegiveis, evaluated = summary.Avaliados,
             runId = summary.RunId, automaticV9Index = true
         }));
+        if (fullDiagnostic && DiagnosticPopulation == 10000)
+            await V9Phase4Matrix.WriteAbstentionPairsAsync(root, attempt, summary.RunId,
+                privateGoldScores ?? throw new InvalidDataException("RUNNER_V9_E2E_PRIVATE_GOLD_SCORE_MISSING"));
         Console.WriteLine("V9_DEV_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL");
     }
+
+    private static async Task StageFrozenModelAsync(SqlConnection connection, V9FittedSnapshot snapshot, Guid expectedModelId)
+    {
+        var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, snapshot, CancellationToken.None);
+        if (model.ModelId != expectedModelId || model.Active || model.Published)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
+        await using var anchor = new SqlCommand("""
+            INSERT identidade.modelo_linkage(
+                modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
+                deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
+            VALUES(@id,9,N'RASCUNHO',@algo,@normalization,
+                N'V9_DEV_E2E_DISPOSABLE',N'IBGE_1K_DEV_AFTER_PROCESSOR',
+                @sha,SYSDATETIMEOFFSET());
+            SELECT @@ROWCOUNT;
+            """, connection);
+        anchor.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = model.ModelId;
+        anchor.Parameters.Add("@algo", SqlDbType.NVarChar, 120).Value =
+            LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion;
+        anchor.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
+        anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = Winner;
+        if (Convert.ToInt32(await anchor.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
+    }
+
+    private static ProbabilisticLinkageBatchRunner CreateFullRunner(IConfiguration config,
+        IOperationalSqlAdapter runnerSql, V9ControlledDevCohortScorer scorer, string storeRoot) =>
+        new(config, runnerSql, scorer,
+            new SqlPipelineCoordinator(runnerSql), new Dt05ReplaySql(runnerSql),
+            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
+            new Dt05CandidateStateSnapshotPublisher(runnerSql, storeRoot),
+            new Dt05BlockingProjectionSnapshotPublisher(runnerSql, storeRoot),
+            new Dt05HistoricalCandidateStateVerifier(storeRoot),
+            new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
+            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
 
     public static void ReportFailure(Exception error)
     {
