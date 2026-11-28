@@ -7,14 +7,14 @@ from math import comb
 VETO = "VETO_DEV_POS_R1"
 
 
-def require(ok):
+def require(ok, check):
     if not ok:
-        raise ValueError("V9_ABSTENTION_INCOMPLETE_EVIDENCE")
+        raise ValueError("V9_E2E_ORACLE_ABSTENTION_" + check)
 
 
 def index(rows, field):
     mapped = {row[field]: row for row in rows}
-    require(len(mapped) == len(rows))
+    require(len(mapped) == len(rows), "DUPLICATE_KEY")
     return mapped
 
 
@@ -24,7 +24,7 @@ def pair_key(row):
 
 def verified_pairs(scores, pairs, graphs, prior, member):
     expected = {pair_key(s): (s["LogOdds"], s["Posterior"]) for s in scores}
-    require(len(expected) == len(scores) == len(pairs) == member["secureRecords"] == member["goldRecordScores"])
+    require(len(expected) == len(scores) == len(pairs) == member["secureRecords"] == member["goldRecordScores"], "PAIR_TOTAL")
     by_source = defaultdict(list)
     for row in pairs:
         src, dest, rec = pair_key(row)
@@ -36,9 +36,9 @@ def verified_pairs(scores, pairs, graphs, prior, member):
                 and row["Birth"] in {"equal", "different", "missing"}
                 and all(type(row[k]) is bool for k in
                         ("ExactFull", "SourceMotherPresent", "RecordMotherPresent", "MotherExactFull"))
-                and (not row["MotherExactFull"] or (row["SourceMotherPresent"] and row["RecordMotherPresent"])))
+                and (not row["MotherExactFull"] or (row["SourceMotherPresent"] and row["RecordMotherPresent"])), "PAIR_EVIDENCE")
         by_source[src].append(row)
-    require(not expected)
+    require(not expected, "PAIR_COVERAGE")
     return by_source
 
 
@@ -56,13 +56,14 @@ def replay(census, before, ranks, graphs, scores, pairs, member, protected_metho
     eligible = {i for i, row in current.items() if not row["hasCpf"]}
     require(current.keys() == prior.keys() and ranks.keys() == graphs.keys() == eligible
             and len(eligible) == member["observations"] and member["status"] == "PASS"
-            and member["independentR1DecisionVerified"] is True and member["actualGoldRecordScoresVerified"] is True)
+            and member["independentR1DecisionVerified"] is True and member["actualGoldRecordScoresVerified"] is True, "UNIVERSE")
     records = verified_pairs(scores, pairs, graphs, prior, member)
     official = {i: row["currentUuid"] if row["currentStatus"] == "RESOLVIDO" else None for i, row in current.items()}
     protected = {i for i, pre in prior.items() if pre["Current"] is not None or pre["Canonical"] is not None
                  or pre["Status"] == "RESOLVIDO" or pre["State"] == "REFERENCIA" or pre["Method"] in protected_methods
                  or current[i]["currentMethod"] in protected_methods}
     new = {}
+    propagated = {}
     reasons = {}
     near = Counter()
     candidate_total = 0
@@ -76,19 +77,24 @@ def replay(census, before, ranks, graphs, scores, pairs, member, protected_metho
                 and (rank["Resolved"] is not None) == (rank["Status"] == "RESOLVIDO")
                 and len(set(candidates)) == len(candidates) == rank["CandidateCount"]
                 and len(valid) == rank["ScoreableRecords"]
-                and unscored == rank["PeopleWithoutScoreableEvidence"])
+                and unscored == rank["PeopleWithoutScoreableEvidence"], "RANK")
         candidate_total += len(candidates)
         if i in protected:
             continue
         if row["runResult"] != "ASSOCIACAO_EXISTENTE":
-            require(row["publicationReason"] != "ASSOCIACAO_EXISTENTE_LINKAGE")
+            require(row["publicationReason"] != "ASSOCIACAO_EXISTENTE_LINKAGE", "PUBLICATION_REASON")
             continue
-        require(row["publicationReason"] == "ASSOCIACAO_EXISTENTE_LINKAGE")
+        if row["publicationReason"] == "REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM":
+            require(row["currentMethod"] == "LINKAGE_PROBABILISTICO"
+                    and official[i] is not None and row["publishedUuid"] == official[i], "PROPAGATED_LINK")
+            propagated[i] = official[i]
+            continue
+        require(row["publicationReason"] == "ASSOCIACAO_EXISTENTE_LINKAGE", "EXISTING_REASON")
         dest = official[i]
         require(row["currentMethod"] == "LINKAGE_PROBABILISTICO"
                 and row["runResult"] == "ASSOCIACAO_EXISTENTE" and dest is not None
                 and dest == row["publishedUuid"] == rank["Resolved"] == rank["Best"]
-                and dest in candidates and rank["Status"] == "RESOLVIDO" and unscored == 0)
+                and dest in candidates and rank["Status"] == "RESOLVIDO" and unscored == 0, "LINK")
         new[i] = dest
         if len(candidates) != 1:
             near["multipleCandidates"] += 1
@@ -110,7 +116,25 @@ def replay(census, before, ranks, graphs, scores, pairs, member, protected_metho
             near["maximumBirthMissing"] += any(r["Birth"] == "missing" for r in top)
             near["maximumSourceMotherMissing"] += any(not r["SourceMotherPresent"] for r in top)
             near["maximumRecordMotherPresent"] += any(r["RecordMotherPresent"] for r in top)
-    require(candidate_total == member["candidatePeople"])
+    require(candidate_total == member["candidatePeople"], "CANDIDATE_TOTAL")
+    # The SQL batch preserves the leader's publication reason. Only the other
+    # versions of its persistent origin can have this propagated reference.
+    leaders = defaultdict(list)
+    for i in eligible:
+        row = current[i]
+        if official[i] is not None and row["runResult"] in {"ASSOCIACAO_EXISTENTE", "NOVA_IDENTIDADE"} and row[
+                "publicationReason"] in {"ASSOCIACAO_EXISTENTE_LINKAGE", "NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA",
+                                         "REFERENCIA_PROGRESSIVA_CONFIRMADA", "REFERENCIA_PROGRESSIVA_PRESERVADA",
+                                         "REFERENCIA_PROGRESSIVA_PRESERVADA_DESTINO_DIVERGENTE"}:
+            leaders[prior[i]["Origin"]].append(i)
+    founders = {}
+    for i, dest in propagated.items():
+        origin_leaders = leaders[prior[i]["Origin"]]
+        require(len(origin_leaders) == 1, "PROPAGATED_ORIGIN")
+        leader = origin_leaders[0]
+        require(official[leader] == current[leader]["publishedUuid"] == dest, "PROPAGATED_DESTINATION")
+        if current[leader]["runResult"] == "NOVA_IDENTIDADE":
+            founders[i] = leader
     variant = official.copy()
     for i in reasons:
         variant[i] = None
@@ -118,18 +142,19 @@ def replay(census, before, ranks, graphs, scores, pairs, member, protected_metho
     require(changed == reasons.keys() and changed <= new.keys() and not changed & protected
             and all(official[i] is not None and variant[i] is None for i in changed)
             and all(dest is None or dest == official[i] for i, dest in variant.items())
-            and all(i not in changed for i, rank in ranks.items() if rank["Status"] != "RESOLVIDO"))
+            and all(i not in changed for i, rank in ranks.items() if rank["Status"] != "RESOLVIDO"), "SUBSET")
     conflict_groups = {graphs[i]["groupRoot"] for i, rank in ranks.items()
                        if rank.get("Reason") == "V9_R1_GRUPO_GOLD_CONFLITANTE"}
     conflict_versions = {i for i, graph in graphs.items() if graph["groupRoot"] in conflict_groups}
-    require(not changed & conflict_versions)
+    require(not changed & conflict_versions, "R1_CONFLICT")
     return dict(official=official, variant=variant, new=new, reasons=reasons, records=records,
+                propagated=propagated, founders=founders, ranks=ranks,
                 r1ConflictGroups=len(conflict_groups), r1ConflictGroupVersions=len(conflict_versions),
                 near=dict(near), protected=len(protected), postR1States=dict(Counter(r["Status"] for r in ranks.values())))
 
 
 def partition_metrics(destinations, bases):
-    require(destinations.keys() == bases.keys())
+    require(destinations.keys() == bases.keys(), "TRUTH_UNIVERSE")
     sizes = Counter(bases.values())
     resolved = Counter()
     gold = Counter()
@@ -166,7 +191,7 @@ def evidence_counts(ids, records, official):
     for i in ids:
         rows = [r for r in records[i] if r["Person"] == official[i]]
         valid = [r for r in rows if r["LogOdds"] is not None]
-        require(valid)
+        require(valid, "WINNING_RECORD")
         winner = min(valid, key=lambda r: (-r["LogOdds"], r["Record"]))
         others = [r for r in rows if r is not winner]
         unique.update(r["Record"] for r in rows)
@@ -190,7 +215,7 @@ def evaluate(replay_result, truth, before, identity):
             and baseline["fusedGold"] == identity["falseFusedGoldIdentities"]
             and baseline["splitBases"] == identity["splitBaseIdentities"]
             and baseline["resolvedVersions"] == identity["resolvedVersions"]
-            and baseline["unresolvedVersions"] == identity["unresolvedVersions"])
+            and baseline["unresolvedVersions"] == identity["unresolvedVersions"], "BASELINE")
     anchors = defaultdict(set)
     for pre in before:
         if pre["Status"] == "RESOLVIDO":
@@ -205,16 +230,34 @@ def evaluate(replay_result, truth, before, identity):
         if kind == "wrong":
             wrong_by_dest[dest].append(i)
     require(sum(counts["vetoed"].values()) == len(replay_result["reasons"])
-            and all(counts["baseline"][k] == counts["vetoed"][k] + counts["variant"][k] for k in counts["baseline"]))
+            and all(counts["baseline"][k] == counts["vetoed"][k] + counts["variant"][k] for k in counts["baseline"]), "ASSOCIATION_BALANCE")
+    # Distinguish accepted score decisions from links copied within the same origin.
+    # The latter stay fixed even if the counterfactual vetoes the leader.
+    unchanged = Counter(correct=0, wrong=0, unknown=0)
+    founder_counts = Counter(correct=0, wrong=0, unknown=0)
+    for i, dest in replay_result["propagated"].items():
+        require(variant[i] == official[i] == dest, "PROPAGATED_SUBSET")
+        anchor = anchors[dest]
+        kind = "unknown" if len(anchor) != 1 else ("correct" if bases[i] in anchor else "wrong")
+        unchanged[kind] += 1
+        if i in replay_result["founders"]:
+            founder_counts["correct" if bases[i] == bases[replay_result["founders"][i]] else "wrong"] += 1
+        if kind == "wrong":
+            wrong_by_dest[dest].append(i)
     # Only count evidence for each anonymous class of errors. Never emit a record key.
     cases = []
     for dest, ids in wrong_by_dest.items():
         sizes = Counter(bases[i] for i, d in official.items() if d == dest)
         fp = comb(sum(sizes.values()), 2) - sum(comb(n, 2) for n in sizes.values())
+        supported = [i for i in ids if replay_result["ranks"][i]["Resolved"] == dest]
         cases.append(dict(falsePairs=fp, vetoed=sum(i in replay_result["reasons"] for i in ids),
-                          **evidence_counts(ids, replay_result["records"], official)))
+                          direct=sum(i in replay_result["new"] for i in ids),
+                          propagated=sum(i in replay_result["propagated"] for i in ids),
+                          withoutMatchingRawResolution=len(ids)-len(supported),
+                          **evidence_counts(supported, replay_result["records"], official)))
     return dict(schema="V9_DEV_POST_R1_ABSTENTION_V1", experimentalReason=VETO, baseline=baseline,
-                variant=alternate, newAssociations=counts, newAbstentions=len(replay_result["reasons"]),
+                variant=alternate, newAssociations=counts, unchangedPropagatedAssociations=unchanged,
+                propagatedFounderTruth=founder_counts, newAbstentions=len(replay_result["reasons"]),
                 nearCases=replay_result["near"], postR1States=replay_result["postR1States"],
                 unchangedR1ConflictGroups=replay_result["r1ConflictGroups"],
                 unchangedR1ConflictGroupVersions=replay_result["r1ConflictGroupVersions"],

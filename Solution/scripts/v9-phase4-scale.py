@@ -1066,6 +1066,19 @@ def safe_failure_code(mode,error):
             "SCALE_V8_OPERATIONAL_DECIMAL"):
         return value
     if re.fullmatch(r"V9_E2E_ORACLE_[A-Z0-9_]{1,96}",value):return value
+    if mode == "diagnostic":
+        # Missing JSON fields and type mismatches can carry private values.
+        # Export only the location in the versioned source at this exact SHA.
+        locations = {Path(__file__): "SCALE", Path(__file__).with_name("v9-phase4-abstention.py"): "ABSTENTION"}
+        location = None
+        tb = error.__traceback__
+        while tb is not None:
+            origin = locations.get(Path(tb.tb_frame.f_code.co_filename))
+            if origin:
+                location = f"{origin}_SOURCE_LINE_{tb.tb_lineno}"
+            tb = tb.tb_next
+        if location:
+            return location
     return "UNCLASSIFIED"
 
 def sql_failure_summary(lines):

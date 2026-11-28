@@ -1032,7 +1032,7 @@ class AbstentionExperimentTests(unittest.TestCase):
         self.census.append(dict(observationId=1, hasCpf=False, currentStatus="RESOLVIDO", currentUuid="x",
                                 currentMethod="LINKAGE_PROBABILISTICO", publicationReason="ASSOCIACAO_EXISTENTE_LINKAGE",
                                 runResult="ASSOCIACAO_EXISTENTE", publishedUuid="x"))
-        self.before = [dict(Id=r["observationId"], Current="x" if r["hasCpf"] else None,
+        self.before = [dict(Id=r["observationId"], Origin=r["observationId"], Current="x" if r["hasCpf"] else None,
                             Canonical="x" if r["hasCpf"] else None, Status="RESOLVIDO" if r["hasCpf"] else "NAO_RESOLVIDO",
                             State="REFERENCIA" if r["hasCpf"] else "PROVISORIA", Method="CPF_DETERMINISTICO" if r["hasCpf"] else "none")
                        for r in self.census]
@@ -1114,6 +1114,52 @@ class AbstentionExperimentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_replay()
         self.pairs.pop()
+        with self.assertRaises(ValueError):
+            self.run_replay()
+
+    def test_diagnostic_rejection_reports_only_the_failing_contract_or_source_line(self):
+        self.pairs.pop()
+        try:
+            self.run_replay()
+        except ValueError as error:
+            self.assertEqual(S.safe_failure_code("diagnostic", error), "V9_E2E_ORACLE_ABSTENTION_PAIR_TOTAL")
+        else:
+            self.fail("incomplete census accepted")
+        try:
+            self.a.pair_key({})
+        except KeyError as error:
+            self.assertRegex(S.safe_failure_code("diagnostic", error), r"^ABSTENTION_SOURCE_LINE_[0-9]+$")
+        else:
+            self.fail("missing source accepted")
+
+    def test_progressive_follower_preserves_the_official_link_after_leader_abstention(self):
+        self.before[-1]["Origin"] = 11
+        self.before.append(dict(self.before[-1], Id=4))
+        self.census.append(dict(self.census[-1], observationId=4,
+                                publicationReason="REFERENCIA_PROGRESSIVA_PROPAGADA_NA_ORIGEM"))
+        self.graphs.append(dict(self.graphs[-1], observationId=4))
+        self.ranks.append(dict(self.ranks[-1], Id=4))
+        self.scores += [dict(row, Source=4) for row in self.scores]
+        self.pairs += [dict(row, Source=4) for row in self.pairs]
+        self.member.update(observations=2, candidatePeople=2, secureRecords=4, goldRecordScores=4)
+        replay = self.run_replay()
+        self.assertIsNone(replay["variant"][1])
+        self.assertEqual(replay["variant"][4], "x")
+        self.assertEqual(replay["propagated"], {4: "x"})
+        truth = {i:dict(base="a" if i in (2,3) else "b") for i in (1,2,3,4)}
+        identity = dict(pairMetrics=dict(tp=2,fp=4,fn=0,truePairs=2,predictedPairs=6,recall=1,fdr=4/6),
+                        falseFusedGoldIdentities=1,splitBaseIdentities=0,resolvedVersions=4,unresolvedVersions=0)
+        result = self.a.evaluate(replay, truth, self.before, identity)
+        self.assertEqual(result["variant"]["fp"], 2)
+        self.assertEqual(result["unchangedPropagatedAssociations"]["wrong"], 1)
+        self.assertEqual(result["wrongAssociationEvidence"][0]["versions"], 2)
+        for field, value in (("publicationReason", "UNEXPECTED"), ("publishedUuid", "other")):
+            broken = self.census[-1]
+            self.census[-1] = dict(broken, **{field: value})
+            with self.assertRaises(ValueError):
+                self.run_replay()
+            self.census[-1] = broken
+        self.before[-1]["Origin"] = 12
         with self.assertRaises(ValueError):
             self.run_replay()
 
