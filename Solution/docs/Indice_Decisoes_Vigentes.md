@@ -1,3 +1,5 @@
+> **Situação em 28/11/2026.** [Medição única dos seis braços utilizada, 0/24 estados finais](Relatorio_V9_Ensaio_10k_20261125.md#medição-única-iniciada-e-interrompida-no-primeiro-full-físico). A run 46120818188/1 interrompeu o primeiro FULL com SQL 51835. Escala reprovada e comparativo inconclusivo.
+
 > **PO, 28/11/2026.** [Medição única 10k dos seis braços e estado do veto direto](Relatorio_V9_Ensaio_10k_20261125.md#autorização-da-medição-única-e-estado-do-veto-direto). Prevalece para a entrada no comparativo. A escala permanece oficialmente reprovada. O veto direto é diagnóstico, com estado oficial integral entre rodadas.
 
 > **PO, 28/11/2026.** [Comparativo operacional de seis braços, condicionado à escala](Relatorio_V9_Ensaio_10k_20261125.md#decisão-do-po-de-2811-sobre-escala-seis-braços-e-recuperação-histórica). GOV-V9-COMPARATIVO-OPERACIONAL-SEIS-BRACOS-20261128. Objetivo de verificação aprovado, limites de perda sem ratificação. Recontagem encerrada, 3.568 > 3.515. [Infraestrutura DT-15/Bronze #1947](https://github.com/lucianox777/Jornada/issues/1947).

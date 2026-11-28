@@ -533,7 +533,8 @@ internal static partial class V9Phase4Matrix
                 additions.Add(origin.Key,target);
             else if(translated[leader.Id].Status==ResolutionStatus.NAO_RESOLVIDO
                 && translated[leader.Id].Motivo?.StartsWith("SEM_CANDIDATO_",StringComparison.Ordinal)==true
-                && (experiment is null ? origin.All(x=>candidates[x.Id].Count==0) : candidates[leader.Id].Count==0))
+                && (experiment is null ? origin.All(x=>candidates[x.Id].Count==0) :
+                    ComparativeSingletonMayPublish(candidates[leader.Id].Count, origin.Select(x => translated[x.Id]))))
                 additions.Add(origin.Key,new(leader.Initial,true,"SINGLETON_FOUNDER"));
         }
         // Exactly one hypothetical founder per surviving collective identity.

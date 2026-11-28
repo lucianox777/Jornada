@@ -35,6 +35,18 @@ internal static partial class V9Phase4Matrix
         });
     }
 
+    internal static bool ComparativeSingletonMayPublish(int leaderCandidateCount,
+        IEnumerable<ProbabilisticLinkageDecision> originResults)
+    {
+        if (leaderCandidateCount != 0) return false;
+        // The installed DT-10 procedure tests persisted rank fields for every
+        // version of this origin before it permits the leader's promotion.
+        Require(originResults.All(row => row.MelhorCandidatoUuid is null &&
+            row.SegundoCandidatoUuid is null && row.PessoaUuidResolvido is null),
+            "COMPARATIVE_DT10_51835");
+        return true;
+    }
+
     internal static bool SixArmAdmitted =>
         V9DevE2EFullCommand.ScaleAdmitted && V9DevE2EFullCommand.DiagnosticPopulation == 10000 &&
         Environment.GetEnvironmentVariable("JORNADA_V9_SIX_ARM") == "7235636439" &&

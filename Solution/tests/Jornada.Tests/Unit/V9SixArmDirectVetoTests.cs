@@ -25,4 +25,22 @@ public sealed class V9SixArmDirectVetoTests
         Assert.That(V9Phase4Matrix.MatchesDirectVeto(Source with { NomeMae = null }, [a], Record), Is.False);
         Assert.That(V9Phase4Matrix.MatchesDirectVeto(Source, [], Record), Is.False);
     }
+
+    [TestCase("best")]
+    [TestCase("second")]
+    [TestCase("resolved")]
+    public void OlderVersionWithPersistedCandidateRejectsTheWholePromotion(string field)
+    {
+        var id = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var leader = new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, null, 0m,
+            null, null, null, id, "SEM_CANDIDATO_NO_RULESET_BLOCKING");
+        var older = leader with { Motivo = "ABAIXO_T_LINKAGE",
+            MelhorCandidatoUuid = field == "best" ? id : null,
+            SegundoCandidatoUuid = field == "second" ? id : null,
+            PessoaUuidResolvido = field == "resolved" ? id : null };
+        Assert.That(V9Phase4Matrix.ComparativeSingletonMayPublish(0, [leader, leader]), Is.True);
+        Assert.That((Action)(() => { V9Phase4Matrix.ComparativeSingletonMayPublish(0, [older, leader]); }),
+            Throws.TypeOf<InvalidDataException>().With.Message.EqualTo("RUNNER_V9_PHASE4_COMPARATIVE_DT10_51835"));
+    }
+
 }
