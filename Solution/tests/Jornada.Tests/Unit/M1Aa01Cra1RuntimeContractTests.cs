@@ -119,7 +119,7 @@ public sealed class M1Aa01Cra1RuntimeContractTests
             Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(json, "registros.jsonl", 1)));
             return;
         }
-        var error = Assert.Throws<InvalidDataException>((TestDelegate)(() => validator.ParseAndValidate(json, "registros.jsonl", 1)));
+        var error = Assert.Throws<InvalidDataException>((Action)(() => validator.ParseAndValidate(json, "registros.jsonl", 1)));
         Assert.That(error!.Message, Does.Contain(errorPath).And.Contain(errorRule),
             "A negative must fail at its declared field and rule, not for an unrelated reason.");
     }
@@ -131,7 +131,7 @@ public sealed class M1Aa01Cra1RuntimeContractTests
         _ = Validator(contract);
         var wrongDigest = Convert.FromHexString(SchemaHashes[contract]);
         wrongDigest[0] ^= 1;
-        Assert.Throws<InvalidOperationException>((TestDelegate)(() => new JsonSchemaValidatorCache().Get(SchemaPath(contract), wrongDigest)));
+        Assert.Throws<InvalidOperationException>((Action)(() => new JsonSchemaValidatorCache().Get(SchemaPath(contract), wrongDigest)));
     }
 
     // Diagnostic observations only: a Passed test records the measurement, not format conformance.
@@ -142,7 +142,7 @@ public sealed class M1Aa01Cra1RuntimeContractTests
     {
         var validator = Validator("CRA1");
         Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(Baseline("CRA1").ToJsonString(), "registros.jsonl", 1)));
-        Assert.Throws<InvalidDataException>((TestDelegate)(() => validator.ParseAndValidate(
+        Assert.Throws<InvalidDataException>((Action)(() => validator.ParseAndValidate(
             Changed("CRA1", "dataHoraServico", "not-a-date").ToJsonString(), "registros.jsonl", 1)));
         var actualAccepted = true;
         try { validator.ParseAndValidate(Changed("CRA1", "dataHoraServico", value).ToJsonString(), "registros.jsonl", 1); }
