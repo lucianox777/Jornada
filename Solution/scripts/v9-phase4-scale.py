@@ -921,6 +921,22 @@ def diagnostic_receipt(root):
         trace["qualityTrace"] = quality_trace(census, truth, frame["Rows"], ranks, graphs,
                                               identity, member["candidatePeople"], scores,
                                               fusion_root=root if label == "optimized10k" else None)
+        if label == "optimized10k":
+            experiment = module("abstention", "v9-phase4-abstention.py")
+            audit_inputs = ("runner-receipt.json", "sql-census.json", "matrix-frame-private.json",
+                            "scale-rank-private.json", "fn-private.json", "scale-gold-scores-private.json",
+                            "abstention-pairs-private.json", "membership-receipt.json", "actual-graph-receipt.json")
+            def input_hashes():
+                return {name: hashlib.sha256(I.read(root / name)).hexdigest() for name in audit_inputs}
+            sealed = input_hashes()
+            pairs = read_exact(root / "abstention-pairs-private.json")
+            require(pairs["attempt"] == frame["Attempt"] and pairs["runId"] == runner["runId"]
+                    and actual_graph["runId"] == runner["runId"], "ABSTENTION_PROVENANCE")
+            replay = experiment.replay(census, frame["Rows"], ranks, graphs, scores, pairs["pairs"],
+                                       member, I.PROTECTED)
+            trace["abstentionExperiment"] = experiment.evaluate(replay, truth, frame["Rows"], identity)
+            require(input_hashes() == sealed, "ABSTENTION_INPUT_MUTATION")
+            trace["abstentionExperiment"]["privateInputSha256"] = sealed
         if trace["qualityTrace"]["preFullMixedReferences"]:
             trace["qualityTrace"]["preFullCrossBasePairs"] = pre_full_cpf_pairs(root, census, truth, frame["Rows"])
     write(root/"diagnostic-receipt.json",dict(schema="V9_DEV_FULL_SCALE_DIAGNOSTIC_V1",

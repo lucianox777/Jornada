@@ -289,6 +289,35 @@ internal static class V9Phase4Matrix
         await WriteAsync(root,"matrix-frame-private.json",new Frame(attempt,rows.ToArray(),refs.ToArray(),
             sw.Elapsed.TotalMilliseconds,start,end,Environment.WorkingSet));
     }
+    // Post-publication DEV diagnostics. No truth labels or database access.
+    internal static async Task WriteAbstentionPairsAsync(string root, Guid attempt, Guid runId,
+        IReadOnlyList<V9ControlledDevCohortScorer.GoldScore> scores)
+    {
+        Admit(allowScale: true);
+        Require(V9DevE2EFullCommand.DiagnosticPopulation == 10000, "ABSTENTION_SCOPE");
+        using var doc = Read(root, "matrix-frame-private.json");
+        var frame = doc.RootElement.Deserialize<Frame>()!;
+        Require(frame.Attempt == attempt, "ABSTENTION_FRAME");
+        var observations = frame.Rows.ToDictionary(row => row.Id, row => row.Observation);
+        var pairs = scores.Select(score =>
+        {
+            var src = observations[score.Source];
+            var rec = observations[score.Record];
+            var name = CompositeNominalComparisonV9.Classify(src.NomeCompleto, rec.NomeCompleto);
+            var mother = CompositeNominalComparisonV9.Classify(src.NomeMae, rec.NomeMae);
+            var birth = src.DataNascimento.HasValue && rec.DataNascimento.HasValue
+                ? (src.DataNascimento == rec.DataNascimento ? "equal" : "different") : "missing";
+            return new {
+                score.Source, score.Record, score.Person, score.LogOdds, score.Posterior,
+                ExactFull = name == CompositeNominalLevelV9.ExactFull, Birth = birth,
+                SourceMotherPresent = BrazilianNameComponents.Project(src.NomeMae) is not null,
+                RecordMotherPresent = BrazilianNameComponents.Project(rec.NomeMae) is not null,
+                MotherExactFull = mother == CompositeNominalLevelV9.ExactFull
+            };
+        });
+        await WriteAsync(root, "abstention-pairs-private.json", new { attempt, runId, pairs });
+    }
+
     private static Ref Summary(Guid person,Row[] rows)
     {
         Require(rows.Length>0,"SUMMARY_EMPTY");

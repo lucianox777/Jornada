@@ -1021,3 +1021,112 @@ env() {
         self.assertEqual(counts["tiedSecondRows"], 1)
         self.assertEqual(labels["Best"], destinations[candidates[2]])
         self.assertEqual(labels["Second"]["destinations"], [destinations[u] for u in candidates[:2]])
+
+class AbstentionExperimentTests(unittest.TestCase):
+    def setUp(self):
+        from decimal import Decimal
+        self.a = S.module("abstention_test", "v9-phase4-abstention.py")
+        self.census = [dict(observationId=i, hasCpf=True, currentStatus="RESOLVIDO", currentUuid="x",
+                            currentMethod="CPF_DETERMINISTICO", publicationReason=None, runResult=None,
+                            publishedUuid=None) for i in (2,3)]
+        self.census.append(dict(observationId=1, hasCpf=False, currentStatus="RESOLVIDO", currentUuid="x",
+                                currentMethod="LINKAGE_PROBABILISTICO", publicationReason="ASSOCIACAO_EXISTENTE_LINKAGE",
+                                runResult="ASSOCIACAO_EXISTENTE", publishedUuid="x"))
+        self.before = [dict(Id=r["observationId"], Current="x" if r["hasCpf"] else None,
+                            Canonical="x" if r["hasCpf"] else None, Status="RESOLVIDO" if r["hasCpf"] else "NAO_RESOLVIDO",
+                            State="REFERENCIA" if r["hasCpf"] else "PROVISORIA", Method="CPF_DETERMINISTICO" if r["hasCpf"] else "none")
+                       for r in self.census]
+        self.ranks = [dict(Id=1, Best="x", Resolved="x", Status="RESOLVIDO", CandidateCount=1,
+                           ScoreableRecords=2, PeopleWithoutScoreableEvidence=0)]
+        self.graphs = [dict(observationId=1, groupRoot=1, candidates=["x"])]
+        self.scores = [dict(Source=1, Person="x", Record=i, LogOdds=Decimal("6.00000001"),
+                            Posterior=Decimal(".99")) for i in (2,3)]
+        self.pairs = [dict(s, ExactFull=True, Birth="different", SourceMotherPresent=True,
+                           RecordMotherPresent=False, MotherExactFull=False) for s in self.scores]
+        self.member = dict(observations=1, candidatePeople=1, secureRecords=2, goldRecordScores=2,
+                           independentR1DecisionVerified=True, actualGoldRecordScoresVerified=True, status="PASS")
+
+    def run_replay(self):
+        return self.a.replay(self.census, self.before, self.ranks, self.graphs, self.scores,
+                             self.pairs, self.member, S.I.PROTECTED)
+
+    def test_ties_unanimous_mixed_none_and_exact_precision(self):
+        from decimal import Decimal
+        self.assertEqual(self.run_replay()["reasons"], {1:self.a.VETO})
+        self.pairs[0]["Birth"] = "equal"
+        self.assertEqual(self.run_replay()["near"]["mixedMaximaKept"], 1)
+        self.pairs.reverse()
+        self.assertEqual(self.run_replay()["reasons"], {})
+        self.pairs[0]["Birth"] = "missing"
+        self.assertEqual(self.run_replay()["near"]["noMatchingMaximumKept"], 1)
+        self.pairs[0]["Birth"] = "different"
+        self.pairs[1]["LogOdds"] = self.scores[0]["LogOdds"] = Decimal("6.00000000")
+        self.assertEqual(self.run_replay()["reasons"], {1:self.a.VETO})
+
+    def test_each_pair_condition_is_required_on_all_maxima(self):
+        for changes in (dict(ExactFull=False), dict(Birth="equal"), dict(Birth="missing"),
+                        dict(SourceMotherPresent=False, RecordMotherPresent=True),
+                        dict(SourceMotherPresent=False, RecordMotherPresent=False),
+                        dict(RecordMotherPresent=True)):
+            with self.subTest(changes=changes):
+                original = self.pairs
+                self.pairs = [dict(row, **changes) for row in original]
+                self.assertFalse(self.run_replay()["reasons"])
+                self.pairs = original
+
+    def test_complete_candidate_universe_and_unscoreable_guard(self):
+        self.graphs[0]["candidates"].append("y")
+        self.member["candidatePeople"] = self.ranks[0]["CandidateCount"] = 2
+        self.pairs[0]["Person"] = self.scores[0]["Person"] = "y"
+        self.assertEqual(self.run_replay()["near"]["multipleCandidates"], 1)
+        for r in (self.scores[0], self.pairs[0]):
+            r.update(LogOdds=None, Posterior=None)
+        self.ranks[0].update(Status="NAO_RESOLVIDO", Resolved=None, ScoreableRecords=1, PeopleWithoutScoreableEvidence=1)
+        self.census[-1].update(currentStatus="NAO_RESOLVIDO", currentUuid=None, publishedUuid=None,
+                               publicationReason="V9_R1_INDEFINIDO_SEM_EVIDENCIA_SEGURA", runResult="INDEFINIDA")
+        self.assertIsNone(self.run_replay()["variant"][1])
+
+    def test_protected_preexisting_and_r1_conflicting_destinations(self):
+        for pre in (dict(Method="CORRECAO_GOVERNADA"),dict(Current="x"),dict(Canonical="x", State="REFERENCIA")):
+            old = self.before[-1]
+            self.before[-1] = dict(old, **pre)
+            self.assertFalse(self.run_replay()["reasons"])
+            self.before[-1] = old
+        self.census.append(dict(self.census[-1], observationId=4))
+        self.before.append(dict(self.before[-1], Id=4))
+        self.graphs.append(dict(observationId=4, groupRoot=1, candidates=["y"]))
+        self.ranks.append(dict(self.ranks[0], Id=4, Best="y", ScoreableRecords=1))
+        self.scores.append(dict(self.scores[0], Source=4, Person="y"))
+        self.pairs.append(dict(self.pairs[0], Source=4, Person="y"))
+        self.member.update(candidatePeople=2,observations=2,secureRecords=3,goldRecordScores=3)
+        for row in self.census[-2:]:
+            row.update(currentStatus="CONFLITO", currentUuid=None, publishedUuid=None,
+                       publicationReason="V9_R1_GRUPO_GOLD_CONFLITANTE", runResult="INDEFINIDA")
+        for rank in self.ranks:
+            rank.update(Status="CONFLITO", Resolved=None, Reason="V9_R1_GRUPO_GOLD_CONFLITANTE")
+        replay = self.run_replay()
+        self.assertEqual(replay["official"], replay["variant"])
+        self.assertIsNone(replay["variant"][1])
+        self.assertIsNone(replay["variant"][4])
+
+    def test_missing_or_divergent_evidence_is_rejected(self):
+        self.pairs[0]["Posterior"] = None
+        with self.assertRaises(ValueError):
+            self.run_replay()
+        self.pairs.pop()
+        with self.assertRaises(ValueError):
+            self.run_replay()
+
+    def test_denominators_include_abstentions_and_reference_is_pre_full(self):
+        truth = {i:dict(base="a") for i in (1,2,3)}
+        replay = self.run_replay()
+        identity = dict(pairMetrics=dict(tp=3,fp=0,fn=0,truePairs=3,predictedPairs=3,recall=1,fdr=0),
+                        falseFusedGoldIdentities=0,splitBaseIdentities=0,resolvedVersions=3,unresolvedVersions=0)
+        result = self.a.evaluate(replay, truth, self.before, identity)
+        self.assertEqual(result["newAssociations"]["vetoed"]["correct"], 1)
+        self.assertEqual((result["variant"]["truePairs"], result["variant"]["tp"], result["variant"]["fn"]), (3,1,2))
+        self.assertEqual(result["variant"]["intactBases"], 0)
+        self.assertEqual(result["vetoedEvidence"]["exactMaxima"], 2)
+        identity["pairMetrics"]["tp"] = 2
+        with self.assertRaises(ValueError):
+            self.a.evaluate(replay, truth, self.before, identity)

@@ -381,6 +381,9 @@ public static class V9DevE2EFullCommand
             activated = false, eligible = summary.Elegiveis, evaluated = summary.Avaliados,
             runId = summary.RunId, automaticV9Index = true
         }));
+        if (fullDiagnostic && DiagnosticPopulation == 10000)
+            await V9Phase4Matrix.WriteAbstentionPairsAsync(root, attempt, summary.RunId,
+                privateGoldScores ?? throw new InvalidDataException("RUNNER_V9_E2E_PRIVATE_GOLD_SCORE_MISSING"));
         Console.WriteLine("V9_DEV_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL");
     }
 
