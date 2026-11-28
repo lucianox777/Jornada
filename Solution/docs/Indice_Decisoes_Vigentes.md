@@ -1,3 +1,5 @@
+> **PO, 28/11/2026.** [Diagnóstico de propagação encerrado e hipótese preservada como candidata](Relatorio_V9_Ensaio_10k_20261125.md#encerramento-do-diagnóstico-e-proposta-de-avaliação-independente). Universo independente e limites de perda propostos para ratificação. Execução sujeita a decisão posterior do PO.
+
 > **PO, 28/11/2026.** [Regra de propagação e custo por origem](Relatorio_V9_Ensaio_10k_20261125.md#especificação-e-custo-por-origem-antes-da-avaliação-independente). GOV-V9-ABSTENCAO-PROPAGACAO-ORIGEM-20261128. Especificação e testes sintéticos concluídos. Avaliação independente e adoção pendentes de decisão do PO.
 
 > **PO, 27/11/2026 — AUTORIZADO A AVALIAR.** [Experimento DEV de abstenção pós-r1](Relatorio_V9_Ensaio_10k_20261125.md#avaliação-dev-de-abstenção-pós-r1--pré-registro), não publicante, hipótese única, resultado reservado ao PO. Permanecem vigentes o censo e os limites oficiais. #1851/#1940, GOV-DOC-01. [Medição 10k](Relatorio_V9_Ensaio_10k_20261125.md#medição-dev-da-abstenção-pós-r1-no-10k) concluída no corpus da hipótese. Encaminhamento ao PO, sem ativação.
