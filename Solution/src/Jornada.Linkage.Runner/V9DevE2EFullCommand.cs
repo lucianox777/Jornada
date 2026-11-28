@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Jornada.Linkage.Runner;
 
 /// <summary>Only the explicitly admitted, fresh DEV 1k attempt. No productive dispatch.</summary>
-public static class V9DevE2EFullCommand
+public static partial class V9DevE2EFullCommand
 {
     public const string Flag = "--v9-dev-full-1k";
     public const string ScaleFlag = "--v9-dev-full-10k";
@@ -47,7 +47,9 @@ public static class V9DevE2EFullCommand
     public static async Task RunAsync(string[] args)
     {
         var scale = args.Length == 2 && args[0] == ScaleFlag && ScaleAdmitted;
-        if (args.Length != 2 || (!scale && args[0] != Flag) || args[1] is not ("catalog" or "full" or "matrix")
+        var comparison = scale && V9Phase4Matrix.SixArmAdmitted &&
+            args[1] is "six-compare" or "repeat-2" or "staged-1" or "staged-2";
+        if (args.Length != 2 || (!scale && args[0] != Flag) || (!comparison && args[1] is not ("catalog" or "full" or "matrix"))
             || (scale && args[1] == "matrix")
             || Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE") != "DEV"
             || Environment.GetEnvironmentVariable("JORNADA_E2E_V9_DEV_FULL") != "true"
@@ -91,6 +93,17 @@ public static class V9DevE2EFullCommand
             command.Parameters.Add("@attempt", SqlDbType.UniqueIdentifier).Value = attempt;
             await command.ExecuteNonQueryAsync();
             Console.WriteLine("V9_E2E_CATALOG_EXECUTED");
+            return;
+        }
+
+        if (comparison)
+        {
+            stage = "six-comparison";
+            var selection = await V9ConfiguredArtifactLoader.LoadAsync(config["Linkage:V9SelectionFile"]!, CancellationToken.None);
+            if (args[1] == "six-compare")
+                await V9Phase4Matrix.CompareSixAsync(root, selection.Snapshot, attempt);
+            else
+                await ComparativeFullAsync(args[1], root, config, sql, connectionString, selection.Snapshot, boundary.Runtime.ModelId, attempt);
             return;
         }
 
@@ -162,25 +175,7 @@ public static class V9DevE2EFullCommand
                 await tx.CommitAsync();
             }
             stage = "model-staging";
-        var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, loaded.Snapshot, CancellationToken.None);
-            if (model.ModelId != boundary.Runtime.ModelId || model.Active || model.Published)
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
-            await using var anchor = new SqlCommand("""
-                INSERT identidade.modelo_linkage(
-                    modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
-                    deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
-                VALUES(@id,9,N'RASCUNHO',@algo,@normalization,
-                    N'V9_DEV_E2E_DISPOSABLE',N'IBGE_1K_DEV_AFTER_PROCESSOR',
-                    @sha,SYSDATETIMEOFFSET());
-                SELECT @@ROWCOUNT;
-                """, connection);
-            anchor.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = model.ModelId;
-            anchor.Parameters.Add("@algo", SqlDbType.NVarChar, 120).Value =
-                LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion;
-            anchor.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
-            anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = Winner;
-            if (Convert.ToInt32(await anchor.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
-                throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
+            await StageFrozenModelAsync(connection, loaded.Snapshot, boundary.Runtime.ModelId);
         }
 
         if (Environment.GetEnvironmentVariable("JORNADA_V9_PHASE4_MATRIX") == "true")
@@ -244,14 +239,7 @@ public static class V9DevE2EFullCommand
         if (Directory.Exists(storeRoot))
             throw new InvalidDataException("RUNNER_V9_DEV_E2E_ATTEMPT_REUSE");
         Directory.CreateDirectory(storeRoot);
-        var runner = new ProbabilisticLinkageBatchRunner(config, runnerSql, scorer,
-            new SqlPipelineCoordinator(runnerSql), new Dt05ReplaySql(runnerSql),
-            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
-            new Dt05CandidateStateSnapshotPublisher(runnerSql, storeRoot),
-            new Dt05BlockingProjectionSnapshotPublisher(runnerSql, storeRoot),
-            new Dt05HistoricalCandidateStateVerifier(storeRoot),
-            new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
-            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
+        var runner = CreateFullRunner(config, runnerSql, scorer, storeRoot);
         stage = "full-run";
         var request = new ProbabilisticLinkageRunRequest(
             LinkageRunType.FULL, 9, null, null, null, 100, 1, null,
@@ -386,6 +374,40 @@ public static class V9DevE2EFullCommand
                 privateGoldScores ?? throw new InvalidDataException("RUNNER_V9_E2E_PRIVATE_GOLD_SCORE_MISSING"));
         Console.WriteLine("V9_DEV_E2E_FULL_PUBLICATION_PASS_NOT_INTEGRAL");
     }
+
+    private static async Task StageFrozenModelAsync(SqlConnection connection, V9FittedSnapshot snapshot, Guid expectedModelId)
+    {
+        var model = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, snapshot, CancellationToken.None);
+        if (model.ModelId != expectedModelId || model.Active || model.Published)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_NOT_RASCUNHO");
+        await using var anchor = new SqlCommand("""
+            INSERT identidade.modelo_linkage(
+                modelo_id,versao,status,algoritmo_versao,normalizacao_versao,
+                deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
+            VALUES(@id,9,N'RASCUNHO',@algo,@normalization,
+                N'V9_DEV_E2E_DISPOSABLE',N'IBGE_1K_DEV_AFTER_PROCESSOR',
+                @sha,SYSDATETIMEOFFSET());
+            SELECT @@ROWCOUNT;
+            """, connection);
+        anchor.Parameters.Add("@id", SqlDbType.UniqueIdentifier).Value = model.ModelId;
+        anchor.Parameters.Add("@algo", SqlDbType.NVarChar, 120).Value =
+            LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion;
+        anchor.Parameters.Add("@normalization", SqlDbType.NVarChar, 80).Value = IdentityComparison.NormalizationVersion;
+        anchor.Parameters.Add("@sha", SqlDbType.Char, 64).Value = Winner;
+        if (Convert.ToInt32(await anchor.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 1)
+            throw new InvalidDataException("RUNNER_V9_DEV_E2E_MODEL_LEDGER_INVALID");
+    }
+
+    private static ProbabilisticLinkageBatchRunner CreateFullRunner(IConfiguration config,
+        IOperationalSqlAdapter runnerSql, V9ControlledDevCohortScorer scorer, string storeRoot) =>
+        new(config, runnerSql, scorer,
+            new SqlPipelineCoordinator(runnerSql), new Dt05ReplaySql(runnerSql),
+            new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(storeRoot), storeRoot),
+            new Dt05CandidateStateSnapshotPublisher(runnerSql, storeRoot),
+            new Dt05BlockingProjectionSnapshotPublisher(runnerSql, storeRoot),
+            new Dt05HistoricalCandidateStateVerifier(storeRoot),
+            new Dt05HistoricalBlockingProjectionVerifier(storeRoot),
+            NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
 
     public static void ReportFailure(Exception error)
     {

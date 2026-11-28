@@ -13,7 +13,7 @@ namespace Jornada.Linkage.Runner;
 
 /// <summary>Phase 4 only: physically authenticated inputs, isolated in-memory
 /// alternative states, frozen scorer/complete-link/r1. No mutation API.</summary>
-internal static class V9Phase4Matrix
+internal static partial class V9Phase4Matrix
 {
     private const string Sem = "V9_R1_INDEFINIDO_SEM_INDICIO";
     private const string Ind = "V9_R1_INDEFINIDO_COM_INDICIO";
@@ -359,23 +359,28 @@ internal static class V9Phase4Matrix
     // candidate membership is rechecked for every baseline source below.
     private static Func<HashSet<BlockingProjectionKey>,Guid[]> Lookup(
         Dictionary<Guid,IndexEntry> index,IReadOnlyList<LinkageBlockingPass> passes)
+        => Lookup(index.Select(x => (x.Key, x.Value.Keys)), passes);
+
+    private static Func<HashSet<BlockingProjectionKey>,T[]> Lookup<T>(
+        IEnumerable<(T Id,HashSet<BlockingProjectionKey> Keys)> entries,
+        IReadOnlyList<LinkageBlockingPass> passes) where T : notnull
     {
-        var byKey=new Dictionary<BlockingProjectionKey,HashSet<Guid>>();
-        foreach(var (person,entry) in index)
-        foreach(var key in entry.Keys)
+        var byKey=new Dictionary<BlockingProjectionKey,HashSet<T>>();
+        foreach(var (person,keys) in entries)
+        foreach(var key in keys)
         {
-            if(!byKey.TryGetValue(key,out var people))byKey.Add(key,people=new HashSet<Guid>());
+            if(!byKey.TryGetValue(key,out var people))byKey.Add(key,people=new HashSet<T>());
             people.Add(person);
         }
         return source=>
         {
-            var result=new HashSet<Guid>();
+            var result=new HashSet<T>();
             foreach(var pass in passes)
             {
-                HashSet<Guid>? hits=null;
+                HashSet<T>? hits=null;
                 foreach(var field in pass.Fields)
                 {
-                    var fieldHits=new HashSet<Guid>();
+                    var fieldHits=new HashSet<T>();
                     foreach(var key in source.Where(k=>k.Feature==field))
                         if(byKey.TryGetValue(key,out var values))fieldHits.UnionWith(values);
                     if(hits is null)hits=fieldHits;else hits.IntersectWith(fieldHits);
@@ -386,17 +391,28 @@ internal static class V9Phase4Matrix
             return result.OrderBy(x=>x).ToArray();
         };
     }
-    private static CellGraph Graph(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible)
+    private static CellGraph Graph(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible,bool indexedSilver=false)
     {
         var sw=Stopwatch.StartNew();
         var pending=visible.Where(x=>!x.HasCpf).OrderBy(x=>x.Id).ToArray();
         var keys=pending.ToDictionary(x=>x.Id,x=>Keys(planner,x.Observation));
         var passes=winner.Payload.BlockingPasses;
         var edges=new List<(int A,int B)>();
-        for(var i=0;i<pending.Length;i++)
-        for(var j=i+1;j<pending.Length;j++)
-            if(pending[i].Manager!=pending[j].Manager&&V9DevE2EFirstFullMembershipOracle.MatchesAnyPass(keys[pending[i].Id],keys[pending[j].Id],passes))
-                edges.Add((i+1,j+1));
+        if (indexedSilver)
+        {
+            var lookup = Lookup(pending.Select((row, index) => (index, keys[row.Id])), passes);
+            for (var i = 0; i < pending.Length; i++)
+                foreach (var j in lookup(keys[pending[i].Id]))
+                    if (j > i && pending[i].Manager != pending[j].Manager)
+                        edges.Add((i + 1, j + 1));
+        }
+        else
+        {
+            for(var i=0;i<pending.Length;i++)
+            for(var j=i+1;j<pending.Length;j++)
+                if(pending[i].Manager!=pending[j].Manager&&V9DevE2EFirstFullMembershipOracle.MatchesAnyPass(keys[pending[i].Id],keys[pending[j].Id],passes))
+                    edges.Add((i+1,j+1));
+        }
         var cohort=pending.Select((x,i)=>new V9PhysicalCalibrationObservation(i+1,"DEV_UNLABELED_"+(i+1),"DEV",x.Manager,
             x.Observation.NomeCompleto,x.Observation.NomeMae,x.Observation.DataNascimento)).ToArray();
         IReadOnlyList<V9DevDirectionalScore>? dirs=null;
@@ -414,7 +430,7 @@ internal static class V9Phase4Matrix
     }
     private static RoundResult Round(V9FittedSnapshot winner,V9FittedSnapshotExecutionRuntime planner,Row[] visible,
         CellGraph graph,Dictionary<long,Link> links,string trajectory,string s4b,string evidence,string prior,string policy,string blocking,
-        JsonElement? physical,JsonElement? diagnostic,JsonElement? actualGraph)
+        JsonElement? physical,JsonElement? diagnostic,JsonElement? actualGraph, ComparativeRound? experiment=null)
     {
         var sw=Stopwatch.StartNew();var samples=new List<object>();
         void Sample(string phase)=>samples.Add(new {phase,ms=sw.Elapsed.TotalMilliseconds,workingSetBytes=Environment.WorkingSet,managedBytes=GC.GetTotalMemory(false)});
@@ -437,6 +453,8 @@ internal static class V9Phase4Matrix
         var established=graph.Pending.Where(x=>links.ContainsKey(x.Origin)).ToDictionary(x=>x.Id,x=>links[x.Origin].Person);
         var metadata=new Dictionary<long,(int Fs,int Candidates,int SecureCandidates,int PriorCount,int Only)>();
         var physicalScores=physical.HasValue?new List<V9ControlledDevCohortScorer.GoldScore>():null;
+        var rowsById = experiment is null ? null : visible.ToDictionary(row => row.Id);
+        var vetoEvidence = new HashSet<long>();
         foreach(var row in graph.Pending)
         {
             var key=graph.Keys[row.Id];
@@ -457,7 +475,14 @@ internal static class V9Phase4Matrix
                         r.Observation.DataNascimento,r.Observation.NomeMae)));
             }
             var scored=V9ControlledDevSecureEvidenceScore.Score(winner,model,row.Observation,people,records,
-                observe:physicalScores is null?null:values=>physicalScores.AddRange(values.Select(v=>new V9ControlledDevCohortScorer.GoldScore(row.Id,v.ObservationId,v.Person,v.Posterior,v.LogOdds))));
+                observe:physicalScores is null && experiment is null ? null : values =>
+                {
+                    physicalScores?.AddRange(values.Select(v => new V9ControlledDevCohortScorer.GoldScore(
+                        row.Id, v.ObservationId, v.Person, v.Posterior, v.LogOdds)));
+                    if (experiment is not null && people.Length == 1 &&
+                        MatchesDirectVeto(row.Observation, values, id => rowsById![id].Observation))
+                        vetoEvidence.Add(row.Id);
+                });
             raw.Add(row.Id,scored.Decision);
             metadata.Add(row.Id,((int)scored.EvidenceReceipt.ComparedRecords,people.Length,restricted.Length,
                 prior=="records"?records.Count:people.Length,broad.Except(restricted).Count()));
@@ -508,7 +533,7 @@ internal static class V9Phase4Matrix
                 additions.Add(origin.Key,target);
             else if(translated[leader.Id].Status==ResolutionStatus.NAO_RESOLVIDO
                 && translated[leader.Id].Motivo?.StartsWith("SEM_CANDIDATO_",StringComparison.Ordinal)==true
-                && origin.All(x=>candidates[x.Id].Count==0))
+                && (experiment is null ? origin.All(x=>candidates[x.Id].Count==0) : candidates[leader.Id].Count==0))
                 additions.Add(origin.Key,new(leader.Initial,true,"SINGLETON_FOUNDER"));
         }
         // Exactly one hypothetical founder per surviving collective identity.
@@ -516,6 +541,38 @@ internal static class V9Phase4Matrix
         {
             var origin=group.Min(x=>x.Key);
             additions[origin]=additions[origin] with {Secure=true,Method="S4B_HYPOTHETICAL_FOUNDER"};
+        }
+        var masked = new HashSet<long>();
+        if (experiment is not null)
+        {
+            foreach (var origin in graph.Pending.GroupBy(row => row.Origin))
+            {
+                if (!additions.TryGetValue(origin.Key, out var added))
+                    continue;
+                var leader = origin.OrderByDescending(row => row.Version).ThenByDescending(row => row.Id).First();
+                var evidenceIds = allIndex.TryGetValue(added.Person, out var entry)
+                    ? entry.Secure.Select(row => row.Id).ToArray() : Array.Empty<long>();
+                experiment.NewLinks.Add(new(leader.Id, added.Person, added.Method,
+                    origin.Select(row => row.Id).ToArray(), evidenceIds));
+                if (added.Method != "FS_ASSOCIATION" || !vetoEvidence.Contains(leader.Id))
+                    continue;
+                Require(!links.ContainsKey(origin.Key) && origin.All(row => !row.HasCpf &&
+                    row.Current is null && row.Canonical is null && row.State != "REFERENCIA") &&
+                    translated[leader.Id].Status == ResolutionStatus.RESOLVIDO &&
+                    raw[leader.Id].PessoaUuidResolvido == added.Person && raw[leader.Id].MelhorCandidatoUuid == added.Person &&
+                    candidates[leader.Id].Single().PessoaUuid == added.Person, "VETO_AUTHORITY");
+                experiment.EligibleLeaders.Add(leader.Id);
+                if (experiment.Mode == VetoMode.None) continue;
+                masked.Add(leader.Id);
+                if (experiment.Mode == VetoMode.Origin)
+                {
+                    // This is a NEW origin reference. Its only publication ground is this DT-10 leader.
+                    // Existing and protected references were excluded before additions were constructed.
+                    additions.Remove(origin.Key);
+                    foreach (var row in origin.Where(row => row.Id != leader.Id))
+                        experiment.SuppressedFollowers.Add(row.Id);
+                }
+            }
         }
         foreach(var x in additions)links.Add(x.Key,x.Value);
         Sample("project");
@@ -539,6 +596,17 @@ internal static class V9Phase4Matrix
             {
                 var a=actual[x.Id];return x.Person==(a.GetProperty("currentStatus").GetString()=="RESOLVIDO"?a.GetProperty("currentUuid").GetGuid():(Guid?)null);
             }),"BASELINE_PUBLICATION");
+        }
+        if (experiment is not null)
+        {
+            experiment.State = output.ToDictionary(row => row.Id, row => row.Person);
+            for (var i = 0; i < output.Length; i++)
+            {
+                var row = output[i];
+                if (masked.Contains(row.Id) || experiment.SuppressedFollowers.Contains(row.Id))
+                    output[i] = row with { Person = null, Method = "VETO", EffectiveReason =
+                        masked.Contains(row.Id) ? "VETO_DEV_POS_R1" : "VETO_DEV_PROPAGACAO_EXCLUSIVA" };
+            }
         }
         var keyBytes=chosen.Sum(x=>x.Value.Keys.Sum(k=>16L+Encoding.UTF8.GetByteCount(k.Feature)+Encoding.UTF8.GetByteCount(k.Value)+2));
         Sample("complete");

@@ -391,7 +391,8 @@ jobs:
           set -euo pipefail
           [[ "$JORNADA_V9_FULL_DIAGNOSTIC" == true && "$JORNADA_V9_CENSUS_DIAGNOSTIC" == true ]]
           [[ "$JORNADA_V9_PHASE4_SCALE:$JORNADA_E2E_HTTP_VOLUME_COUNT:$SCALE_SEED:$SCALE_ERROR" == optimized10k:10000:355:clean ]]
-      - name: Admit only owner-controlled exact repository commit for FULL 10k
+      - &six_admission
+        name: Admit only owner-controlled exact repository commit for FULL 10k
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_REPO: ${{ github.event.pull_request.head.repo.full_name }}
@@ -404,11 +405,13 @@ jobs:
           [[ "$GITHUB_ACTOR" == "$GITHUB_REPOSITORY_OWNER" && "$GITHUB_TRIGGERING_ACTOR" == "$GITHUB_REPOSITORY_OWNER" ]]
           [[ "$PR_REPO" == "$GITHUB_REPOSITORY" && "$PR_AUTHOR" == "$GITHUB_REPOSITORY_OWNER" ]]
           [[ "$PR_SHA" =~ ^[0-9a-f]{40}$ ]]
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - &six_checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Bind exact FULL 10k SHA and private root
+      - &six_bind
+        name: Bind exact FULL 10k SHA and private root
         env:
           EXPECTED: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -428,7 +431,8 @@ jobs:
             echo "Linkage__V9SelectionFile=$private/selection/selection.json"
             echo "JORNADA_E2E_EXACT_SHA=$EXPECTED"
           } >> "$GITHUB_ENV"
-      - name: Preserve the workflow-wide six-hour deadline for FULL 10k
+      - &six_deadline
+        name: Preserve the workflow-wide six-hour deadline for FULL 10k
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -442,10 +446,12 @@ jobs:
           if time.time()>=deadline-300:raise SystemExit("V9_SCALE_TIME_BUDGET")
           with open(os.environ["GITHUB_ENV"],"a") as f:f.write("JORNADA_PHASE4_DEADLINE_UNIX="+str(deadline)+"\n")
           PY
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+      - &six_dotnet
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
-      - name: Download and verify only the approved campaign 38 artifact for FULL 10k
+      - &six_custody
+        name: Download and verify only the approved campaign 38 artifact for FULL 10k
         working-directory: Solution
         env:
           GH_TOKEN: ${{ github.token }}
@@ -453,13 +459,15 @@ jobs:
           set -euo pipefail
           umask 077
           python3 scripts/v9-winner38-custody.py runner
-      - name: Restore and build exact FULL 10k commit
+      - &six_build
+        name: Restore and build exact FULL 10k commit
         working-directory: Solution
         run: |
           set -euo pipefail
           ./scripts/nuget-lock-bootstrap.sh
           dotnet build Jornada.sln --no-restore -c Release -warnaserror
-      - name: Prove the deterministic FULL 10k gate before execution
+      - &six_counter_tests
+        name: Prove the deterministic FULL 10k gate before execution
         working-directory: Solution
         run: |
           set -euo pipefail
@@ -484,9 +492,11 @@ jobs:
           cp "$root/fixture/delivery-preflight-receipt.json" "$root/wave-preflight-receipt.json"
           cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
           cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
-      - name: Launch isolated SQL Server for FULL 10k
+      - &six_sql
+        name: Launch isolated SQL Server for FULL 10k
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
-      - name: Create fresh V3 schema for FULL 10k
+      - &six_schema
+        name: Create fresh V3 schema for FULL 10k
         working-directory: Solution
         run: |
           set -euo pipefail
@@ -567,7 +577,8 @@ jobs:
           path: ${{ runner.temp }}/v9-scale-resource-receipt.json
           if-no-files-found: ignore
           retention-days: 30
-      - name: Dispose FULL 10k attempt resources
+      - &six_cleanup
+        name: Dispose FULL 10k attempt resources
         if: always()
         run: |
           set -euo pipefail
@@ -578,3 +589,97 @@ jobs:
           if [[ -n "${JORNADA_V9_DEV_ATTEMPT:-}" && "${JORNADA_V9_E2E_PRIVATE_ROOT:-}" == "$RUNNER_TEMP/jornada-v9-e2e-$JORNADA_V9_DEV_ATTEMPT" ]]; then
             rm -rf -- "$JORNADA_V9_E2E_PRIVATE_ROOT"
           fi
+
+  six-arm-verification:
+    needs: [audit-curve, full10k-confirmation]
+    if: >-
+      ${{ !cancelled() && needs.audit-curve.result == 'success' &&
+      (needs.full10k-confirmation.result == 'success' || needs.full10k-confirmation.result == 'failure') &&
+      github.event.number == 1940 && github.event.action == 'synchronize' &&
+      github.event.before == 'a651d6fa2cf434bcce08187528fb0211dd4f0fac' && github.run_attempt == '1' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      JORNADA_V9_CENSUS_DIAGNOSTIC: 'true'
+      JORNADA_V9_FULL_DIAGNOSTIC: 'true'
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      JORNADA_E2E_V9_DEV_FULL: 'true'
+      JORNADA_E2E_HTTP_VOLUME_COUNT: '10000'
+      JORNADA_V9_PHASE4_SCALE: optimized10k
+      JORNADA_V9_PHASE4_MATRIX: 'true'
+      SCALE_SEED: '85229684'
+      JORNADA_V9_SIX_ARM: '7235636439'
+      SCALE_ERROR: clean
+      JORNADA_E2E_IBGE_1K: 'true'
+      Linkage__SelectedModelVersion: '9'
+      Linkage__V9BlockingMaintenance__Enabled: 'true'
+      Linkage__V9BlockingMaintenance__DiagnosticLegacyFixture: 'false'
+      LinkageReplay__CaptureBronzeSources: 'false'
+    steps:
+      - *six_admission
+      - *six_checkout
+      - *six_bind
+      - *six_deadline
+      - name: Verify the official FULL collection for this SHA before the one-time measurement
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: v9-full10k-confirmation-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/v9-six-arm-predecessor
+      - name: Check preceding gates, decision, generator and reference data
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-six-arm-comparison.py admit --root "$JORNADA_V9_E2E_PRIVATE_ROOT"
+          evidence="$RUNNER_TEMP/v9-six-arm-predecessor/v9-full10k-evidence"
+          jq -e --arg sha "$JORNADA_E2E_EXACT_SHA" '.commit==$sha and .fullCompleted==true and .independentMembershipVerified==true and .profile=="optimized10k" and .population==10000 and (.identityCensusStatus=="PASS" or .identityCensusStatus=="FAIL")' "$evidence/diagnostic-receipt.json" >/dev/null
+          jq -e '.status=="PASS" and .independentR1DecisionVerified==true and .actualGoldRecordScoresVerified==true' "$evidence/membership-receipt.json" >/dev/null
+      - *six_dotnet
+      - *six_custody
+      - *six_build
+      - *six_counter_tests
+      - name: Verify state, exact ties and control-census scope on directed fixtures
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/scripts/test_v9_origin_veto.py tests/scripts/test_v9_six_arm_comparison.py
+          dotnet test --no-build -c Release tests/Jornada.Tests --filter FullyQualifiedName~V9SixArmDirectVetoTests
+      - name: Generate and seal the single independent cohort
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$JORNADA_V9_E2E_PRIVATE_ROOT"
+          mkdir -m 700 "$root/fixture"
+          JORNADA_SYNTH_PSEUDONYMIZATION_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')" \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate-ingestion-waves \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --people "$JORNADA_E2E_HTTP_VOLUME_COUNT" --seed "$SCALE_SEED" --error-profile "$SCALE_ERROR" --gestores 4 \
+            --wave-count 2 --wave-delayed-arrival-rate 0 --wave-cpf-reveal-rate 0 \
+            --wave-name-correction-rate 1 --wave-mother-correction-rate 1 --wave-birth-recovery-rate 1 \
+            --data-referencia 2026-11-22T00:00:00+00:00 --out "$root/fixture" >"$root/generator.log" 2>&1 || { echo V9_SCALE_GENERATOR_FAILED; exit 1; }
+          python3 scripts/v9-six-arm-comparison.py preflight --root "$root"
+          python3 scripts/v9-e2e-1k-catalog-seed.py --seed database/Jornada_Seed_Dev.sql --output "$root/catalog.sql"
+          cp scripts/v9-e2e-1k-identity-census.sql "$root/census.sql"
+          cp scripts/v9-six-arm-round-census.sql "$root/comparative-census.sql"
+          cp scripts/v9-phase4-identity-census.sql "$root/scale-census.sql"
+      - *six_sql
+      - *six_schema
+      - name: Measure the independent trajectories under the existing resource watchdog
+        working-directory: Solution
+        run: python3 scripts/v9-phase4-scale-guard.py --root "$JORNADA_V9_E2E_PRIVATE_ROOT" -- bash scripts/v9-six-arm-execute.sh
+      - name: Preserve sanitized experimental results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-six-arm-7235636439-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/v9-six-arm-receipt.json
+            ${{ runner.temp }}/v9-six-arm-seal.json
+            ${{ runner.temp }}/v9-six-arm-control-*.json
+            ${{ runner.temp }}/v9-scale-resource-receipt.json
+          retention-days: 30
+          if-no-files-found: warn
+      - *six_cleanup

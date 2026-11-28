@@ -79,7 +79,7 @@ def sql_scalar(query, attempt):
     return lines[0]
 
 
-def ingest(root, attempt, population=1000):
+def ingest(root, attempt, population=1000, *, after_wave=None, receipt_dir=None):
     scale_profile = os.environ.get('JORNADA_V9_PHASE4_SCALE')
     allowed_scale_profiles = ({f'diagnostic{population//1000}k', f'optimized{population//1000}k'}
                               if population in (2000, 4000) else
@@ -170,15 +170,18 @@ def ingest(root, attempt, population=1000):
             observed += expected
             deliveries += 1
             # Rate-limit bucket is scoped per credential. No raw response is logged.
+        if after_wave is not None:
+            after_wave(wave, observed)
     require(observed == pre["sourceVersions"]
             and int(sql_scalar("SELECT COUNT_BIG(*) FROM silver.pessoa_observacao;", attempt)) == observed,
             "SILVER_COMPLETE_CENSUS_DIVERGENCE")
     require(len({x["deliveryId"] for x in delivery_rows}) == deliveries
             and int(sql_scalar("SELECT COUNT_BIG(*) FROM ingestao.entrega;", attempt)) == deliveries,
             "HTTP_DELIVERY_IDEMPOTENCY_CENSUS")
-    with (root / "deliveries-private.json").open("x", encoding="utf-8") as output:
+    destination = root if receipt_dir is None else receipt_dir
+    with (destination / "deliveries-private.json").open("x", encoding="utf-8") as output:
         json.dump(delivery_rows, output)
-    with (root / "http-lineage.json").open("x", encoding="utf-8") as output:
+    with (destination / "http-lineage.json").open("x", encoding="utf-8") as output:
         json.dump({"schema": "V9_E2E_1K_HTTP_LINEAGE_V1", "status": "PASS",
                    "attempt": str(attempt), "sourceVersions": observed, "deliveries": deliveries,
                    "sameKeyReplayDeliveries": deliveries,

@@ -226,37 +226,44 @@ repeat_full_from_pair() {
   )
 }
 
-run_cli catalog
-echo 'V9_E2E_CATALOG_EXECUTED'
-contracts="$PWD/config/contracts/gestores/SEHAB"
-support="$PWD/tests/fixtures/external-contracts/gestores/SEHAB"
-if [[ -e "$contracts" ]]; then diff -qr "$support" "$contracts" >/dev/null; else cp -R "$support" "$contracts"; fi
-export ASPNETCORE_URLS=http://127.0.0.1:5088
-export BronzeStorage__Provider=FileSystem
-export BronzeStorage__RootPath="$root/bronze"
-export IngestionStaging__RootPath="$root/staging"
-export Processor__PollingMilliseconds=100
-export SemiblindIdentitySearch__Enabled=false
-dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Api >"$root/api.log" 2>&1 & api=$!
-dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Processor.Worker >"$root/processor.log" 2>&1 & worker=$!
-ASPNETCORE_URLS=http://127.0.0.1:5089 JornadaApiBaseUrl=http://127.0.0.1:5088 dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Resultado.Api >"$root/resultado.log" 2>&1 & resultado=$!
 stop_apps() {
   kill "$worker" "$api" "$resultado" 2>/dev/null || true
   wait "$worker" "$api" "$resultado" 2>/dev/null || true
 }
-trap stop_apps EXIT
-ready=0
-for _ in $(seq 1 120); do
-  if curl --silent --fail --output "$root/ready.json" http://127.0.0.1:5088/health/ready; then ready=1; break; fi
-  sleep 1
-done
-[[ "$ready" == 1 ]] || { echo 'V9_E2E_API_READINESS_FAILED'; exit 1; }
-ready=0
-for _ in $(seq 1 60); do
-  if curl --silent --fail --output "$root/resultado-ready.json" http://127.0.0.1:5089/health; then ready=1; break; fi
-  sleep 1
-done
-[[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
+
+start_apps() {
+  contracts="$PWD/config/contracts/gestores/SEHAB"
+  support="$PWD/tests/fixtures/external-contracts/gestores/SEHAB"
+  if [[ -e "$contracts" ]]; then diff -qr "$support" "$contracts" >/dev/null; else cp -R "$support" "$contracts"; fi
+  export ASPNETCORE_URLS=http://127.0.0.1:5088
+  export BronzeStorage__Provider=FileSystem
+  export BronzeStorage__RootPath="${1:-$root}/bronze"
+  export IngestionStaging__RootPath="${1:-$root}/staging"
+  export Processor__PollingMilliseconds=100
+  export SemiblindIdentitySearch__Enabled=false
+  dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Api >"$root/api.log" 2>&1 & api=$!
+  dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Processor.Worker >"$root/processor.log" 2>&1 & worker=$!
+  ASPNETCORE_URLS=http://127.0.0.1:5089 JornadaApiBaseUrl=http://127.0.0.1:5088 dotnet run --no-build -c Release --no-launch-profile --project src/Jornada.Resultado.Api >"$root/resultado.log" 2>&1 & resultado=$!
+  trap stop_apps EXIT
+  ready=0
+  for _ in $(seq 1 120); do
+    if curl --silent --fail --output "$root/ready.json" http://127.0.0.1:5088/health/ready; then ready=1; break; fi
+    sleep 1
+  done
+  [[ "$ready" == 1 ]] || { echo 'V9_E2E_API_READINESS_FAILED'; exit 1; }
+  ready=0
+  for _ in $(seq 1 60); do
+    if curl --silent --fail --output "$root/resultado-ready.json" http://127.0.0.1:5089/health; then ready=1; break; fi
+    sleep 1
+  done
+  [[ "$ready" == 1 ]] || { echo 'V9_E2E_RESULTADO_READINESS_FAILED'; exit 1; }
+}
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
+
+run_cli catalog
+echo 'V9_E2E_CATALOG_EXECUTED'
+start_apps
 /usr/bin/time -f '%e' -o "$root/ingest-elapsed.txt" \
   python3 scripts/v9-phase4-scale.py ingest --root "$root/fixture"
 cp "$root/fixture/http-lineage.json" "$root/http-lineage.json"

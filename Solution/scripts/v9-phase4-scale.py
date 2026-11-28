@@ -31,7 +31,10 @@ def write(path,x):
     with path.open("x",encoding="utf-8") as f:json.dump(x,f,sort_keys=True,allow_nan=False)
 def read(path):return I.load(I.read(path))
 def preflight(root):
-    label,(n,seed,error)=profile()
+    label,settings=profile()
+    preflight_inputs(root,label,*settings)
+
+def preflight_inputs(root,label,n,seed,error):
     # Only this isolated process broadens bounded fixture parsing; 1k defaults untouched.
     W.BRIDGE.PEOPLE=n;W.BRIDGE.SEED=seed
     W.BRIDGE.MAX_SOURCE_CSV_BYTES=128*1024*1024
